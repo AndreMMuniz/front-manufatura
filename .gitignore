@@ -90,3 +90,6 @@ skills/
 skill/
 *.skill.*
 SKILL.md
+
+# Engram AI agent memory
+.engram/
