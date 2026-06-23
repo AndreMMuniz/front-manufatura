@@ -65,6 +65,12 @@ dev-debug.log
 .taskmaster/
 memories/
 .mcp.json
+.bmad/
+bmad/
+_bmad/
+_bmad-output/
+**/_bmad/
+**/_bmad-output/
 
 # OpenCode configuration
 opencode.json
