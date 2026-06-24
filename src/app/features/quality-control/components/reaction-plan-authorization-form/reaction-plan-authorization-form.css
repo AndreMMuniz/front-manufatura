@@ -1,0 +1,25 @@
+.reaction-plan-authorization-form {
+  background: #fff8e1;
+  border: 1px solid #f2c94c;
+  border-radius: 4px;
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.reaction-plan-authorization-form h3,
+.reaction-plan-authorization-form p {
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .reaction-plan-authorization-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .reaction-plan-authorization-form h3,
+  .reaction-plan-authorization-form p {
+    grid-column: 1 / -1;
+  }
+}

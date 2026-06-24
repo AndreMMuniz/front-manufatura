@@ -1,0 +1,16 @@
+<div class="save-inspection-actions">
+  <po-button
+    p-label="Salvar apontamento"
+    p-kind="primary"
+    [p-disabled]="!canSaveInspection"
+    (p-click)="inspectionSaved.emit()"
+  ></po-button>
+
+  @if (!canSaveInspection) {
+    <p>{{ blockReason }}</p>
+  }
+
+  @if (saveFeedback) {
+    <p class="save-inspection-actions__feedback">{{ saveFeedback }}</p>
+  }
+</div>

@@ -1,0 +1,56 @@
+<po-widget class="quality-exam-card" [p-title]="exam().code + ' - ' + exam().description">
+  <dl class="quality-exam-card__header" aria-label="Dados do exame">
+    <div>
+      <dt>Versao</dt>
+      <dd>{{ exam().version }}</dd>
+    </div>
+
+    <div>
+      <dt>Frequencia</dt>
+      <dd>{{ exam().frequency }}</dd>
+    </div>
+
+    <div>
+      <dt>Unidade</dt>
+      <dd>{{ exam().unit }}</dd>
+    </div>
+
+    <div>
+      <dt>NQA</dt>
+      <dd>{{ exam().nqa }}</dd>
+    </div>
+
+    <div>
+      <dt>Nivel</dt>
+      <dd>{{ exam().level }}</dd>
+    </div>
+  </dl>
+
+  <div class="quality-exam-card__components" aria-label="Componentes do exame">
+    @for (component of exam().components; track component.id) {
+      <article class="quality-exam-card__component">
+        <div>
+          <strong>{{ component.code }} - {{ component.description }}</strong>
+          <span>Referencia: {{ component.reference }}</span>
+          @if (component.measuredValue !== undefined) {
+            <span>Valor medido: {{ component.measuredValue }} {{ component.unit }}</span>
+          }
+          @if (component.authorization) {
+            <span>Autorizado por: {{ component.authorization.supervisorId }}</span>
+          }
+        </div>
+
+        <div class="quality-exam-card__component-actions">
+          <span class="quality-exam-card__status" [class]="'quality-exam-card__status quality-exam-card__status--' + component.status.toLowerCase()">
+            {{ component.status }}
+          </span>
+          <po-button
+            p-label="Digitar medicao"
+            p-kind="secondary"
+            (p-click)="selectComponent(component)"
+          ></po-button>
+        </div>
+      </article>
+    }
+  </div>
+</po-widget>

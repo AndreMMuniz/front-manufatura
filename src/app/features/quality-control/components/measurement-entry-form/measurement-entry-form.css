@@ -1,0 +1,43 @@
+.measurement-entry-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.measurement-entry-form h3 {
+  margin: 0;
+}
+
+.measurement-entry-form__details {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.measurement-entry-form__details dt {
+  font-weight: 700;
+}
+
+.measurement-entry-form__details dd {
+  margin: 0;
+}
+
+.measurement-entry-form__feedback {
+  font-weight: 700;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .measurement-entry-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .measurement-entry-form h3,
+  .measurement-entry-form__details,
+  .measurement-entry-form__feedback {
+    grid-column: 1 / -1;
+  }
+
+  .measurement-entry-form__details {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

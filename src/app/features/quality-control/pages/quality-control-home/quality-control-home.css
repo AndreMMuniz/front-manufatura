@@ -1,0 +1,21 @@
+.quality-control-home {
+  max-width: 760px;
+}
+
+.quality-control-home__measurement-card {
+  display: block;
+  margin-top: 1rem;
+}
+
+.quality-control-home__next-step {
+  font-weight: 600;
+  margin-top: 1rem;
+}
+
+.quality-control-home__authorization-feedback {
+  background: #dff3e7;
+  border-left: 4px solid #0f6b2f;
+  font-weight: 700;
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+}

@@ -1,18 +1,19 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
+import { Router, RouterOutlet } from '@angular/router';
 
 import { PoMenuItem, PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, PoToolbarModule, PoMenuModule, PoPageModule],
+  imports: [CommonModule, RouterOutlet, PoToolbarModule, PoMenuModule, PoPageModule],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
 })
 export class App {
-  readonly menus: Array<PoMenuItem> = [{ label: 'Home', action: this.onClick.bind(this) }];
+  readonly menus: Array<PoMenuItem> = [
+    { label: 'Plano Controle CQ', action: () => this.router.navigate(['/quality-control']) },
+  ];
 
-  private onClick() {
-    globalThis.alert('Clicked in menu item');
-  }
+  constructor(private readonly router: Router) {}
 }

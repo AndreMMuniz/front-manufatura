@@ -1,0 +1,34 @@
+<form class="route-lookup-form" (ngSubmit)="routeGenerated.emit()">
+  <po-input
+    name="opNumber"
+    p-label="Ordem de Producao"
+    p-placeholder="Ex.: 372635"
+    p-required="true"
+    [ngModel]="opNumber"
+    (ngModelChange)="opNumberChange.emit($event)"
+  ></po-input>
+
+  <po-input
+    name="operationCode"
+    p-label="Operacao"
+    p-placeholder="Ex.: 10"
+    p-required="true"
+    [ngModel]="operationCode"
+    (ngModelChange)="operationCodeChange.emit($event)"
+  ></po-input>
+
+  <po-input
+    name="split"
+    p-label="Split"
+    p-placeholder="Ex.: 1"
+    [ngModel]="split"
+    (ngModelChange)="splitChange.emit($event)"
+  ></po-input>
+
+  <po-button
+    p-label="Gerar roteiro"
+    p-kind="primary"
+    p-type="submit"
+    [p-disabled]="!canGenerateRoute"
+  ></po-button>
+</form>

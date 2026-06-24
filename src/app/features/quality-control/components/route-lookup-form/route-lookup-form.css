@@ -1,0 +1,12 @@
+.route-lookup-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .route-lookup-form {
+    align-items: end;
+    grid-template-columns: 2fr 1fr 1fr auto;
+  }
+}

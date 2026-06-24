@@ -1,0 +1,69 @@
+.quality-exam-card {
+  display: block;
+  margin-top: 1rem;
+}
+
+.quality-exam-card__header {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.quality-exam-card__header dt {
+  font-weight: 700;
+}
+
+.quality-exam-card__header dd {
+  margin: 0;
+}
+
+.quality-exam-card__components {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quality-exam-card__component {
+  align-items: flex-start;
+  border: 1px solid var(--color-neutral-light-90);
+  border-radius: 4px;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem;
+}
+
+.quality-exam-card__component div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.quality-exam-card__component-actions {
+  align-items: flex-end;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: end;
+}
+
+.quality-exam-card__status {
+  background: var(--color-neutral-light-90);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.75rem;
+}
+
+.quality-exam-card__status--approved {
+  background: #dff3e7;
+  color: #0f6b2f;
+}
+
+.quality-exam-card__status--rejected {
+  background: #fde7e7;
+  color: #9f1c1c;
+}
+
+@media (min-width: 768px) {
+  .quality-exam-card__header {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}

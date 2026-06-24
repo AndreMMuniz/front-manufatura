@@ -1,0 +1,65 @@
+<po-page-default p-title="Plano Controle CQ">
+  <section class="quality-control-home">
+    <po-widget p-title="Apontamento do Plano de Controle da Qualidade">
+      <p>
+        Registre eletronicamente os resultados dos exames de qualidade vinculados a OP,
+        operacao e item, com validacao automatica de limites e rastreabilidade no Datasul.
+      </p>
+
+      <p class="quality-control-home__next-step">
+        Informe OP, operacao e split para preparar a geracao do roteiro de inspecao.
+      </p>
+
+      <app-route-lookup-form
+        [(opNumber)]="opNumber"
+        [(operationCode)]="operationCode"
+        [(split)]="split"
+        [canGenerateRoute]="canGenerateRoute"
+        (routeGenerated)="generateRoute()"
+      ></app-route-lookup-form>
+
+      @if (productionOrderRoute; as route) {
+        <app-route-summary [route]="route"></app-route-summary>
+      }
+    </po-widget>
+
+    @for (exam of qualityExams; track exam.id) {
+      <app-quality-exam-card [exam]="exam" (componentSelected)="selectComponent($event)"></app-quality-exam-card>
+
+      @if (selectedComponent; as component) {
+        <po-widget class="quality-control-home__measurement-card" p-title="Digitacao do Exame">
+          <app-measurement-entry-form
+            [component]="component"
+            [(measuredValue)]="measuredValue"
+            [(observation)]="measurementObservation"
+            [feedback]="measurementFeedback"
+            (measurementSaved)="saveMeasurement()"
+          ></app-measurement-entry-form>
+
+          @if (requiresAuthorization) {
+            <app-reaction-plan-authorization-form
+              [(supervisorId)]="supervisorId"
+              [(supervisorPassword)]="supervisorPassword"
+              [(authorizationReason)]="authorizationReason"
+              [canAuthorize]="canAuthorizeReactionPlan"
+              (reactionPlanAuthorized)="authorizeReactionPlan()"
+            ></app-reaction-plan-authorization-form>
+          }
+
+          @if (selectedComponent.authorization || authorizationFeedback) {
+            <p class="quality-control-home__authorization-feedback">
+              {{ authorizationFeedback || 'Plano de reacao autorizado.' }}
+            </p>
+          }
+
+          <app-save-inspection-actions
+            [canSaveInspection]="canSaveInspection"
+            [blockReason]="saveBlockReason"
+            [saveFeedback]="saveFeedback"
+            (inspectionSaved)="saveInspection()"
+          ></app-save-inspection-actions>
+        </po-widget>
+      }
+    }
+  </section>
+</po-page-default>

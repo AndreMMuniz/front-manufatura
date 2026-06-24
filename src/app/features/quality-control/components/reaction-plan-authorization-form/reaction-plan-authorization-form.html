@@ -1,0 +1,41 @@
+<form class="reaction-plan-authorization-form" (ngSubmit)="authorize()">
+  <h3>Plano de Reacao</h3>
+  <p>
+    A medicao esta fora da tolerancia. Informe a autorizacao do supervisor para liberar
+    a continuidade do processo.
+  </p>
+
+  <po-input
+    name="supervisorId"
+    p-label="Supervisor"
+    p-placeholder="Codigo ou usuario do supervisor"
+    p-required="true"
+    [ngModel]="supervisorId"
+    (ngModelChange)="supervisorIdChange.emit($event)"
+  ></po-input>
+
+  <po-input
+    name="supervisorPassword"
+    p-label="Senha"
+    p-placeholder="Senha de liberacao"
+    p-required="true"
+    p-secret="true"
+    [ngModel]="supervisorPassword"
+    (ngModelChange)="supervisorPasswordChange.emit($event)"
+  ></po-input>
+
+  <po-input
+    name="authorizationReason"
+    p-label="Motivo / acao tomada"
+    p-required="true"
+    [ngModel]="authorizationReason"
+    (ngModelChange)="authorizationReasonChange.emit($event)"
+  ></po-input>
+
+  <po-button
+    p-label="Autorizar plano de reacao"
+    p-kind="primary"
+    p-type="submit"
+    [p-disabled]="!canAuthorize"
+  ></po-button>
+</form>

@@ -1,0 +1,53 @@
+<form class="measurement-entry-form" (ngSubmit)="saveMeasurement()">
+  <h3>Digitacao do componente {{ component.code }}</h3>
+
+  <dl class="measurement-entry-form__details" aria-label="Dados do componente selecionado">
+    <div>
+      <dt>Descricao</dt>
+      <dd>{{ component.description }}</dd>
+    </div>
+
+    <div>
+      <dt>Referencia</dt>
+      <dd>{{ component.reference }}</dd>
+    </div>
+
+    <div>
+      <dt>Minimo</dt>
+      <dd>{{ component.minValue }} {{ component.unit }}</dd>
+    </div>
+
+    <div>
+      <dt>Maximo</dt>
+      <dd>{{ component.maxValue }} {{ component.unit }}</dd>
+    </div>
+  </dl>
+
+  <po-input
+    name="measuredValue"
+    p-label="Valor medido"
+    p-placeholder="Ex.: 488"
+    p-required="true"
+    [ngModel]="measuredValue"
+    (ngModelChange)="updateMeasuredValue($event)"
+  ></po-input>
+
+  <po-input
+    name="measurementObservation"
+    p-label="Observacao"
+    p-placeholder="Observacao da medicao"
+    [ngModel]="observation"
+    (ngModelChange)="updateObservation($event)"
+  ></po-input>
+
+  <po-button
+    p-label="Salvar medicao"
+    p-kind="primary"
+    p-type="submit"
+    [p-disabled]="!measuredValue.trim()"
+  ></po-button>
+
+  @if (feedback) {
+    <p class="measurement-entry-form__feedback">{{ feedback }}</p>
+  }
+</form>
