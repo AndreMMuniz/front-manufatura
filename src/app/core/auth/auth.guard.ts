@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivateFn, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
 
 import { AuthSessionService } from './auth-session.service';
+import { buildSafeReturnUrl } from './safe-return-url';
 
 /**
  * Route guard that protects private routes from unauthenticated access.
@@ -11,11 +12,8 @@ import { AuthSessionService } from './auth-session.service';
  * `returnUrl` so the login page can send the user back after a successful
  * authentication.
  *
- * The `returnUrl` is sanitized with the same rules used by `LoginPage`:
- * - Only internal paths starting with `/` are accepted.
- * - Protocol-relative URLs (`//...`) are rejected.
- * - `/login` is rejected to avoid redirect loops.
- * - Malformed/encoded values are decoded before validation.
+ * The `returnUrl` is sanitized through `buildSafeReturnUrl`, the same helper
+ * used by `LoginPage`, so both enforcement points share identical rules.
  */
 export const authGuard: CanActivateFn = (
   _route: ActivatedRouteSnapshot,
@@ -28,29 +26,9 @@ export const authGuard: CanActivateFn = (
     return true;
   }
 
-  const returnUrl = state.url;
-  const safeReturnUrl = buildSafeReturnUrl(returnUrl);
+  const safeReturnUrl = buildSafeReturnUrl(state.url);
 
   return router.createUrlTree(['/login'], {
     queryParams: safeReturnUrl ? { returnUrl: safeReturnUrl } : {},
   });
 };
-
-function buildSafeReturnUrl(returnUrl: string): string | null {
-  if (!returnUrl || !returnUrl.startsWith('/')) {
-    return null;
-  }
-
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(returnUrl);
-  } catch {
-    return null;
-  }
-
-  if (decoded.startsWith('//') || decoded.startsWith('/login')) {
-    return null;
-  }
-
-  return returnUrl;
-}

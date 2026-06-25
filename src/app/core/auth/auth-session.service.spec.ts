@@ -37,6 +37,12 @@ describe('AuthSessionService', () => {
     expect(service.currentUser).toEqual({ username: 'operador' });
   });
 
+  it('should return false (not throw) on null/undefined inputs', () => {
+    expect(service.login(null as unknown as string, 'mock123')).toBe(false);
+    expect(service.login('operador', undefined as unknown as string)).toBe(false);
+    expect(service.isAuthenticated()).toBe(false);
+  });
+
   it('should clear the session on logout', () => {
     service.login('operador', 'mock123');
 
@@ -61,5 +67,18 @@ describe('AuthSessionService', () => {
     const values = await valuesPromise;
 
     expect(values).toEqual([false, true, false]);
+  });
+
+  it('should not emit duplicate null on repeated logout', async () => {
+    const emissions: Array<boolean> = [];
+    const subscription = service.session$.pipe(map(s => s !== null)).subscribe(v => emissions.push(v));
+
+    service.login('operador', 'mock123');
+    service.logout();
+    service.logout();
+
+    subscription.unsubscribe();
+
+    expect(emissions).toEqual([false, true, false]);
   });
 });

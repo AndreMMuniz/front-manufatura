@@ -12,11 +12,9 @@ describe('authGuard', () => {
     } as unknown as AuthSessionService;
 
     const router = {
-      createUrlTree: vi.fn().mockImplementation((commands, extras) => ({
-        commands,
-        extras,
-      })),
-      parseUrl: vi.fn().mockImplementation(url => ({ path: url })),
+      createUrlTree: vi
+        .fn()
+        .mockImplementation((commands, extras) => ({ commands, extras }) as unknown as UrlTree),
     } as unknown as Router;
 
     TestBed.configureTestingModule({
@@ -30,7 +28,7 @@ describe('authGuard', () => {
   }
 
   async function runGuard(url: string): Promise<boolean | UrlTree> {
-    const routeSnapshot = { url: [] } as never;
+    const routeSnapshot = {} as never;
     const state = { url } as never;
 
     return TestBed.runInInjectionContext(() => authGuard(routeSnapshot, state)) as Promise<boolean | UrlTree>;
@@ -47,33 +45,45 @@ describe('authGuard', () => {
   it('redirects to /login with returnUrl when the user is not authenticated', async () => {
     const { router } = setup(false);
 
-    const result = (await runGuard('/quality-control')) as unknown as UrlTree;
+    await runGuard('/quality-control');
 
-    expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/quality-control' } });
-    expect(result).toBeDefined();
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], {
+      queryParams: { returnUrl: '/quality-control' },
+    });
   });
 
-  it('rejects an unsafe returnUrl and omits it from the redirect', async () => {
+  it('decodes encoded returnUrl before forwarding', async () => {
     const { router } = setup(false);
 
-    await runGuard('https://evil.example/path');
+    await runGuard('/quality-control%2Freports');
+
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], {
+      queryParams: { returnUrl: '/quality-control/reports' },
+    });
+  });
+
+  it.each([
+    ['https://evil.example/path'],
+    ['//evil.example/path'],
+    ['/%2F%2Fevil.example'],
+    ['/%252F%252Fevil.example'],
+    ['/login'],
+    ['/Login'],
+    ['/LOGIN'],
+    ['/login/foo'],
+  ])('rejects unsafe returnUrl %s and omits it from the redirect', async returnUrl => {
+    const { router } = setup(false);
+
+    await runGuard(returnUrl);
 
     expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], { queryParams: {} });
   });
 
-  it('rejects protocol-relative returnUrl and omits it', async () => {
+  it.each(['/loginhelp', '/login-support'])('accepts safe internal path %s whose first segment is not "login"', async returnUrl => {
     const { router } = setup(false);
 
-    await runGuard('//evil.example/path');
+    await runGuard(returnUrl);
 
-    expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], { queryParams: {} });
-  });
-
-  it('rejects /login as returnUrl to avoid redirect loops', async () => {
-    const { router } = setup(false);
-
-    await runGuard('/login');
-
-    expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], { queryParams: {} });
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl } });
   });
 });

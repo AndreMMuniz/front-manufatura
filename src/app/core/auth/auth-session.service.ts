@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, distinctUntilChanged } from 'rxjs';
 
 import { AuthSession } from './auth.models';
 
@@ -30,7 +30,9 @@ export class AuthSessionService {
 
   private readonly sessionSubject = new BehaviorSubject<AuthSession | null>(null);
 
-  readonly session$: Observable<AuthSession | null> = this.sessionSubject.asObservable();
+  readonly session$: Observable<AuthSession | null> = this.sessionSubject
+    .asObservable()
+    .pipe(distinctUntilChanged());
 
   get currentUser() {
     return this.sessionSubject.value?.user ?? null;
@@ -41,6 +43,10 @@ export class AuthSessionService {
   }
 
   login(username: string, password: string): boolean {
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return false;
+    }
+
     const trimmedUser = username.trim();
     const trimmedPassword = password.trim();
 
