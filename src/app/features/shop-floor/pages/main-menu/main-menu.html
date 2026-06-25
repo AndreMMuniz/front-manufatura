@@ -1,0 +1,22 @@
+<po-page-default p-title="Menu Principal">
+  <section class="main-menu">
+    @for (group of groups; track group.id) {
+      <po-widget [p-title]="group.label">
+        <ul class="main-menu__group">
+          @for (option of group.options; track option.id) {
+            <li class="main-menu__option">
+              <po-button
+                [p-label]="option.label"
+                [p-kind]="option.implemented ? 'primary' : 'secondary'"
+                [p-disabled]="!option.implemented"
+                [attr.aria-label]="option.implemented ? null : option.label + ' (não disponível)'"
+                [title]="option.implemented ? null : option.label + ' (não disponível)'"
+                (p-click)="selectOption(option)"
+              ></po-button>
+            </li>
+          }
+        </ul>
+      </po-widget>
+    }
+  </section>
+</po-page-default>
