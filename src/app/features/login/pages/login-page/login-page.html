@@ -1,0 +1,67 @@
+<po-page-default p-title="Acesso ao Plano de Controle">
+  <section class="login-page">
+    <po-widget p-title="Login de demonstracao">
+      @if (isAuthenticated) {
+        <p class="login-page__intro">
+          Voce ja esta autenticado como <strong>{{ authSession.currentUser?.username }}</strong>.
+        </p>
+
+        <p class="login-page__demo-warning" role="note">
+          Autenticacao em modo de demonstracao/mock. Esta tela nao valida credenciais reais do Datasul.
+        </p>
+
+        <po-button
+          class="login-page__submit"
+          p-label="Sair da sessao mock"
+          p-kind="secondary"
+          (p-click)="logout()"
+        ></po-button>
+      } @else {
+        <p class="login-page__intro">
+          Informe usuario e senha para acessar o fluxo mock do Plano Controle CQ.
+        </p>
+
+        <p class="login-page__demo-warning" role="note">
+          Autenticacao em modo de demonstracao/mock. Esta tela nao valida credenciais reais do Datasul.
+        </p>
+
+        <form class="login-page__form" #loginForm="ngForm" (ngSubmit)="submit()" novalidate>
+          <po-login
+            name="user"
+            p-label="Usuario"
+            p-placeholder="Informe o usuario"
+            [p-required]="true"
+            [p-auto-focus]="true"
+            p-error-message="Informe o usuario."
+            [(ngModel)]="user"
+          ></po-login>
+
+          <po-password
+            name="password"
+            p-label="Senha"
+            p-placeholder="Informe a senha"
+            [p-required]="true"
+            p-error-message="Informe a senha."
+            [(ngModel)]="password"
+          ></po-password>
+
+          @if (submitted && !canSubmit) {
+            <p class="login-page__validation" role="alert">{{ emptyFieldsMessage }}</p>
+          }
+
+          @if (feedback) {
+            <p class="login-page__feedback" role="alert">{{ feedback }}</p>
+          }
+
+          <po-button
+            class="login-page__submit"
+            p-label="Entrar"
+            p-kind="primary"
+            p-type="submit"
+            [p-disabled]="!canSubmit || submitting"
+          ></po-button>
+        </form>
+      }
+    </po-widget>
+  </section>
+</po-page-default>
