@@ -14,7 +14,9 @@ import { MenuGroup, MenuOption, SFC_MENU } from '../../../../core/navigation/app
 export class MainMenuPage {
   private readonly router = inject(Router);
 
-  readonly groups: ReadonlyArray<MenuGroup> = SFC_MENU;
+  get groups(): ReadonlyArray<MenuGroup> {
+    return SFC_MENU;
+  }
 
   selectOption(option: MenuOption): void {
     if (!option.implemented || !option.target) {

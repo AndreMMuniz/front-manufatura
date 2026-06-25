@@ -56,10 +56,6 @@ describe('LoginPage', () => {
     fixture.detectChanges();
   });
 
-  afterEach(() => {
-    TestBed.resetTestingModule();
-  });
-
   it('should create', () => {
     expect(component).toBeTruthy();
   });
@@ -80,7 +76,7 @@ describe('LoginPage', () => {
 
     expect(component.user).toBe('operador');
     expect(component.password).toBe('');
-    expect(component.feedback).toBe('Usuario ou senha invalidos.');
+    expect(component.feedback).toBe('Usuário ou senha inválidos.');
     expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
   });
 
@@ -167,6 +163,7 @@ describe('LoginPage', () => {
 
   describe('when already authenticated', () => {
     beforeEach(async () => {
+      TestBed.resetTestingModule();
       routerMock = { navigateByUrl: vi.fn().mockResolvedValue(true) } as unknown as Router;
       authSessionMock = buildAuthSessionMock(true);
       const route = buildRouteMock();
