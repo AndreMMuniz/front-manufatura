@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterOutlet } from '@angular/router';
 import { filter, skip } from 'rxjs';
@@ -65,20 +65,12 @@ const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
   },
 ];
 
-const ANONYMOUS_MENUS: ReadonlyArray<PoMenuItem> = [
-  {
-    label: 'Entrar',
-    shortLabel: 'Login',
-    icon: 'an an-sign-in',
-    link: '/login',
-  },
-];
-
 @Component({
   selector: 'app-root',
   imports: [CommonModule, RouterOutlet, PoToolbarModule, PoMenuModule, PoPageModule],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
   private readonly router = inject(Router);
@@ -114,20 +106,22 @@ export class App {
 
   get toolbarTitle(): string {
     const user = this.authSession.currentUser;
-    return user ? `Plano de Controle CQ - ${user.username}` : 'Plano de Controle CQ';
+    return user ? `Plano de Controle CQ - ${user.login}` : 'Plano de Controle CQ';
   }
 
   get menus(): Array<PoMenuItem> {
-    const items: PoMenuItem[] = this.isAuthenticated ? [...AUTHENTICATED_MENUS] : [...ANONYMOUS_MENUS];
-
-    if (this.isAuthenticated) {
-      items.push({
-        label: 'Sair da sessão mock',
-        shortLabel: 'Sair',
-        icon: 'an an-sign-out',
-        action: () => this.logout(),
-      });
+    if (!this.isAuthenticated) {
+      return [];
     }
+
+    const items: PoMenuItem[] = [...AUTHENTICATED_MENUS];
+
+    items.push({
+      label: 'Sair',
+      shortLabel: 'Sair',
+      icon: 'an an-sign-out',
+      action: () => this.logout(),
+    });
 
     return items;
   }

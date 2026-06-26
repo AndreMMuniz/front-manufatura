@@ -9,6 +9,7 @@ import { PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/ng-component
 import { App } from './app';
 import { routes } from './app.routes';
 import { AuthSessionService } from './core/auth/auth-session.service';
+import { User } from './core/auth/auth.models';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
@@ -18,7 +19,7 @@ import { QualityControlHome } from './features/quality-control/pages/quality-con
 
 describe('App', () => {
   let authSessionMock: AuthSessionService;
-  let currentUserValue: { username: string } | null;
+  let currentUserValue: User | null;
   let sessionSubject: BehaviorSubject<unknown>;
 
   beforeEach(async () => {
@@ -27,7 +28,6 @@ describe('App', () => {
     sessionSubject = new BehaviorSubject<unknown>(null);
 
     authSessionMock = {
-      login: vi.fn(),
       logout: vi.fn(() => sessionSubject.next(null)),
       isAuthenticated: vi.fn().mockReturnValue(false),
       get currentUser() {
@@ -59,7 +59,7 @@ describe('App', () => {
   describe('when authenticated', () => {
     beforeEach(() => {
       vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-      currentUserValue = { username: 'operador' };
+      currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
     });
 
     it('should route quality-control to the quality control home page', async () => {
@@ -224,18 +224,18 @@ describe('App', () => {
     });
   });
 
-  it('should show shell navigation without logout when anonymous', () => {
+  it('should not expose shell navigation when anonymous', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(false);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    expect(app.menus.map(item => item.label)).toEqual(['Entrar']);
+    expect(app.menus).toEqual([]);
   });
 
   it('should show shell navigation with logout when authenticated', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    currentUserValue = { username: 'operador' };
+      currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
@@ -251,7 +251,7 @@ describe('App', () => {
       'Centro de Trabalho',
       'Operador',
       'Equipes',
-      'Sair da sessão mock',
+      'Sair',
     ]);
   });
 
@@ -305,8 +305,8 @@ describe('App', () => {
 
   it('should redirect to login when the shell logout clears the session', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    currentUserValue = { username: 'operador' };
-    sessionSubject.next({ user: currentUserValue });
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    sessionSubject.next({ user: currentUserValue, token: 'token-123', authenticatedAt: new Date() });
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
@@ -322,8 +322,8 @@ describe('App', () => {
 
   it('should keep login visible when login-page logout clears the session while already on login', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    currentUserValue = { username: 'operador' };
-    sessionSubject.next({ user: currentUserValue });
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    sessionSubject.next({ user: currentUserValue, token: 'token-123', authenticatedAt: new Date() });
     const appFixture = TestBed.createComponent(App);
     appFixture.detectChanges();
     const harness = await RouterTestingHarness.create();

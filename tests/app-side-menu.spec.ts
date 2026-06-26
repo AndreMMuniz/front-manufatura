@@ -7,13 +7,21 @@ const credentials = {
 
 async function login(page: import('@playwright/test').Page) {
   await page.goto('/login');
-  await page.getByLabel('Usuário').fill(credentials.user);
-  await page.getByLabel('Senha').fill(credentials.password);
+  await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
+  await page.getByRole('textbox', { name: 'Senha' }).fill(credentials.password);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/menu$/);
 }
 
 test.describe('menu lateral principal', () => {
+  test('não aparece na tela de login antes da autenticação', async ({ page }) => {
+    await page.goto('/login');
+
+    await expect(page.getByTestId('app-side-menu')).toHaveCount(0);
+    await expect(page.getByRole('menuitem')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+  });
+
   test('renderiza as opções principais uma abaixo da outra no desktop', async ({ page }) => {
     await login(page);
 
@@ -27,7 +35,7 @@ test.describe('menu lateral principal', () => {
       'Centro de Trabalho',
       'Operador',
       'Equipes',
-      'Sair da sessão mock',
+      'Sair',
     ];
 
     for (const label of expectedItems) {

@@ -1,12 +1,11 @@
-export interface User {
+export interface Usuario {
   id: string;
   nome: string;
   login: string;
   permissoes: Array<string>;
 }
 
-export interface AuthSession {
-  user: User;
+export interface LoginAutenticado {
   token: string;
-  authenticatedAt: Date;
+  usuario: Usuario;
 }
