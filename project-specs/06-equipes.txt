@@ -1,0 +1,1705 @@
+# 06-equipes.md
+
+# Tela — Equipes
+
+> Este documento faz parte da documentação oficial do projeto **Plano de Controle CQ**.
+
+**Documentos obrigatórios de referência**
+
+Antes de implementar esta tela o agente deve ler integralmente:
+
+* 00-design-system.md
+* 01-aplicacao.md
+* 02-fluxo-geral.md
+* 03-api.md
+* 04-arquitetura.md
+* 05-padroes-ui.md
+
+Este documento complementa os anteriores e descreve exclusivamente a funcionalidade **Equipes**.
+
+---
+
+# Objetivo da Funcionalidade
+
+A tela **Equipes** é responsável pela manutenção das equipes produtivas da fábrica.
+
+Seu principal objetivo é permitir que supervisores e líderes consultem uma equipe existente e realizem a manutenção dos operadores pertencentes a essa equipe.
+
+Esta funcionalidade não cria operadores.
+
+Ela apenas altera o vínculo entre operadores e equipes.
+
+Toda persistência será realizada através das APIs do Datasul.
+
+---
+
+# Objetivo de Negócio
+
+A equipe representa um agrupamento de operadores utilizado na produção.
+
+Cada equipe possui:
+
+* Código
+* Descrição
+* Turno
+* Lista de Operadores
+
+O usuário poderá:
+
+* consultar uma equipe;
+* visualizar seus operadores;
+* adicionar operadores;
+* remover operadores;
+* salvar alterações.
+
+---
+
+# Perfil de Usuário
+
+Esta funcionalidade será utilizada principalmente por:
+
+* Supervisor
+* Líder
+* Administrador
+
+Operadores comuns normalmente não possuirão acesso.
+
+A validação de permissões será realizada pelo backend.
+
+---
+
+# Fluxo da Funcionalidade
+
+```mermaid
+flowchart TD
+
+A(Menu Principal)
+
+A --> B(Tela Equipes)
+
+B --> C(Consultar Equipe)
+
+C --> D(Carregar Dados)
+
+D --> E(Visualizar Operadores)
+
+E --> F(Alterar)
+
+F --> G(Painel Lateral)
+
+G --> H(Selecionar Operadores)
+
+H --> I(Salvar)
+
+I --> J(Atualizar Tela)
+
+J --> B
+```
+
+---
+
+# Objetivos de UX
+
+Esta tela deverá permitir que um usuário experiente consiga alterar uma equipe em menos de um minuto.
+
+Todas as operações devem exigir o menor número possível de toques.
+
+Não utilizar navegação desnecessária.
+
+Sempre priorizar:
+
+* rapidez;
+* simplicidade;
+* leitura fácil;
+* operação touch.
+
+---
+
+# Layout Geral
+
+A tela seguirá o padrão visual definido no Design System.
+
+Estrutura:
+
+```text
+┌──────────────────────────────────────────────┐
+
+ Logo Cortag          EQUIPES
+
+───────────────────────────────────────────────
+
+Equipe
+
+Descrição
+
+Turno
+
+───────────────────────────────────────────────
+
+Operadores
+
+┌───────────────────────────────────────────┐
+
+001 José
+
+002 Carlos
+
+003 Marcelo
+
+...
+
+└───────────────────────────────────────────┘
+
+───────────────────────────────────────────────
+
+Salvar
+
+Alterar
+
+Voltar
+
+Sair
+
+└──────────────────────────────────────────────┘
+```
+
+---
+
+# Organização Visual
+
+A tela será dividida em quatro áreas.
+
+## Cabeçalho
+
+Responsável por apresentar:
+
+* logo;
+* título;
+* identificação da tela.
+
+---
+
+## Dados da Equipe
+
+Contém:
+
+Equipe
+
+Descrição
+
+Turno
+
+Esses campos ocupam aproximadamente 30% da altura útil.
+
+---
+
+## Lista de Operadores
+
+Maior área da tela.
+
+Deve ocupar todo espaço restante.
+
+A lista deverá possuir rolagem vertical.
+
+---
+
+## Área de Ações
+
+Localizada ao final da tela.
+
+Contém:
+
+Salvar
+
+Alterar
+
+Voltar
+
+Sair
+
+Botões devem possuir tamanho adequado para operação em tablets.
+
+---
+
+# Wireframe Funcional
+
+```text
++------------------------------------------------+
+
+              EQUIPES
+
+Equipe
+
+[______________________]
+
+Descrição
+
+[______________________]
+
+Turno
+
+[______________________]
+
+Operadores
+
+----------------------------------
+
+José
+
+Carlos
+
+Marcelo
+
+Roberto
+
+Fernanda
+
+...
+
+----------------------------------
+
+[Salvar]
+
+[Alterar]
+
+[Voltar]
+
+[Sair]
+
++------------------------------------------------+
+```
+
+---
+
+# Navegação
+
+Origem:
+
+Menu Principal
+
+Destino:
+
+Permanece na própria tela.
+
+A edição ocorre através de um painel lateral.
+
+Não deve existir navegação para outra página.
+
+---
+
+# Painel Lateral
+
+Ao clicar em **Alterar**, deverá ser aberto um painel lateral utilizando:
+
+```text
+po-page-slide
+```
+
+Nunca abrir uma nova página.
+
+Nunca utilizar modal para esta operação.
+
+---
+
+# Layout do Painel
+
+```text
+┌────────────────────────────┐
+
+Alterar Equipe
+
+Pesquisar Operador
+
+[______________]
+
+☑ Todos
+
+☑ José
+
+☑ Carlos
+
+☑ Roberto
+
+☑ Marcelo
+
+☑ Fernanda
+
+...
+
+Salvar
+
+Voltar
+
+└────────────────────────────┘
+```
+
+---
+
+# Objetivo do Painel
+
+Permitir que o usuário altere rapidamente a composição da equipe.
+
+Toda alteração ocorre apenas dentro do painel.
+
+A tela principal permanece bloqueada enquanto o painel estiver aberto.
+
+---
+
+# Comportamento do Painel
+
+Ao abrir:
+
+Consultar lista de operadores.
+
+Marcar automaticamente aqueles pertencentes à equipe.
+
+Permitir:
+
+* adicionar;
+* remover;
+* pesquisar.
+
+---
+
+# Fluxo do Usuário
+
+1. Acessa Equipes.
+
+2. Informa equipe.
+
+3. Sistema consulta API.
+
+4. Dados são carregados.
+
+5. Usuário visualiza operadores.
+
+6. Clica Alterar.
+
+7. Painel lateral abre.
+
+8. Pesquisa operador.
+
+9. Marca ou desmarca operadores.
+
+10. Salva.
+
+11. Painel fecha.
+
+12. Tela principal é atualizada.
+
+---
+
+# Estados da Tela
+
+A tela deverá contemplar:
+
+Inicial
+
+Carregando
+
+Equipe carregada
+
+Equipe vazia
+
+Erro
+
+Salvando
+
+Sucesso
+
+---
+
+# Estado Inicial
+
+Nenhuma equipe carregada.
+
+Apenas os campos disponíveis para consulta.
+
+Lista vazia.
+
+Botão Salvar desabilitado.
+
+---
+
+# Estado Carregando
+
+Durante consulta da equipe:
+
+* loading visível;
+* botões bloqueados;
+* impedir múltiplas consultas simultâneas.
+
+---
+
+# Estado Com Dados
+
+Campos preenchidos.
+
+Lista carregada.
+
+Botões habilitados.
+
+---
+
+# Estado Sem Dados
+
+Caso a equipe não exista:
+
+Limpar todos os campos.
+
+Exibir mensagem amigável.
+
+Não exibir erro técnico.
+
+---
+
+# Estado Salvando
+
+Ao salvar:
+
+Mostrar indicador de progresso.
+
+Desabilitar botões.
+
+Aguardar retorno da API.
+
+---
+
+# Estado de Erro
+
+Qualquer falha deverá gerar mensagem amigável.
+
+Exemplo:
+
+"Não foi possível carregar os dados da equipe."
+
+Nunca apresentar mensagens da API diretamente ao usuário.
+
+---
+
+# Objetivos de Performance
+
+A abertura da tela deve ser imediata.
+
+A consulta da equipe deve ocorrer apenas quando necessário.
+
+A lista de operadores deve suportar grande quantidade de registros sem perda perceptível de desempenho.
+
+Utilizar virtualização ou paginação caso a quantidade de operadores torne a renderização custosa.
+
+---
+
+# Regras Gerais
+
+* Nunca permitir edição diretamente na lista principal.
+* Toda manutenção ocorre pelo painel lateral.
+* Não permitir duplicidade de operadores.
+* Sempre manter sincronismo entre painel e tela principal.
+* A interface deve permanecer simples, limpa e otimizada para uso em tablets.
+
+# Continuação — 06-equipes.md
+
+---
+
+# Componentes da Tela
+
+A tela deverá ser construída utilizando exclusivamente componentes do PO-UI sempre que existir um componente equivalente.
+
+Componentes esperados:
+
+| Área             | Componente PO-UI                          |
+| ---------------- | ----------------------------------------- |
+| Página           | po-page-default                           |
+| Toolbar          | po-toolbar                                |
+| Campo Equipe     | po-input ou po-lookup (dependendo da API) |
+| Campo Descrição  | po-input readonly                         |
+| Campo Turno      | po-input readonly                         |
+| Lista Operadores | po-table                                  |
+| Botões           | po-button                                 |
+| Painel           | po-page-slide                             |
+| Pesquisa         | po-input                                  |
+| Checkbox         | po-checkbox                               |
+| Loading          | po-loading                                |
+| Toast            | po-notification                           |
+
+---
+
+# Estrutura da Página
+
+A página deverá ser implementada utilizando o componente:
+
+```html
+<po-page-default>
+```
+
+A página deverá ocupar toda a área disponível da aplicação.
+
+Não utilizar barras de rolagem horizontais.
+
+---
+
+# Campos da Tela
+
+## Campo Equipe
+
+### Objetivo
+
+Identificar qual equipe será consultada.
+
+### Tipo
+
+Texto.
+
+### Obrigatório
+
+Sim.
+
+### Editável
+
+Sim.
+
+### Placeholder
+
+```
+Informe a equipe
+```
+
+### Comportamento
+
+Ao pressionar ENTER ou sair do campo:
+
+* consultar API;
+* carregar equipe.
+
+Não consultar enquanto o usuário ainda estiver digitando.
+
+---
+
+## Campo Descrição
+
+### Objetivo
+
+Apresentar a descrição da equipe.
+
+### Tipo
+
+Texto.
+
+### Editável
+
+Não.
+
+### Preenchimento
+
+Retornado pela API.
+
+---
+
+## Campo Turno
+
+### Objetivo
+
+Apresentar o turno da equipe.
+
+### Tipo
+
+Texto.
+
+### Editável
+
+Não.
+
+### Preenchimento
+
+Retornado pela API.
+
+---
+
+# Lista de Operadores
+
+A lista deverá apresentar todos os operadores pertencentes à equipe.
+
+Utilizar:
+
+```
+po-table
+```
+
+Cada linha deve possuir:
+
+* Código
+* Nome
+
+Exemplo:
+
+| Código | Nome          |
+| ------ | ------------- |
+| 001    | José Ribeiro  |
+| 002    | Carlos Silva  |
+| 003    | Marcelo Costa |
+
+Não permitir edição diretamente nesta tabela.
+
+A tabela é apenas informativa.
+
+---
+
+# Botão Alterar
+
+Ao clicar:
+
+Abrir painel lateral.
+
+Nunca navegar para outra página.
+
+---
+
+# Painel Lateral
+
+Componente:
+
+```
+po-page-slide
+```
+
+Largura sugerida:
+
+35% da tela.
+
+Em tablets pequenos:
+
+50%.
+
+Nunca ocupar a tela inteira.
+
+---
+
+# Estrutura do Painel
+
+O painel deverá possuir:
+
+```
+Título
+
+Pesquisar
+
+Checkbox Todos
+
+Lista de Operadores
+
+Salvar
+
+Voltar
+```
+
+---
+
+# Campo Pesquisar
+
+Objetivo:
+
+Filtrar operadores disponíveis.
+
+Filtro por:
+
+* Código
+* Nome
+
+A pesquisa deverá ocorrer localmente após carregar os operadores.
+
+Não realizar chamadas à API durante a digitação.
+
+---
+
+# Checkbox Todos
+
+Objetivo
+
+Selecionar todos os operadores atualmente visíveis.
+
+Regras:
+
+Se marcar:
+
+Selecionar todos.
+
+Se desmarcar:
+
+Desmarcar todos.
+
+Caso existam filtros ativos:
+
+Selecionar apenas operadores filtrados.
+
+---
+
+# Lista do Painel
+
+Cada operador deve possuir:
+
+```
+☑
+
+Código
+
+Nome
+```
+
+Exemplo
+
+```
+☑ José Ribeiro
+
+☑ Carlos Silva
+
+☐ Marcelo Costa
+
+☐ Fernanda Alves
+```
+
+---
+
+# Seleção
+
+A seleção deve permanecer mesmo durante pesquisas.
+
+Exemplo
+
+Pesquisar:
+
+```
+José
+```
+
+Selecionar José.
+
+Limpar pesquisa.
+
+José continua selecionado.
+
+---
+
+# Botão Salvar
+
+Objetivo
+
+Persistir alterações.
+
+Fluxo
+
+```
+Validar
+
+↓
+
+Enviar API
+
+↓
+
+Sucesso
+
+↓
+
+Fechar painel
+
+↓
+
+Atualizar tela
+```
+
+Enquanto salva:
+
+Mostrar Loading.
+
+Desabilitar botões.
+
+---
+
+# Botão Voltar
+
+Objetivo
+
+Fechar painel.
+
+Caso existam alterações:
+
+Solicitar confirmação.
+
+Exemplo
+
+```
+Deseja descartar as alterações?
+```
+
+Botões
+
+```
+Cancelar
+
+Descartar
+```
+
+---
+
+# Regras de Negócio
+
+## RN001
+
+Uma equipe deve existir antes de ser alterada.
+
+---
+
+## RN002
+
+Descrição não pode ser alterada nesta tela.
+
+---
+
+## RN003
+
+Turno não pode ser alterado nesta tela.
+
+---
+
+## RN004
+
+Somente operadores podem ser alterados.
+
+---
+
+## RN005
+
+Não permitir operadores duplicados.
+
+---
+
+## RN006
+
+Toda alteração ocorre apenas após clicar em Salvar.
+
+---
+
+## RN007
+
+Fechar o painel sem salvar deve descartar todas as alterações.
+
+---
+
+## RN008
+
+Caso a API retorne erro, nenhuma alteração deve permanecer parcialmente salva.
+
+---
+
+# Validações
+
+Antes de salvar:
+
+Equipe carregada.
+
+Lista válida.
+
+Operadores sem duplicidade.
+
+Conexão disponível.
+
+---
+
+# Integração com API
+
+## Consulta Equipe
+
+Fluxo
+
+```
+Equipe digitada
+
+↓
+
+Service
+
+↓
+
+API Datasul
+
+↓
+
+Equipe
+
+↓
+
+Tela
+```
+
+Resposta esperada
+
+```
+Equipe
+
+Descrição
+
+Turno
+
+Operadores
+```
+
+---
+
+## Consulta Operadores
+
+Ao abrir o painel.
+
+Fluxo
+
+```
+Abrir Painel
+
+↓
+
+Consultar Operadores
+
+↓
+
+Retornar Lista
+
+↓
+
+Marcar Operadores Existentes
+```
+
+---
+
+## Salvar
+
+Fluxo
+
+```
+Lista Selecionada
+
+↓
+
+Service
+
+↓
+
+API
+
+↓
+
+Sucesso
+
+↓
+
+Atualizar Tela
+```
+
+---
+
+# Loading
+
+Mostrar Loading durante:
+
+Consulta equipe.
+
+Consulta operadores.
+
+Salvar.
+
+Nunca bloquear toda aplicação.
+
+Somente a funcionalidade atual.
+
+---
+
+# Mensagens
+
+## Sucesso
+
+```
+Equipe salva com sucesso.
+```
+
+---
+
+## Erro Consulta
+
+```
+Não foi possível localizar a equipe.
+```
+
+---
+
+## Erro API
+
+```
+Erro ao comunicar com o servidor.
+```
+
+---
+
+## Erro Salvar
+
+```
+Não foi possível salvar as alterações.
+```
+
+---
+
+# Empty State
+
+Quando a equipe não possuir operadores.
+
+Exibir:
+
+```
+Nenhum operador pertence a esta equipe.
+```
+
+Apresentar botão:
+
+```
+Alterar
+```
+
+---
+
+# Performance
+
+A lista pode possuir centenas de operadores.
+
+Utilizar:
+
+* trackBy
+* OnPush
+* Signals
+
+Evitar renderizações completas.
+
+A pesquisa deve ser instantânea.
+
+---
+
+# Acessibilidade
+
+Checkbox grandes.
+
+Área clicável ampla.
+
+Espaçamento confortável.
+
+Compatível com uso em tablets industriais utilizando apenas toque.
+
+---
+
+# Estrutura Esperada
+
+```
+features/
+
+equipes/
+
+page/
+
+equipes.page.ts
+
+equipes.page.html
+
+equipes.page.scss
+
+services/
+
+equipes.service.ts
+
+components/
+
+operadores-table.component
+
+alterar-equipe-slide.component
+
+models/
+
+equipe.model.ts
+
+operador.model.ts
+
+interfaces/
+
+equipe.dto.ts
+
+operador.dto.ts
+```
+
+---
+
+# Responsabilidades
+
+## EquipesPage
+
+Responsável por:
+
+* carregar equipe;
+* abrir painel;
+* atualizar tela.
+
+---
+
+## AlterarEquipeSlide
+
+Responsável por:
+
+* pesquisar operadores;
+* selecionar operadores;
+* salvar.
+
+---
+
+## EquipesService
+
+Responsável por:
+
+* consultar equipe;
+* consultar operadores;
+* salvar equipe.
+
+Nenhuma regra de negócio deve ficar no componente.
+
+Todo processamento deverá ocorrer no Service.
+
+# Continuação Final — 06-equipes.md
+
+---
+
+# Interfaces TypeScript Sugeridas
+
+As interfaces abaixo são sugestões de contrato interno para implementação inicial.
+
+Os nomes dos campos poderão ser ajustados quando os endpoints reais do Datasul forem confirmados.
+
+---
+
+## Equipe
+
+```typescript
+export interface Equipe {
+  codigo: string;
+  descricao: string;
+  turno: string;
+  operadores: Operador[];
+}
+```
+
+---
+
+## Operador
+
+```typescript
+export interface Operador {
+  codigo: string;
+  nome: string;
+  selecionado?: boolean;
+}
+```
+
+---
+
+## EquipeResponseDTO
+
+```typescript
+export interface EquipeResponseDTO {
+  codigo: string;
+  descricao: string;
+  turno: string;
+  operadores: OperadorDTO[];
+}
+```
+
+---
+
+## OperadorDTO
+
+```typescript
+export interface OperadorDTO {
+  codigo: string;
+  nome: string;
+}
+```
+
+---
+
+## SalvarEquipeRequestDTO
+
+```typescript
+export interface SalvarEquipeRequestDTO {
+  codigoEquipe: string;
+  operadores: string[];
+}
+```
+
+---
+
+# Estado da Tela
+
+Criar um estado explícito para a tela.
+
+Exemplo:
+
+```typescript
+export type EquipesPageState =
+  | 'initial'
+  | 'loading'
+  | 'loaded'
+  | 'empty'
+  | 'saving'
+  | 'error';
+```
+
+---
+
+# Estado do Painel
+
+Criar estado próprio para o painel lateral.
+
+```typescript
+export type AlterarEquipeSlideState =
+  | 'closed'
+  | 'loading'
+  | 'ready'
+  | 'saving'
+  | 'error';
+```
+
+---
+
+# Máquina de Estados da Tela
+
+```mermaid
+stateDiagram-v2
+
+[*] --> Initial
+
+Initial --> Loading: consultar equipe
+
+Loading --> Loaded: equipe encontrada
+
+Loading --> Empty: equipe sem operadores
+
+Loading --> Error: erro na consulta
+
+Loaded --> Saving: salvar
+
+Saving --> Loaded: sucesso
+
+Saving --> Error: erro
+
+Error --> Initial: limpar ou tentar novamente
+```
+
+---
+
+# Máquina de Estados do Painel
+
+```mermaid
+stateDiagram-v2
+
+[*] --> Closed
+
+Closed --> Loading: abrir painel
+
+Loading --> Ready: operadores carregados
+
+Loading --> Error: erro ao carregar operadores
+
+Ready --> Saving: salvar
+
+Saving --> Closed: sucesso
+
+Saving --> Error: erro ao salvar
+
+Ready --> Closed: voltar sem alterações
+```
+
+---
+
+# Métodos Esperados no Service
+
+```typescript
+consultarEquipe(codigoEquipe: string): Observable<Equipe>;
+
+listarOperadores(): Observable<Operador[]>;
+
+salvarEquipe(request: SalvarEquipeRequestDTO): Observable<void>;
+```
+
+---
+
+# Métodos Esperados na Page
+
+```typescript
+onConsultarEquipe(): void;
+
+onAbrirAlteracao(): void;
+
+onEquipeAtualizada(equipe: Equipe): void;
+
+onVoltar(): void;
+
+onSair(): void;
+```
+
+---
+
+# Métodos Esperados no Painel
+
+```typescript
+onPesquisarOperador(termo: string): void;
+
+onSelecionarOperador(operador: Operador): void;
+
+onSelecionarTodos(selecionado: boolean): void;
+
+onSalvar(): void;
+
+onVoltar(): void;
+```
+
+---
+
+# Regras de Implementação Angular
+
+A implementação deve seguir obrigatoriamente:
+
+* Standalone Components
+* TypeScript strict
+* ChangeDetectionStrategy.OnPush
+* Angular Signals quando aplicável
+* RxJS para chamadas HTTP
+* Services para integração
+* Interfaces separadas
+* Models separados
+* Nenhum uso de `any`
+* Nenhum CSS inline
+* Nenhum HttpClient direto no componente
+
+---
+
+# Estrutura Visual Esperada
+
+```text
+features/equipes/
+
+├── pages/
+│   └── equipes-page/
+│       ├── equipes-page.component.ts
+│       ├── equipes-page.component.html
+│       └── equipes-page.component.scss
+│
+├── components/
+│   ├── operadores-table/
+│   │   ├── operadores-table.component.ts
+│   │   ├── operadores-table.component.html
+│   │   └── operadores-table.component.scss
+│   │
+│   └── alterar-equipe-slide/
+│       ├── alterar-equipe-slide.component.ts
+│       ├── alterar-equipe-slide.component.html
+│       └── alterar-equipe-slide.component.scss
+│
+├── services/
+│   └── equipes.service.ts
+│
+├── models/
+│   ├── equipe.model.ts
+│   └── operador.model.ts
+│
+└── interfaces/
+    ├── equipe.dto.ts
+    └── operador.dto.ts
+```
+
+---
+
+# Regras para Mock Inicial
+
+Enquanto os endpoints reais não estiverem disponíveis, o agente pode criar mocks locais.
+
+Os mocks devem ficar exclusivamente no Service.
+
+Nunca criar mocks diretamente no HTML ou no Component.
+
+Exemplo de dados mockados:
+
+```typescript
+const EQUIPE_MOCK: Equipe = {
+  codigo: 'Mont03',
+  descricao: 'Montagem Zap',
+  turno: 'Turno 3',
+  operadores: [
+    { codigo: '001', nome: 'José Ribeiro Neto' },
+    { codigo: '002', nome: 'Almir Rogério Bento' }
+  ]
+};
+```
+
+---
+
+# Critérios de Aceite Funcionais
+
+A tela será considerada correta quando:
+
+* O usuário conseguir acessar a tela Equipes pelo menu.
+* O usuário conseguir informar uma equipe.
+* O sistema consultar os dados da equipe.
+* O sistema preencher descrição e turno.
+* O sistema listar operadores da equipe.
+* O botão Alterar abrir o painel lateral.
+* O painel listar operadores disponíveis.
+* Operadores já vinculados aparecerem selecionados.
+* O usuário conseguir marcar e desmarcar operadores.
+* O checkbox Todos funcionar corretamente.
+* A pesquisa filtrar operadores por código ou nome.
+* A seleção não for perdida ao pesquisar.
+* O botão Salvar persistir alterações.
+* O painel fechar após salvar com sucesso.
+* A lista principal atualizar após salvar.
+* O botão Voltar fechar o painel sem salvar.
+* O sistema pedir confirmação ao descartar alterações.
+* O sistema apresentar mensagens de erro amigáveis.
+* O sistema apresentar loading durante chamadas assíncronas.
+
+---
+
+# Critérios de Aceite Visuais
+
+A tela será considerada visualmente correta quando:
+
+* Seguir a identidade visual da Cortag.
+* Utilizar vermelho e branco conforme Design System.
+* Utilizar componentes PO-UI.
+* Estar otimizada para tablet.
+* Possuir botões grandes e confortáveis.
+* Possuir campos legíveis.
+* Possuir lista com boa área de toque.
+* Não possuir rolagem horizontal.
+* Manter espaçamento consistente.
+* Ser visualmente compatível com as demais telas.
+
+---
+
+# Critérios de Aceite Técnicos
+
+A implementação será considerada tecnicamente correta quando:
+
+* Seguir a arquitetura Feature First.
+* Separar Page, Components, Services, Models e Interfaces.
+* Não utilizar `any`.
+* Não utilizar HttpClient no Component.
+* Utilizar ChangeDetectionStrategy.OnPush.
+* Utilizar Signals ou RxJS de forma adequada.
+* Implementar tratamento de erros.
+* Implementar loading.
+* Implementar validações.
+* Estar preparada para integração real com Datasul.
+* Não duplicar código.
+* Não criar componentes desnecessários.
+
+---
+
+# Casos de Teste
+
+## CT001 — Consultar equipe existente
+
+Dado que o usuário informa uma equipe válida.
+
+Quando confirma a consulta.
+
+Então o sistema deve carregar descrição, turno e operadores.
+
+---
+
+## CT002 — Consultar equipe inexistente
+
+Dado que o usuário informa uma equipe inexistente.
+
+Quando confirma a consulta.
+
+Então o sistema deve exibir mensagem amigável e manter tela sem dados.
+
+---
+
+## CT003 — Abrir painel de alteração
+
+Dado que uma equipe está carregada.
+
+Quando o usuário clica em Alterar.
+
+Então o painel lateral deve abrir com os operadores disponíveis.
+
+---
+
+## CT004 — Marcar operador
+
+Dado que o painel está aberto.
+
+Quando o usuário marca um operador.
+
+Então o operador deve permanecer selecionado.
+
+---
+
+## CT005 — Desmarcar operador
+
+Dado que o painel está aberto.
+
+Quando o usuário desmarca um operador.
+
+Então o operador deve sair da seleção.
+
+---
+
+## CT006 — Selecionar todos
+
+Dado que o painel está aberto.
+
+Quando o usuário marca Todos.
+
+Então todos os operadores visíveis devem ser selecionados.
+
+---
+
+## CT007 — Pesquisar operador
+
+Dado que o painel possui operadores carregados.
+
+Quando o usuário digita no campo de busca.
+
+Então a lista deve ser filtrada por código ou nome.
+
+---
+
+## CT008 — Manter seleção durante pesquisa
+
+Dado que um operador foi selecionado.
+
+Quando o usuário pesquisa outro operador.
+
+Então a seleção anterior deve permanecer.
+
+---
+
+## CT009 — Salvar alterações
+
+Dado que o usuário alterou operadores.
+
+Quando clica em Salvar.
+
+Então o sistema deve persistir as alterações, fechar o painel e atualizar a lista principal.
+
+---
+
+## CT010 — Voltar sem salvar
+
+Dado que o usuário alterou operadores.
+
+Quando clica em Voltar.
+
+Então o sistema deve solicitar confirmação antes de descartar as alterações.
+
+---
+
+# Checklist para BMAD/Codex
+
+Antes de implementar:
+
+* Ler todos os documentos globais.
+* Ler integralmente este documento.
+* Conferir estrutura do projeto existente.
+* Não alterar arquitetura global sem necessidade.
+* Reutilizar componentes existentes se houver.
+* Confirmar padrão de rotas existente.
+* Confirmar padrão de services existente.
+* Confirmar padrão visual existente.
+
+Durante a implementação:
+
+* Criar arquivos na feature Equipes.
+* Utilizar PO-UI.
+* Criar Models.
+* Criar Interfaces.
+* Criar Service.
+* Criar Page.
+* Criar Components.
+* Criar loading.
+* Criar tratamento de erro.
+* Criar painel lateral.
+* Criar seleção de operadores.
+* Criar pesquisa.
+* Criar botão Todos.
+* Criar mocks apenas no Service, se necessário.
+
+Após implementar:
+
+* Validar layout em tablet.
+* Validar fluxo completo.
+* Validar loading.
+* Validar mensagens.
+* Validar seleção.
+* Validar salvar.
+* Validar voltar sem salvar.
+* Remover código morto.
+* Remover console.log.
+* Garantir ausência de `any`.
+
+---
+
+# Prompt Mestre para Codex
+
+Utilize o seguinte prompt para implementação da tela:
+
+```md
+Implemente a funcionalidade Equipes do sistema Plano de Controle CQ da Cortag.
+
+Antes de implementar, leia os documentos:
+
+- 00-design-system.md
+- 01-aplicacao.md
+- 02-fluxo-geral.md
+- 03-api.md
+- 04-arquitetura.md
+- 05-padroes-ui.md
+- screens/06-equipes.md
+
+A implementação deve seguir Angular com PO-UI, arquitetura Feature First, Standalone Components, TypeScript strict, ChangeDetectionStrategy.OnPush e otimização para tablets.
+
+Crie a tela principal de Equipes com campos Equipe, Descrição, Turno e lista de Operadores.
+
+Ao informar uma equipe, consultar os dados através do EquipesService. Caso a API real ainda não exista, criar mocks exclusivamente dentro do Service.
+
+Implemente o painel lateral de alteração de operadores usando po-page-slide. O painel deve conter campo de busca, checkbox Todos, lista de operadores com seleção individual, botão Salvar e botão Voltar.
+
+A seleção deve permanecer mesmo durante pesquisa. O botão Todos deve selecionar ou desmarcar os operadores visíveis no filtro atual.
+
+Ao salvar, enviar os operadores selecionados ao Service, fechar o painel, atualizar a lista principal e exibir mensagem de sucesso.
+
+Ao voltar com alterações não salvas, solicitar confirmação antes de descartar.
+
+Não utilizar HttpClient diretamente em componentes. Não utilizar any. Não utilizar CSS inline. Utilizar PO-UI sempre que possível.
+
+Entregar código limpo, organizado, componentizado e pronto para futura integração real com Datasul.
+```
+
+---
+
+# Observações Finais
+
+A tela Equipes é uma das telas base do sistema.
+
+Ela deve servir como referência de padrão para outras funcionalidades que também utilizarão:
+
+* consulta de dados;
+* listas;
+* painel lateral;
+* seleção;
+* salvamento;
+* feedback visual.
+
+Por isso, a implementação deve ser feita com atenção à reutilização e qualidade arquitetural.

@@ -1,0 +1,471 @@
+# 05-padroes-ui.md
+
+# Padrões de Interface (UI/UX)
+
+## Objetivo
+
+Este documento define os padrões de interface, usabilidade e experiência do usuário para o sistema **Plano de Controle CQ** da Cortag.
+
+Seu objetivo é garantir que todas as telas desenvolvidas por agentes de IA mantenham consistência visual, comportamental e arquitetural durante toda a evolução do projeto.
+
+Este documento complementa o **Design System** e deve ser seguido por todas as funcionalidades.
+
+---
+
+# Princípios de UX
+
+Toda tela deve priorizar:
+
+* Simplicidade
+* Rapidez
+* Clareza
+* Consistência
+* Operação por toque
+* Baixa curva de aprendizado
+
+O operador deve conseguir concluir qualquer operação utilizando o menor número possível de interações.
+
+---
+
+# Plataforma
+
+O sistema será utilizado principalmente em tablets industriais.
+
+Portanto toda interface deve ser otimizada para:
+
+* orientação horizontal;
+* operação com dedos (touch);
+* ambientes industriais;
+* leitura rápida.
+
+Evitar elementos pequenos ou de difícil interação.
+
+---
+
+# Estrutura Padrão das Telas
+
+Todas as telas devem seguir a seguinte estrutura:
+
+```text
+┌────────────────────────────────────────────┐
+│ Cabeçalho                                  │
+├────────────────────────────────────────────┤
+│                                            │
+│ Conteúdo Principal                         │
+│                                            │
+│                                            │
+├────────────────────────────────────────────┤
+│ Área de ações                              │
+└────────────────────────────────────────────┘
+```
+
+---
+
+# Cabeçalho
+
+O cabeçalho deverá conter:
+
+* Logo da Cortag
+* Nome da funcionalidade
+* Opcionalmente informações do usuário
+
+O cabeçalho deve permanecer consistente em todas as telas.
+
+---
+
+# Conteúdo Principal
+
+O conteúdo deve ser organizado em blocos bem definidos.
+
+Sempre utilizar:
+
+* Cards
+* Divisores
+* Grupos de campos
+
+Evitar grandes blocos contínuos de informações.
+
+---
+
+# Área de Ações
+
+As ações principais devem ficar posicionadas no final da tela ou em uma barra de ações.
+
+Botões mais importantes devem aparecer primeiro.
+
+Exemplo:
+
+* Salvar
+* Alterar
+* Confirmar
+
+Botões secundários:
+
+* Voltar
+* Cancelar
+* Fechar
+
+---
+
+# Botões
+
+Utilizar somente componentes PO-UI.
+
+Padronização:
+
+Botão Primário
+
+* Vermelho Cortag
+
+Botão Secundário
+
+* Branco
+
+Botão de Perigo
+
+* Vermelho de alerta
+
+Botão de Link
+
+* Apenas texto
+
+---
+
+# Campos
+
+Todos os campos devem possuir:
+
+* Label
+* Placeholder quando necessário
+* Feedback de erro
+* Estado desabilitado
+
+Campos obrigatórios devem ser claramente identificados.
+
+---
+
+# Agrupamento
+
+Campos relacionados devem permanecer próximos.
+
+Exemplo:
+
+Equipe
+
+Descrição
+
+Turno
+
+devem aparecer no mesmo bloco.
+
+---
+
+# Tabelas
+
+Sempre utilizar `po-table`.
+
+As tabelas devem:
+
+* possuir cabeçalho;
+* permitir scroll;
+* manter boa legibilidade;
+* destacar a linha selecionada quando aplicável.
+
+---
+
+# Listas
+
+Listas devem apresentar:
+
+* espaçamento adequado;
+* itens grandes;
+* fácil seleção por toque.
+
+Sempre utilizar componentes do PO-UI quando possível.
+
+---
+
+# Painéis Laterais
+
+Sempre que uma operação puder ser realizada sem trocar de página, utilizar:
+
+* `po-page-slide`
+
+O painel lateral é preferível à navegação para outra tela.
+
+Exemplos:
+
+* Alterar Equipe
+* Selecionar Operadores
+* Visualizar Detalhes
+
+---
+
+# Modais
+
+Utilizar `po-modal` para:
+
+* confirmações;
+* exclusões;
+* avisos;
+* pequenas operações.
+
+Evitar utilizar modal para formulários extensos.
+
+---
+
+# Loading
+
+Toda operação assíncrona deve exibir indicador de carregamento.
+
+Durante o loading:
+
+* bloquear ações conflitantes;
+* manter feedback visual.
+
+---
+
+# Empty State
+
+Quando não houver informações:
+
+* apresentar mensagem amigável;
+* informar o motivo;
+* orientar o usuário sobre o próximo passo.
+
+Nunca deixar telas completamente vazias.
+
+---
+
+# Mensagens
+
+As mensagens devem ser:
+
+* curtas;
+* claras;
+* objetivas.
+
+Evitar linguagem técnica.
+
+Exemplo:
+
+✔ Equipe salva com sucesso.
+
+✖ Não foi possível carregar os dados.
+
+---
+
+# Feedback Visual
+
+Toda ação do usuário deve gerar resposta imediata.
+
+Exemplos:
+
+* loading;
+* toast;
+* mudança de estado;
+* destaque visual.
+
+---
+
+# Navegação
+
+Toda tela deve possuir:
+
+* botão Voltar;
+* botão Sair quando aplicável.
+
+O usuário nunca deve ficar sem uma forma de retornar.
+
+---
+
+# Responsividade
+
+Embora o foco seja tablet, todas as telas devem funcionar corretamente em resoluções maiores.
+
+O layout deve utilizar:
+
+* Flexbox
+* CSS Grid
+
+Evitar posicionamentos absolutos.
+
+---
+
+# Espaçamento
+
+Utilizar espaçamento consistente.
+
+Preferência:
+
+* 8 px
+* 16 px
+* 24 px
+* 32 px
+
+Nunca alinhar componentes sem margem.
+
+---
+
+# Hierarquia Visual
+
+Prioridade:
+
+1. Título
+2. Informações principais
+3. Campos
+4. Lista
+5. Botões
+
+A hierarquia deve facilitar a leitura rápida.
+
+---
+
+# Tipografia
+
+Utilizar tipografia padrão do PO-UI.
+
+Evitar:
+
+* múltiplos tamanhos;
+* excesso de negrito;
+* textos longos.
+
+---
+
+# Ícones
+
+Utilizar ícones do PO-UI.
+
+Os ícones devem complementar a informação, nunca substituí-la.
+
+---
+
+# Cores
+
+Utilizar exclusivamente as cores definidas em:
+
+`00-design-system.md`
+
+Não criar novas cores.
+
+Não utilizar gradientes.
+
+---
+
+# Estados da Interface
+
+Toda tela deve contemplar:
+
+* Inicial
+* Carregando
+* Com Dados
+* Sem Dados
+* Salvando
+* Sucesso
+* Erro
+
+Cada estado deve possuir representação visual própria.
+
+---
+
+# Confirmações
+
+Operações críticas devem solicitar confirmação.
+
+Exemplos:
+
+* Exclusão
+* Cancelamento
+* Perda de alterações
+
+---
+
+# Acessibilidade
+
+Garantir:
+
+* contraste adequado;
+* áreas clicáveis amplas;
+* foco visível;
+* navegação consistente.
+
+---
+
+# Reutilização
+
+Antes de criar um novo componente, verificar se existe componente reutilizável.
+
+Priorizar componentes compartilhados.
+
+Evitar duplicação de interface.
+
+---
+
+# Componentes Obrigatórios
+
+Sempre priorizar:
+
+* po-page-default
+* po-toolbar
+* po-input
+* po-select
+* po-button
+* po-table
+* po-checkbox
+* po-modal
+* po-page-slide
+* po-divider
+* po-loading
+* po-notification
+
+---
+
+# Boas Práticas
+
+Sempre:
+
+* manter alinhamento consistente;
+* manter espaçamento uniforme;
+* reduzir quantidade de cliques;
+* facilitar leitura;
+* priorizar simplicidade.
+
+Nunca:
+
+* esconder ações importantes;
+* criar fluxos complexos;
+* utilizar componentes pequenos;
+* alterar o padrão visual entre telas.
+
+---
+
+# Padrões para Agentes de IA
+
+Ao implementar qualquer tela, o agente deve:
+
+* Seguir este documento.
+* Seguir o Design System.
+* Utilizar componentes PO-UI.
+* Criar interfaces consistentes.
+* Manter padrão visual entre todas as telas.
+* Priorizar usabilidade em tablets.
+* Evitar duplicação de componentes.
+* Manter consistência de navegação.
+
+---
+
+# Checklist
+
+Antes de finalizar qualquer tela, verificar:
+
+* Estrutura padrão aplicada.
+* Cabeçalho conforme padrão.
+* Área de ações organizada.
+* Componentes PO-UI utilizados.
+* Layout otimizado para tablets.
+* Estados de loading e erro implementados.
+* Mensagens amigáveis.
+* Navegação consistente.
+* Interface compatível com as demais telas do sistema.
+* Nenhuma quebra do Design System.
