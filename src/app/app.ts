@@ -8,6 +8,72 @@ import { PoMenuItem, PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/
 
 import { AuthSessionService } from './core/auth/auth-session.service';
 
+const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
+  {
+    label: 'Menu Principal',
+    shortLabel: 'Início',
+    icon: 'an an-house',
+    link: '/menu',
+  },
+  {
+    label: 'Plano Controle CQ',
+    shortLabel: 'CQ',
+    icon: 'an an-clipboard-text',
+    link: '/quality-control',
+  },
+  {
+    label: 'Ordens e Reportes',
+    shortLabel: 'Ordens',
+    icon: 'an an-factory',
+    link: '/operation-reporting',
+  },
+  {
+    label: 'Paradas',
+    shortLabel: 'Paradas',
+    icon: 'an an-warning',
+    link: '/stoppages',
+  },
+  {
+    label: 'Refugo / Retrabalho',
+    shortLabel: 'Refugo',
+    icon: 'an an-arrows-clockwise',
+    link: '/scrap-rework',
+  },
+  {
+    label: 'Consulta Item',
+    shortLabel: 'Item',
+    icon: 'an an-magnifying-glass',
+    link: '/item-consultation',
+  },
+  {
+    label: 'Centro de Trabalho',
+    shortLabel: 'Centro',
+    icon: 'an an-monitor',
+    link: '/work-center',
+  },
+  {
+    label: 'Operador',
+    shortLabel: 'Operador',
+    icon: 'an an-user',
+    link: '/operators',
+  },
+  {
+    label: 'Equipes',
+    shortLabel: 'Equipes',
+    icon: 'an an-users',
+    link: '/teams',
+  },
+];
+
+const ANONYMOUS_MENUS: ReadonlyArray<PoMenuItem> = [
+  {
+    label: 'Entrar',
+    shortLabel: 'Login',
+    icon: 'an an-sign-in',
+    link: '/login',
+  },
+];
+
 @Component({
   selector: 'app-root',
   imports: [CommonModule, RouterOutlet, PoToolbarModule, PoMenuModule, PoPageModule],
@@ -52,14 +118,13 @@ export class App {
   }
 
   get menus(): Array<PoMenuItem> {
-    const items: PoMenuItem[] = [
-      { label: 'Menu Principal', action: () => this.router.navigate(['/menu']) },
-      { label: 'Plano Controle CQ', action: () => this.router.navigate(['/quality-control']) },
-    ];
+    const items: PoMenuItem[] = this.isAuthenticated ? [...AUTHENTICATED_MENUS] : [...ANONYMOUS_MENUS];
 
     if (this.isAuthenticated) {
       items.push({
         label: 'Sair da sessão mock',
+        shortLabel: 'Sair',
+        icon: 'an an-sign-out',
         action: () => this.logout(),
       });
     }

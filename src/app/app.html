@@ -1,7 +1,11 @@
-<div class="po-wrapper">
+<div class="po-wrapper app-shell">
   <po-toolbar [p-title]="toolbarTitle"></po-toolbar>
 
-  <po-menu [p-menus]="menus"></po-menu>
+  <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
+    <po-menu [p-menus]="menus"></po-menu>
+  </nav>
 
-  <router-outlet />
+  <main class="app-shell__content" data-testid="app-content">
+    <router-outlet />
+  </main>
 </div>

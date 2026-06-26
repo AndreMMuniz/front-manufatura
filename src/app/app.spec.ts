@@ -230,7 +230,7 @@ describe('App', () => {
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    expect(app.menus.map(item => item.label)).toEqual(['Menu Principal', 'Plano Controle CQ']);
+    expect(app.menus.map(item => item.label)).toEqual(['Entrar']);
   });
 
   it('should show shell navigation with logout when authenticated', () => {
@@ -244,44 +244,63 @@ describe('App', () => {
     expect(app.menus.map(item => item.label)).toEqual([
       'Menu Principal',
       'Plano Controle CQ',
+      'Ordens e Reportes',
+      'Paradas',
+      'Refugo / Retrabalho',
+      'Consulta Item',
+      'Centro de Trabalho',
+      'Operador',
+      'Equipes',
       'Sair da sessão mock',
     ]);
   });
 
-  it('should keep shell menu focused on implemented structural navigation only', () => {
+  it('should expose a direct lateral navigation item for every implemented SFC destination', () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+    const menuLabels = app.menus.map(item => item.label);
+
+    expect(menuLabels).toContain('Ordens e Reportes');
+    expect(menuLabels).toContain('Paradas');
+    expect(menuLabels).toContain('Refugo / Retrabalho');
+    expect(menuLabels).toContain('Consulta Item');
+    expect(menuLabels).toContain('Centro de Trabalho');
+    expect(menuLabels).toContain('Operador');
+    expect(menuLabels).toContain('Equipes');
+  });
+
+  it('should use PO-UI icon-capable menu items so the side menu can collapse cleanly', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    expect(app.menus.map(item => item.label)).not.toContain('Iniciar Ordem');
-    expect(app.menus.map(item => item.label)).not.toContain('Reporte Ordem');
-    expect(app.menus.map(item => item.label)).not.toContain('Centro de Trabalho');
+    for (const item of app.menus) {
+      expect(item.icon).toBeTruthy();
+      expect(item.shortLabel).toBeTruthy();
+    }
   });
 
-  it('should navigate to main menu from the shell menu entry', async () => {
+  it('should expose main menu as a direct shell menu link', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
-    const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-
-    app.menus[0].action?.(app.menus[0]);
 
     expect(app.menus[0].label).toBe('Menu Principal');
-    expect(navigateSpy).toHaveBeenCalledWith(['/menu']);
+    expect(app.menus[0].link).toBe('/menu');
   });
 
-  it('should keep the shell menu entry navigating to quality-control', async () => {
-    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(false);
+  it('should keep the shell menu entry linking to quality-control', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
-    const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-
-    app.menus[1].action?.(app.menus[1]);
 
     expect(app.menus[1].label).toBe('Plano Controle CQ');
-    expect(navigateSpy).toHaveBeenCalledWith(['/quality-control']);
+    expect(app.menus[1].link).toBe('/quality-control');
   });
 
   it('should redirect to login when the shell logout clears the session', async () => {

@@ -1,0 +1,11 @@
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell__menu {
+  display: block;
+}
+
+.app-shell__content {
+  min-width: 0;
+}
