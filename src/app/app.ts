@@ -53,6 +53,7 @@ export class App {
 
   get menus(): Array<PoMenuItem> {
     const items: PoMenuItem[] = [
+      { label: 'Menu Principal', action: () => this.router.navigate(['/menu']) },
       { label: 'Plano Controle CQ', action: () => this.router.navigate(['/quality-control']) },
     ];
 

@@ -154,8 +154,42 @@ describe('App', () => {
     });
   });
 
-  it('should keep the menu entry navigating to quality-control', async () => {
+  it('should show shell navigation without logout when anonymous', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(false);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+
+    expect(app.menus.map(item => item.label)).toEqual(['Menu Principal', 'Plano Controle CQ']);
+  });
+
+  it('should show shell navigation with logout when authenticated', () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    currentUserValue = { username: 'operador' };
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+
+    expect(app.toolbarTitle).toBe('Plano de Controle CQ - operador');
+    expect(app.menus.map(item => item.label)).toEqual([
+      'Menu Principal',
+      'Plano Controle CQ',
+      'Sair da sessão mock',
+    ]);
+  });
+
+  it('should keep shell menu focused on implemented structural navigation only', () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+
+    expect(app.menus.map(item => item.label)).not.toContain('Iniciar Ordem');
+    expect(app.menus.map(item => item.label)).not.toContain('Reporte Ordem');
+    expect(app.menus.map(item => item.label)).not.toContain('Centro de Trabalho');
+  });
+
+  it('should navigate to main menu from the shell menu entry', async () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
@@ -163,7 +197,20 @@ describe('App', () => {
 
     app.menus[0].action?.(app.menus[0]);
 
-    expect(app.menus[0].label).toBe('Plano Controle CQ');
+    expect(app.menus[0].label).toBe('Menu Principal');
+    expect(navigateSpy).toHaveBeenCalledWith(['/menu']);
+  });
+
+  it('should keep the shell menu entry navigating to quality-control', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(false);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+    const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    app.menus[1].action?.(app.menus[1]);
+
+    expect(app.menus[1].label).toBe('Plano Controle CQ');
     expect(navigateSpy).toHaveBeenCalledWith(['/quality-control']);
   });
 
