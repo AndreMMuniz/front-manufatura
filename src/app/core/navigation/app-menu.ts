@@ -46,7 +46,7 @@ const menu = [
     label: 'Administração',
     options: [
       { id: 'equipes', label: 'Equipes', implemented: false },
-      { id: 'centro-de-trabalho', label: 'Centro de Trabalho', implemented: false },
+      { id: 'centro-de-trabalho', label: 'Centro de Trabalho', target: '/work-center', implemented: true },
       { id: 'reporte-operacoes', label: 'Reporte Operações', implemented: false },
       { id: 'reporte-paradas', label: 'Reporte Paradas', implemented: false },
       { id: 'plano-controle-cq-adm', label: 'Plano Controle CQ', target: '/quality-control', implemented: true },

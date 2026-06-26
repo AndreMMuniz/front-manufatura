@@ -30,15 +30,24 @@ describe('SFC_MENU', () => {
     expect(cqAd!.target).toBe('/quality-control');
   });
 
-  it('non-CQ options are marked as not implemented', () => {
+  it('keeps unfinished SFC options marked as not implemented', () => {
     for (const group of SFC_MENU) {
       for (const option of group.options) {
-        if (option.label !== 'Plano Controle CQ') {
+        if (option.label !== 'Plano Controle CQ' && option.label !== 'Centro de Trabalho') {
           expect(option.implemented).toBe(false);
           expect(option.target).toBeUndefined();
         }
       }
     }
+  });
+
+  it('Centro de Trabalho is implemented with target /work-center', () => {
+    const administracao = SFC_MENU.find(g => g.label === 'Administração');
+    const workCenter = administracao?.options.find(o => o.label === 'Centro de Trabalho');
+
+    expect(workCenter).toBeDefined();
+    expect(workCenter!.implemented).toBe(true);
+    expect(workCenter!.target).toBe('/work-center');
   });
 
   it('every option has a unique id within its group and every group has an id', () => {

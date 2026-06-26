@@ -70,6 +70,19 @@ describe('MainMenuPage', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/quality-control']);
   });
 
+  it('Centro de Trabalho navigates to /work-center', () => {
+    const fixture = TestBed.createComponent(MainMenuPage);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    const workCenter = component.groups[2].options.find(o => o.label === 'Centro de Trabalho');
+    expect(workCenter).toBeDefined();
+
+    component.selectOption(workCenter!);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/work-center']);
+  });
+
   it('non-implemented options do not navigate', () => {
     const fixture = TestBed.createComponent(MainMenuPage);
     fixture.detectChanges();

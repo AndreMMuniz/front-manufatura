@@ -11,6 +11,7 @@ import { routes } from './app.routes';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
+import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
 
 describe('App', () => {
@@ -77,6 +78,15 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/menu');
     });
 
+    it('should route work-center to the work center page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/work-center', WorkCenterPage);
+
+      expect(component).toBeInstanceOf(WorkCenterPage);
+      expect(TestBed.inject(Router).url).toBe('/work-center');
+    });
+
     it('should route login to the login page', async () => {
       const harness = await RouterTestingHarness.create();
 
@@ -122,6 +132,16 @@ describe('App', () => {
 
       expect(router.url.startsWith('/login')).toBe(true);
       expect(returnUrlFrom(router)).toBe('/menu');
+    });
+
+    it('should redirect work-center to login with returnUrl=/work-center when not authenticated', async () => {
+      const harness = await RouterTestingHarness.create();
+      const router = TestBed.inject(Router);
+
+      await harness.navigateByUrl('/work-center');
+
+      expect(router.url.startsWith('/login')).toBe(true);
+      expect(returnUrlFrom(router)).toBe('/work-center');
     });
 
     it('should keep login accessible', async () => {

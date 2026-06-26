@@ -1,0 +1,54 @@
+<po-page-default p-title="Centro de Trabalho">
+  <section class="work-center">
+    <po-widget p-title="Consulta">
+      <form class="work-center__search" (ngSubmit)="search()">
+        <po-input
+          name="searchTerm"
+          p-label="Centro de Trabalho"
+          p-placeholder="Codigo ou descricao"
+          [(ngModel)]="searchTerm"
+        ></po-input>
+
+        <div class="work-center__actions">
+          <po-button p-label="Consultar" p-kind="primary" p-type="submit"></po-button>
+          <po-button p-label="Voltar ao Menu" p-kind="secondary" (p-click)="backToMenu()"></po-button>
+        </div>
+      </form>
+    </po-widget>
+
+    <po-widget p-title="Centros disponiveis">
+      <ul class="work-center__list">
+        @for (workCenter of workCenters; track workCenter.code) {
+          <li class="work-center__item">
+            <div>
+              <strong>{{ workCenter.code }}</strong>
+              <span>{{ workCenter.description }}</span>
+              <small>{{ workCenter.area }} - {{ statusLabel(workCenter) }}</small>
+            </div>
+
+            <po-button
+              p-label="Selecionar"
+              [p-disabled]="!workCenter.active"
+              (p-click)="selectWorkCenter(workCenter)"
+            ></po-button>
+          </li>
+        } @empty {
+          <li class="work-center__empty">Nenhum centro encontrado.</li>
+        }
+      </ul>
+    </po-widget>
+
+    <po-widget p-title="Centro selecionado">
+      @if (selectedWorkCenter) {
+        <div class="work-center__summary">
+          <strong>{{ selectedWorkCenter.code }}</strong>
+          <span>{{ selectedWorkCenter.description }}</span>
+          <small>{{ selectedWorkCenter.area }} - {{ statusLabel(selectedWorkCenter) }}</small>
+          <po-button p-label="Limpar selecao" p-kind="secondary" (p-click)="clearSelection()"></po-button>
+        </div>
+      } @else {
+        <p class="work-center__empty">Nenhum centro de trabalho selecionado.</p>
+      }
+    </po-widget>
+  </section>
+</po-page-default>
