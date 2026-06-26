@@ -1,13 +1,12 @@
 .sfc-placeholder {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  display: grid;
+  gap: var(--app-space-lg);
+  max-width: 760px;
 }
 
 .sfc-placeholder__content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  gap: var(--app-space-md);
 }
 
 .sfc-placeholder__message,
@@ -17,8 +16,9 @@
 
 .sfc-placeholder__message {
   font-weight: 600;
+  color: var(--app-color-text);
 }
 
 .sfc-placeholder__description {
-  color: #5b6871;
+  color: var(--app-color-text-muted);
 }

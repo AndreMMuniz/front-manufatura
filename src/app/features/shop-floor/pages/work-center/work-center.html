@@ -5,7 +5,7 @@
         <po-input
           name="searchTerm"
           p-label="Centro de Trabalho"
-          p-placeholder="Codigo ou descricao"
+          p-placeholder="Código ou descrição"
           [(ngModel)]="searchTerm"
         ></po-input>
 
@@ -16,7 +16,7 @@
       </form>
     </po-widget>
 
-    <po-widget p-title="Centros disponiveis">
+    <po-widget p-title="Centros disponíveis">
       <ul class="work-center__list">
         @for (workCenter of workCenters; track workCenter.code) {
           <li class="work-center__item">
@@ -44,7 +44,7 @@
           <strong>{{ selectedWorkCenter.code }}</strong>
           <span>{{ selectedWorkCenter.description }}</span>
           <small>{{ selectedWorkCenter.area }} - {{ statusLabel(selectedWorkCenter) }}</small>
-          <po-button p-label="Limpar selecao" p-kind="secondary" (p-click)="clearSelection()"></po-button>
+          <po-button p-label="Limpar seleção" p-kind="secondary" (p-click)="clearSelection()"></po-button>
         </div>
       } @else {
         <p class="work-center__empty">Nenhum centro de trabalho selecionado.</p>

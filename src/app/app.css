@@ -1,5 +1,6 @@
 .app-shell {
   min-height: 100vh;
+  background: var(--app-color-background);
 }
 
 .app-shell__menu {
@@ -8,4 +9,5 @@
 
 .app-shell__content {
   min-width: 0;
+  background: var(--app-color-background);
 }

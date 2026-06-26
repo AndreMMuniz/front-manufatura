@@ -1,3 +1,65 @@
-/* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+:root {
+  --app-color-primary: #d71920;
+  --app-color-primary-dark: #a91419;
+  --app-color-primary-soft: #fde7e8;
+  --app-color-background: #ffffff;
+  --app-color-surface: #ffffff;
+  --app-color-surface-muted: #f6f7f8;
+  --app-color-border: #dadedf;
+  --app-color-text: #2c373b;
+  --app-color-text-muted: #5b6871;
+  --app-color-success: #0f6b2f;
+  --app-color-success-soft: #dff3e7;
+  --app-color-warning: #9a6a00;
+  --app-color-warning-soft: #fff8e1;
+  --app-color-error: #9f1c1c;
+  --app-color-error-soft: #fde7e7;
+  --app-color-info: #005c9e;
+  --app-space-sm: 8px;
+  --app-space-md: 16px;
+  --app-space-lg: 24px;
+  --app-space-xl: 32px;
+  --app-radius: 4px;
+  --app-touch-target: 48px;
+
+  --color-brand-01-base: var(--app-color-primary);
+  --color-brand-01-dark: var(--app-color-primary-dark);
+  --color-brand-01-darkest: var(--app-color-primary-dark);
+  --color-brand-01-light: #f05b62;
+  --color-brand-01-lighter: #f8b9bd;
+  --color-brand-01-lightest: var(--app-color-primary-soft);
+  --color-action-default: var(--app-color-primary);
+  --color-action-hover: var(--app-color-primary-dark);
+  --color-action-pressed: var(--app-color-primary-dark);
+  --color-action-focus: var(--app-color-primary);
+  --color-action-disabled: #a6afb3;
+  --color-feedback-negative-base: var(--app-color-error);
+  --color-feedback-negative-dark: var(--app-color-error);
+  --color-feedback-negative-darker: #7d1515;
+  --color-feedback-negative-darkest: #5f1010;
+  --color-feedback-negative-lighter: var(--app-color-error-soft);
+  --color-feedback-negative-lightest: var(--app-color-error-soft);
+  --color-feedback-positive-base: var(--app-color-success);
+  --color-feedback-positive-dark: var(--app-color-success);
+  --color-feedback-positive-lightest: var(--app-color-success-soft);
+  --color-feedback-warning-base: var(--app-color-warning);
+  --color-feedback-warning-darkest: var(--app-color-warning);
+  --color-feedback-warning-lightest: var(--app-color-warning-soft);
+  --color-feedback-info-base: var(--app-color-info);
+  --color-feedback-info-dark: var(--app-color-info);
+  --color-feedback-info-lightest: #e5f2fb;
+  --color-neutral-light-98: var(--app-color-surface-muted);
+  --color-neutral-light-90: var(--app-color-border);
+}
+
+html,
+body {
+  background: var(--app-color-background);
+  color: var(--app-color-text);
+}
+
+po-page-default {
+  display: block;
+}

@@ -3,8 +3,8 @@
   display: grid;
   grid-template-rows: 1fr auto;
   place-items: center;
-  padding: 32px;
-  background: #ffffff;
+  padding: var(--app-space-xl);
+  background: var(--app-color-background);
 }
 
 .login-page__panel {
@@ -14,14 +14,14 @@
 .login-page__header {
   display: grid;
   justify-items: center;
-  gap: 24px;
-  margin-bottom: 32px;
+  gap: var(--app-space-lg);
+  margin-bottom: var(--app-space-xl);
 }
 
 .login-page__logo {
   min-width: 180px;
-  border: 3px solid #d71920;
-  color: #d71920;
+  border: 3px solid var(--app-color-primary);
+  color: var(--app-color-primary);
   padding: 14px 24px;
   text-align: center;
   font-size: 2rem;
@@ -31,19 +31,19 @@
 
 .login-page__header h1 {
   margin: 0;
-  color: #2c373b;
+  color: var(--app-color-text);
   font-size: 1.5rem;
   font-weight: 700;
 }
 
 .login-page__form {
   display: grid;
-  gap: 16px;
+  gap: var(--app-space-md);
 }
 
 .login-page__message {
   margin: 0;
-  color: #c64840;
+  color: var(--app-color-error);
   font-weight: 600;
 }
 
@@ -58,13 +58,13 @@
 .login-page__authenticated {
   margin: 0 0 16px;
   text-align: center;
-  color: #2c373b;
+  color: var(--app-color-text);
 }
 
 .login-page__version {
-  color: #4a5c60;
+  color: var(--app-color-text-muted);
   font-size: 0.875rem;
-  padding-top: 24px;
+  padding-top: var(--app-space-lg);
 }
 
 @media (min-width: 1024px) {

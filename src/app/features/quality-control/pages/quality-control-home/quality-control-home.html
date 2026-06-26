@@ -3,11 +3,11 @@
     <po-widget p-title="Apontamento do Plano de Controle da Qualidade">
       <p>
         Registre eletronicamente os resultados dos exames de qualidade vinculados a OP,
-        operacao e item, com validacao automatica de limites e rastreabilidade no Datasul.
+        operação e item, com validação automática de limites e rastreabilidade no Datasul.
       </p>
 
       <p class="quality-control-home__next-step">
-        Informe OP, operacao e split para preparar a geracao do roteiro de inspecao.
+        Informe OP, operação e split para preparar a geração do roteiro de inspeção.
       </p>
 
       <app-route-lookup-form
@@ -27,7 +27,7 @@
       <app-quality-exam-card [exam]="exam" (componentSelected)="selectComponent($event)"></app-quality-exam-card>
 
       @if (selectedComponent; as component) {
-        <po-widget class="quality-control-home__measurement-card" p-title="Digitacao do Exame">
+        <po-widget class="quality-control-home__measurement-card" p-title="Digitação do Exame">
           <app-measurement-entry-form
             [component]="component"
             [(measuredValue)]="measuredValue"

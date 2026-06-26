@@ -5,7 +5,7 @@
         <po-input
           name="searchTerm"
           p-label="Operador"
-          p-placeholder="Codigo, nome ou funcao"
+          p-placeholder="Código, nome ou função"
           [(ngModel)]="searchTerm"
         ></po-input>
 
@@ -16,7 +16,7 @@
       </form>
     </po-widget>
 
-    <po-widget p-title="Operadores disponiveis">
+    <po-widget p-title="Operadores disponíveis">
       <ul class="operators__list">
         @for (operator of operators; track operator.code) {
           <li class="operators__item">
@@ -44,7 +44,7 @@
           <strong>{{ selectedOperator.code }}</strong>
           <span>{{ selectedOperator.name }}</span>
           <small>{{ selectedOperator.role }} - {{ statusLabel(selectedOperator) }}</small>
-          <po-button p-label="Limpar selecao" p-kind="secondary" (p-click)="clearSelection()"></po-button>
+          <po-button p-label="Limpar seleção" p-kind="secondary" (p-click)="clearSelection()"></po-button>
         </div>
       } @else {
         <p class="operators__empty">Nenhum operador selecionado.</p>

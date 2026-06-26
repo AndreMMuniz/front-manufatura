@@ -1,65 +1,99 @@
 .quality-exam-card {
   display: block;
-  margin-top: 1rem;
+  margin-top: var(--app-space-md);
 }
 
 .quality-exam-card__header {
   display: grid;
-  gap: 0.75rem;
-  margin: 0 0 1rem;
+  gap: var(--app-space-md);
+  margin: 0 0 var(--app-space-md);
+}
+
+.quality-exam-card__header div {
+  min-height: 64px;
+  padding: var(--app-space-md);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  background: var(--app-color-surface-muted);
 }
 
 .quality-exam-card__header dt {
+  color: var(--app-color-text-muted);
   font-weight: 700;
 }
 
 .quality-exam-card__header dd {
   margin: 0;
+  color: var(--app-color-text);
 }
 
 .quality-exam-card__components {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--app-space-md);
 }
 
 .quality-exam-card__component {
   align-items: flex-start;
-  border: 1px solid var(--color-neutral-light-90);
-  border-radius: 4px;
-  display: flex;
-  gap: 1rem;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  display: grid;
+  gap: var(--app-space-md);
   justify-content: space-between;
-  padding: 0.75rem;
+  padding: var(--app-space-md);
+  background: var(--app-color-surface);
 }
 
 .quality-exam-card__component div {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--app-space-sm);
+}
+
+.quality-exam-card__component strong {
+  color: var(--app-color-text);
+}
+
+.quality-exam-card__component span {
+  color: var(--app-color-text-muted);
 }
 
 .quality-exam-card__component-actions {
-  align-items: flex-end;
+  align-items: start;
   display: grid;
-  gap: 0.5rem;
-  justify-items: end;
+  gap: var(--app-space-sm);
+  justify-items: start;
 }
 
 .quality-exam-card__status {
-  background: var(--color-neutral-light-90);
-  border-radius: 999px;
+  background: var(--app-color-surface-muted);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  color: var(--app-color-text-muted);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 0.25rem 0.75rem;
 }
 
 .quality-exam-card__status--approved {
-  background: #dff3e7;
-  color: #0f6b2f;
+  background: var(--app-color-success-soft);
+  border-color: var(--app-color-success);
+  color: var(--app-color-success);
 }
 
 .quality-exam-card__status--rejected {
-  background: #fde7e7;
-  color: #9f1c1c;
+  background: var(--app-color-error-soft);
+  border-color: var(--app-color-error);
+  color: var(--app-color-error);
+}
+
+@media (min-width: 640px) {
+  .quality-exam-card__component {
+    align-items: center;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .quality-exam-card__component-actions {
+    justify-items: end;
+  }
 }
 
 @media (min-width: 768px) {

@@ -50,7 +50,7 @@ describe('SfcPlaceholderPage', () => {
     const native = fixture.nativeElement as HTMLElement;
 
     expect(native.textContent).toContain('Reporte de Operações');
-    expect(native.textContent).toContain('Este modulo esta pendente de implementacao');
+    expect(native.textContent).toContain('Este módulo está pendente de implementação');
     expect(native.textContent).toContain('Fluxos de reporte de produção serão implementados em uma etapa futura.');
   });
 
