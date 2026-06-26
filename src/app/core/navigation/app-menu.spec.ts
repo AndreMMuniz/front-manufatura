@@ -51,4 +51,12 @@ describe('SFC_MENU', () => {
       }
     }
   });
+
+  it('is frozen at the top level and for nested option collections', () => {
+    expect(Object.isFrozen(SFC_MENU)).toBe(true);
+    for (const group of SFC_MENU) {
+      expect(Object.isFrozen(group)).toBe(true);
+      expect(Object.isFrozen(group.options)).toBe(true);
+    }
+  });
 });

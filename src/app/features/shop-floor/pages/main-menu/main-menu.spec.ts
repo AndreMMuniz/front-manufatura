@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { vi } from 'vitest';
 
-import { PoButtonModule, PoPageModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonComponent, PoButtonModule, PoPageModule, PoWidgetModule } from '@po-ui/ng-components';
 
 import { MainMenuPage } from './main-menu';
 
@@ -80,6 +81,19 @@ describe('MainMenuPage', () => {
     component.selectOption(unavailable);
 
     expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders non-implemented options as disabled buttons', () => {
+    const fixture = TestBed.createComponent(MainMenuPage);
+    fixture.detectChanges();
+
+    const unavailableButton = fixture.debugElement.queryAll(By.directive(PoButtonComponent)).find(button =>
+      button.componentInstance.label() === 'Iniciar Ordem',
+    );
+
+    expect(unavailableButton).toBeDefined();
+    expect(unavailableButton?.componentInstance.disabled).toBe(true);
+    expect(unavailableButton?.nativeElement.getAttribute('title')).toBe('Iniciar Ordem (não disponível)');
   });
 
   it('renders one po-button per option across all groups', () => {

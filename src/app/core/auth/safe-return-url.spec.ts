@@ -43,6 +43,7 @@ describe('buildSafeReturnUrl', () => {
     expect(buildSafeReturnUrl('/Login')).toBeNull();
     expect(buildSafeReturnUrl('/LOGIN')).toBeNull();
     expect(buildSafeReturnUrl('/login/foo')).toBeNull();
+    expect(buildSafeReturnUrl('/login;mock=true')).toBeNull();
   });
 
   it('accepts a route that starts with the substring "login" but is a distinct segment', () => {
@@ -52,5 +53,11 @@ describe('buildSafeReturnUrl', () => {
 
   it('returns the decoded value so validated intent matches executed target', () => {
     expect(buildSafeReturnUrl('/quality-control%2Freports')).toBe('/quality-control/reports');
+    expect(buildSafeReturnUrl('/quality-control%252Freports')).toBe('/quality-control/reports');
+  });
+
+  it('rejects dot segments that could normalize into another route', () => {
+    expect(buildSafeReturnUrl('/quality-control/../login')).toBeNull();
+    expect(buildSafeReturnUrl('/quality-control/%2E%2E/login')).toBeNull();
   });
 });

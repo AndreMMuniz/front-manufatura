@@ -16,22 +16,22 @@ import { QualityControlHome } from './features/quality-control/pages/quality-con
 describe('App', () => {
   let authSessionMock: AuthSessionService;
   let currentUserValue: { username: string } | null;
+  let sessionSubject: BehaviorSubject<unknown>;
 
   beforeEach(async () => {
     currentUserValue = null;
 
-    const sessionSubject = new BehaviorSubject<unknown>(null);
+    sessionSubject = new BehaviorSubject<unknown>(null);
 
     authSessionMock = {
       login: vi.fn(),
-      logout: vi.fn(),
+      logout: vi.fn(() => sessionSubject.next(null)),
       isAuthenticated: vi.fn().mockReturnValue(false),
       get currentUser() {
         return currentUserValue;
       },
-      sessionSubject,
       // Real BehaviorSubject-backed observable so App.constructor can pipe it;
-      // tests can drive emissions via `authSessionMock.sessionSubject.next(...)` if needed.
+      // tests can drive emissions through the local `sessionSubject`.
       session$: sessionSubject.asObservable(),
     } as unknown as AuthSessionService;
 
@@ -165,6 +165,42 @@ describe('App', () => {
 
     expect(app.menus[0].label).toBe('Plano Controle CQ');
     expect(navigateSpy).toHaveBeenCalledWith(['/quality-control']);
+  });
+
+  it('should redirect to login when the shell logout clears the session', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    currentUserValue = { username: 'operador' };
+    sessionSubject.next({ user: currentUserValue });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    app.logout();
+    await Promise.resolve();
+
+    expect(authSessionMock.logout).toHaveBeenCalled();
+    expect(navigateSpy).toHaveBeenCalledWith(['/login']);
+  });
+
+  it('should keep login visible when login-page logout clears the session while already on login', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    currentUserValue = { username: 'operador' };
+    sessionSubject.next({ user: currentUserValue });
+    const appFixture = TestBed.createComponent(App);
+    appFixture.detectChanges();
+    const harness = await RouterTestingHarness.create();
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    const login = await harness.navigateByUrl('/login', LoginPage);
+    login.logout();
+    await Promise.resolve();
+
+    expect(authSessionMock.logout).toHaveBeenCalled();
+    expect(router.url).toBe('/login');
+    expect(navigateSpy).not.toHaveBeenCalledWith(['/login']);
   });
 
 });

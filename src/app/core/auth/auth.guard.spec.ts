@@ -45,21 +45,23 @@ describe('authGuard', () => {
   it('redirects to /login with returnUrl when the user is not authenticated', async () => {
     const { router } = setup(false);
 
-    await runGuard('/quality-control');
+    const result = await runGuard('/quality-control');
 
     expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], {
       queryParams: { returnUrl: '/quality-control' },
     });
+    expect(result).toBe(vi.mocked(router.createUrlTree).mock.results[0].value);
   });
 
   it('decodes encoded returnUrl before forwarding', async () => {
     const { router } = setup(false);
 
-    await runGuard('/quality-control%2Freports');
+    const result = await runGuard('/quality-control%2Freports');
 
     expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], {
       queryParams: { returnUrl: '/quality-control/reports' },
     });
+    expect(result).toBe(vi.mocked(router.createUrlTree).mock.results[0].value);
   });
 
   it.each([
@@ -74,16 +76,18 @@ describe('authGuard', () => {
   ])('rejects unsafe returnUrl %s and omits it from the redirect', async returnUrl => {
     const { router } = setup(false);
 
-    await runGuard(returnUrl);
+    const result = await runGuard(returnUrl);
 
     expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], { queryParams: {} });
+    expect(result).toBe(vi.mocked(router.createUrlTree).mock.results[0].value);
   });
 
   it.each(['/loginhelp', '/login-support'])('accepts safe internal path %s whose first segment is not "login"', async returnUrl => {
     const { router } = setup(false);
 
-    await runGuard(returnUrl);
+    const result = await runGuard(returnUrl);
 
     expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl } });
+    expect(result).toBe(vi.mocked(router.createUrlTree).mock.results[0].value);
   });
 });

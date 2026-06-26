@@ -34,7 +34,11 @@ export function buildSafeReturnUrl(returnUrl: string | null | undefined): string
       return null;
     }
     const pathOnly = candidate.split('#')[0].split('?')[0];
-    const firstSegment = pathOnly.split('/').filter(Boolean)[0];
+    const segments = pathOnly.split('/').filter(Boolean);
+    if (segments.some(segment => segment === '.' || segment === '..')) {
+      return null;
+    }
+    const firstSegment = segments[0]?.split(';')[0];
     if (firstSegment !== undefined && firstSegment.toLowerCase() === 'login') {
       return null;
     }
@@ -43,7 +47,7 @@ export function buildSafeReturnUrl(returnUrl: string | null | undefined): string
     try {
       next = decodeURIComponent(candidate);
     } catch {
-      break;
+      return null;
     }
     if (next === candidate) {
       break;
@@ -51,5 +55,5 @@ export function buildSafeReturnUrl(returnUrl: string | null | undefined): string
     candidate = next;
   }
 
-  return decoded;
+  return candidate;
 }

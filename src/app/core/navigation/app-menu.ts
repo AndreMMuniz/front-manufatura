@@ -1,17 +1,17 @@
 export interface MenuOption {
-  id: string;
-  label: string;
-  target?: string;
-  implemented: boolean;
+  readonly id: string;
+  readonly label: string;
+  readonly target?: string;
+  readonly implemented: boolean;
 }
 
 export interface MenuGroup {
-  id: string;
-  label: string;
-  options: MenuOption[];
+  readonly id: string;
+  readonly label: string;
+  readonly options: ReadonlyArray<MenuOption>;
 }
 
-export const SFC_MENU: readonly MenuGroup[] = [
+const menu = [
   {
     id: 'producao',
     label: 'Produção',
@@ -52,4 +52,13 @@ export const SFC_MENU: readonly MenuGroup[] = [
       { id: 'plano-controle-cq-adm', label: 'Plano Controle CQ', target: '/quality-control', implemented: true },
     ],
   },
-];
+] satisfies ReadonlyArray<MenuGroup>;
+
+export const SFC_MENU: ReadonlyArray<MenuGroup> = Object.freeze(
+  menu.map(group =>
+    Object.freeze({
+      ...group,
+      options: Object.freeze([...group.options]),
+    }),
+  ),
+);
