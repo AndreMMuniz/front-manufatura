@@ -1,6 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import { Observable, of } from 'rxjs';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { WorkCenter } from '../models/work-center';
 
 const WORK_CENTERS: ReadonlyArray<WorkCenter> = Object.freeze([
@@ -12,6 +13,14 @@ const WORK_CENTERS: ReadonlyArray<WorkCenter> = Object.freeze([
 @Injectable({ providedIn: 'root' })
 export class WorkCenterService {
   private selected: WorkCenter | null = null;
+
+  constructor(@Optional() authSession?: AuthSessionService) {
+    authSession?.session$.subscribe(session => {
+      if (session === null) {
+        this.clearSelection();
+      }
+    });
+  }
 
   get selectedWorkCenter(): WorkCenter | null {
     return this.selected;
@@ -46,6 +55,10 @@ export class WorkCenterService {
   }
 
   private normalize(value: string): string {
-    return value.trim().toLowerCase();
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
   }
 }

@@ -1,5 +1,6 @@
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { WorkCenterService } from './work-center';
 
 describe('WorkCenterService', () => {
@@ -31,6 +32,20 @@ describe('WorkCenterService', () => {
     ]);
   });
 
+  it('searches work centers with accented Portuguese input', async () => {
+    await expect(firstValueFrom(service.searchWorkCenters('extrusão'))).resolves.toEqual([
+      expect.objectContaining({ code: 'CT-EXT-01' }),
+    ]);
+
+    await expect(firstValueFrom(service.searchWorkCenters('produção'))).resolves.toEqual([
+      expect.objectContaining({ code: 'CT-EXT-01' }),
+    ]);
+
+    await expect(firstValueFrom(service.searchWorkCenters('manutenção'))).resolves.toEqual([
+      expect.objectContaining({ code: 'CT-MNT-01' }),
+    ]);
+  });
+
   it('returns every work center for an empty search term', async () => {
     const centers = await firstValueFrom(service.searchWorkCenters('   '));
 
@@ -56,6 +71,18 @@ describe('WorkCenterService', () => {
     await firstValueFrom(service.selectWorkCenter('CT-CQ-01'));
 
     service.clearSelection();
+
+    expect(service.selectedWorkCenter).toBeNull();
+  });
+
+  it('clears the selected work center when the auth session is cleared', async () => {
+    const sessionSubject = new BehaviorSubject<unknown>({ user: { username: 'operador' } });
+    service = new WorkCenterService({
+      session$: sessionSubject.asObservable(),
+    } as unknown as AuthSessionService);
+    await firstValueFrom(service.selectWorkCenter('CT-CQ-01'));
+
+    sessionSubject.next(null);
 
     expect(service.selectedWorkCenter).toBeNull();
   });

@@ -87,6 +87,14 @@ describe('WorkCenterPage', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/menu']);
   });
 
+  it('does not submit the search form when navigating back to the main menu', () => {
+    fixture.detectChanges();
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('po-button')) as Array<HTMLElement>;
+    const backButton = buttons.find(button => button.textContent?.includes('Voltar ao Menu'));
+
+    expect(backButton?.getAttribute('p-type') ?? backButton?.getAttribute('ng-reflect-p-type')).toBe('button');
+  });
+
   it('renders work center status and selected context', () => {
     component.selectedWorkCenter = centers[0];
     fixture.detectChanges();
