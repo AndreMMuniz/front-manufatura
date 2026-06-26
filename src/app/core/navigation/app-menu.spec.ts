@@ -30,14 +30,44 @@ describe('SFC_MENU', () => {
     expect(cqAd!.target).toBe('/quality-control');
   });
 
-  it('keeps unfinished SFC options marked as not implemented', () => {
-    for (const group of SFC_MENU) {
-      for (const option of group.options) {
-        if (option.label !== 'Plano Controle CQ' && option.label !== 'Centro de Trabalho' && option.label !== 'Operador') {
-          expect(option.implemented).toBe(false);
-          expect(option.target).toBeUndefined();
-        }
-      }
+  it('maps pending SFC modules to explicit placeholder routes', () => {
+    const expectedTargets = new Map([
+      ['iniciar-ordem', '/operation-reporting'],
+      ['iniciar-ordem-batelada', '/operation-reporting'],
+      ['reporte-ordem', '/operation-reporting'],
+      ['reporte-batelada', '/operation-reporting'],
+      ['inicio-de-parada', '/stoppages'],
+      ['encerrar-parada', '/stoppages'],
+      ['parada-programada', '/stoppages'],
+      ['apontar-refugo', '/scrap-rework'],
+      ['lista-de-paradas', '/stoppages'],
+      ['iniciar-ordens', '/operation-reporting'],
+      ['reporte', '/operation-reporting'],
+      ['inicio-de-parada-ap', '/stoppages'],
+      ['encerrar-parada-ap', '/stoppages'],
+      ['apontar-refugo-retrabalho', '/scrap-rework'],
+      ['lista-de-paradas-ap', '/stoppages'],
+      ['consulta-item', '/item-consultation'],
+      ['equipes', '/teams'],
+      ['reporte-operacoes', '/operation-reporting'],
+      ['reporte-paradas', '/stoppages'],
+    ]);
+
+    const options = SFC_MENU.flatMap(group => group.options);
+
+    for (const [id, target] of expectedTargets) {
+      const option = options.find(item => item.id === id);
+
+      expect(option).toBeDefined();
+      expect(option!.implemented).toBe(true);
+      expect(option!.target).toBe(target);
+    }
+  });
+
+  it('keeps every SFC menu option implemented through real or placeholder targets', () => {
+    for (const option of SFC_MENU.flatMap(group => group.options)) {
+      expect(option.implemented).toBe(true);
+      expect(option.target).toBeTruthy();
     }
   });
 

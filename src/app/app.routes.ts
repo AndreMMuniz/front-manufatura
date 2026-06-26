@@ -4,6 +4,7 @@ import { authGuard } from './core/auth/auth.guard';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
+import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
 
@@ -12,6 +13,51 @@ export const routes: Routes = [
   { path: 'menu', component: MainMenuPage, canActivate: [authGuard] },
   { path: 'work-center', component: WorkCenterPage, canActivate: [authGuard] },
   { path: 'operators', component: OperatorsPage, canActivate: [authGuard] },
+  {
+    path: 'teams',
+    component: SfcPlaceholderPage,
+    canActivate: [authGuard],
+    data: {
+      title: 'Equipes',
+      description: 'O cadastro e manutencao de equipes serao implementados em uma etapa futura.',
+    },
+  },
+  {
+    path: 'operation-reporting',
+    component: SfcPlaceholderPage,
+    canActivate: [authGuard],
+    data: {
+      title: 'Reporte de Operações',
+      description: 'Fluxos de reporte, inicio de ordens e operacoes serao implementados em uma etapa futura.',
+    },
+  },
+  {
+    path: 'stoppages',
+    component: SfcPlaceholderPage,
+    canActivate: [authGuard],
+    data: {
+      title: 'Paradas',
+      description: 'Fluxos de inicio, encerramento, programacao e reporte de paradas serao implementados em uma etapa futura.',
+    },
+  },
+  {
+    path: 'scrap-rework',
+    component: SfcPlaceholderPage,
+    canActivate: [authGuard],
+    data: {
+      title: 'Refugo / Retrabalho',
+      description: 'Fluxos de apontamento de refugo e retrabalho serao implementados em uma etapa futura.',
+    },
+  },
+  {
+    path: 'item-consultation',
+    component: SfcPlaceholderPage,
+    canActivate: [authGuard],
+    data: {
+      title: 'Consulta Item',
+      description: 'A consulta de itens sera implementada em uma etapa futura.',
+    },
+  },
   { path: 'quality-control', component: QualityControlHome, canActivate: [authGuard] },
   // Empty root redirects to /menu (which is guarded) so the auth
   // round-trip still lands authenticated users at the SFC main menu and

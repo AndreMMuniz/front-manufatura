@@ -1,0 +1,24 @@
+.sfc-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sfc-placeholder__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sfc-placeholder__message,
+.sfc-placeholder__description {
+  margin: 0;
+}
+
+.sfc-placeholder__message {
+  font-weight: 600;
+}
+
+.sfc-placeholder__description {
+  color: #5b6871;
+}

@@ -96,30 +96,36 @@ describe('MainMenuPage', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/operators']);
   });
 
-  it('non-implemented options do not navigate', () => {
+  it.each([
+    ['Equipes', '/teams'],
+    ['Reporte Operações', '/operation-reporting'],
+    ['Reporte Paradas', '/stoppages'],
+    ['Apontar Refugo / Retrabalho', '/scrap-rework'],
+    ['Consulta Item', '/item-consultation'],
+  ])('%s navigates to its placeholder route', (label, target) => {
     const fixture = TestBed.createComponent(MainMenuPage);
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
-    const unavailable = component.groups[0].options[0];
-    expect(unavailable.implemented).toBe(false);
+    const option = component.groups.flatMap(g => g.options).find(o => o.label === label);
+    expect(option).toBeDefined();
 
-    component.selectOption(unavailable);
+    component.selectOption(option!);
 
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(navigateSpy).toHaveBeenCalledWith([target]);
   });
 
-  it('renders non-implemented options as disabled buttons', () => {
+  it('all SFC menu options are available after placeholder routing is added', () => {
     const fixture = TestBed.createComponent(MainMenuPage);
     fixture.detectChanges();
 
-    const unavailableButton = fixture.debugElement.queryAll(By.directive(PoButtonComponent)).find(button =>
-      button.componentInstance.label() === 'Iniciar Ordem',
-    );
+    const buttons = fixture.debugElement.queryAll(By.directive(PoButtonComponent));
 
-    expect(unavailableButton).toBeDefined();
-    expect(unavailableButton?.componentInstance.disabled).toBe(true);
-    expect(unavailableButton?.nativeElement.getAttribute('title')).toBe('Iniciar Ordem (não disponível)');
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      expect(button.componentInstance.disabled).toBe(false);
+      expect(button.nativeElement.getAttribute('title')).not.toContain('não disponível');
+    }
   });
 
   it('renders one po-button per option across all groups', () => {

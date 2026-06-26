@@ -13,6 +13,7 @@ import { LoginPage } from './features/login/pages/login-page/login-page';
 import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
+import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
 
 describe('App', () => {
@@ -97,6 +98,22 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/operators');
     });
 
+    it.each([
+      ['/teams', 'Equipes'],
+      ['/operation-reporting', 'Reporte de Operações'],
+      ['/stoppages', 'Paradas'],
+      ['/scrap-rework', 'Refugo / Retrabalho'],
+      ['/item-consultation', 'Consulta Item'],
+    ])('should route %s to the SFC placeholder page', async (url, title) => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl(url, SfcPlaceholderPage);
+
+      expect(component).toBeInstanceOf(SfcPlaceholderPage);
+      expect(component.title).toBe(title);
+      expect(TestBed.inject(Router).url).toBe(url);
+    });
+
     it('should route login to the login page', async () => {
       const harness = await RouterTestingHarness.create();
 
@@ -163,6 +180,19 @@ describe('App', () => {
       expect(router.url.startsWith('/login')).toBe(true);
       expect(returnUrlFrom(router)).toBe('/operators');
     });
+
+    it.each(['/teams', '/operation-reporting', '/stoppages', '/scrap-rework', '/item-consultation'])(
+      'should redirect %s to login with the exact returnUrl when not authenticated',
+      async url => {
+        const harness = await RouterTestingHarness.create();
+        const router = TestBed.inject(Router);
+
+        await harness.navigateByUrl(url);
+
+        expect(router.url.startsWith('/login')).toBe(true);
+        expect(returnUrlFrom(router)).toBe(url);
+      },
+    );
 
     it('should keep login accessible', async () => {
       const harness = await RouterTestingHarness.create();
