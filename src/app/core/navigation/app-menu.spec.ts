@@ -33,7 +33,7 @@ describe('SFC_MENU', () => {
   it('keeps unfinished SFC options marked as not implemented', () => {
     for (const group of SFC_MENU) {
       for (const option of group.options) {
-        if (option.label !== 'Plano Controle CQ' && option.label !== 'Centro de Trabalho') {
+        if (option.label !== 'Plano Controle CQ' && option.label !== 'Centro de Trabalho' && option.label !== 'Operador') {
           expect(option.implemented).toBe(false);
           expect(option.target).toBeUndefined();
         }
@@ -48,6 +48,15 @@ describe('SFC_MENU', () => {
     expect(workCenter).toBeDefined();
     expect(workCenter!.implemented).toBe(true);
     expect(workCenter!.target).toBe('/work-center');
+  });
+
+  it('Operador is implemented with target /operators and sits in Administracao', () => {
+    const administracao = SFC_MENU.find(g => g.label === 'Administração');
+    const operador = administracao?.options.find(o => o.label === 'Operador');
+
+    expect(operador).toBeDefined();
+    expect(operador!.implemented).toBe(true);
+    expect(operador!.target).toBe('/operators');
   });
 
   it('every option has a unique id within its group and every group has an id', () => {

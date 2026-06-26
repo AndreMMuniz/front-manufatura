@@ -12,6 +12,7 @@ import { SaveInspectionActions } from '../../components/save-inspection-actions/
 import { ProductionOrderRoute } from '../../models/production-order-route';
 import { QualityExam, QualityExamComponent } from '../../models/quality-exam';
 import { QualityControlService } from '../../services/quality-control';
+import { OperatorService } from '../../../shop-floor/services/operator';
 
 @Component({
   selector: 'app-quality-control-home',
@@ -46,9 +47,15 @@ export class QualityControlHome {
   authorizationReason = 'Plano de reacao aplicado para continuidade do processo.';
   authorizationFeedback = '';
   saveFeedback = '';
-  readonly operatorId = 'OPERADOR_DATASUL';
 
-  constructor(private readonly qualityControlService: QualityControlService) {}
+  constructor(
+    private readonly qualityControlService: QualityControlService,
+    private readonly operatorService: OperatorService,
+  ) {}
+
+  get operatorId(): string {
+    return this.operatorService.selectedOperator?.code ?? '';
+  }
 
   get canGenerateRoute(): boolean {
     return Boolean(this.opNumber.trim() && this.operationCode.trim());
@@ -160,6 +167,10 @@ export class QualityControlHome {
       return false;
     }
 
+    if (this.operatorService.isOperatorRequired() && this.operatorService.selectedOperator === null) {
+      return false;
+    }
+
     const components = this.qualityExams.flatMap(exam => exam.components);
     const hasPending = components.some(component => component.status === 'PENDING');
     const hasUnauthorizedRejected = components.some(
@@ -182,6 +193,10 @@ export class QualityControlHome {
 
     if (components.some(component => component.status === 'REJECTED' && !component.authorization)) {
       return 'Autorize o plano de reacao para componentes reprovados antes de salvar.';
+    }
+
+    if (this.operatorService.isOperatorRequired() && this.operatorService.selectedOperator === null) {
+      return 'Selecione o operador ativo antes de salvar.';
     }
 
     return '';

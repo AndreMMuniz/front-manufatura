@@ -1,0 +1,54 @@
+<po-page-default p-title="Operador">
+  <section class="operators">
+    <po-widget p-title="Consulta">
+      <form class="operators__search" (ngSubmit)="search()">
+        <po-input
+          name="searchTerm"
+          p-label="Operador"
+          p-placeholder="Codigo, nome ou funcao"
+          [(ngModel)]="searchTerm"
+        ></po-input>
+
+        <div class="operators__actions">
+          <po-button p-label="Consultar" p-kind="primary" p-type="submit"></po-button>
+          <po-button p-label="Voltar ao Menu" p-kind="secondary" p-type="button" (p-click)="backToMenu()"></po-button>
+        </div>
+      </form>
+    </po-widget>
+
+    <po-widget p-title="Operadores disponiveis">
+      <ul class="operators__list">
+        @for (operator of operators; track operator.code) {
+          <li class="operators__item">
+            <div>
+              <strong>{{ operator.code }}</strong>
+              <span>{{ operator.name }}</span>
+              <small>{{ operator.role }} - {{ statusLabel(operator) }}</small>
+            </div>
+
+            <po-button
+              p-label="Selecionar"
+              [p-disabled]="!operator.active"
+              (p-click)="selectOperator(operator)"
+            ></po-button>
+          </li>
+        } @empty {
+          <li class="operators__empty">Nenhum operador encontrado.</li>
+        }
+      </ul>
+    </po-widget>
+
+    <po-widget p-title="Operador selecionado">
+      @if (selectedOperator) {
+        <div class="operators__summary">
+          <strong>{{ selectedOperator.code }}</strong>
+          <span>{{ selectedOperator.name }}</span>
+          <small>{{ selectedOperator.role }} - {{ statusLabel(selectedOperator) }}</small>
+          <po-button p-label="Limpar selecao" p-kind="secondary" (p-click)="clearSelection()"></po-button>
+        </div>
+      } @else {
+        <p class="operators__empty">Nenhum operador selecionado.</p>
+      }
+    </po-widget>
+  </section>
+</po-page-default>

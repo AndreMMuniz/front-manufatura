@@ -1,3 +1,7 @@
+import { firstValueFrom } from 'rxjs';
+import { vi } from 'vitest';
+
+import { OperatorService } from '../../../shop-floor/services/operator';
 import { ProductionOrderRoute } from '../../models/production-order-route';
 import { QualityExam } from '../../models/quality-exam';
 import { QualityControlService } from '../../services/quality-control';
@@ -5,8 +9,8 @@ import { QualityControlService } from '../../services/quality-control';
 import { QualityControlHome } from './quality-control-home';
 
 describe('QualityControlHome', () => {
-  function createComponent(): QualityControlHome {
-    return new QualityControlHome(new QualityControlService());
+  function createComponent(operatorService: OperatorService = new OperatorService()): QualityControlHome {
+    return new QualityControlHome(new QualityControlService(), operatorService);
   }
 
   function route(): ProductionOrderRoute {
@@ -81,8 +85,10 @@ describe('QualityControlHome', () => {
     expect(component.saveBlockReason).toBe('Autorize o plano de reacao para componentes reprovados antes de salvar.');
   });
 
-  it('allows save when a rejected component is authorized', () => {
-    const component = createComponent();
+  it('allows save when a rejected component is authorized and operator is selected', async () => {
+    const operatorService = new OperatorService();
+    await firstValueFrom(operatorService.selectOperator('OP-001'));
+    const component = createComponent(operatorService);
     component.productionOrderRoute = route();
     component.qualityExams = [exam('REJECTED', true)];
 
@@ -90,12 +96,47 @@ describe('QualityControlHome', () => {
     expect(component.saveBlockReason).toBe('');
   });
 
-  it('allows save when all components are approved', () => {
-    const component = createComponent();
+  it('allows save when all components are approved and operator is selected', async () => {
+    const operatorService = new OperatorService();
+    await firstValueFrom(operatorService.selectOperator('OP-001'));
+    const component = createComponent(operatorService);
     component.productionOrderRoute = route();
     component.qualityExams = [exam('APPROVED')];
 
     expect(component.canSaveInspection).toBe(true);
     expect(component.saveBlockReason).toBe('');
+  });
+
+  it('blocks save when operator is required and no operator is selected', () => {
+    const operatorService = new OperatorService();
+    expect(operatorService.isOperatorRequired()).toBe(true);
+
+    const component = createComponent(operatorService);
+    component.productionOrderRoute = route();
+    component.qualityExams = [exam('APPROVED')];
+
+    expect(component.canSaveInspection).toBe(false);
+    expect(component.saveBlockReason).toBe('Selecione o operador ativo antes de salvar.');
+  });
+
+  it('allows save with empty operatorId when operator is not required and not selected', () => {
+    const operatorService = new OperatorService();
+    vi.spyOn(operatorService, 'isOperatorRequired').mockReturnValue(false);
+
+    const component = createComponent(operatorService);
+    component.productionOrderRoute = route();
+    component.qualityExams = [exam('APPROVED')];
+
+    expect(component.operatorId).toBe('');
+    expect(component.canSaveInspection).toBe(true);
+    expect(component.saveBlockReason).toBe('');
+  });
+
+  it('uses the selected operator id as operatorId in the save payload', async () => {
+    const operatorService = new OperatorService();
+    await firstValueFrom(operatorService.selectOperator('OP-001'));
+    const component = createComponent(operatorService);
+
+    expect(component.operatorId).toBe('OP-001');
   });
 });

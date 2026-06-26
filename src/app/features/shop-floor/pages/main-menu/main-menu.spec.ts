@@ -83,6 +83,19 @@ describe('MainMenuPage', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/work-center']);
   });
 
+  it('Operador navigates to /operators', () => {
+    const fixture = TestBed.createComponent(MainMenuPage);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    const operador = component.groups[2].options.find(o => o.label === 'Operador');
+    expect(operador).toBeDefined();
+
+    component.selectOption(operador!);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/operators']);
+  });
+
   it('non-implemented options do not navigate', () => {
     const fixture = TestBed.createComponent(MainMenuPage);
     fixture.detectChanges();
