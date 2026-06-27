@@ -1,0 +1,1810 @@
+# 08-reporta-operacao.md
+
+# Tela — Reporta Operação (Monoprocesso)
+
+> **Versão:** 1.0
+> **Status:** Em elaboração
+> **Módulo:** Produção / Apontamento de Produção
+> **Feature Angular:** `features/report-operacao`
+> **Tipo de Processo:** Monoprocesso
+
+---
+
+# 1. Objetivo
+
+A tela **Reporta Operação** é responsável pelo apontamento operacional de uma Ordem de Produção do tipo **Monoprocesso**, permitindo que o operador registre o início da operação, acompanhe as informações da OP, informe as quantidades produzidas e reporte a produção ao ERP Datasul.
+
+Esta tela representa o principal ponto de interação do operador com o sistema durante a execução da produção.
+
+Ela deve ser otimizada para utilização contínua em tablets industriais, minimizando a quantidade de toques necessários para execução das atividades e reduzindo a possibilidade de erros operacionais.
+
+Os padrões visuais, componentes, responsividade, acessibilidade e comportamento descritos nos documentos globais do projeto (`00-design-system.md`, `04-arquitetura.md` e `05-padroes-ui.md`) devem ser integralmente respeitados.
+
+---
+
+# 2. Contexto de Negócio
+
+Após acessar o **Centro de Trabalho**, o operador informa a OP desejada e seleciona a opção **Reportar**.
+
+O sistema então navega para esta tela, onde toda a execução da operação passa a ser controlada.
+
+Durante o ciclo operacional, o operador poderá:
+
+* consultar os dados da OP;
+* iniciar a operação;
+* registrar horários;
+* informar quantidade aprovada;
+* informar quantidade destinada ao retrabalho;
+* registrar refugos;
+* realizar paradas de produção;
+* concluir o apontamento da operação.
+
+Esta tela permanece aberta durante praticamente todo o ciclo produtivo.
+
+Ela atua como centro de controle da operação.
+
+---
+
+# 3. Papel da Tela no Fluxo Geral
+
+Fluxo simplificado:
+
+```text
+Login
+
+↓
+
+Equipes
+
+↓
+
+Centro de Trabalho
+
+↓
+
+Seleciona Ordem
+
+↓
+
+Reportar
+
+↓
+
+Reporta Operação
+```
+
+A partir desta tela podem ser abertas outras funcionalidades especializadas, como:
+
+* Tela de Paradas
+* Tela de Refugos
+* (Futuras funcionalidades relacionadas ao apontamento)
+
+---
+
+# 4. Objetivos Funcionais
+
+A tela deve permitir:
+
+* localizar uma OP;
+* visualizar informações da operação;
+* iniciar a operação;
+* registrar horários;
+* registrar produção aprovada;
+* registrar produção para retrabalho;
+* registrar refugo;
+* acessar apontamentos de parada;
+* reportar a produção para o ERP;
+* finalizar a operação.
+
+---
+
+# 5. Fluxo de Navegação
+
+## Fluxo Principal
+
+```mermaid
+flowchart TD
+
+A[Centro de Trabalho]
+
+A --> B[Botão Report]
+
+B --> C[Reporta Operação]
+
+C --> D[Iniciar Operação]
+
+D --> E[Operação em Execução]
+
+E --> F[Reportar Produção]
+
+F --> G[Retorna Centro de Trabalho]
+```
+
+---
+
+## Fluxos Secundários
+
+```mermaid
+flowchart TD
+
+A[Reporta Operação]
+
+A --> B[Parada]
+
+B --> C[Tela Parada]
+
+C --> A
+
+A --> D[Editar Refugo]
+
+D --> E[Drawer Refugo]
+
+E --> A
+```
+
+---
+
+# 6. Wireframe Funcional
+
+```text
+┌──────────────────────────────────────────────┐
+│                Reporta Operação              │
+├──────────────────────────────────────────────┤
+
+ Ordem      OP        Split           [📷]
+
+──────────────────────────────────────────────
+
+ Item:
+ Descrição:
+ Unidade:
+ Roteiro:
+ Qtde Ordem:
+ Qtde Saldo:
+ Linha:
+
+──────────────────────────────────────────────
+
+ Data Início        Hora Início
+
+ Data Fim           Hora Fim
+
+ Qtde Aprovada
+
+ Qtde Retrabalho              [Editar]
+
+ Qtde Refugo                  [Editar]
+
+──────────────────────────────────────────────
+
+ CT
+
+ Grupo Máquina
+
+ Operador / Equipe
+
+ Turno
+
+──────────────────────────────────────────────
+
+[ Iniciar / Reportar ]     [ Parada ]
+
+──────────────────────────────────────────────
+
+Voltar                 Sair
+```
+
+---
+
+# 7. Estrutura Visual
+
+A interface deve seguir a filosofia de operação industrial definida pelo Design System.
+
+Prioridades:
+
+* leitura rápida;
+* baixo esforço cognitivo;
+* poucos elementos visuais;
+* foco na operação;
+* utilização confortável por toque.
+
+A distribuição da informação deverá seguir a seguinte hierarquia:
+
+1. Identificação da OP.
+2. Dados da Ordem.
+3. Informações da Produção.
+4. Informações Operacionais.
+5. Ações da Operação.
+
+Nenhum elemento decorativo deve competir visualmente com os dados produtivos.
+
+---
+
+# 8. Layout para Tablets
+
+A tela foi projetada considerando tablets entre 8 e 11 polegadas.
+
+Requisitos:
+
+* todos os campos visíveis sem necessidade de rolagem vertical na resolução mínima suportada;
+* espaçamento adequado para operação utilizando luvas;
+* botões grandes;
+* contraste elevado;
+* campos organizados em blocos funcionais.
+
+Layout sugerido:
+
+```text
+┌──────────────────────────────────────────┐
+
+ Identificação da OP
+
+──────────────────────────────────────────
+
+ Dados da Ordem
+
+──────────────────────────────────────────
+
+ Produção
+
+──────────────────────────────────────────
+
+ Informações Operacionais
+
+──────────────────────────────────────────
+
+ Botões
+
+└──────────────────────────────────────────┘
+```
+
+---
+
+# 9. Componentes PO-UI
+
+## Cabeçalho
+
+Utilizar:
+
+* `po-page-default`
+
+---
+
+## Campos de Entrada
+
+Utilizar:
+
+* `po-input`
+
+Campos:
+
+* Ordem
+* OP
+* Split
+* Data início
+* Hora início
+* Data fim
+* Hora fim
+* Qtde Aprovada
+* Qtde Retrabalho
+* Qtde Refugo
+
+---
+
+## Displays somente leitura
+
+Os dados da Ordem deverão utilizar componentes somente leitura.
+
+Informações:
+
+* Item
+* Descrição
+* Unidade
+* Roteiro
+* Qtde Ordem
+* Qtde Saldo
+* Linha
+* CT
+* Grupo Máquina
+* Operador / Equipe
+* Turno
+
+A atualização desses campos deverá ocorrer automaticamente após a seleção da OP.
+
+---
+
+## Botão Scanner
+
+Botão com ícone de câmera.
+
+Responsável por iniciar leitura de código de barras ou QR Code.
+
+Integração prevista com API de captura da aplicação.
+
+---
+
+## Botões de edição
+
+Os campos:
+
+* Qtde Retrabalho
+* Qtde Refugo
+
+devem possuir um botão lateral de edição.
+
+Esses botões não alteram o valor diretamente.
+
+Eles apenas iniciam fluxos especializados.
+
+### Retrabalho
+
+Fluxo previsto para futura implementação.
+
+### Refugo
+
+Abre a tela lateral de cadastro de refugo.
+
+---
+
+## Botões Principais
+
+### Iniciar / Reportar
+
+Botão principal da operação.
+
+Sua função depende do estado operacional.
+
+Estados previstos:
+
+* Iniciar
+* Reportar
+
+O comportamento detalhado será descrito na seção de Máquina de Estados.
+
+---
+
+### Parada
+
+Abre a funcionalidade de apontamento de parada.
+
+A operação permanece ativa.
+
+Após concluir a parada, o usuário retorna automaticamente para esta tela.
+
+---
+
+## Navegação Inferior
+
+Botões:
+
+* Voltar
+* Sair
+
+A implementação da navegação deverá respeitar o fluxo definido em `02-fluxo-geral.md`.
+
+# 10. Estrutura Angular
+
+A implementação deverá seguir integralmente a arquitetura definida em `04-arquitetura.md`, utilizando **Standalone Components**, organização **Feature First** e separação clara entre apresentação, regras de negócio e integração com APIs.
+
+Estrutura sugerida:
+
+```text
+features/
+
+└── report-operacao/
+    │
+    ├── pages/
+    │   └── report-operacao-page.component.ts
+    │
+    ├── components/
+    │   ├── op-identificacao-card/
+    │   ├── op-detalhes-card/
+    │   ├── producao-form/
+    │   ├── operacao-info-card/
+    │   ├── report-actions/
+    │   └── scanner-button/
+    │
+    ├── services/
+    │   ├── report-operacao.service.ts
+    │   ├── apontamento.service.ts
+    │   └── scanner.service.ts
+    │
+    ├── models/
+    │
+    ├── interfaces/
+    │
+    ├── dto/
+    │
+    └── guards/
+```
+
+Toda comunicação com o Datasul deverá ocorrer através de Services.
+
+Os componentes não deverão acessar APIs diretamente.
+
+---
+
+# 11. Componentização
+
+## ReportOperacaoPage
+
+Responsável pela orquestração da tela.
+
+Responsabilidades:
+
+* carregar operação;
+* controlar estados;
+* controlar navegação;
+* abrir drawer de refugo;
+* abrir tela de parada;
+* iniciar operação;
+* reportar produção.
+
+---
+
+## OpIdentificacaoCard
+
+Responsável pela identificação da OP.
+
+Contém:
+
+* Ordem
+* OP
+* Split
+* Scanner
+
+Responsabilidades:
+
+* captura da identificação;
+* validação inicial;
+* disparo da consulta.
+
+---
+
+## OpDetalhesCard
+
+Componente somente leitura.
+
+Exibe:
+
+* Item
+* Descrição
+* Unidade
+* Roteiro
+* Quantidade Ordem
+* Quantidade Saldo
+* Linha
+
+Não possui edição.
+
+---
+
+## ProducaoForm
+
+Responsável pelos campos produtivos.
+
+Campos:
+
+* Data início
+* Hora início
+* Data fim
+* Hora fim
+* Qtde aprovada
+* Qtde retrabalho
+* Qtde refugo
+
+Responsável pelas validações locais.
+
+---
+
+## OperacaoInfoCard
+
+Informações carregadas automaticamente.
+
+Exibe:
+
+* CT
+* Grupo Máquina
+* Operador / Equipe
+* Turno
+
+Todos os campos são somente leitura.
+
+---
+
+## ReportActions
+
+Agrupa os botões principais.
+
+* Iniciar
+* Reportar
+* Parada
+* Voltar
+* Sair
+
+Toda lógica de habilitação deverá ser baseada no estado atual da operação.
+
+---
+
+# 12. Estados da Tela
+
+A tela deverá ser implementada como uma máquina de estados.
+
+Evitar controle baseado apenas em flags booleanas.
+
+---
+
+## Estado 1 — Inicial
+
+Situação:
+
+Nenhuma OP carregada.
+
+Características:
+
+* campos vazios;
+* botão principal desabilitado;
+* informações ocultas.
+
+---
+
+## Estado 2 — Consultando OP
+
+Após informar Ordem/OP.
+
+Características:
+
+* loading;
+* bloqueio de edição;
+* spinner.
+
+---
+
+## Estado 3 — OP carregada
+
+A OP foi localizada.
+
+Características:
+
+* displays preenchidos;
+* produção ainda não iniciada;
+* botão principal exibindo:
+
+```text
+Iniciar
+```
+
+---
+
+## Estado 4 — Operação iniciada
+
+Após clicar em **Iniciar**.
+
+Alterações:
+
+* grava data/hora inicial;
+* habilita produção;
+* botão passa para:
+
+```text
+Reportar
+```
+
+---
+
+## Estado 5 — Operação em execução
+
+Características:
+
+* usuário pode:
+
+  * registrar produção;
+  * registrar refugo;
+  * registrar retrabalho;
+  * abrir parada.
+
+---
+
+## Estado 6 — Em parada
+
+Ao abrir a tela de parada.
+
+A operação permanece ativa.
+
+Ao retornar:
+
+* restaura exatamente o estado anterior.
+
+---
+
+## Estado 7 — Reportando
+
+Ao clicar em Reportar.
+
+Características:
+
+* bloqueio da tela;
+* envio ao Datasul;
+* indicador visual.
+
+---
+
+## Estado 8 — Reportado
+
+Integração concluída.
+
+Fluxo:
+
+```text
+Mensagem de sucesso
+
+↓
+
+Retorno ao Centro de Trabalho
+```
+
+---
+
+## Estado 9 — Erro
+
+Caso ocorra falha.
+
+A tela deverá:
+
+* manter os dados;
+* informar o erro;
+* permitir nova tentativa.
+
+Nenhuma informação deverá ser perdida.
+
+---
+
+# 13. Máquina de Estados
+
+```mermaid
+stateDiagram-v2
+
+[*] --> SemOP
+
+SemOP --> Carregando
+
+Carregando --> OPEncontrada
+
+OPEncontrada --> OperacaoIniciada
+
+OperacaoIniciada --> EmParada
+
+EmParada --> OperacaoIniciada
+
+OperacaoIniciada --> Reportando
+
+Reportando --> Reportado
+
+Reportando --> Erro
+
+Erro --> Reportando
+```
+
+A implementação Angular deverá refletir esta máquina de estados.
+
+---
+
+# 14. Fluxo do Usuário
+
+## Cenário principal
+
+```mermaid
+flowchart TD
+
+A[Entrou na tela]
+
+A --> B[Informa Ordem]
+
+B --> C[Consulta OP]
+
+C --> D[Visualiza Dados]
+
+D --> E[Iniciar]
+
+E --> F[Executa Produção]
+
+F --> G[Informa Quantidades]
+
+G --> H[Reportar]
+
+H --> I[Datasul]
+
+I --> J[Sucesso]
+
+J --> K[Centro de Trabalho]
+```
+
+---
+
+# 15. Fluxos Secundários
+
+## Registrar Refugo
+
+```mermaid
+flowchart TD
+
+A[Qtde Refugo]
+
+A --> B[Editar]
+
+B --> C[Drawer Refugo]
+
+C --> D[Seleciona Motivos]
+
+D --> E[Salvar]
+
+E --> F[Atualiza Quantidade]
+
+F --> G[Retorna]
+```
+
+---
+
+## Registrar Parada
+
+```mermaid
+flowchart TD
+
+A[Operação]
+
+A --> B[Parada]
+
+B --> C[Tela Parada]
+
+C --> D[Registrar Motivo]
+
+D --> E[Salvar]
+
+E --> F[Retorna]
+```
+
+---
+
+# 16. Regras de Negócio
+
+## RN-001
+
+A tela somente poderá ser acessada através do **Centro de Trabalho**.
+
+---
+
+## RN-002
+
+Uma OP inválida deverá impedir qualquer apontamento.
+
+---
+
+## RN-003
+
+Os dados da OP são exclusivamente provenientes do Datasul.
+
+Não poderá existir edição manual.
+
+---
+
+## RN-004
+
+O operador somente poderá iniciar uma operação válida.
+
+---
+
+## RN-005
+
+Após iniciada a operação:
+
+* registrar automaticamente data de início;
+* registrar automaticamente hora de início.
+
+---
+
+## RN-006
+
+O botão principal deverá alterar automaticamente de **Iniciar** para **Reportar** após o início da operação.
+
+---
+
+## RN-007
+
+A quantidade de refugo deverá ser registrada exclusivamente através da funcionalidade de Refugo.
+
+Não poderá existir digitação direta no campo.
+
+---
+
+## RN-008
+
+A quantidade de retrabalho deverá seguir o mesmo conceito da quantidade de refugo, utilizando fluxo dedicado quando implementado.
+
+---
+
+## RN-009
+
+A tela de Parada nunca encerra a operação.
+
+Ela apenas interrompe temporariamente o processo produtivo.
+
+---
+
+## RN-010
+
+Ao retornar da Parada, a tela deverá restaurar integralmente o estado anterior da operação.
+
+---
+
+## RN-011
+
+O reporte somente poderá ocorrer quando todas as validações forem satisfeitas.
+
+---
+
+## RN-012
+
+Nenhum dado deverá ser perdido em caso de falha de comunicação com o Datasul.
+
+A tela deverá permitir nova tentativa de envio preservando todo o contexto da operação.
+
+# 17. Regras de UX
+
+A tela deve seguir os princípios definidos em `05-padroes-ui.md`, priorizando velocidade operacional, previsibilidade e mínima carga cognitiva.
+
+Como esta é uma tela de uso contínuo durante a produção, qualquer interação deve exigir o menor número possível de toques.
+
+---
+
+## UX-001 — Fluxo Contínuo
+
+Após a consulta da OP, o operador deve conseguir realizar toda a operação sem retornar para telas anteriores.
+
+---
+
+## UX-002 — Priorização Visual
+
+A hierarquia visual deverá seguir esta ordem:
+
+1. Identificação da OP
+2. Informações da Ordem
+3. Quantidades Produzidas
+4. Informações Operacionais
+5. Botões de ação
+
+---
+
+## UX-003 — Feedback Imediato
+
+Toda ação do operador deverá gerar retorno visual.
+
+Exemplos:
+
+* carregando OP;
+* operação iniciada;
+* operação reportada;
+* abertura da tela de parada;
+* abertura do drawer de refugo;
+* erro de comunicação.
+
+---
+
+## UX-004 — Estados Bloqueados
+
+Enquanto uma operação crítica estiver em andamento, os controles deverão permanecer bloqueados.
+
+Exemplos:
+
+* consulta da OP;
+* envio ao Datasul;
+* sincronização.
+
+---
+
+## UX-005 — Erros Claros
+
+Mensagens de erro deverão informar:
+
+* o problema;
+* impacto;
+* ação esperada do operador.
+
+Evitar mensagens genéricas.
+
+Exemplo inadequado:
+
+```text
+Erro inesperado.
+```
+
+Exemplo esperado:
+
+```text
+Não foi possível comunicar com o ERP.
+
+Verifique a conexão e tente novamente.
+```
+
+---
+
+## UX-006 — Operação por Toque
+
+Todos os botões deverão respeitar o tamanho mínimo definido no Design System.
+
+Campos editáveis deverão possuir área de toque ampliada.
+
+---
+
+## UX-007 — Navegação
+
+Nenhuma ação deverá exigir mais de dois níveis de navegação.
+
+A tela de Refugo deverá abrir em Drawer lateral.
+
+A tela de Parada deverá abrir como página/modal conforme arquitetura definida para o projeto.
+
+---
+
+## UX-008 — Preservação de Contexto
+
+Ao retornar de qualquer funcionalidade auxiliar:
+
+* Parada
+* Refugo
+
+o operador deverá encontrar exatamente o mesmo estado da operação.
+
+Não deverá ocorrer recarregamento completo da tela.
+
+---
+
+# 18. Validações
+
+## Identificação da OP
+
+### VAL-001
+
+Ordem obrigatória.
+
+---
+
+### VAL-002
+
+OP obrigatória.
+
+---
+
+### VAL-003
+
+A OP deve existir no Datasul.
+
+---
+
+### VAL-004
+
+A OP deve estar liberada para produção.
+
+---
+
+### VAL-005
+
+O operador deve possuir equipe ativa.
+
+---
+
+## Produção
+
+### VAL-006
+
+Quantidade aprovada ≥ 0.
+
+---
+
+### VAL-007
+
+Quantidade retrabalho ≥ 0.
+
+---
+
+### VAL-008
+
+Quantidade refugo ≥ 0.
+
+---
+
+### VAL-009
+
+Quantidade produzida não pode ultrapassar o saldo disponível da OP.
+
+---
+
+### VAL-010
+
+Data fim não pode ser anterior à data início.
+
+---
+
+### VAL-011
+
+Hora fim não pode ser anterior à hora início.
+
+---
+
+### VAL-012
+
+Não permitir reportar operação sem início registrado.
+
+---
+
+### VAL-013
+
+Não permitir reportar operação sem informar quantidade produzida.
+
+---
+
+### VAL-014
+
+Caso exista refugo informado, deverá existir pelo menos um motivo registrado no módulo Refugo.
+
+---
+
+### VAL-015
+
+Caso exista retrabalho, deverá existir registro correspondente quando esta funcionalidade estiver implementada.
+
+---
+
+# 19. Integração com APIs (Datasul)
+
+A implementação deverá utilizar exclusivamente Services Angular.
+
+Nenhum componente deverá acessar APIs diretamente.
+
+Toda comunicação deverá ser desacoplada da camada visual.
+
+---
+
+## Consulta da OP
+
+Objetivo:
+
+Carregar todas as informações da operação.
+
+Entrada:
+
+```text
+Ordem
+OP
+Split
+```
+
+Retorno esperado:
+
+```text
+Item
+
+Descrição
+
+Unidade
+
+Quantidade Ordem
+
+Quantidade Saldo
+
+Linha
+
+CT
+
+Grupo Máquina
+
+Operador
+
+Turno
+```
+
+---
+
+## Iniciar Operação
+
+Objetivo:
+
+Registrar início da produção.
+
+Dados mínimos:
+
+```text
+Operador
+
+Equipe
+
+CT
+
+OP
+
+Data
+
+Hora
+```
+
+---
+
+## Registrar Parada
+
+Fluxo externo.
+
+Será documentado na tela **Parada**.
+
+Esta tela apenas inicia a navegação.
+
+---
+
+## Registrar Refugo
+
+Fluxo externo.
+
+Será documentado na tela **Refugo**.
+
+Esta tela apenas abre o Drawer.
+
+---
+
+## Reportar Produção
+
+Objetivo:
+
+Enviar apontamento para o ERP.
+
+Dados mínimos previstos:
+
+```text
+Ordem
+
+OP
+
+Split
+
+Quantidade Aprovada
+
+Quantidade Refugo
+
+Quantidade Retrabalho
+
+Data Início
+
+Hora Início
+
+Data Fim
+
+Hora Fim
+
+Operador
+
+Equipe
+
+CT
+```
+
+---
+
+## Tratamento de Erros
+
+Toda integração deverá prever:
+
+* timeout;
+* perda de conexão;
+* erro de autenticação;
+* erro funcional do ERP;
+* indisponibilidade temporária.
+
+Nenhum erro poderá ocasionar perda das informações digitadas.
+
+---
+
+# 20. Interfaces TypeScript
+
+## ReportOperacao
+
+```typescript
+export interface ReportOperacao {
+
+  ordem: string;
+
+  op: string;
+
+  split: string;
+
+  item: string;
+
+  descricao: string;
+
+  unidade: string;
+
+  roteiro: string;
+
+  quantidadeOrdem: number;
+
+  quantidadeSaldo: number;
+
+  linha: string;
+
+  dataInicio: Date;
+
+  horaInicio: string;
+
+  dataFim?: Date;
+
+  horaFim?: string;
+
+  quantidadeAprovada: number;
+
+  quantidadeRetrabalho: number;
+
+  quantidadeRefugo: number;
+
+  ct: string;
+
+  grupoMaquina: string;
+
+  operador: string;
+
+  equipe: string;
+
+  turno: string;
+
+}
+```
+
+---
+
+## EstadoOperacao
+
+```typescript
+export enum EstadoOperacao {
+
+    SemOP,
+
+    Carregando,
+
+    OPEncontrada,
+
+    OperacaoIniciada,
+
+    EmParada,
+
+    Reportando,
+
+    Reportada,
+
+    Erro
+
+}
+```
+
+---
+
+## ResultadoConsultaOP
+
+```typescript
+export interface ResultadoConsultaOP {
+
+    sucesso: boolean;
+
+    operacao?: ReportOperacao;
+
+    mensagem?: string;
+
+}
+```
+
+---
+
+# 21. DTOs
+
+## ConsultaOPRequest
+
+```typescript
+export interface ConsultaOPRequest {
+
+    ordem: string;
+
+    op: string;
+
+    split: string;
+
+}
+```
+
+---
+
+## IniciarOperacaoRequest
+
+```typescript
+export interface IniciarOperacaoRequest {
+
+    ordem: string;
+
+    op: string;
+
+    split: string;
+
+    operador: string;
+
+    equipe: string;
+
+    dataInicio: Date;
+
+    horaInicio: string;
+
+}
+```
+
+---
+
+## ReportarOperacaoRequest
+
+```typescript
+export interface ReportarOperacaoRequest {
+
+    ordem: string;
+
+    op: string;
+
+    split: string;
+
+    quantidadeAprovada: number;
+
+    quantidadeRetrabalho: number;
+
+    quantidadeRefugo: number;
+
+    dataInicio: Date;
+
+    horaInicio: string;
+
+    dataFim: Date;
+
+    horaFim: string;
+
+}
+```
+
+---
+
+# 22. Diagramas Mermaid
+
+## Fluxo Geral da Operação
+
+```mermaid
+sequenceDiagram
+
+actor Operador
+
+participant Tela
+
+participant API
+
+participant Datasul
+
+Operador->>Tela: Informa Ordem / OP
+
+Tela->>API: Consultar OP
+
+API->>Datasul: Buscar Ordem
+
+Datasul-->>API: Dados da OP
+
+API-->>Tela: Dados
+
+Operador->>Tela: Iniciar
+
+Tela->>API: Registrar início
+
+API->>Datasul: Início da operação
+
+Datasul-->>API: OK
+
+Operador->>Tela: Informa Produção
+
+Operador->>Tela: Reportar
+
+Tela->>API: Reporte
+
+API->>Datasul: Registrar apontamento
+
+Datasul-->>API: Sucesso
+
+API-->>Tela: Operação concluída
+```
+
+---
+
+## Fluxo de Estados
+
+```mermaid
+flowchart LR
+
+SemOP
+
+--> Consulta
+
+--> OPCarregada
+
+--> Iniciada
+
+--> EmExecucao
+
+--> Reportando
+
+--> Finalizada
+```
+
+---
+
+## Fluxo de Recuperação de Erro
+
+```mermaid
+flowchart TD
+
+Reportando
+
+--> Falha
+
+Falha
+
+--> ExibirMensagem
+
+ExibirMensagem
+
+--> TentarNovamente
+
+TentarNovamente
+
+--> Reportando
+
+Reportando
+
+--> Sucesso
+```
+# 23. Casos de Teste
+
+## CT-001 — Acessar tela a partir do Centro de Trabalho
+
+Dado que o operador está no Centro de Trabalho
+Quando clicar em **Report**
+Então o sistema deve abrir a tela **Reporta Operação**.
+
+---
+
+## CT-002 — Consultar OP válida
+
+Dado que o operador informou Ordem, OP e Split válidos
+Quando a consulta for executada
+Então o sistema deve carregar os dados da OP nos displays somente leitura.
+
+---
+
+## CT-003 — Consultar OP inválida
+
+Dado que o operador informou uma OP inexistente ou inválida
+Quando a consulta for executada
+Então o sistema deve exibir mensagem de erro e impedir o início da operação.
+
+---
+
+## CT-004 — Iniciar operação
+
+Dado que uma OP válida foi carregada
+Quando o operador clicar em **Iniciar**
+Então o sistema deve registrar data/hora início e alterar o botão principal para **Reportar**.
+
+---
+
+## CT-005 — Reportar produção
+
+Dado que a operação foi iniciada
+E as quantidades foram informadas corretamente
+Quando o operador clicar em **Reportar**
+Então o sistema deve enviar o apontamento ao Datasul e exibir confirmação de sucesso.
+
+---
+
+## CT-006 — Bloquear reporte sem início
+
+Dado que uma OP foi carregada
+Mas a operação não foi iniciada
+Quando o operador tentar reportar
+Então o sistema deve bloquear a ação e informar que a operação precisa ser iniciada.
+
+---
+
+## CT-007 — Abrir tela de Parada
+
+Dado que a operação está iniciada
+Quando o operador clicar em **Parada**
+Então o sistema deve navegar para a tela de Parada mantendo o contexto da operação.
+
+---
+
+## CT-008 — Retornar da Parada
+
+Dado que o operador registrou uma parada
+Quando retornar para Reporta Operação
+Então o sistema deve restaurar a operação exatamente no estado anterior.
+
+---
+
+## CT-009 — Abrir Drawer de Refugo
+
+Dado que a operação está iniciada
+Quando o operador clicar no botão de edição de Refugo
+Então o sistema deve abrir o Drawer lateral da funcionalidade Refugo.
+
+---
+
+## CT-010 — Atualizar quantidade de refugo
+
+Dado que o operador registrou refugo no Drawer
+Quando salvar o registro
+Então a quantidade total de refugo deve ser refletida no campo Qtde Refugo.
+
+---
+
+## CT-011 — Falha de comunicação no reporte
+
+Dado que o operador está reportando produção
+Quando ocorrer erro de comunicação com o Datasul
+Então o sistema deve preservar todos os dados e permitir nova tentativa.
+
+---
+
+# 24. Critérios de Aceite
+
+## CA-001
+
+A tela deve ser acessível a partir do botão **Report** do Centro de Trabalho.
+
+---
+
+## CA-002
+
+A tela deve exibir corretamente os campos:
+
+* Ordem
+* OP
+* Split
+* Item
+* Descrição
+* Unidade
+* Roteiro
+* Qtde Ordem
+* Qtde Saldo
+* Linha
+* Data início
+* Hora início
+* Data fim
+* Hora fim
+* Qtde aprovada
+* Qtde retrabalho
+* Qtde refugo
+* CT
+* Grupo Máquina
+* Operador / Equipe
+* Turno
+
+---
+
+## CA-003
+
+Campos provenientes da OP devem ser somente leitura.
+
+---
+
+## CA-004
+
+O botão principal deve alterar seu comportamento conforme o estado da operação:
+
+* antes do início: **Iniciar**
+* após o início: **Reportar**
+
+---
+
+## CA-005
+
+O botão **Parada** deve direcionar para a futura tela de Parada, preservando o contexto operacional.
+
+---
+
+## CA-006
+
+O botão de edição de **Refugo** deve abrir a futura tela/drawer de Refugo.
+
+---
+
+## CA-007
+
+A operação não pode ser reportada sem OP válida.
+
+---
+
+## CA-008
+
+A operação não pode ser reportada sem início registrado.
+
+---
+
+## CA-009
+
+A operação não pode ser reportada com quantidades inválidas.
+
+---
+
+## CA-010
+
+A falha de integração não pode apagar os dados preenchidos pelo operador.
+
+---
+
+## CA-011
+
+A tela deve seguir os padrões globais de UI, design system, arquitetura e responsividade definidos em `project-specs`.
+
+---
+
+# 25. Checklist para BMAD / Codex
+
+Antes de implementar, o agente deve verificar:
+
+* [ ] Ler `00-design-system.md`
+* [ ] Ler `01-aplicacao.md`
+* [ ] Ler `02-fluxo-geral.md`
+* [ ] Ler `03-api.md`
+* [ ] Ler `04-arquitetura.md`
+* [ ] Ler `05-padroes-ui.md`
+* [ ] Ler este documento completo
+* [ ] Criar feature `report-operacao`
+* [ ] Utilizar Standalone Components
+* [ ] Utilizar PO-UI
+* [ ] Seguir arquitetura Feature First
+* [ ] Não acessar API diretamente em componentes
+* [ ] Implementar máquina de estados da operação
+* [ ] Criar componentes internos reutilizáveis
+* [ ] Criar interfaces TypeScript
+* [ ] Criar DTOs
+* [ ] Criar services de integração
+* [ ] Implementar validações
+* [ ] Implementar estados de loading
+* [ ] Implementar estados de erro
+* [ ] Preservar dados em falha de comunicação
+* [ ] Preparar navegação para Parada
+* [ ] Preparar Drawer para Refugo
+* [ ] Garantir layout adequado para tablet industrial
+* [ ] Garantir operação confortável por toque
+* [ ] Garantir que os campos readonly não sejam editáveis
+* [ ] Garantir que o botão principal altere estado de Iniciar para Reportar
+
+---
+
+# 26. Prompt Mestre para Codex
+
+```text id="cepr15"
+Você está trabalhando no projeto Plano de Controle CQ da empresa Cortag.
+
+O projeto utiliza Angular com Standalone Components, TypeScript, PO-UI, SCSS, arquitetura Feature First e futura integração com APIs do TOTVS Datasul.
+
+Antes de implementar qualquer código, leia obrigatoriamente os documentos globais localizados em project-specs:
+
+- 00-design-system.md
+- 01-aplicacao.md
+- 02-fluxo-geral.md
+- 03-api.md
+- 04-arquitetura.md
+- 05-padroes-ui.md
+
+Em seguida, leia integralmente o documento:
+
+- 08-reporta-operacao.md
+
+Implemente a tela Reporta Operação, referente ao apontamento de produção do tipo Monoprocesso.
+
+A tela deve ser acessada a partir do botão Report da tela Centro de Trabalho.
+
+A implementação deve seguir arquitetura Feature First, criando a feature:
+
+features/report-operacao
+
+A tela deve conter os campos de identificação:
+
+- Ordem
+- OP
+- Split
+- Botão de scanner/câmera
+
+Após carregar uma OP válida, a tela deve exibir os displays somente leitura:
+
+- Item
+- Descrição
+- Unidade
+- Roteiro
+- Qtde Ordem
+- Qtde Saldo
+- Linha
+
+A tela também deve conter os campos produtivos:
+
+- Data início
+- Hora início
+- Data fim
+- Hora fim
+- Qtde aprovada
+- Qtde retrabalho
+- Qtde refugo
+
+E os displays operacionais:
+
+- CT
+- Grupo Máquina
+- Operador / Equipe
+- Turno
+
+Implemente os botões:
+
+- Iniciar / Reportar
+- Parada
+- Voltar
+- Sair
+
+O botão principal deve funcionar como máquina de estados:
+
+- Antes do início da operação: exibir e executar Iniciar
+- Após o início da operação: exibir e executar Reportar
+
+Implemente uma máquina de estados clara para controlar a operação:
+
+- SemOP
+- Carregando
+- OPEncontrada
+- OperacaoIniciada
+- EmParada
+- Reportando
+- Reportada
+- Erro
+
+Não utilize apenas flags booleanas soltas para representar o estado principal da tela.
+
+A consulta de OP, início da operação e reporte da produção devem ser implementados através de services Angular, sem acesso direto à API dentro dos componentes.
+
+Como a integração real com Datasul ainda será realizada futuramente, crie services preparados para integração, podendo utilizar mocks tipados temporários.
+
+O botão Parada deve preparar navegação para a futura tela de Parada, preservando o contexto da operação.
+
+O botão de edição do campo Qtde Refugo deve abrir/preparar um Drawer lateral para a futura funcionalidade de Refugo.
+
+A quantidade de refugo não deve ser digitada diretamente. Ela deve ser atualizada pelo fluxo de Refugo.
+
+A quantidade de retrabalho deve ficar preparada para fluxo dedicado futuro.
+
+A tela deve seguir os padrões visuais definidos no design system do projeto, com foco em tablet industrial, operação por toque, campos grandes, leitura rápida e interface limpa.
+
+Implemente validações para impedir:
+
+- OP inválida
+- Reporte sem início
+- Reporte sem quantidade
+- Quantidades negativas
+- Quantidade superior ao saldo
+- Data/hora fim anterior à data/hora início
+
+Implemente estados de:
+
+- tela inicial
+- carregamento
+- OP carregada
+- operação iniciada
+- reportando
+- sucesso
+- erro
+
+Em caso de erro de comunicação, os dados preenchidos pelo operador não podem ser perdidos.
+
+A implementação deve ser modular, limpa, testável e aderente aos padrões já existentes do projeto.
+```

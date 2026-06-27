@@ -1,0 +1,1978 @@
+# 07-centro-trabalho.md
+
+# Tela: Centro de Trabalho
+
+> **Referências Globais**
+>
+> Esta documentação complementa os documentos:
+>
+> - `00-design-system.md`
+> - `01-aplicacao.md`
+> - `02-fluxo-geral.md`
+> - `03-api.md`
+> - `04-arquitetura.md`
+> - `05-padroes-ui.md`
+>
+> Todas as definições de arquitetura, componentes, identidade visual, design system e padrões de desenvolvimento devem seguir os documentos acima. Este documento descreve exclusivamente o comportamento funcional da tela Centro de Trabalho.
+
+---
+
+# 1. Objetivo
+
+A tela **Centro de Trabalho** é responsável por estabelecer o contexto operacional da aplicação.
+
+Ela identifica:
+
+- qual Centro de Trabalho será utilizado;
+- qual Operador está utilizando o sistema;
+- qual será o modo de reporte utilizado durante a operação.
+
+Após as validações necessárias, esta tela funciona como ponto de entrada para os módulos operacionais do sistema.
+
+Os módulos acessíveis são:
+
+- Reporte de Operação
+- Reporte por Batelada
+- Inspeção de Processo
+
+Esta tela não possui finalidade de cadastro nem manutenção de informações.
+
+Seu objetivo é apenas validar informações operacionais, carregar o contexto de trabalho e direcionar o usuário para o fluxo correto.
+
+---
+
+# 2. Contexto de Negócio
+
+Na operação industrial da Cortag, um operador sempre executa atividades dentro de um determinado Centro de Trabalho.
+
+Antes que qualquer produção seja apontada ou qualquer inspeção seja realizada, o sistema precisa conhecer:
+
+- qual Centro de Trabalho está ativo;
+- quem é o operador responsável;
+- qual modalidade de reporte será utilizada.
+
+Essas informações passam a representar o contexto operacional da sessão.
+
+Todos os módulos posteriores assumem que esse contexto já foi previamente validado.
+
+Portanto, esta tela funciona como um **Gateway Operacional** para todo o restante da aplicação.
+
+---
+
+# 3. Papel da Tela na Aplicação
+
+Dentro do fluxo geral definido em `02-fluxo-geral.md`, esta tela representa a primeira etapa operacional após autenticação do usuário.
+
+Fluxo simplificado:
+
+```text
+Login
+
+↓
+
+Menu Principal
+
+↓
+
+Centro de Trabalho
+
+↓
+
+Seleciona Centro
+
+↓
+
+Valida Operador
+
+↓
+
+Escolhe modo de Reporte
+
+↓
+
+┌─────────────────────────────┐
+│ Reporte Operação            │
+├─────────────────────────────┤
+│ Reporte Batelada            │
+├─────────────────────────────┤
+│ Inspeção Processo           │
+└─────────────────────────────┘
+```
+
+Sem um Centro de Trabalho válido, nenhum dos módulos operacionais poderá ser acessado.
+
+---
+
+# 4. Objetivos Funcionais
+
+A tela deve permitir:
+
+- localizar um Centro de Trabalho;
+- exibir automaticamente seus dados;
+- identificar o operador responsável;
+- validar a identificação do operador;
+- selecionar o modo de reporte;
+- direcionar o usuário ao módulo correspondente.
+
+---
+
+# 5. Fluxo Geral do Usuário
+
+## Fluxo Principal
+
+```mermaid
+flowchart TD
+
+A[Acessa Centro de Trabalho]
+
+B[Informa Código]
+
+C[Carrega informações]
+
+D[Informa Operador]
+
+E[Valida Operador]
+
+F[Seleciona modo Reporte]
+
+G{Destino}
+
+H[Reporte Operação]
+
+I[Reporte Batelada]
+
+J[Inspeção Processo]
+
+A --> B
+B --> C
+C --> D
+D --> E
+E --> F
+
+F --> G
+
+G -->|Operador| H
+G -->|Batelada| I
+
+E --> J
+```
+
+---
+
+# 6. Fluxo de Navegação
+
+```mermaid
+flowchart LR
+
+MenuPrincipal
+
+CentroTrabalho
+
+ReporteOperacao
+
+ReporteBatelada
+
+Inspecao
+
+MenuPrincipal --> CentroTrabalho
+
+CentroTrabalho --> ReporteOperacao
+
+CentroTrabalho --> ReporteBatelada
+
+CentroTrabalho --> Inspecao
+```
+
+---
+
+# 7. Estrutura Visual
+
+## Layout Geral
+
+A tela foi projetada para utilização em tablets industriais.
+
+A interface deve possuir:
+
+- poucas informações simultâneas;
+- campos grandes;
+- excelente legibilidade;
+- navegação simples;
+- operação rápida.
+
+A organização visual deve seguir o Design System do projeto.
+
+Estrutura:
+
+```
++------------------------------------------------------+
+
+                 Logo Cortag
+
+             Centro de Trabalho
+
+--------------------------------------------------------
+
+Código                         [ Scanner ]
+
+Descrição
+
+Grupo Máquina
+
+Estab
+
+Reporte por
+
+[ Operador ▼ ]
+
+ou
+
+[ Batelada ▼ ]
+
+--------------------------------------------------------
+
+Operador                    [ Scanner ]
+
+Nome Operador
+
+Validade
+
+--------------------------------------------------------
+
+[ Reporte ]
+
+[ Inspeção ]
+
+--------------------------------------------------------
+
+(Menu Flutuante)
+
++------------------------------------------------------+
+```
+
+---
+
+# 8. Componentes da Interface
+
+## Cabeçalho
+
+Componentes:
+
+- Logo Cortag
+- Título da tela
+
+Responsabilidade:
+
+Identificar visualmente o módulo.
+
+---
+
+## Código
+
+Tipo:
+
+Input numérico.
+
+Objetivo:
+
+Identificar o Centro de Trabalho.
+
+Após preenchimento:
+
+Realiza consulta no Datasul.
+
+Caso encontrado:
+
+Carrega automaticamente:
+
+- Descrição
+- Grupo Máquina
+- Estabelecimento
+
+Caso não encontrado:
+
+Apresenta mensagem de erro.
+
+---
+
+## Botão Scanner do Centro
+
+Ícone:
+
+Camera.
+
+Objetivo:
+
+Preparar a aplicação para futura leitura de código de barras ou QR Code.
+
+Nesta primeira versão pode permanecer como funcionalidade planejada.
+
+Status:
+
+Future Feature.
+
+---
+
+## Descrição
+
+Tipo:
+
+Display somente leitura.
+
+Origem:
+
+Retorno da API.
+
+Nunca poderá ser editado.
+
+---
+
+## Grupo Máquina
+
+Tipo:
+
+Display somente leitura.
+
+Origem:
+
+API Datasul.
+
+---
+
+## Estabelecimento
+
+Tipo:
+
+Display somente leitura.
+
+Origem:
+
+API Datasul.
+
+---
+
+## Reporte por
+
+Tipo:
+
+Dropdown.
+
+Valores permitidos:
+
+- Operador
+- Batelada
+
+Valor padrão:
+
+Operador.
+
+Responsabilidade:
+
+Determinar qual fluxo será iniciado quando o usuário pressionar **Reporte**.
+
+---
+
+## Operador
+
+Tipo:
+
+Input.
+
+Objetivo:
+
+Identificar o operador.
+
+Após validação:
+
+Carregar automaticamente:
+
+- Nome completo
+
+---
+
+## Scanner Operador
+
+Mesmo comportamento previsto para leitura futura de crachá ou código de barras.
+
+Status:
+
+Future Feature.
+
+---
+
+## Nome
+
+Tipo:
+
+Display.
+
+Somente leitura.
+
+Obtido automaticamente após validação do operador.
+
+---
+
+## Validade
+
+Tipo:
+
+Input.
+
+Objetivo:
+
+Receber a validade operacional utilizada pelo processo.
+
+> **Observação:** A regra funcional da validade deverá ser detalhada posteriormente conforme definição do processo produtivo. Nesta etapa, o campo é tratado apenas como entrada obrigatória para continuidade do fluxo.
+
+---
+
+## Botão Reporte
+
+Responsabilidade:
+
+Abrir o fluxo de reporte correspondente ao modo selecionado.
+
+Comportamento:
+
+Se:
+
+```
+Reporte por = Operador
+```
+
+Abrir:
+
+```
+Tela Reporte Operação
+```
+
+Se:
+
+```
+Reporte por = Batelada
+```
+
+Abrir:
+
+```
+Tela Reporte Batelada
+```
+
+Esta tela será documentada em documentos específicos.
+
+---
+
+## Botão Inspeção
+
+Responsabilidade:
+
+Abrir o módulo de Inspeção de Processo.
+
+Destino:
+
+```
+Tela Inspeção Processo
+```
+
+Será documentada posteriormente.
+
+---
+
+## Botão Voltar
+
+Estado atual:
+
+Presente no protótipo.
+
+Análise arquitetural:
+
+Como a aplicação utiliza Menu Flutuante disponível em qualquer tela, este botão torna-se redundante.
+
+Recomendação:
+
+Marcar como **Depreciado**.
+
+Sua implementação deverá depender de validação junto aos usuários da Cortag.
+
+Caso removido, a navegação para o Menu Principal será realizada exclusivamente pelo Menu Flutuante.
+
+---
+
+# 9. Layout para Tablets
+
+A tela foi desenhada considerando tablets utilizados em ambiente industrial.
+
+Diretrizes:
+
+- orientação vertical (Portrait);
+- componentes centralizados;
+- largura fixa para melhor ergonomia;
+- áreas de toque seguindo o Design System;
+- espaçamento amplo entre componentes;
+- campos ocupando praticamente toda a largura disponível;
+- botões inferiores de fácil acesso com uma única mão.
+
+Não deverá existir rolagem vertical em condições normais de utilização.
+
+Toda a interface deve permanecer visível em uma única tela.
+
+---
+
+# 10. Responsabilidade da Tela
+
+A tela possui responsabilidade única:
+
+**Construir e validar o contexto operacional antes da execução de qualquer operação produtiva.**
+
+Ela **não** deverá:
+
+- cadastrar informações;
+- alterar dados do Centro de Trabalho;
+- alterar Operadores;
+- persistir configurações permanentes;
+- executar reportes;
+- executar inspeções.
+
+Sua única responsabilidade é preparar o contexto necessário para os módulos subsequentes.
+
+# 11. Arquitetura da Feature
+
+Conforme definido em `04-arquitetura.md`, a tela deve seguir a arquitetura **Feature First**.
+
+Estrutura sugerida:
+
+```
+features/
+└── centro-trabalho/
+    ├── pages/
+    │   └── centro-trabalho.page.ts
+    │
+    ├── components/
+    │   ├── centro-trabalho-form/
+    │   ├── operador-card/
+    │   ├── reporte-selector/
+    │   └── action-buttons/
+    │
+    ├── services/
+    │   ├── centro-trabalho.service.ts
+    │   ├── operador.service.ts
+    │   └── contexto-operacional.service.ts
+    │
+    ├── models/
+    │   ├── centro-trabalho.model.ts
+    │   ├── operador.model.ts
+    │   └── contexto-operacional.model.ts
+    │
+    ├── interfaces/
+    │
+    ├── dto/
+    │
+    ├── guards/
+    │
+    └── routes.ts
+```
+
+---
+
+# 12. Responsabilidade dos Componentes
+
+## CentroTrabalhoPage
+
+Responsável pela orquestração completa da tela.
+
+Funções:
+
+- inicializar a tela;
+- carregar dados previamente utilizados (quando permitido);
+- coordenar os componentes filhos;
+- controlar estados de loading;
+- controlar navegação;
+- validar pré-requisitos para acesso aos módulos.
+
+Não deve conter regras de negócio complexas.
+
+---
+
+## CentroTrabalhoFormComponent
+
+Responsável por:
+
+- campo Código;
+- displays do Centro;
+- validação visual;
+- atualização da interface após consulta.
+
+---
+
+## ReporteSelectorComponent
+
+Responsável exclusivamente pela seleção do tipo de reporte.
+
+Valores possíveis:
+
+- Operador
+- Batelada
+
+Não realiza nenhuma navegação.
+
+---
+
+## OperadorCardComponent
+
+Responsável por:
+
+- informar operador;
+- validar operador;
+- apresentar nome;
+- controlar validade.
+
+---
+
+## ActionButtonsComponent
+
+Responsável pelos botões inferiores.
+
+Botões:
+
+- Reporte
+- Inspeção
+
+Apenas dispara eventos.
+
+Não possui lógica.
+
+---
+
+# 13. Serviços da Feature
+
+## CentroTrabalhoService
+
+Responsável por:
+
+- consultar Centro de Trabalho;
+- validar código informado;
+- obter dados completos.
+
+Não mantém estado.
+
+---
+
+## OperadorService
+
+Responsável por:
+
+- localizar operador;
+- validar operador;
+- obter nome.
+
+---
+
+## ContextoOperacionalService
+
+Responsável por manter o contexto operacional da aplicação.
+
+Exemplo:
+
+```
+Centro Trabalho
+
+Operador
+
+Tipo Reporte
+
+Estabelecimento
+
+Grupo Máquina
+```
+
+Este serviço poderá utilizar Signals ou BehaviorSubject conforme padrão definido na arquitetura global.
+
+Todos os módulos posteriores deverão consumir este contexto.
+
+---
+
+# 14. Fluxo de Inicialização
+
+```mermaid
+sequenceDiagram
+
+participant User
+participant Tela
+participant CentroService
+
+User->>Tela: Abre Centro Trabalho
+
+Tela->>Tela: Inicializa formulário
+
+Tela->>Tela: Campos vazios
+
+Tela-->>User: Interface pronta
+```
+
+---
+
+# 15. Fluxo de Consulta do Centro
+
+```mermaid
+sequenceDiagram
+
+User->>Tela: Digita Código
+
+Tela->>CentroService: Buscar Centro
+
+CentroService-->>Tela: Dados Centro
+
+Tela->>Tela: Atualiza displays
+
+Tela-->>User: Centro carregado
+```
+
+---
+
+# 16. Fluxo de Validação do Operador
+
+```mermaid
+sequenceDiagram
+
+User->>Tela: Informa operador
+
+Tela->>OperadorService: Validar operador
+
+OperadorService-->>Tela: Nome
+
+Tela->>Tela: Atualiza Nome
+
+Tela-->>User: Operador válido
+```
+
+---
+
+# 17. Fluxo de Navegação
+
+```mermaid
+flowchart TD
+
+Inicio
+
+Centro
+
+Operador
+
+Tipo
+
+Destino
+
+ReporteOperador
+
+ReporteBatelada
+
+Inspecao
+
+Inicio --> Centro
+
+Centro --> Operador
+
+Operador --> Tipo
+
+Tipo --> Destino
+
+Destino --> ReporteOperador
+
+Destino --> ReporteBatelada
+
+Operador --> Inspecao
+```
+
+---
+
+# 18. Máquina de Estados
+
+```mermaid
+stateDiagram-v2
+
+[*] --> Idle
+
+Idle --> CentroInformado
+
+CentroInformado --> CentroValidado
+
+CentroValidado --> OperadorInformado
+
+OperadorInformado --> OperadorValidado
+
+OperadorValidado --> ContextoPronto
+
+ContextoPronto --> Reporte
+
+ContextoPronto --> Inspecao
+```
+
+---
+
+# 19. Estados da Tela
+
+## Idle
+
+Tela recém aberta.
+
+Campos vazios.
+
+Botões desabilitados.
+
+---
+
+## Loading Centro
+
+Ocorre durante consulta do Centro.
+
+Campos bloqueados.
+
+Indicador de carregamento visível.
+
+---
+
+## Centro Carregado
+
+Informações preenchidas.
+
+Operador habilitado.
+
+---
+
+## Loading Operador
+
+Enquanto operador está sendo validado.
+
+---
+
+## Operador Validado
+
+Nome carregado.
+
+Botões habilitados.
+
+---
+
+## Contexto Completo
+
+Todos os dados obrigatórios foram preenchidos.
+
+Usuário pode acessar:
+
+- Reporte
+- Inspeção
+
+---
+
+## Erro
+
+Qualquer erro de comunicação.
+
+Campos permanecem disponíveis para nova tentativa.
+
+---
+
+# 20. Estados dos Componentes
+
+## Campo Código
+
+Estados:
+
+- vazio
+- digitando
+- validando
+- válido
+- inválido
+
+---
+
+## Campo Operador
+
+Estados:
+
+- vazio
+- digitando
+- validando
+- válido
+- inválido
+
+---
+
+## Dropdown Reporte
+
+Estados:
+
+- Operador
+- Batelada
+
+---
+
+## Botão Reporte
+
+Estados:
+
+- Desabilitado
+- Habilitado
+- Loading
+
+---
+
+## Botão Inspeção
+
+Estados:
+
+- Desabilitado
+- Habilitado
+
+---
+
+# 21. Regras de Negócio
+
+## RN-001
+
+O Centro de Trabalho deve existir.
+
+Caso contrário:
+
+Não permitir continuidade.
+
+---
+
+## RN-002
+
+Os campos:
+
+- Descrição
+- Grupo Máquina
+- Estab
+
+Nunca poderão ser editados manualmente.
+
+Sempre são provenientes da API.
+
+---
+
+## RN-003
+
+O operador deve ser validado antes do acesso aos módulos.
+
+---
+
+## RN-004
+
+Sem operador válido:
+
+Reporte e Inspeção permanecem desabilitados.
+
+---
+
+## RN-005
+
+O tipo de reporte define exclusivamente o destino do botão Reporte.
+
+```
+Operador
+
+↓
+
+Tela Reporte Operação
+```
+
+```
+Batelada
+
+↓
+
+Tela Reporte Batelada
+```
+
+---
+
+## RN-006
+
+Inspeção ignora o tipo de reporte.
+
+Sempre abre:
+
+```
+Tela Inspeção Processo
+```
+
+---
+
+## RN-007
+
+O contexto operacional deve permanecer disponível enquanto durar a sessão do usuário.
+
+---
+
+## RN-008
+
+Ao alterar o Centro de Trabalho, o contexto operacional anterior deve ser descartado.
+
+Isso inclui:
+
+- Operador
+- Nome
+- Validade
+- Tipo de reporte
+- Dados temporários associados ao contexto anterior
+
+---
+
+## RN-009
+
+Ao alterar o Operador, apenas os dados do operador devem ser atualizados.
+
+As informações do Centro de Trabalho permanecem inalteradas.
+
+---
+
+# 22. Regras de UX
+
+A tela deve minimizar a quantidade de interações necessárias.
+
+Diretrizes:
+
+- foco automático no campo **Código** ao abrir a tela;
+- após validar o Centro de Trabalho, mover automaticamente o foco para **Operador**;
+- após validar o Operador, mover o foco para **Validade**;
+- utilizar teclado numérico sempre que possível para campos numéricos;
+- exibir feedback visual imediato durante validações;
+- evitar mensagens modais para erros simples, priorizando mensagens inline conforme definido em `05-padroes-ui.md`;
+- manter os botões **Reporte** e **Inspeção** visíveis durante toda a operação;
+- preservar o estado da tela durante pequenas oscilações de rede, evitando perda dos dados já informados.
+
+---
+
+# 23. Navegação Condicional
+
+| Condição | Destino |
+|----------|---------|
+| Reporte = Operador | Tela Reporte Operação |
+| Reporte = Batelada | Tela Reporte Batelada |
+| Botão Inspeção | Tela Inspeção Processo |
+| Menu Flutuante | Menu Principal |
+| Alteração do Centro de Trabalho | Reinicia o contexto operacional |
+
+# 24. Integração com APIs
+
+> A especificação completa da comunicação com o Datasul encontra-se em `03-api.md`.
+>
+> Esta seção define apenas os contratos esperados pela tela Centro de Trabalho.
+
+---
+
+# 25. Fluxo de Integração
+
+A tela realiza duas consultas principais:
+
+## Consulta do Centro de Trabalho
+
+Entrada:
+
+```
+Código Centro
+```
+
+Retorno esperado:
+
+- Código
+- Descrição
+- Grupo Máquina
+- Estabelecimento
+
+---
+
+## Consulta do Operador
+
+Entrada:
+
+```
+Código Operador
+```
+
+Retorno esperado:
+
+- Código
+- Nome
+- Situação
+- Validade (quando aplicável)
+
+---
+
+Após ambas as consultas, o sistema monta o Contexto Operacional da sessão.
+
+---
+
+# 26. Sequência de Comunicação
+
+```mermaid
+sequenceDiagram
+
+participant UI
+participant CentroAPI
+participant OperadorAPI
+
+UI->>CentroAPI: Consultar Centro
+
+CentroAPI-->>UI: Dados Centro
+
+UI->>OperadorAPI: Validar Operador
+
+OperadorAPI-->>UI: Dados Operador
+
+UI->>UI: Criar Contexto Operacional
+
+UI-->>Usuário: Fluxo liberado
+```
+
+---
+
+# 27. Models
+
+## CentroTrabalho
+
+```typescript
+export interface CentroTrabalho {
+
+    codigo: string;
+
+    descricao: string;
+
+    grupoMaquina: string;
+
+    estabelecimento: string;
+
+}
+```
+
+---
+
+## Operador
+
+```typescript
+export interface Operador {
+
+    codigo: string;
+
+    nome: string;
+
+    validade?: string;
+
+    situacao: string;
+
+}
+```
+
+---
+
+## ContextoOperacional
+
+```typescript
+export interface ContextoOperacional {
+
+    centroTrabalho: CentroTrabalho;
+
+    operador: Operador;
+
+    tipoReporte: TipoReporte;
+
+    validade?: string;
+
+}
+```
+
+---
+
+# 28. Option Sets / Enums
+
+## TipoReporte
+
+```typescript
+export enum TipoReporte {
+
+    OPERADOR,
+
+    BATELADA
+
+}
+```
+
+---
+
+## EstadoTela
+
+```typescript
+export enum EstadoTela {
+
+    IDLE,
+
+    LOADING,
+
+    READY,
+
+    ERROR
+
+}
+```
+
+---
+
+## EstadoValidação
+
+```typescript
+export enum EstadoValidacao {
+
+    VAZIO,
+
+    VALIDANDO,
+
+    VALIDO,
+
+    INVALIDO
+
+}
+```
+
+---
+
+# 29. DTOs
+
+## BuscarCentroRequest
+
+```typescript
+export interface BuscarCentroRequest {
+
+    codigo: string;
+
+}
+```
+
+---
+
+## BuscarCentroResponse
+
+```typescript
+export interface BuscarCentroResponse {
+
+    codigo: string;
+
+    descricao: string;
+
+    grupoMaquina: string;
+
+    estabelecimento: string;
+
+}
+```
+
+---
+
+## BuscarOperadorRequest
+
+```typescript
+export interface BuscarOperadorRequest {
+
+    codigo: string;
+
+}
+```
+
+---
+
+## BuscarOperadorResponse
+
+```typescript
+export interface BuscarOperadorResponse {
+
+    codigo: string;
+
+    nome: string;
+
+    validade?: string;
+
+    situacao: string;
+
+}
+```
+
+---
+
+# 30. Signals / Estado da Feature
+
+Sugestão de organização utilizando Angular Signals.
+
+```typescript
+centroTrabalho
+
+operador
+
+tipoReporte
+
+estadoTela
+
+loadingCentro
+
+loadingOperador
+
+contextoOperacional
+```
+
+Cada Signal deve possuir responsabilidade única.
+
+Não compartilhar estados de componentes independentes.
+
+---
+
+# 31. Serviços Consumidos
+
+A Feature deverá depender apenas dos serviços abaixo.
+
+```
+CentroTrabalhoService
+
+OperadorService
+
+ContextoOperacionalService
+
+NotificationService
+```
+
+Nenhum componente deverá acessar APIs diretamente.
+
+Toda comunicação deve passar pelos Services.
+
+---
+
+# 32. Tratamento de Erros
+
+## Centro inexistente
+
+Mensagem:
+
+```
+Centro de Trabalho não encontrado.
+```
+
+Ações:
+
+- limpar displays
+- manter cursor no campo Código
+- impedir continuidade
+
+---
+
+## Operador inexistente
+
+Mensagem:
+
+```
+Operador não encontrado.
+```
+
+Ações:
+
+- limpar Nome
+- manter foco no Operador
+- bloquear Reporte
+- bloquear Inspeção
+
+---
+
+## Operador inativo
+
+Mensagem:
+
+```
+Operador não autorizado.
+```
+
+Botões permanecem desabilitados.
+
+---
+
+## Erro de comunicação
+
+Mensagem:
+
+```
+Não foi possível comunicar com o servidor.
+```
+
+Disponibilizar botão:
+
+```
+Tentar novamente
+```
+
+---
+
+## Timeout
+
+Mensagem:
+
+```
+Tempo de resposta excedido.
+```
+
+Permitir nova tentativa.
+
+---
+
+# 33. Estados Vazios
+
+## Tela Inicial
+
+Campos preenchidos:
+
+Nenhum.
+
+Botões:
+
+Desabilitados.
+
+---
+
+## Centro informado
+
+Preenchidos:
+
+- Código
+- Descrição
+- Grupo
+- Estab
+
+---
+
+## Operador informado
+
+Preenchidos:
+
+Todos os anteriores +
+
+- Operador
+- Nome
+
+---
+
+## Contexto Completo
+
+Todos os campos preenchidos.
+
+Botões habilitados.
+
+---
+
+# 34. Loading
+
+Durante qualquer consulta:
+
+- impedir múltiplos cliques;
+- bloquear apenas os controles envolvidos na operação;
+- manter os dados já carregados visíveis;
+- exibir indicador de carregamento discreto conforme definido no Design System.
+
+Evitar recarregamento completo da página.
+
+---
+
+# 35. Performance
+
+A tela deve responder de forma praticamente instantânea.
+
+Requisitos:
+
+- inicialização inferior a 500 ms (sem chamadas de API);
+- atualização imediata dos campos locais;
+- consultas assíncronas sem bloquear a interface;
+- reutilização do contexto operacional durante a sessão.
+
+---
+
+# 36. Acessibilidade
+
+Embora destinada a tablets industriais, a tela deve seguir as diretrizes de acessibilidade adotadas pelo projeto:
+
+- navegação por teclado quando disponível;
+- labels associadas aos campos;
+- foco visível;
+- contraste conforme o Design System;
+- mensagens de erro legíveis;
+- áreas de toque compatíveis com operação por luvas, conforme especificado em `05-padroes-ui.md`.
+
+---
+
+# 37. Observações para Implementação
+
+- Os ícones de câmera representam uma funcionalidade futura de leitura por código de barras ou QR Code e devem ser implementados inicialmente apenas como botões desabilitados ou placeholders, conforme decisão do projeto.
+- O **Contexto Operacional** deve ser tratado como uma entidade de aplicação, sendo compartilhado entre todas as telas subsequentes.
+- Nenhuma informação operacional deve ser persistida localmente após o encerramento da sessão.
+- A tela deve permanecer desacoplada das regras específicas de Reporte e Inspeção, atuando apenas como ponto de preparação do contexto e navegação.
+- Toda a lógica de negócio deve residir nos Services, mantendo os componentes focados na apresentação e interação com o usuário.
+
+# 38. Critérios de Aceite
+
+A implementação da tela será considerada concluída quando atender aos critérios abaixo.
+
+---
+
+## CAT-001 — Inicialização
+
+**Dado** que o usuário acessou a tela
+
+**Então**
+
+- a tela deve abrir sem erros;
+- o foco inicial deve estar no campo **Código**;
+- todos os campos devem iniciar vazios;
+- os botões **Reporte** e **Inspeção** devem permanecer desabilitados.
+
+---
+
+## CAT-002 — Consulta do Centro de Trabalho
+
+**Dado** que o usuário informou um código válido
+
+**Então**
+
+o sistema deve preencher automaticamente:
+
+- Descrição;
+- Grupo Máquina;
+- Estabelecimento.
+
+Sem necessidade de intervenção do usuário.
+
+---
+
+## CAT-003 — Centro inexistente
+
+Quando o código informado não existir:
+
+- exibir mensagem de erro;
+- limpar os displays;
+- manter o foco no campo Código;
+- impedir continuidade.
+
+---
+
+## CAT-004 — Validação do Operador
+
+Após informar um operador válido:
+
+o sistema deverá preencher automaticamente:
+
+- Nome.
+
+Os botões operacionais poderão ser habilitados caso todas as demais validações estejam concluídas.
+
+---
+
+## CAT-005 — Operador inválido
+
+Quando o operador não existir ou estiver inativo:
+
+- impedir acesso aos módulos;
+- limpar Nome;
+- manter foco no Operador;
+- exibir mensagem apropriada.
+
+---
+
+## CAT-006 — Reporte por Operador
+
+Quando:
+
+```
+Reporte por = Operador
+```
+
+Ao pressionar **Reporte**:
+
+O sistema deverá navegar para:
+
+```
+Tela Reporte Operação
+```
+
+---
+
+## CAT-007 — Reporte por Batelada
+
+Quando:
+
+```
+Reporte por = Batelada
+```
+
+Ao pressionar **Reporte**:
+
+O sistema deverá navegar para:
+
+```
+Tela Reporte Batelada
+```
+
+---
+
+## CAT-008 — Inspeção
+
+Ao pressionar **Inspeção**
+
+O sistema deverá abrir:
+
+```
+Tela Inspeção Processo
+```
+
+Independentemente do tipo de reporte selecionado.
+
+---
+
+## CAT-009 — Alteração do Centro
+
+Ao alterar o Centro de Trabalho:
+
+O sistema deverá limpar automaticamente:
+
+- Operador;
+- Nome;
+- Validade;
+- Contexto Operacional.
+
+---
+
+## CAT-010 — Responsividade
+
+Toda a interface deve permanecer completamente utilizável em tablets suportados pelo projeto.
+
+Não deverá existir rolagem vertical.
+
+---
+
+# 39. Casos de Teste
+
+## Cenário 01
+
+Centro válido.
+
+Operador válido.
+
+Reporte Operador.
+
+Resultado esperado:
+
+Navegar para Reporte Operação.
+
+---
+
+## Cenário 02
+
+Centro válido.
+
+Operador válido.
+
+Reporte Batelada.
+
+Resultado esperado:
+
+Navegar para Reporte Batelada.
+
+---
+
+## Cenário 03
+
+Centro inexistente.
+
+Resultado esperado:
+
+Erro.
+
+---
+
+## Cenário 04
+
+Operador inexistente.
+
+Resultado esperado:
+
+Erro.
+
+---
+
+## Cenário 05
+
+Operador inativo.
+
+Resultado esperado:
+
+Bloquear navegação.
+
+---
+
+## Cenário 06
+
+Troca de Centro.
+
+Resultado esperado:
+
+Limpar contexto operacional.
+
+---
+
+## Cenário 07
+
+Troca apenas do Operador.
+
+Resultado esperado:
+
+Atualizar somente os dados do operador.
+
+---
+
+## Cenário 08
+
+Falha de comunicação com API.
+
+Resultado esperado:
+
+Mensagem de erro.
+
+Permitir nova tentativa.
+
+---
+
+## Cenário 09
+
+Timeout da API.
+
+Resultado esperado:
+
+Mensagem informativa.
+
+Interface permanece utilizável.
+
+---
+
+## Cenário 10
+
+Abertura da tela.
+
+Resultado esperado:
+
+Foco automático no campo Código.
+
+---
+
+# 40. Requisitos Não Funcionais
+
+## RNF-001
+
+Tempo máximo de carregamento da interface:
+
+```
+500 ms
+```
+
+(desconsiderando chamadas externas).
+
+---
+
+## RNF-002
+
+Toda consulta deverá ocorrer de forma assíncrona.
+
+---
+
+## RNF-003
+
+A interface nunca deverá travar durante consultas.
+
+---
+
+## RNF-004
+
+Não deverá existir recarregamento completo da página.
+
+---
+
+## RNF-005
+
+Todos os componentes deverão seguir o padrão visual definido em `05-padroes-ui.md`.
+
+---
+
+## RNF-006
+
+A Feature deverá permanecer completamente desacoplada das regras específicas de Reporte e Inspeção.
+
+---
+
+## RNF-007
+
+Nenhum estado operacional deverá ser persistido permanentemente no dispositivo.
+
+---
+
+# 41. Dependências
+
+Esta Feature depende das seguintes funcionalidades:
+
+## Implementadas anteriormente
+
+- Login
+- Menu Principal
+- Menu Flutuante
+
+---
+
+## Dependências futuras
+
+- Tela Reporte Operação
+- Tela Reporte Batelada
+- Tela Inspeção Processo
+- Integração com APIs Datasul
+
+---
+
+# 42. Checklist de Implementação (BMAD / Codex)
+
+## Estrutura
+
+- [ ] Criar Feature `centro-trabalho`
+- [ ] Criar rota da Feature
+- [ ] Criar Page Standalone
+- [ ] Criar Services
+- [ ] Criar Models
+- [ ] Criar DTOs
+- [ ] Criar Interfaces
+
+---
+
+## Interface
+
+- [ ] Implementar layout conforme wireframe
+- [ ] Implementar displays somente leitura
+- [ ] Implementar dropdown Reporte
+- [ ] Implementar botões
+- [ ] Implementar estados de loading
+- [ ] Implementar mensagens de erro
+- [ ] Implementar estados vazios
+
+---
+
+## Negócio
+
+- [ ] Consultar Centro
+- [ ] Validar Operador
+- [ ] Construir Contexto Operacional
+- [ ] Limpar contexto ao trocar Centro
+- [ ] Navegar corretamente conforme tipo de reporte
+
+---
+
+## UX
+
+- [ ] Foco automático
+- [ ] Feedback imediato
+- [ ] Loading discreto
+- [ ] Botões corretamente habilitados
+- [ ] Interface otimizada para toque
+
+---
+
+## Código
+
+- [ ] Componentes desacoplados
+- [ ] Sem regras de negócio na View
+- [ ] Services reutilizáveis
+- [ ] Tipagem completa
+- [ ] Código compatível com Angular Standalone
+- [ ] Seguir padrões definidos em `04-arquitetura.md`
+
+---
+
+# 43. Fluxo Geral da Feature
+
+```mermaid
+flowchart TD
+
+A[Centro Trabalho]
+
+B[Consultar Centro]
+
+C[Centro Válido]
+
+D[Informar Operador]
+
+E[Validar Operador]
+
+F[Contexto Operacional]
+
+G{Destino}
+
+H[Reporte Operação]
+
+I[Reporte Batelada]
+
+J[Inspeção Processo]
+
+A --> B
+B --> C
+C --> D
+D --> E
+E --> F
+F --> G
+
+G -->|Operador| H
+G -->|Batelada| I
+F --> J
+```
+
+---
+
+# 44. Considerações Arquiteturais
+
+A tela **Centro de Trabalho** é o ponto de criação do **Contexto Operacional** da aplicação.
+
+Todas as telas subsequentes deverão assumir que esse contexto já existe e foi previamente validado.
+
+Por esse motivo, esta Feature deve ser considerada uma **Feature Base** do sistema, servindo como pré-requisito para todos os fluxos operacionais de produção e inspeção.
+
+Ela deve permanecer pequena, objetiva e altamente desacoplada, concentrando-se apenas em:
+
+- identificação do Centro de Trabalho;
+- identificação do Operador;
+- seleção do modo de reporte;
+- criação do Contexto Operacional;
+- navegação para os módulos funcionais.
+
+Qualquer lógica relacionada ao processo produtivo, apontamentos, inspeções ou regras específicas deve permanecer exclusivamente nas respectivas Features.
+
+---
+
+# 45. Prompt Mestre para Codex
+
+## Objetivo
+
+Implementar integralmente a Feature **Centro de Trabalho** utilizando Angular (Standalone Components), TypeScript, SCSS e PO-UI, seguindo rigorosamente a arquitetura Feature First definida no projeto.
+
+## Diretrizes
+
+- Ler previamente os documentos `00-design-system.md`, `04-arquitetura.md` e `05-padroes-ui.md`.
+- Criar a Feature `centro-trabalho` respeitando a estrutura padrão do projeto.
+- Desenvolver uma página Standalone utilizando componentes PO-UI.
+- Separar claramente responsabilidades entre Page, Components e Services.
+- Não implementar regras de negócio diretamente nos componentes de apresentação.
+- Utilizar tipagem forte para Models, DTOs e Interfaces.
+- Preparar os Services para futura integração com as APIs do TOTVS Datasul, utilizando contratos definidos nesta especificação.
+- Implementar todos os estados da interface (idle, loading, sucesso e erro).
+- Implementar validações de Centro de Trabalho e Operador.
+- Criar e manter um `ContextoOperacionalService` responsável por disponibilizar o contexto para as demais Features.
+- Implementar navegação condicional para:
+  - Reporte Operação;
+  - Reporte Batelada;
+  - Inspeção Processo.
+- Considerar os botões de scanner como placeholders para futuras integrações com leitores de código de barras ou QR Code.
+- Garantir que a interface seja otimizada para tablets industriais, sem rolagem vertical, priorizando rapidez, legibilidade e operação por toque.
+- O resultado final deve produzir uma Feature desacoplada, reutilizável, testável e preparada para evolução futura sem necessidade de refatorações estruturais.

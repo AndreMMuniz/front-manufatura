@@ -1,0 +1,379 @@
+# 90-contextos-operacionais.md
+
+# Contextos Operacionais Compartilhados
+
+> **Documento de Arquitetura**
+>
+> Este documento define os **contextos compartilhados** entre as Features da aplicação.
+>
+> Seu objetivo é estabelecer um contrato arquitetural para que todas as telas utilizem os mesmos estados, evitando duplicação de informações, inconsistências de navegação e dependências implícitas.
+>
+> Este documento complementa:
+>
+> * `01-aplicacao.md`
+> * `02-fluxo-geral.md`
+> * `03-api.md`
+> * `04-arquitetura.md`
+
+---
+
+# 1. Objetivo
+
+A aplicação é composta por diversas Features independentes.
+
+Embora cada Feature possua sua própria responsabilidade, algumas informações precisam permanecer disponíveis durante toda a sessão do usuário.
+
+Essas informações são chamadas de **Contextos Compartilhados**.
+
+Cada contexto possui:
+
+* origem;
+* ciclo de vida;
+* Feature responsável;
+* Features consumidoras;
+* regras de atualização.
+
+Nenhuma Feature deve recriar um contexto já existente.
+
+---
+
+# 2. Conceitos
+
+## Contexto
+
+Um contexto representa um conjunto de informações compartilhadas entre múltiplas Features durante uma mesma sessão de uso.
+
+Exemplos:
+
+* Usuário autenticado
+* Centro de Trabalho
+* Operador
+* Reporte em andamento
+* Inspeção em andamento
+
+---
+
+## Dono do Contexto
+
+Toda informação compartilhada possui uma única Feature responsável por sua criação.
+
+Somente essa Feature pode alterar seu conteúdo.
+
+As demais apenas consultam.
+
+---
+
+## Consumidores
+
+São todas as Features que utilizam determinado contexto.
+
+---
+
+# 3. Fluxo Geral dos Contextos
+
+```mermaid
+flowchart TD
+
+Login
+
+Menu
+
+Centro
+
+Reporte
+
+Inspecao
+
+Finalizacao
+
+Login --> Menu
+
+Menu --> Centro
+
+Centro --> Reporte
+
+Centro --> Inspecao
+
+Reporte --> Finalizacao
+
+Inspecao --> Finalizacao
+```
+
+---
+
+# 4. Contextos Compartilhados
+
+## 4.1 Contexto de Autenticação
+
+### Criado por
+
+Tela Login
+
+---
+
+### Consumido por
+
+* Menu Principal
+* Centro de Trabalho
+* Todas as demais Features
+
+---
+
+### Dados
+
+```typescript
+interface AuthContext {
+
+    usuarioId: string;
+
+    nome: string;
+
+    perfil: string;
+
+    token: string;
+
+}
+```
+
+---
+
+### Ciclo de Vida
+
+Início:
+
+Login.
+
+Fim:
+
+Logout.
+
+---
+
+# 4.2 Contexto Operacional
+
+## Criado por
+
+Tela Centro de Trabalho.
+
+---
+
+## Consumido por
+
+* Reporte Operação
+* Reporte Batelada
+* Inspeção Processo
+* Qualquer Feature operacional futura
+
+---
+
+## Dados Compartilhados
+
+```typescript
+interface ContextoOperacional {
+
+    centroTrabalho: CentroTrabalho;
+
+    operador: Operador;
+
+    tipoReporte: TipoReporte;
+
+    validade?: string;
+
+}
+```
+
+---
+
+## Responsabilidade
+
+Representar o ambiente operacional da sessão.
+
+Nenhuma Feature operacional deverá solicitar novamente essas informações ao usuário.
+
+---
+
+## Atualização
+
+Somente a Feature Centro de Trabalho pode alterar este contexto.
+
+---
+
+## Destruição
+
+O contexto deve ser descartado quando ocorrer:
+
+* Logout;
+* Troca de Centro de Trabalho;
+* Encerramento da sessão.
+
+---
+
+# 4.3 Contexto de Reporte
+
+## Criado por
+
+Tela Reporte Operação.
+
+---
+
+## Consumido por
+
+* Reporte
+* Finalização
+* Histórico
+* APIs de Produção
+
+---
+
+### Dados previstos
+
+```typescript
+interface ReporteContext {
+
+    ordemProducao: string;
+
+    operacao: string;
+
+    recurso: string;
+
+    quantidade: number;
+
+    inicio: Date;
+
+}
+```
+
+> Estrutura sujeita à evolução conforme a especificação da Feature.
+
+---
+
+# 4.4 Contexto de Inspeção
+
+## Criado por
+
+Tela Inspeção Processo.
+
+---
+
+## Consumido por
+
+* Fluxo de Inspeção
+* Aprovação
+* Registro de Qualidade
+
+---
+
+### Dados previstos
+
+```typescript
+interface InspecaoContext {
+
+    lote: string;
+
+    item: string;
+
+    operacao: string;
+
+    checklist: string;
+
+}
+```
+
+---
+
+# 5. Matriz de Dependências
+
+| Feature            | Recebe              | Produz              |
+| ------------------ | ------------------- | ------------------- |
+| Login              | —                   | AuthContext         |
+| Menu Principal     | AuthContext         | —                   |
+| Centro de Trabalho | AuthContext         | ContextoOperacional |
+| Reporte Operação   | ContextoOperacional | ReporteContext      |
+| Reporte Batelada   | ContextoOperacional | ReporteContext      |
+| Inspeção Processo  | ContextoOperacional | InspecaoContext     |
+
+---
+
+# 6. Regras Arquiteturais
+
+## RA-001
+
+Cada contexto possui exatamente um proprietário.
+
+---
+
+## RA-002
+
+Somente o proprietário pode modificar um contexto.
+
+---
+
+## RA-003
+
+As demais Features possuem acesso somente leitura.
+
+---
+
+## RA-004
+
+Contextos devem permanecer em memória.
+
+Não devem ser persistidos em banco local.
+
+---
+
+## RA-005
+
+Todo contexto deve possuir tipagem forte.
+
+Interfaces compartilhadas devem ficar em um módulo comum da aplicação.
+
+---
+
+## RA-006
+
+Nenhuma Feature deve depender diretamente de outra Feature.
+
+A comunicação deve ocorrer exclusivamente através dos Contextos Compartilhados e dos Services definidos pela arquitetura.
+
+---
+
+# 7. Organização Sugerida
+
+```
+core/
+
+└── context/
+
+    auth-context.service.ts
+
+    contexto-operacional.service.ts
+
+    reporte-context.service.ts
+
+    inspecao-context.service.ts
+
+    context.models.ts
+```
+
+Cada contexto deve possuir um Service dedicado.
+
+---
+
+# 8. Convenções
+
+Todos os Context Services devem:
+
+* utilizar Angular Signals (preferencialmente);
+* expor métodos de leitura;
+* possuir métodos explícitos para atualização;
+* possuir método `clear()`;
+* evitar dependências entre si.
+
+---
+
+# 9. Evolução do Documento
+
+Sempre que uma nova Feature criar informações compartilhadas entre módulos, um novo contexto deverá ser documentado neste arquivo antes de sua implementação.
+
+Este documento é considerado parte da arquitetura da aplicação e deve permanecer sincronizado com as especificações individuais das Features.

@@ -1,0 +1,1833 @@
+# 17-reporta-batelada.md
+
+# Tela — Reporta Batelada
+
+> Referências:
+>
+> * `00-design-system.md`
+> * `01-aplicacao.md`
+> * `02-fluxo-geral.md`
+> * `03-api.md`
+> * `04-arquitetura.md`
+> * `05-padroes-ui.md`
+> * `07-centro-trabalho.md`
+> * `16-reporta-operacao.md`
+> * `16-refugo.md`
+
+---
+
+# Objetivo
+
+A tela **Reporta Batelada** permite registrar a produção de múltiplas Ordens de Produção (OPs) agrupadas em uma mesma batelada.
+
+Ela é utilizada quando o operador trabalha simultaneamente em diversas OPs pertencentes ao mesmo conjunto produtivo, possibilitando que todas sejam iniciadas, reportadas ou finalizadas em uma única operação.
+
+A tela compartilha grande parte da lógica da funcionalidade **Reporta Operação**, diferenciando-se principalmente pelo gerenciamento de uma coleção de OPs selecionáveis.
+
+---
+
+# Contexto de Negócio
+
+Em determinados Centros de Trabalho uma única operação pode produzir diversas OPs simultaneamente.
+
+Ao invés de realizar um reporte individual para cada ordem, o sistema permite que o operador informe os dados da produção uma única vez para toda a batelada.
+
+Essa abordagem reduz significativamente o tempo de apontamento e garante maior produtividade operacional.
+
+---
+
+# Objetivos da Funcionalidade
+
+A tela deve permitir:
+
+* visualizar todas as OPs pertencentes à batelada;
+* selecionar quais OPs participarão do reporte;
+* informar quantidade produzida por OP;
+* registrar início da produção;
+* registrar término da produção;
+* informar refugo;
+* informar retrabalho;
+* visualizar informações da operação;
+* acessar a tela de Paradas;
+* concluir o reporte da batelada.
+
+---
+
+# Fluxo Geral
+
+```mermaid
+flowchart TD
+
+A[Centro de Trabalho]
+
+A --> B{Reportar por}
+
+B -->|Operação| C[Reporta Operação]
+
+B -->|Batelada| D[Reporta Batelada]
+
+D --> E[Seleciona OPs]
+
+E --> F[Informar Quantidades]
+
+F --> G[Iniciar Produção]
+
+G --> H[Registrar Produção]
+
+H --> I[Registrar Refugo]
+
+H --> J[Registrar Retrabalho]
+
+H --> K[Registrar Paradas]
+
+I --> L[Reportar]
+
+J --> L
+
+K --> L
+
+L --> M[Retornar ao Centro de Trabalho]
+```
+
+---
+
+# Fluxos Externos
+
+Esta tela possui integração direta com outras funcionalidades.
+
+## Tela Refugo
+
+Ao editar o campo de refugo:
+
+```text
+Reporta Batelada
+        │
+        ▼
+Tela Refugo
+```
+
+---
+
+## Tela Retrabalho
+
+Ao editar o campo de retrabalho.
+
+Documentação será criada posteriormente.
+
+```text
+Reporta Batelada
+        │
+        ▼
+Tela Retrabalho
+```
+
+---
+
+## Tela Parada
+
+Ao pressionar o botão **Parada**.
+
+```text
+Reporta Batelada
+        │
+        ▼
+Tela Parada
+```
+
+---
+
+## Centro de Trabalho
+
+Após o reporte concluído.
+
+```text
+Centro de Trabalho
+
+        │
+
+Reporta Batelada
+
+        │
+
+Retorna para Centro de Trabalho
+```
+
+---
+
+# Estrutura Geral da Interface
+
+A interface é organizada em cinco áreas principais.
+
+```text
++------------------------------------------------------+
+| Logo Cortag                                          |
+| Reporta Batelada                                     |
++------------------------------------------------------+
+
+| Lista das OPs                                        |
+|                                                      |
+| [ ] Todas                                            |
+|                                                      |
+| 0,000  ☑ 367564 - Pedido - Produto                   |
+| 0,000  ☑ 367565 - Pedido - Produto                   |
+| 0,000  ☑ 367566 - Pedido - Produto                   |
+|                                                      |
++------------------------------------------------------+
+
+| Data Início | Hora Início                            |
+| Data Final  | Hora Final                             |
++------------------------------------------------------+
+
+| Qtde Refugo      [Editar]                            |
+| Qtde Retrabalho  [Editar]                            |
++------------------------------------------------------+
+
+| CT                                               |
+| GM                                               |
+| Operador / Equipe                                |
+| Turno                                            |
++------------------------------------------------------+
+
+| Inicia / Reporta | Parada                           |
++------------------------------------------------------+
+```
+
+---
+
+# Layout para Tablets
+
+A tela foi projetada exclusivamente para tablets industriais.
+
+Diretrizes:
+
+* orientação vertical;
+* todos os elementos devem permanecer visíveis sem zoom;
+* componentes grandes para operação com luvas;
+* botões posicionados na região inferior;
+* lista central ocupando a maior parte da tela;
+* rolagem somente na lista da batelada;
+* evitar abertura de novas páginas durante o reporte.
+
+---
+
+# Organização Visual
+
+A interface pode ser dividida em cinco blocos funcionais.
+
+## 1. Cabeçalho
+
+Responsável pela identificação da funcionalidade.
+
+Contém:
+
+* Logo Cortag
+* Título "Reporta Batelada"
+
+---
+
+## 2. Lista da Batelada
+
+Principal componente da tela.
+
+Responsável por apresentar todas as OPs pertencentes à batelada.
+
+Cada linha representa uma OP distinta.
+
+---
+
+## 3. Área de Datas
+
+Responsável pelo registro dos horários de produção.
+
+Campos:
+
+* Data Início
+* Hora Início
+* Data Final
+* Hora Final
+
+---
+
+## 4. Área de Quantidades
+
+Responsável pelo registro das quantidades complementares.
+
+Campos:
+
+* Refugo
+* Retrabalho
+
+Cada campo possui acesso às respectivas telas auxiliares.
+
+---
+
+## 5. Rodapé Operacional
+
+Responsável pelo controle da operação.
+
+Exibe:
+
+* CT
+* GM
+* Operador / Equipe
+* Turno
+* Botões de ação
+
+---
+
+# Componentização Esperada
+
+A tela deverá seguir a arquitetura Feature First definida em `04-arquitetura.md`.
+
+Estrutura sugerida:
+
+```text
+features/
+
+└── reporta-batelada/
+
+    ├── pages/
+
+    │     reporta-batelada-page/
+
+    ├── components/
+
+    │     batelada-list/
+
+    │     batelada-item/
+
+    │     datas-producao/
+
+    │     quantidades/
+
+    │     informacoes-operacao/
+
+    │     footer-acoes/
+
+    ├── services/
+
+    │     reporta-batelada.service.ts
+
+    ├── models/
+
+    ├── interfaces/
+
+    └── enums/
+```
+
+---
+
+# Papel da Tela na Arquitetura
+
+A tela atua como ponto central do processo de reporte em lote.
+
+Responsabilidades:
+
+* controlar a seleção das OPs;
+* consolidar informações da batelada;
+* registrar tempos da produção;
+* controlar quantidades;
+* integrar com Refugo;
+* integrar com Retrabalho;
+* integrar com Paradas;
+* enviar os dados para a API do Datasul.
+
+---
+
+# Componentes da Tela
+
+A tela **Reporta Batelada** deve ser implementada com componentes pequenos, previsíveis e reutilizáveis, mantendo separação clara entre layout, estado da tela, regras de negócio e comunicação com API.
+
+---
+
+# Componentes Angular Esperados
+
+## ReportaBateladaPageComponent
+
+Componente principal da funcionalidade.
+
+Responsabilidades:
+
+* carregar os dados da batelada;
+* controlar o estado global da tela;
+* coordenar os componentes filhos;
+* controlar navegação para Refugo, Retrabalho e Parada;
+* executar ações de iniciar, reportar e salvar;
+* validar dados antes do envio;
+* exibir mensagens de erro, sucesso e carregamento.
+
+Não deve conter lógica visual detalhada da lista de OPs nem regras específicas de renderização dos itens.
+
+---
+
+## BateladaListComponent
+
+Componente responsável por exibir a lista de OPs da batelada.
+
+Responsabilidades:
+
+* renderizar a lista rolável;
+* exibir checkbox **Todas**;
+* controlar seleção individual;
+* controlar seleção em massa;
+* emitir eventos de alteração para o componente pai;
+* exibir estado vazio;
+* exibir estado de carregamento.
+
+Entradas esperadas:
+
+```ts
+@Input() itens: BateladaItemViewModel[] = [];
+@Input() loading = false;
+@Input() disabled = false;
+```
+
+Saídas esperadas:
+
+```ts
+@Output() itensChange = new EventEmitter<BateladaItemViewModel[]>();
+@Output() selecionarTodosChange = new EventEmitter<boolean>();
+```
+
+---
+
+## BateladaItemComponent
+
+Componente responsável por cada linha da lista.
+
+Cada item deve conter:
+
+* input de quantidade;
+* checkbox de seleção;
+* identificação da OP;
+* pedido;
+* descrição do produto.
+
+Estrutura visual:
+
+```text
+[0,000] [☑] 367.564 - 70455 - Chapa 3564
+```
+
+Responsabilidades:
+
+* receber o item da batelada;
+* atualizar quantidade;
+* alternar seleção;
+* respeitar estado desabilitado;
+* emitir alterações para o componente pai.
+
+---
+
+## DatasProducaoComponent
+
+Componente responsável pelos campos de data e hora.
+
+Campos:
+
+* Data Início
+* Hora Início
+* Data Fim
+* Hora Fim
+
+Responsabilidades:
+
+* renderizar inputs de data e hora;
+* aplicar máscara ou formatação apropriada;
+* validar preenchimento obrigatório conforme estado da operação;
+* emitir alterações para o componente pai.
+
+---
+
+## QuantidadesBateladaComponent
+
+Componente responsável por exibir as quantidades agregadas.
+
+Campos:
+
+* Qtde Refugo
+* Qtde Retrabalho
+
+Responsabilidades:
+
+* exibir valores consolidados;
+* impedir edição direta quando o fluxo exigir tela auxiliar;
+* abrir Refugo;
+* abrir Retrabalho;
+* emitir evento para abertura das janelas auxiliares.
+
+Os campos de refugo e retrabalho devem ser tratados como valores derivados ou controlados por telas auxiliares, não como inputs livres.
+
+---
+
+## InformacoesOperacaoComponent
+
+Componente responsável pelo painel informativo da operação.
+
+Displays:
+
+* CT
+* GM
+* Operador / Equipe
+* Turno
+
+Responsabilidades:
+
+* renderizar dados somente leitura;
+* manter legibilidade em tablet;
+* exibir valores ausentes com fallback padronizado;
+* emitir evento de edição caso o ícone lateral seja utilizado.
+
+---
+
+## FooterAcoesBateladaComponent
+
+Componente responsável pelas ações principais.
+
+Botões:
+
+* Inicia / Reporta
+* Parada
+
+Responsabilidades:
+
+* renderizar botões grandes;
+* controlar estado habilitado/desabilitado;
+* emitir ação principal;
+* emitir abertura da tela de parada.
+
+---
+
+# Componentes PO-UI Sugeridos
+
+A implementação deve priorizar componentes PO-UI sempre que forem adequados ao uso em tablet.
+
+## Componentes recomendados
+
+```text
+po-page-default
+po-container
+po-widget
+po-button
+po-input
+po-number
+po-checkbox
+po-datepicker
+po-field-container
+po-loading
+po-modal
+po-dialog
+po-notification
+po-divider
+```
+
+---
+
+# Mapeamento Visual para PO-UI
+
+| Elemento no Mockup          | Componente PO-UI sugerido                   | Observação                                 |
+| --------------------------- | ------------------------------------------- | ------------------------------------------ |
+| Cabeçalho                   | Composição customizada                      | Deve seguir padrão visual Cortag           |
+| Lista de OPs                | Lista customizada + po-checkbox + po-number | PO Table não é recomendada para esta tela  |
+| Checkbox Todas              | po-checkbox                                 | Deve selecionar/desselecionar todas as OPs |
+| Quantidade por OP           | po-number ou po-input                       | Deve aceitar decimal com três casas        |
+| Data Início                 | po-datepicker                               | Campo de data                              |
+| Hora Início                 | po-input                                    | Campo hora com máscara HH:mm               |
+| Data Fim                    | po-datepicker                               | Campo de data                              |
+| Hora Fim                    | po-input                                    | Campo hora com máscara HH:mm               |
+| Qtde Refugo                 | po-input readonly                           | Valor consolidado                          |
+| Botão editar refugo         | po-button icon                              | Abre tela Refugo                           |
+| Qtde Retrabalho             | po-input readonly                           | Valor consolidado                          |
+| Botão editar retrabalho     | po-button icon                              | Abre tela futura                           |
+| Painel CT/GM/Operador/Turno | po-container                                | Display somente leitura                    |
+| Inicia / Reporta            | po-button                                   | Ação principal                             |
+| Parada                      | po-button                                   | Abre tela Parada                           |
+
+---
+
+# Estados da Tela
+
+A tela deve operar com estados explícitos para evitar decisões implícitas no template.
+
+## Estado Inicial
+
+A tela foi aberta a partir do Centro de Trabalho, mas os dados da batelada ainda não foram carregados.
+
+Comportamento:
+
+* exibir loading;
+* desabilitar botões;
+* bloquear edição;
+* não permitir reporte.
+
+---
+
+## Estado Batelada Carregada
+
+Dados da batelada carregados com sucesso.
+
+Comportamento:
+
+* exibir lista de OPs;
+* permitir seleção;
+* permitir edição de quantidade;
+* habilitar botão principal se houver pelo menos uma OP selecionada.
+
+---
+
+## Estado Sem OP Selecionada
+
+Nenhum item da batelada está selecionado.
+
+Comportamento:
+
+* botão **Inicia / Reporta** desabilitado;
+* botão **Parada** desabilitado ou inativo;
+* campos de quantidade continuam visíveis;
+* usuário deve selecionar ao menos uma OP.
+
+---
+
+## Estado OPs Selecionadas
+
+Uma ou mais OPs estão selecionadas.
+
+Comportamento:
+
+* botão **Inicia / Reporta** habilitado;
+* campos de data e hora podem ser preenchidos;
+* Refugo e Retrabalho podem ser acessados;
+* Parada pode ser acessada quando a operação estiver iniciada.
+
+---
+
+## Estado Produção Não Iniciada
+
+A batelada ainda não possui início registrado.
+
+Comportamento:
+
+* botão principal deve representar ação de início;
+* label preferencial: **Inicia** ou **Inicia/Reporta**, conforme padrão visual existente;
+* Data Início e Hora Início podem ser preenchidas automaticamente.
+
+---
+
+## Estado Produção Iniciada
+
+A batelada já possui início registrado.
+
+Comportamento:
+
+* botão principal passa a representar reporte;
+* Data Início e Hora Início ficam preenchidos;
+* Data Fim e Hora Fim podem ser preenchidos;
+* botão **Parada** fica habilitado;
+* Refugo e Retrabalho podem ser registrados.
+
+---
+
+## Estado Reportando
+
+A ação principal está sendo enviada para a API.
+
+Comportamento:
+
+* exibir loading no botão ou na tela;
+* bloquear múltiplos cliques;
+* manter dados em tela;
+* não limpar estado até confirmação da API.
+
+---
+
+## Estado Erro
+
+Ocorre quando a API retorna erro ou os dados são inválidos.
+
+Comportamento:
+
+* manter todos os dados preenchidos;
+* exibir mensagem clara;
+* permitir correção;
+* não retornar automaticamente.
+
+---
+
+## Estado Reporte Concluído
+
+O reporte foi aceito pela API.
+
+Comportamento:
+
+* exibir mensagem de sucesso;
+* retornar ao Centro de Trabalho ou atualizar estado da batelada;
+* limpar dados temporários da operação.
+
+---
+
+# Regras de UX
+
+## Operação por Toque
+
+Todos os campos interativos devem respeitar dimensão adequada para toque em ambiente industrial.
+
+Regras:
+
+* botões com área mínima confortável;
+* checkboxes com área de clique ampliada;
+* inputs com altura suficiente;
+* espaçamento visual entre linhas;
+* evitar interações pequenas demais.
+
+---
+
+## Lista de OPs
+
+A lista deve ser o único bloco com rolagem interna.
+
+A tela principal não deve depender de rolagem vertical para acessar os botões principais em tablets.
+
+---
+
+## Checkbox Todas
+
+O checkbox **Todas** deve seguir regra de estado intermediário quando nem todas as OPs estiverem selecionadas.
+
+Estados:
+
+* nenhuma OP selecionada;
+* algumas OPs selecionadas;
+* todas as OPs selecionadas.
+
+Caso o PO-UI não suporte estado intermediário diretamente, o estado deve ser representado visualmente por lógica customizada.
+
+---
+
+## Quantidade por OP
+
+A quantidade de cada OP deve:
+
+* aceitar decimal;
+* utilizar três casas decimais;
+* iniciar com `0,000`;
+* não aceitar valor negativo;
+* respeitar localidade brasileira;
+* ser validada antes do envio.
+
+---
+
+## Campos de Refugo e Retrabalho
+
+Os campos devem ser exibidos como resumo.
+
+Não devem ser editados diretamente quando houver janela auxiliar específica.
+
+O botão de edição deve abrir a respectiva funcionalidade.
+
+---
+
+## Botão Inicia / Reporta
+
+A ação do botão depende do estado da batelada.
+
+* se não iniciada: inicia produção;
+* se iniciada: reporta produção;
+* se finalizada: botão deve ficar indisponível.
+
+---
+
+## Botão Parada
+
+O botão **Parada** deve abrir a tela de Parada.
+
+Enquanto a tela Parada não estiver implementada, a ação deve permanecer registrada na arquitetura como navegação futura.
+
+---
+
+# Regras de Negócio
+
+## Seleção de OPs
+
+Apenas OPs selecionadas devem ser consideradas no início ou reporte da batelada.
+
+OPs não selecionadas não devem ser enviadas na carga útil principal.
+
+---
+
+## Quantidade Obrigatória
+
+Para reportar produção, cada OP selecionada deve possuir quantidade válida.
+
+Quantidade válida:
+
+* maior que zero para reporte final;
+* igual a zero somente se a operação for apenas início;
+* nunca negativa.
+
+---
+
+## Datas e Horários
+
+Para início:
+
+* Data Início obrigatória;
+* Hora Início obrigatória.
+
+Para reporte/finalização:
+
+* Data Fim obrigatória;
+* Hora Fim obrigatória;
+* Data/Hora fim não pode ser anterior à Data/Hora início.
+
+---
+
+## Refugo
+
+O refugo é registrado por meio da tela auxiliar **Refugo**.
+
+A tela Reporta Batelada deve apenas:
+
+* exibir o total consolidado;
+* abrir a janela de Refugo;
+* receber o valor atualizado;
+* enviar o valor no payload final.
+
+---
+
+## Retrabalho
+
+O retrabalho segue o mesmo padrão conceitual do Refugo, porém será documentado em tela própria futuramente.
+
+A tela deve prever integração sem acoplar regra definitiva.
+
+---
+
+## Parada
+
+A parada deve ser registrada em fluxo próprio.
+
+A tela Reporta Batelada deve apenas:
+
+* abrir a tela Parada;
+* manter contexto da batelada;
+* permitir retorno sem perda dos dados preenchidos.
+
+---
+
+## Operador / Equipe
+
+A identificação exibida deve vir do contexto carregado no Centro de Trabalho.
+
+A tela não deve permitir troca livre de operador sem fluxo definido.
+
+Caso o ícone de edição seja utilizado, a alteração deve ocorrer por fluxo controlado.
+
+---
+
+## CT e GM
+
+CT e GM são informações somente leitura herdadas do Centro de Trabalho.
+
+Não devem ser editáveis nesta tela.
+
+---
+
+## Turno
+
+Turno deve ser exibido como informação operacional.
+
+Pode vir:
+
+* do contexto do operador;
+* da API;
+* de regra de turno do Datasul.
+
+A tela não deve calcular turno de forma independente se o backend fornecer essa informação.
+
+---
+
+# Integração com APIs
+
+> Toda a comunicação deverá seguir os padrões definidos em `03-api.md`.
+
+A tela **Reporta Batelada** atua como cliente das APIs responsáveis por:
+
+* consultar a batelada;
+* carregar as OPs pertencentes à batelada;
+* iniciar produção;
+* registrar reporte;
+* registrar refugo;
+* registrar retrabalho;
+* consultar operador/equipe;
+* consultar CT e GM;
+* registrar paradas (fluxo futuro).
+
+A implementação deve desacoplar totalmente a interface da tecnologia do Datasul através de Services.
+
+---
+
+# Fluxo Técnico
+
+```mermaid
+sequenceDiagram
+
+participant UI
+participant ReportaBateladaService
+participant API
+participant Datasul
+
+UI->>ReportaBateladaService: carregarBatelada()
+
+ReportaBateladaService->>API: GET Batelada
+
+API->>Datasul: consulta
+
+Datasul-->>API: dados
+
+API-->>ReportaBateladaService: JSON
+
+ReportaBateladaService-->>UI: ViewModel
+
+UI->>ReportaBateladaService: reportar()
+
+ReportaBateladaService->>API: POST Reporte
+
+API->>Datasul: grava reporte
+
+Datasul-->>API: sucesso
+
+API-->>ReportaBateladaService: OK
+
+ReportaBateladaService-->>UI: sucesso
+```
+
+---
+
+# Services Esperados
+
+```text
+reporta-batelada.service.ts
+
+batelada.mapper.ts
+
+reporta-batelada.facade.ts
+```
+
+---
+
+## ReportaBateladaService
+
+Responsável exclusivamente pela comunicação com a API.
+
+Métodos sugeridos:
+
+```typescript
+loadBatch()
+
+startBatch()
+
+reportBatch()
+
+saveScrap()
+
+saveRework()
+
+loadOperator()
+
+loadProductionInfo()
+```
+
+---
+
+## ReportaBateladaFacade
+
+Responsável por orquestrar a tela.
+
+Funções:
+
+* controlar loading
+* controlar estado da tela
+* consolidar informações
+* preparar payload
+* transformar DTOs em ViewModels
+* desacoplar PageComponent da API
+
+---
+
+## Mapper
+
+Responsável pela transformação entre:
+
+```text
+DTO
+
+↓
+
+Domain
+
+↓
+
+ViewModel
+```
+
+A tela nunca deve consumir DTOs diretamente.
+
+---
+
+# Models
+
+## BatchModel
+
+```typescript
+export interface BatchModel {
+
+    id: string;
+
+    code: string;
+
+    description: string;
+
+    productionDate: Date;
+
+    items: BatchItemModel[];
+
+}
+```
+
+---
+
+## BatchItemModel
+
+```typescript
+export interface BatchItemModel {
+
+    opId: string;
+
+    opNumber: string;
+
+    orderNumber: string;
+
+    productDescription: string;
+
+    quantity: number;
+
+    selected: boolean;
+
+}
+```
+
+---
+
+## ProductionInformationModel
+
+```typescript
+export interface ProductionInformationModel {
+
+    ct: string;
+
+    gm: string;
+
+    operatorId: string;
+
+    operatorName: string;
+
+    teamId?: string;
+
+    teamName?: string;
+
+    shift: string;
+
+}
+```
+
+---
+
+## ScrapSummaryModel
+
+```typescript
+export interface ScrapSummaryModel {
+
+    totalQuantity: number;
+
+}
+```
+
+---
+
+## ReworkSummaryModel
+
+```typescript
+export interface ReworkSummaryModel {
+
+    totalQuantity: number;
+
+}
+```
+
+---
+
+# DTOs
+
+## BatchResponseDto
+
+```typescript
+export interface BatchResponseDto {
+
+    id: string;
+
+    code: string;
+
+    items: BatchItemDto[];
+
+}
+```
+
+---
+
+## BatchItemDto
+
+```typescript
+export interface BatchItemDto {
+
+    opId: string;
+
+    opNumber: string;
+
+    orderNumber: string;
+
+    productDescription: string;
+
+    quantity: number;
+
+}
+```
+
+---
+
+## ReportBatchRequestDto
+
+```typescript
+export interface ReportBatchRequestDto {
+
+    batchId: string;
+
+    startDate: string;
+
+    startTime: string;
+
+    endDate: string;
+
+    endTime: string;
+
+    operatorId: string;
+
+    scrapQuantity: number;
+
+    reworkQuantity: number;
+
+    items: ReportBatchItemDto[];
+
+}
+```
+
+---
+
+## ReportBatchItemDto
+
+```typescript
+export interface ReportBatchItemDto {
+
+    opId: string;
+
+    quantity: number;
+
+}
+```
+
+---
+
+## ReportBatchResponseDto
+
+```typescript
+export interface ReportBatchResponseDto {
+
+    success: boolean;
+
+    message: string;
+
+}
+```
+
+---
+
+# ViewModels
+
+A interface deve trabalhar exclusivamente com ViewModels.
+
+---
+
+## BatchItemViewModel
+
+```typescript
+export interface BatchItemViewModel {
+
+    opId: string;
+
+    displayText: string;
+
+    quantity: number;
+
+    selected: boolean;
+
+}
+```
+
+---
+
+## BatchViewModel
+
+```typescript
+export interface BatchViewModel {
+
+    items: BatchItemViewModel[];
+
+    totalSelected: number;
+
+    totalQuantity: number;
+
+    scrapQuantity: number;
+
+    reworkQuantity: number;
+
+}
+```
+
+---
+
+# Estado Global da Tela
+
+```typescript
+export interface ReportBatchState {
+
+    loading: boolean;
+
+    started: boolean;
+
+    reporting: boolean;
+
+    finished: boolean;
+
+    error?: string;
+
+}
+```
+
+---
+
+# Validações
+
+## Seleção
+
+Antes do envio:
+
+```text
+Deve existir pelo menos uma OP selecionada.
+```
+
+---
+
+## Quantidade
+
+Cada OP selecionada deve possuir quantidade válida.
+
+Regras:
+
+* maior que zero;
+* decimal permitido;
+* nunca negativa.
+
+---
+
+## Datas
+
+Obrigatórias:
+
+* Data Início
+* Hora Início
+
+No reporte:
+
+* Data Final
+* Hora Final
+
+---
+
+## Horários
+
+Hora Final
+
+não pode ser
+
+menor que
+
+Hora Inicial.
+
+---
+
+## Refugo
+
+Quantidade
+
+≥ 0
+
+---
+
+## Retrabalho
+
+Quantidade
+
+≥ 0
+
+---
+
+## Operador
+
+Obrigatório.
+
+---
+
+## CT
+
+Obrigatório.
+
+---
+
+## GM
+
+Obrigatório.
+
+---
+
+# Tratamento de Erros
+
+A tela deve diferenciar claramente erros de validação dos erros de integração.
+
+---
+
+## Erro de Rede
+
+Exibir:
+
+```text
+Falha de comunicação com o servidor.
+```
+
+Permitir nova tentativa.
+
+---
+
+## Erro de Validação
+
+Destacar o campo inválido.
+
+Não limpar formulário.
+
+---
+
+## Erro do Datasul
+
+Exibir mensagem retornada pela API.
+
+Registrar log técnico.
+
+---
+
+## Timeout
+
+Manter formulário.
+
+Permitir reenviar.
+
+---
+
+# Estratégia Offline
+
+Caso futuramente exista operação offline, esta tela deverá ser compatível com sincronização posterior.
+
+Os dados enviados devem permanecer serializáveis.
+
+A arquitetura não deve depender diretamente da resposta imediata da API.
+
+---
+
+# Performance
+
+A tela deve ser otimizada para tablets industriais.
+
+Diretrizes:
+
+* ChangeDetectionStrategy.OnPush;
+* trackBy obrigatório na lista de OPs;
+* evitar recriação completa da lista;
+* atualizar apenas itens modificados;
+* lazy loading de componentes auxiliares (Refugo, Retrabalho e Parada);
+* minimizar chamadas duplicadas à API.
+
+---
+
+# Logging
+
+Eventos recomendados:
+
+```text
+Tela aberta
+
+Batelada carregada
+
+Quantidade alterada
+
+OP selecionada
+
+Todas selecionadas
+
+Refugo aberto
+
+Retrabalho aberto
+
+Parada aberta
+
+Produção iniciada
+
+Reporte realizado
+
+Erro na API
+```
+
+---
+
+# Segurança
+
+A tela não deve confiar em dados manipulados no frontend.
+
+Antes do envio:
+
+* validar IDs;
+* validar quantidades;
+* validar datas;
+* validar operador;
+* validar permissões.
+
+Toda validação crítica deverá ser repetida pelo backend.
+
+---
+
+# Preparação para Evoluções Futuras
+
+A arquitetura deve permitir inclusão futura de:
+
+* múltiplos operadores na mesma batelada;
+* múltiplas equipes;
+* reporte parcial;
+* pausa automática por inatividade;
+* leitura por código de barras;
+* integração com coletores industriais;
+* atualização em tempo real da lista de OPs;
+* sincronização offline;
+* WebSocket para acompanhamento da produção.
+
+Essas funcionalidades não fazem parte do escopo atual, mas a estrutura da tela deve permanecer aberta para evolução sem necessidade de refatoração significativa.
+
+---
+
+# Critérios de Aceite
+
+A implementação será considerada concluída quando atender aos seguintes critérios.
+
+## Interface
+
+* A interface segue o Design System definido em `00-design-system.md`.
+* O layout é totalmente responsivo para tablets industriais.
+* Todos os componentes possuem área adequada para operação por toque.
+* Não existe rolagem desnecessária da página.
+* Apenas a lista da batelada possui rolagem própria.
+
+---
+
+## Carregamento
+
+* A tela carrega corretamente os dados da batelada.
+* As OPs são exibidas na ordem definida pela API.
+* O estado de carregamento é apresentado ao usuário.
+* O estado vazio é tratado adequadamente.
+
+---
+
+## Lista da Batelada
+
+* Todas as OPs da batelada são exibidas.
+* Cada OP apresenta:
+
+  * quantidade;
+  * checkbox;
+  * número da OP;
+  * pedido;
+  * descrição do produto.
+* O checkbox "Todas" seleciona todas as OPs.
+* A desmarcação individual atualiza corretamente o estado do checkbox "Todas".
+* Apenas OPs selecionadas são consideradas no reporte.
+
+---
+
+## Produção
+
+* O botão principal altera comportamento conforme o estado da produção.
+* O início da produção registra corretamente data e hora.
+* O reporte registra corretamente data e hora de término.
+* O usuário não consegue reportar sem seleção válida.
+
+---
+
+## Refugo
+
+* O botão de edição abre a tela Refugo.
+* O valor retornado é exibido corretamente.
+* O total é enviado para a API.
+
+---
+
+## Retrabalho
+
+* O botão de edição abre a funcionalidade correspondente.
+* O valor retornado é atualizado na tela.
+* O total é enviado no payload final.
+
+---
+
+## Parada
+
+* O botão Parada navega para a funcionalidade de Paradas.
+* O contexto da batelada é preservado.
+* Ao retornar, os dados permanecem preenchidos.
+
+---
+
+## Integração
+
+* A tela comunica-se exclusivamente através dos Services.
+* Nenhum DTO é utilizado diretamente na interface.
+* Todos os dados passam por Mapper.
+* Os ViewModels são utilizados em todos os componentes.
+
+---
+
+## Performance
+
+* A lista utiliza `trackBy`.
+* Os componentes utilizam `ChangeDetectionStrategy.OnPush`.
+* Não existem renderizações desnecessárias.
+* Componentes auxiliares são carregados sob demanda.
+
+---
+
+# Casos de Teste
+
+## CT-001
+
+**Objetivo**
+
+Carregar uma batelada válida.
+
+**Resultado esperado**
+
+Lista apresentada corretamente.
+
+---
+
+## CT-002
+
+Selecionar uma única OP.
+
+Resultado esperado:
+
+Apenas aquela OP permanece marcada.
+
+---
+
+## CT-003
+
+Selecionar "Todas".
+
+Resultado esperado:
+
+Todas as OPs ficam selecionadas.
+
+---
+
+## CT-004
+
+Desmarcar uma OP.
+
+Resultado esperado:
+
+Checkbox "Todas" passa para estado parcial.
+
+---
+
+## CT-005
+
+Alterar quantidade.
+
+Resultado esperado:
+
+Valor atualizado corretamente.
+
+---
+
+## CT-006
+
+Quantidade negativa.
+
+Resultado esperado:
+
+Erro de validação.
+
+---
+
+## CT-007
+
+Quantidade igual a zero durante reporte.
+
+Resultado esperado:
+
+Validação impede envio quando aplicável.
+
+---
+
+## CT-008
+
+Abrir Refugo.
+
+Resultado esperado:
+
+Janela lateral aberta.
+
+---
+
+## CT-009
+
+Salvar Refugo.
+
+Resultado esperado:
+
+Resumo atualizado.
+
+---
+
+## CT-010
+
+Abrir Retrabalho.
+
+Resultado esperado:
+
+Tela correspondente aberta.
+
+---
+
+## CT-011
+
+Abrir Parada.
+
+Resultado esperado:
+
+Fluxo de Paradas iniciado.
+
+---
+
+## CT-012
+
+Iniciar produção.
+
+Resultado esperado:
+
+Data e hora inicial registradas.
+
+Botão passa para estado **Reporta**.
+
+---
+
+## CT-013
+
+Reportar produção.
+
+Resultado esperado:
+
+Payload enviado corretamente.
+
+---
+
+## CT-014
+
+Erro da API.
+
+Resultado esperado:
+
+Mensagem exibida.
+
+Nenhum dado perdido.
+
+---
+
+## CT-015
+
+Timeout.
+
+Resultado esperado:
+
+Usuário pode tentar novamente.
+
+---
+
+## CT-016
+
+Retorno da tela Refugo.
+
+Resultado esperado:
+
+Dados anteriormente preenchidos permanecem intactos.
+
+---
+
+## CT-017
+
+Retorno da tela Parada.
+
+Resultado esperado:
+
+Contexto preservado.
+
+---
+
+## CT-018
+
+Mudança de orientação do tablet (caso suportada).
+
+Resultado esperado:
+
+Layout permanece funcional.
+
+---
+
+# Checklist para Implementação (BMAD / Codex)
+
+## Estrutura
+
+* Criar Feature `reporta-batelada`.
+* Criar PageComponent.
+* Criar componentes reutilizáveis.
+* Criar Services.
+* Criar Models.
+* Criar DTOs.
+* Criar ViewModels.
+* Criar Mappers.
+* Criar Facade.
+
+---
+
+## Interface
+
+* Implementar layout conforme mockup.
+* Implementar lista rolável.
+* Implementar seleção individual.
+* Implementar seleção em massa.
+* Implementar campos de data.
+* Implementar campos de hora.
+* Implementar painel informativo.
+* Implementar resumo de Refugo.
+* Implementar resumo de Retrabalho.
+* Implementar botões principais.
+
+---
+
+## Estado
+
+* Implementar máquina de estados da tela.
+* Controlar loading.
+* Controlar erro.
+* Controlar sucesso.
+* Controlar produção iniciada.
+* Controlar produção finalizada.
+
+---
+
+## Integração
+
+* Consumir APIs através do Service.
+* Utilizar Mapper.
+* Trabalhar apenas com ViewModels.
+* Preparar payload para Datasul.
+
+---
+
+## Navegação
+
+* Integrar Refugo.
+* Preparar integração Retrabalho.
+* Preparar integração Parada.
+* Retornar ao Centro de Trabalho após sucesso.
+
+---
+
+## Testes
+
+* Validar todos os casos de teste.
+* Garantir cobertura das regras críticas.
+* Validar comportamento da lista.
+* Validar comportamento do botão principal.
+* Validar integração com APIs.
+
+---
+
+# Prompt Mestre para Codex
+
+```text
+Implemente a funcionalidade "Reporta Batelada" utilizando Angular Standalone Components, TypeScript, SCSS e PO-UI, seguindo rigorosamente a arquitetura Feature First definida em 04-arquitetura.md.
+
+Considere como referência obrigatória os documentos:
+
+- 00-design-system.md
+- 01-aplicacao.md
+- 02-fluxo-geral.md
+- 03-api.md
+- 04-arquitetura.md
+- 05-padroes-ui.md
+- 07-centro-trabalho.md
+- 16-reporta-operacao.md
+- 16-refugo.md
+- 17-reporta-batelada.md
+
+A implementação deve reproduzir fielmente o comportamento descrito nesta documentação.
+
+Requisitos obrigatórios:
+
+- utilizar Standalone Components;
+- utilizar ChangeDetectionStrategy.OnPush;
+- separar Page, Components, Services, Models, DTOs, ViewModels, Mappers e Facade;
+- utilizar apenas ViewModels na camada de apresentação;
+- utilizar trackBy em listas;
+- não implementar lógica diretamente no template;
+- manter componentes desacoplados e reutilizáveis;
+- seguir o Design System do projeto;
+- otimizar a interface para tablets industriais;
+- preparar pontos de integração para Refugo, Retrabalho e Paradas;
+- estruturar toda comunicação externa através de Services, permitindo futura integração com APIs TOTVS Datasul.
+
+Não tome decisões de arquitetura além das já definidas na documentação. Em caso de ausência de implementação backend, utilize mocks tipados mantendo as interfaces e contratos preparados para substituição futura.
+```
+
+---
+
+# Considerações Finais
+
+A tela **Reporta Batelada** reutiliza a maior parte da arquitetura da tela **Reporta Operação**, diferenciando-se pela gestão de uma coleção de Ordens de Produção e pelo processamento em lote.
+
+A implementação deve priorizar reutilização de componentes e serviços compartilhados sempre que possível, evitando duplicação de código e mantendo consistência entre os fluxos de reporte individual e por batelada. A evolução futura das funcionalidades de Retrabalho, Paradas e integração completa com o TOTVS Datasul deve ocorrer sem necessidade de alterações estruturais significativas nesta tela.
