@@ -1,4 +1,4 @@
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OperatorService } from '../../../shop-floor/services/operator';
@@ -9,8 +9,11 @@ import { QualityControlService } from '../../services/quality-control';
 import { QualityControlHome } from './quality-control-home';
 
 describe('QualityControlHome', () => {
-  function createComponent(operatorService: OperatorService = new OperatorService()): QualityControlHome {
-    return new QualityControlHome(new QualityControlService(), operatorService);
+  function createComponent(
+    operatorService: OperatorService = new OperatorService(),
+    qualityControlService: QualityControlService = new QualityControlService(),
+  ): QualityControlHome {
+    return new QualityControlHome(qualityControlService, operatorService);
   }
 
   function route(): ProductionOrderRoute {
@@ -135,8 +138,19 @@ describe('QualityControlHome', () => {
   it('uses the selected operator id as operatorId in the save payload', async () => {
     const operatorService = new OperatorService();
     await firstValueFrom(operatorService.selectOperator('OP-001'));
-    const component = createComponent(operatorService);
+    const qualityControlService = new QualityControlService();
+    const saveSpy = vi.spyOn(qualityControlService, 'saveInspection').mockReturnValue(
+      of({
+        inspectionId: 'INSP-TEST',
+        savedAt: new Date('2026-06-23T10:00:00'),
+      }),
+    );
+    const component = createComponent(operatorService, qualityControlService);
+    component.productionOrderRoute = route();
+    component.qualityExams = [exam('APPROVED')];
 
-    expect(component.operatorId).toBe('OP-001');
+    component.saveInspection();
+
+    expect(saveSpy).toHaveBeenCalledWith(expect.objectContaining({ operatorId: 'OP-001' }));
   });
 });

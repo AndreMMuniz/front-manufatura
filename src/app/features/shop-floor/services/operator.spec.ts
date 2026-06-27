@@ -76,7 +76,11 @@ describe('OperatorService', () => {
   });
 
   it('clears the selected operator when the auth session is cleared', async () => {
-    const sessionSubject = new BehaviorSubject<unknown>({ user: { username: 'operador' } });
+    const sessionSubject = new BehaviorSubject<unknown>({
+      user: { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] },
+      token: 'token-123',
+      authenticatedAt: new Date(),
+    });
     service = new OperatorService({
       session$: sessionSubject.asObservable(),
     } as unknown as AuthSessionService);

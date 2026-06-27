@@ -1,0 +1,24 @@
+.sfc-placeholder {
+  display: grid;
+  gap: var(--app-space-lg);
+  max-width: 760px;
+}
+
+.sfc-placeholder__content {
+  display: grid;
+  gap: var(--app-space-md);
+}
+
+.sfc-placeholder__message,
+.sfc-placeholder__description {
+  margin: 0;
+}
+
+.sfc-placeholder__message {
+  font-weight: 600;
+  color: var(--app-color-text);
+}
+
+.sfc-placeholder__description {
+  color: var(--app-color-text-muted);
+}

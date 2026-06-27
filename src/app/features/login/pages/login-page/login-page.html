@@ -1,67 +1,63 @@
-<po-page-default p-title="Acesso ao Plano de Controle">
-  <section class="login-page">
-    <po-widget p-title="Login de demonstração">
-      @if (isAuthenticated) {
-        <p class="login-page__intro">
-          Você já está autenticado como <strong>{{ authSession.currentUser?.username }}</strong>.
-        </p>
+<section class="login-page" aria-labelledby="login-title">
+  <div class="login-page__panel">
+    <header class="login-page__header">
+      <div class="login-page__logo" aria-label="Cortag">CORTAG</div>
+      <h1 id="login-title">Login</h1>
+    </header>
 
-        <p class="login-page__demo-warning" role="note">
-          Autenticação em modo de demonstração/mock. Esta tela não valida credenciais reais do Datasul.
-        </p>
+    @if (isAuthenticated) {
+      <p class="login-page__authenticated">
+        Sessão ativa para <strong>{{ usuarioLogado?.login }}</strong>.
+      </p>
+
+      <po-button p-label="Sair" p-kind="secondary" (p-click)="logout()"></po-button>
+    } @else {
+      <form class="login-page__form" #loginForm="ngForm" (ngSubmit)="entrar()" novalidate>
+        <po-login
+          name="login"
+          p-label="Login"
+          p-placeholder="Informe seu login"
+          [p-required]="true"
+          [p-disabled]="submitting"
+          [p-auto-focus]="true"
+          p-error-message="Informe o login."
+          [(ngModel)]="login"
+        ></po-login>
+
+        <po-password
+          name="senha"
+          p-label="Senha"
+          p-placeholder="Informe sua senha"
+          [p-required]="true"
+          [p-disabled]="submitting"
+          p-error-message="Informe a senha."
+          [(ngModel)]="senha"
+        ></po-password>
+
+        @if (submitted && !canSubmit) {
+          <p class="login-page__message" role="alert">{{ emptyFieldsMessage }}</p>
+        }
+
+        @if (feedback) {
+          <p class="login-page__message" role="alert">{{ feedback }}</p>
+        }
+
+        @if (submitting) {
+          <div class="login-page__loading" role="status" aria-live="polite">
+            <po-loading p-text="Autenticando"></po-loading>
+          </div>
+        }
 
         <po-button
           class="login-page__submit"
-          p-label="Sair da sessão mock"
-          p-kind="secondary"
-          (p-click)="logout()"
+          p-label="Entrar"
+          p-kind="primary"
+          p-type="submit"
+          [p-disabled]="!canSubmit || submitting"
         ></po-button>
-      } @else {
-        <p class="login-page__intro">
-          Informe usuário e senha para acessar o fluxo mock do Plano Controle CQ.
-        </p>
+      </form>
+    }
+  </div>
 
-        <p class="login-page__demo-warning" role="note">
-          Autenticação em modo de demonstração/mock. Esta tela não valida credenciais reais do Datasul.
-        </p>
-
-        <form class="login-page__form" #loginForm="ngForm" (ngSubmit)="submit()" novalidate>
-          <po-login
-            name="user"
-            p-label="Usuário"
-            p-placeholder="Informe o usuário"
-            [p-required]="true"
-            [p-auto-focus]="true"
-            p-error-message="Informe o usuário."
-            [(ngModel)]="user"
-          ></po-login>
-
-          <po-password
-            name="password"
-            p-label="Senha"
-            p-placeholder="Informe a senha"
-            [p-required]="true"
-            p-error-message="Informe a senha."
-            [(ngModel)]="password"
-          ></po-password>
-
-          @if (submitted && !canSubmit) {
-            <p class="login-page__validation" role="alert">{{ emptyFieldsMessage }}</p>
-          }
-
-          @if (feedback) {
-            <p class="login-page__feedback" role="alert">{{ feedback }}</p>
-          }
-
-          <po-button
-            class="login-page__submit"
-            p-label="Entrar"
-            p-kind="primary"
-            p-type="submit"
-            [p-disabled]="!canSubmit || submitting"
-          ></po-button>
-        </form>
-      }
-    </po-widget>
-  </section>
-</po-page-default>
+  <footer class="login-page__version">Plano de Controle CQ</footer>
+</section>

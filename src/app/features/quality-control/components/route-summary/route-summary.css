@@ -1,23 +1,27 @@
 .route-summary {
-  background: var(--color-neutral-light-98);
-  border-left: 4px solid var(--color-brand-01-base);
+  background: var(--app-color-surface-muted);
+  border: 1px solid var(--app-color-border);
+  border-left: 4px solid var(--app-color-primary);
+  border-radius: var(--app-radius);
   display: grid;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  padding: 0.75rem 1rem;
+  gap: var(--app-space-md);
+  margin-top: var(--app-space-lg);
+  padding: var(--app-space-md);
 }
 
 .route-summary div {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--app-space-sm);
 }
 
 .route-summary dt {
+  color: var(--app-color-text-muted);
   font-weight: 700;
 }
 
 .route-summary dd {
   margin: 0;
+  color: var(--app-color-text);
 }
 
 @media (min-width: 768px) {

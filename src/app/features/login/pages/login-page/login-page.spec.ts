@@ -1,20 +1,34 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
+import { Observable, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
-import { PoButtonModule, PoFieldModule, PoPageModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoFieldModule, PoLoadingModule } from '@po-ui/ng-components';
 
-import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { LoginAutenticado, Usuario } from '../../models/usuario';
+import { LoginError, LoginService } from '../../services/login.service';
 import { LoginPage } from './login-page';
 
-function buildAuthSessionMock(authenticated: boolean): AuthSessionService {
+const USUARIO: Usuario = {
+  id: 'USR-001',
+  nome: 'Operador Cortag',
+  login: 'operador',
+  permissoes: ['MENU_PRINCIPAL'],
+};
+
+const LOGIN_RESULT: LoginAutenticado = {
+  token: 'token-123',
+  usuario: USUARIO,
+};
+
+function buildLoginServiceMock(authenticated: boolean): LoginService {
   return {
-    login: vi.fn().mockReturnValue(false),
+    login: vi.fn((): Observable<LoginAutenticado> => throwError(() => new LoginError('invalid-credentials'))),
     logout: vi.fn(),
-    isAuthenticated: vi.fn().mockReturnValue(authenticated),
-    currentUser: authenticated ? { username: 'operador' } : null,
-  } as unknown as AuthSessionService;
+    usuarioLogado: vi.fn().mockReturnValue(authenticated ? USUARIO : null),
+    token: vi.fn().mockReturnValue(authenticated ? 'token-123' : null),
+  } as unknown as LoginService;
 }
 
 function buildRouteMock(): { routeMock: ActivatedRoute; setReturnUrl: (v: string | undefined) => void } {
@@ -33,21 +47,21 @@ describe('LoginPage', () => {
   let fixture: ComponentFixture<LoginPage>;
   let component: LoginPage;
   let routerMock: Router;
-  let authSessionMock: AuthSessionService;
+  let loginServiceMock: LoginService;
   let setReturnUrl: (v: string | undefined) => void;
 
   beforeEach(async () => {
     routerMock = { navigateByUrl: vi.fn().mockResolvedValue(true) } as unknown as Router;
-    authSessionMock = buildAuthSessionMock(false);
+    loginServiceMock = buildLoginServiceMock(false);
     const route = buildRouteMock();
     setReturnUrl = route.setReturnUrl;
 
     await TestBed.configureTestingModule({
-      imports: [FormsModule, PoButtonModule, PoFieldModule, PoPageModule, PoWidgetModule, LoginPage],
+      imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, LoginPage],
       providers: [
         { provide: Router, useValue: routerMock },
         { provide: ActivatedRoute, useValue: route.routeMock },
-        { provide: AuthSessionService, useValue: authSessionMock },
+        { provide: LoginService, useValue: loginServiceMock },
       ],
     }).compileComponents();
 
@@ -61,54 +75,56 @@ describe('LoginPage', () => {
   });
 
   it('keeps login blocked while required fields are missing', () => {
-    component.submit();
+    component.entrar();
 
     expect(component.submitted).toBe(true);
     expect(component.feedback).toBe(component.emptyFieldsMessage);
     expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
+    expect(loginServiceMock.login).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid mock credentials with generic feedback and clears only the password', () => {
-    component.user = 'operador';
-    component.password = 'errada';
+  it('rejects invalid credentials with generic feedback and clears only the password', () => {
+    component.login = 'operador';
+    component.senha = 'errada';
 
-    component.submit();
+    component.entrar();
 
-    expect(component.user).toBe('operador');
-    expect(component.password).toBe('');
+    expect(component.login).toBe('operador');
+    expect(component.senha).toBe('');
     expect(component.feedback).toBe('Usuário ou senha inválidos.');
     expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
   });
 
-  it('navigates to a safe internal returnUrl after valid mock credentials', () => {
-    vi.mocked(authSessionMock.login).mockReturnValue(true);
+  it('navigates to a safe internal returnUrl after valid credentials', () => {
+    vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     setReturnUrl('/menu');
-    component.user = 'operador';
-    component.password = 'mock123';
+    component.login = 'operador';
+    component.senha = 'mock123';
 
-    component.submit();
+    component.entrar();
 
-    expect(authSessionMock.login).toHaveBeenCalledWith('operador', 'mock123');
+    expect(loginServiceMock.login).toHaveBeenCalledWith('operador', 'mock123');
+    expect(component.senha).toBe('');
     expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
   });
 
   it('decodes encoded returnUrl before navigating', () => {
-    vi.mocked(authSessionMock.login).mockReturnValue(true);
+    vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     setReturnUrl('/menu%2Freports');
-    component.user = 'operador';
-    component.password = 'mock123';
+    component.login = 'operador';
+    component.senha = 'mock123';
 
-    component.submit();
+    component.entrar();
 
     expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu/reports');
   });
 
   it('falls back to /menu without returnUrl', () => {
-    vi.mocked(authSessionMock.login).mockReturnValue(true);
-    component.user = 'operador';
-    component.password = 'mock123';
+    vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
+    component.login = 'operador';
+    component.senha = 'mock123';
 
-    component.submit();
+    component.entrar();
 
     expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
   });
@@ -124,56 +140,56 @@ describe('LoginPage', () => {
     '/%252F%252Fevil.com',
     '/login/foo',
   ])('rejects unsafe returnUrl %s', returnUrl => {
-    vi.mocked(authSessionMock.login).mockReturnValue(true);
+    vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     setReturnUrl(returnUrl);
-    component.user = 'operador';
-    component.password = 'mock123';
+    component.login = 'operador';
+    component.senha = 'mock123';
 
-    component.submit();
+    component.entrar();
 
     expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
   });
 
   it('resets submitting when navigation is rejected', async () => {
-    vi.mocked(authSessionMock.login).mockReturnValue(true);
+    vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     vi.mocked(routerMock.navigateByUrl).mockRejectedValueOnce(new Error('cancel'));
-    component.user = 'operador';
-    component.password = 'mock123';
+    component.login = 'operador';
+    component.senha = 'mock123';
 
-    component.submit();
+    component.entrar();
     await Promise.resolve();
 
     expect(component.submitting).toBe(false);
   });
 
   it('does not invoke router.navigateByUrl when fields are empty', () => {
-    component.user = '';
-    component.password = '';
+    component.login = '';
+    component.senha = '';
 
-    component.submit();
+    component.entrar();
 
     expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
   });
 
-  it('calls authSession.logout when logout is triggered', () => {
+  it('calls loginService.logout when logout is triggered', () => {
     component.logout();
 
-    expect(authSessionMock.logout).toHaveBeenCalled();
+    expect(loginServiceMock.logout).toHaveBeenCalled();
   });
 
   describe('when already authenticated', () => {
     beforeEach(async () => {
       TestBed.resetTestingModule();
       routerMock = { navigateByUrl: vi.fn().mockResolvedValue(true) } as unknown as Router;
-      authSessionMock = buildAuthSessionMock(true);
+      loginServiceMock = buildLoginServiceMock(true);
       const route = buildRouteMock();
 
       await TestBed.configureTestingModule({
-        imports: [FormsModule, PoButtonModule, PoFieldModule, PoPageModule, PoWidgetModule, LoginPage],
+        imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, LoginPage],
         providers: [
           { provide: Router, useValue: routerMock },
           { provide: ActivatedRoute, useValue: route.routeMock },
-          { provide: AuthSessionService, useValue: authSessionMock },
+          { provide: LoginService, useValue: loginServiceMock },
         ],
       }).compileComponents();
 
@@ -183,10 +199,8 @@ describe('LoginPage', () => {
     });
 
     it('renders the authenticated view with a logout button', () => {
-      const buttons = Array.from(
-        fixture.nativeElement.querySelectorAll('po-button'),
-      ) as Array<HTMLElement>;
-      const hasLogout = buttons.some(b => b.textContent?.includes('Sair da sessão mock'));
+      const buttons = Array.from(fixture.nativeElement.querySelectorAll('po-button')) as Array<HTMLElement>;
+      const hasLogout = buttons.some(b => b.textContent?.includes('Sair'));
 
       expect(component.isAuthenticated).toBe(true);
       expect(hasLogout).toBe(true);

@@ -31,7 +31,7 @@
       <article class="quality-exam-card__component">
         <div>
           <strong>{{ component.code }} - {{ component.description }}</strong>
-          <span>Referencia: {{ component.reference }}</span>
+          <span>Referência: {{ component.reference }}</span>
           @if (component.measuredValue !== undefined) {
             <span>Valor medido: {{ component.measuredValue }} {{ component.unit }}</span>
           }
@@ -45,7 +45,7 @@
             {{ component.status }}
           </span>
           <po-button
-            p-label="Digitar medicao"
+            p-label="Digitar medição"
             p-kind="secondary"
             (p-click)="selectComponent(component)"
           ></po-button>

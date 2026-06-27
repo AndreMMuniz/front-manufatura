@@ -1,7 +1,7 @@
 .route-lookup-form {
   display: grid;
-  gap: 1rem;
-  margin-top: 1.5rem;
+  gap: var(--app-space-md);
+  margin-top: var(--app-space-lg);
 }
 
 @media (min-width: 768px) {

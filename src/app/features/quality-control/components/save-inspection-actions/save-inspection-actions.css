@@ -1,18 +1,20 @@
 .save-inspection-actions {
-  border-top: 1px solid var(--color-neutral-light-90);
+  border-top: 1px solid var(--app-color-border);
   display: grid;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
+  gap: var(--app-space-md);
+  margin-top: var(--app-space-lg);
+  padding-top: var(--app-space-lg);
 }
 
 .save-inspection-actions p {
   margin: 0;
+  color: var(--app-color-text-muted);
 }
 
 .save-inspection-actions__feedback {
-  background: #dff3e7;
-  border-left: 4px solid #0f6b2f;
+  background: var(--app-color-success-soft);
+  border-left: 4px solid var(--app-color-success);
+  color: var(--app-color-success);
   font-weight: 700;
-  padding: 0.75rem 1rem;
+  padding: var(--app-space-md);
 }

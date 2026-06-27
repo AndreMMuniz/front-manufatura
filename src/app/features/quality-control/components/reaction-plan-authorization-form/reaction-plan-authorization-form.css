@@ -1,16 +1,25 @@
 .reaction-plan-authorization-form {
-  background: #fff8e1;
-  border: 1px solid #f2c94c;
-  border-radius: 4px;
+  background: var(--app-color-warning-soft);
+  border: 1px solid var(--app-color-warning);
+  border-left: 4px solid var(--app-color-warning);
+  border-radius: var(--app-radius);
   display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding: 1rem;
+  gap: var(--app-space-md);
+  margin-top: var(--app-space-md);
+  padding: var(--app-space-md);
 }
 
 .reaction-plan-authorization-form h3,
 .reaction-plan-authorization-form p {
   margin: 0;
+}
+
+.reaction-plan-authorization-form h3 {
+  color: var(--app-color-text);
+}
+
+.reaction-plan-authorization-form p {
+  color: var(--app-color-text-muted);
 }
 
 @media (min-width: 768px) {
