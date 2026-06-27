@@ -1,0 +1,75 @@
+<po-page-default p-title="Equipes">
+  <section class="equipes">
+    <po-widget p-title="Dados da Equipe">
+      <form class="equipes__form" (ngSubmit)="onConsultarEquipe()">
+        <po-input
+          name="codigoEquipe"
+          p-label="Equipe"
+          p-placeholder="Informe a equipe"
+          [ngModel]="codigoEquipe()"
+          (ngModelChange)="onCodigoEquipeChange($event)"
+          (p-blur)="onEquipeBlur()"
+          [p-disabled]="state() === 'loading'"
+          p-required
+        ></po-input>
+
+        <po-input
+          name="descricaoEquipe"
+          p-label="Descrição"
+          [ngModel]="equipe()?.descricao ?? ''"
+          p-readonly
+        ></po-input>
+
+        <po-input name="turnoEquipe" p-label="Turno" [ngModel]="equipe()?.turno ?? ''" p-readonly></po-input>
+
+        <div class="equipes__consulta-actions">
+          <po-button
+            p-label="Consultar"
+            p-kind="primary"
+            p-type="submit"
+            [p-loading]="state() === 'loading'"
+            [p-disabled]="state() === 'loading'"
+          ></po-button>
+        </div>
+      </form>
+    </po-widget>
+
+    <po-widget p-title="Operadores">
+      @if (state() === 'loading') {
+        <div class="equipes__loading">
+          <po-loading p-text="Carregando equipe..." p-size="md"></po-loading>
+        </div>
+      } @else if (equipe(); as equipeCarregada) {
+        @if (equipeCarregada.operadores.length > 0) {
+          <app-operadores-table [operadores]="equipeCarregada.operadores"></app-operadores-table>
+        } @else {
+          <p class="equipes__empty">Nenhum operador pertence a esta equipe.</p>
+        }
+      } @else if (state() === 'error') {
+        <p class="equipes__empty">Não foi possível carregar os dados da equipe.</p>
+      } @else {
+        <p class="equipes__empty">Informe uma equipe para consultar seus operadores.</p>
+      }
+    </po-widget>
+
+    <div class="equipes__actions" aria-label="Ações da tela">
+      <po-button
+        p-label="Salvar"
+        p-kind="primary"
+        [p-disabled]="true"
+      ></po-button>
+
+      <po-button
+        p-label="Alterar"
+        p-kind="secondary"
+        [p-disabled]="!equipe() || state() === 'loading'"
+        (p-click)="onAbrirAlteracao()"
+      ></po-button>
+
+      <po-button p-label="Voltar" p-kind="secondary" (p-click)="onVoltar()"></po-button>
+      <po-button p-label="Sair" p-kind="secondary" (p-click)="onSair()"></po-button>
+    </div>
+  </section>
+
+  <app-alterar-equipe-slide (equipeAtualizada)="onEquipeAtualizada($event)"></app-alterar-equipe-slide>
+</po-page-default>

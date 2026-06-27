@@ -1,0 +1,68 @@
+<po-page-slide #pageSlide p-title="Alterar Equipe" p-size="sm" [p-click-out]="false" [p-hide-close]="true">
+  <section class="alterar-equipe">
+    @if (state() === 'loading') {
+      <div class="alterar-equipe__loading">
+        <po-loading p-text="Carregando operadores..." p-size="md"></po-loading>
+      </div>
+    } @else {
+      <po-input
+        name="pesquisarOperador"
+        p-label="Pesquisar Operador"
+        p-placeholder="Código ou nome"
+        [ngModel]="termoPesquisa()"
+        (ngModelChange)="onPesquisarOperador($event)"
+        [p-disabled]="state() === 'saving'"
+      ></po-input>
+
+      <po-checkbox
+        class="alterar-equipe__todos"
+        name="selecionarTodos"
+        p-label="Todos"
+        p-size="large"
+        [ngModel]="todosVisiveisSelecionados()"
+        (ngModelChange)="onSelecionarTodos($event)"
+        [p-disabled]="state() === 'saving' || operadoresFiltrados().length === 0"
+      ></po-checkbox>
+
+      <div class="alterar-equipe__lista" aria-label="Operadores disponíveis">
+        @for (operador of operadoresFiltrados(); track trackOperador($index, operador)) {
+          <label class="alterar-equipe__operador">
+            <po-checkbox
+              [name]="'operador-' + operador.codigo"
+              p-size="large"
+              [ngModel]="isSelecionado(operador)"
+              (ngModelChange)="onSelecionarOperador(operador, $event)"
+              [p-disabled]="state() === 'saving'"
+            ></po-checkbox>
+
+            <span>
+              <strong>{{ operador.codigo }}</strong>
+              {{ operador.nome }}
+            </span>
+          </label>
+        } @empty {
+          <p class="alterar-equipe__empty">Nenhum operador encontrado.</p>
+        }
+      </div>
+    }
+  </section>
+
+  <po-page-slide-footer>
+    <div class="alterar-equipe__footer">
+      <po-button
+        p-label="Salvar"
+        p-kind="primary"
+        [p-loading]="state() === 'saving'"
+        [p-disabled]="state() !== 'ready' && state() !== 'error'"
+        (p-click)="onSalvar()"
+      ></po-button>
+
+      <po-button
+        p-label="Voltar"
+        p-kind="secondary"
+        [p-disabled]="state() === 'saving'"
+        (p-click)="onVoltar()"
+      ></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>

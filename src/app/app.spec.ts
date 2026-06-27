@@ -11,6 +11,7 @@ import { routes } from './app.routes';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { User } from './core/auth/auth.models';
 import { LoginPage } from './features/login/pages/login-page/login-page';
+import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
 import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
@@ -98,8 +99,16 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/operators');
     });
 
+    it('should route teams to the teams page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/teams', EquipesPage);
+
+      expect(component).toBeInstanceOf(EquipesPage);
+      expect(TestBed.inject(Router).url).toBe('/teams');
+    });
+
     it.each([
-      ['/teams', 'Equipes'],
       ['/operation-reporting', 'Reporte de Operações'],
       ['/stoppages', 'Paradas'],
       ['/scrap-rework', 'Refugo / Retrabalho'],

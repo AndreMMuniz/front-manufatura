@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './core/auth/auth.guard';
 import { LoginPage } from './features/login/pages/login-page/login-page';
+import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
 import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
@@ -15,12 +16,8 @@ export const routes: Routes = [
   { path: 'operators', component: OperatorsPage, canActivate: [authGuard] },
   {
     path: 'teams',
-    component: SfcPlaceholderPage,
+    component: EquipesPage,
     canActivate: [authGuard],
-    data: {
-      title: 'Equipes',
-      description: 'O cadastro e manutencao de equipes serao implementados em uma etapa futura.',
-    },
   },
   {
     path: 'operation-reporting',
