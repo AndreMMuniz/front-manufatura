@@ -5,9 +5,30 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { WorkCenter } from '../models/work-center';
 
 const WORK_CENTERS: ReadonlyArray<WorkCenter> = Object.freeze([
-  { code: 'CT-EXT-01', description: 'Extrusao Linha 01', area: 'Producao', active: true },
-  { code: 'CT-CQ-01', description: 'Controle de Qualidade', area: 'Qualidade', active: true },
-  { code: 'CT-MNT-01', description: 'Manutencao', area: 'Apoio', active: false },
+  {
+    code: 'CT-EXT-01',
+    description: 'Extrusao Linha 01',
+    area: 'Producao',
+    machineGroup: 'Extrusoras',
+    establishment: '101',
+    active: true,
+  },
+  {
+    code: 'CT-CQ-01',
+    description: 'Controle de Qualidade',
+    area: 'Qualidade',
+    machineGroup: 'Qualidade',
+    establishment: '101',
+    active: true,
+  },
+  {
+    code: 'CT-MNT-01',
+    description: 'Manutencao',
+    area: 'Apoio',
+    machineGroup: 'Manutencao',
+    establishment: '102',
+    active: false,
+  },
 ]);
 
 @Injectable({ providedIn: 'root' })
@@ -44,8 +65,16 @@ export class WorkCenterService {
     );
   }
 
+  findWorkCenter(code: string): Observable<WorkCenter | null> {
+    const normalizedCode = this.normalize(code);
+    const found = WORK_CENTERS.find(center => this.normalize(center.code) === normalizedCode && center.active) ?? null;
+
+    return of(found);
+  }
+
   selectWorkCenter(code: string): Observable<WorkCenter | null> {
-    const selected = WORK_CENTERS.find(center => center.code === code && center.active) ?? null;
+    const normalizedCode = this.normalize(code);
+    const selected = WORK_CENTERS.find(center => this.normalize(center.code) === normalizedCode && center.active) ?? null;
     this.selected = selected;
     return of(selected);
   }

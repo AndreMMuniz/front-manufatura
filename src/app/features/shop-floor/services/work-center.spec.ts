@@ -18,6 +18,8 @@ describe('WorkCenterService', () => {
       code: 'CT-EXT-01',
       description: 'Extrusao Linha 01',
       area: 'Producao',
+      machineGroup: 'Extrusoras',
+      establishment: '101',
       active: true,
     });
   });
@@ -57,6 +59,21 @@ describe('WorkCenterService', () => {
 
     expect(selected).toMatchObject({ code: 'CT-EXT-01', active: true });
     expect(service.selectedWorkCenter).toEqual(selected);
+  });
+
+  it('finds an active work center by exact code', async () => {
+    await expect(firstValueFrom(service.findWorkCenter('CT-CQ-01'))).resolves.toEqual(
+      expect.objectContaining({
+        code: 'CT-CQ-01',
+        machineGroup: 'Qualidade',
+        establishment: '101',
+      }),
+    );
+  });
+
+  it('does not find inactive or unknown work centers by exact code', async () => {
+    await expect(firstValueFrom(service.findWorkCenter('CT-MNT-01'))).resolves.toBeNull();
+    await expect(firstValueFrom(service.findWorkCenter('CT-UNKNOWN'))).resolves.toBeNull();
   });
 
   it('does not select inactive or unknown work centers', async () => {
