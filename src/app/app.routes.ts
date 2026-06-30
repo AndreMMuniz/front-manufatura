@@ -8,6 +8,7 @@ import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
+import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage },
@@ -21,12 +22,8 @@ export const routes: Routes = [
   },
   {
     path: 'operation-reporting',
-    component: SfcPlaceholderPage,
+    component: ReportOperacaoPage,
     canActivate: [authGuard],
-    data: {
-      title: 'Reporte de Operações',
-      description: 'Fluxos de reporte, inicio de ordens e operacoes serao implementados em uma etapa futura.',
-    },
   },
   {
     path: 'stoppages',

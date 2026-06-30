@@ -32,7 +32,7 @@ const menu = [
     label: 'Apontamento',
     options: [
       { id: 'iniciar-ordens', label: 'Iniciar Ordens', target: '/operation-reporting', implemented: true },
-      { id: 'reporte', label: 'Reporte', target: '/operation-reporting', implemented: true },
+      { id: 'reporte', label: 'Reporte Operações', target: '/operation-reporting', implemented: true },
       { id: 'inicio-de-parada-ap', label: 'Início de Parada', target: '/stoppages', implemented: true },
       { id: 'encerrar-parada-ap', label: 'Encerrar Parada', target: '/stoppages', implemented: true },
       { id: 'apontar-refugo-retrabalho', label: 'Apontar Refugo / Retrabalho', target: '/scrap-rework', implemented: true },

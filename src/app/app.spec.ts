@@ -17,6 +17,7 @@ import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-cen
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
+import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 
 describe('App', () => {
   let authSessionMock: AuthSessionService;
@@ -108,8 +109,16 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/teams');
     });
 
+    it('should route operation-reporting to the report operation page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/operation-reporting', ReportOperacaoPage);
+
+      expect(component).toBeInstanceOf(ReportOperacaoPage);
+      expect(TestBed.inject(Router).url).toBe('/operation-reporting');
+    });
+
     it.each([
-      ['/operation-reporting', 'Reporte de Operações'],
       ['/stoppages', 'Paradas'],
       ['/scrap-rework', 'Refugo / Retrabalho'],
       ['/item-consultation', 'Consulta Item'],
@@ -253,7 +262,7 @@ describe('App', () => {
     expect(app.menus.map(item => item.label)).toEqual([
       'Menu Principal',
       'Plano Controle CQ',
-      'Ordens e Reportes',
+      'Reporte Operações',
       'Paradas',
       'Refugo / Retrabalho',
       'Consulta Item',
@@ -271,7 +280,7 @@ describe('App', () => {
     const app = fixture.componentInstance;
     const menuLabels = app.menus.map(item => item.label);
 
-    expect(menuLabels).toContain('Ordens e Reportes');
+    expect(menuLabels).toContain('Reporte Operações');
     expect(menuLabels).toContain('Paradas');
     expect(menuLabels).toContain('Refugo / Retrabalho');
     expect(menuLabels).toContain('Consulta Item');

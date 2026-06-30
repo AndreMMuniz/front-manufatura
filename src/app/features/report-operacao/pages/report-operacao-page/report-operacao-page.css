@@ -1,0 +1,19 @@
+.report-operacao {
+  display: grid;
+  gap: var(--app-space-lg);
+  max-width: 1180px;
+}
+
+.report-operacao__loading {
+  min-height: 72px;
+}
+
+.report-operacao__feedback {
+  margin: 0;
+  color: var(--app-color-text);
+  font-weight: 600;
+}
+
+.report-operacao__feedback--error {
+  color: var(--app-color-error);
+}

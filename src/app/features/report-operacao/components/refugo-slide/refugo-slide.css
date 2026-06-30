@@ -1,0 +1,12 @@
+.refugo-slide,
+.refugo-slide__footer {
+  display: grid;
+  gap: var(--app-space-md);
+}
+
+@media (min-width: 520px) {
+  .refugo-slide__footer {
+    grid-template-columns: auto auto;
+    justify-content: start;
+  }
+}

@@ -28,7 +28,7 @@ test.describe('menu lateral principal', () => {
     const expectedItems = [
       'Menu Principal',
       'Plano Controle CQ',
-      'Ordens e Reportes',
+      'Reporte Operações',
       'Paradas',
       'Refugo / Retrabalho',
       'Consulta Item',

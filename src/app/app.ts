@@ -22,8 +22,8 @@ const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
     link: '/quality-control',
   },
   {
-    label: 'Ordens e Reportes',
-    shortLabel: 'Ordens',
+    label: 'Reporte Operações',
+    shortLabel: 'Reporte',
     icon: 'an an-factory',
     link: '/operation-reporting',
   },

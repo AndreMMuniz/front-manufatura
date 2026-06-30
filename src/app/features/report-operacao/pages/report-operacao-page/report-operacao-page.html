@@ -1,0 +1,55 @@
+<po-page-default p-title="Reporta Operação">
+  <section class="report-operacao">
+    <app-op-identificacao-card
+      [ordem]="ordem"
+      [op]="op"
+      [split]="split"
+      [disabled]="isBusy || estado === EstadoOperacao.OperacaoIniciada || estado === EstadoOperacao.Reportada"
+      [loading]="estado === EstadoOperacao.Carregando"
+      (ordemChange)="ordem = $event"
+      (opChange)="op = $event"
+      (splitChange)="split = $event"
+      (consulta)="consultarOP($event)"
+      (scanner)="scanner()"
+    ></app-op-identificacao-card>
+
+    @if (estado === EstadoOperacao.Carregando) {
+      <div class="report-operacao__loading">
+        <po-loading p-text="Consultando OP..." p-size="md"></po-loading>
+      </div>
+    }
+
+    @if (operacao) {
+      <app-op-detalhes-card [operacao]="operacao"></app-op-detalhes-card>
+
+      <app-producao-form
+        [operacao]="operacao"
+        [disabled]="!canEditProduction"
+        [refugoDisabled]="!canOpenAuxiliaryFlows"
+        [retrabalhoDisabled]="!canOpenAuxiliaryFlows"
+        (producaoChange)="atualizarProducao($event)"
+        (editarRefugo)="abrirRefugo()"
+        (editarRetrabalho)="abrirRetrabalho()"
+      ></app-producao-form>
+
+      <app-operacao-info-card [operacao]="operacao"></app-operacao-info-card>
+    }
+
+    <p class="report-operacao__feedback" [class.report-operacao__feedback--error]="estado === EstadoOperacao.Erro">
+      {{ feedback }}
+    </p>
+
+    <app-report-actions
+      [primaryLabel]="primaryLabel"
+      [primaryDisabled]="primaryDisabled"
+      [primaryLoading]="estado === EstadoOperacao.Reportando"
+      [paradaDisabled]="!canOpenAuxiliaryFlows"
+      (primaryAction)="executarAcaoPrincipal()"
+      (parada)="abrirParada()"
+      (voltar)="voltar()"
+      (sair)="sair()"
+    ></app-report-actions>
+
+    <app-refugo-slide (refugoRegistrado)="registrarRefugo($event)"></app-refugo-slide>
+  </section>
+</po-page-default>

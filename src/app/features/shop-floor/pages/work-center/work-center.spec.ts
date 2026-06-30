@@ -100,7 +100,7 @@ describe('WorkCenterPage', () => {
     expect(native.textContent).toContain('Reporte por');
     expect(native.textContent).toContain('Operador');
     expect(native.textContent).toContain('Validade');
-    expect(native.textContent).toContain('Reporte');
+    expect(native.textContent).toContain('Report');
     expect(native.textContent).toContain('Inspeção');
     expect(native.textContent).not.toContain('Voltar ao Menu');
   });

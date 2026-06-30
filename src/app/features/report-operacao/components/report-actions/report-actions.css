@@ -1,0 +1,11 @@
+.report-actions {
+  display: grid;
+  gap: var(--app-space-sm);
+}
+
+@media (min-width: 760px) {
+  .report-actions {
+    grid-template-columns: auto auto auto auto;
+    justify-content: start;
+  }
+}

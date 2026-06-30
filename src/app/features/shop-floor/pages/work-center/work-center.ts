@@ -206,6 +206,7 @@ export class WorkCenterPage implements OnInit {
 
   goToReport(): void {
     if (!this.storeOperationalContext()) {
+      this.feedback = 'Complete Centro de Trabalho, Operador e Validade para acessar o Report.';
       return;
     }
 

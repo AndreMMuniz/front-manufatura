@@ -1,0 +1,15 @@
+<po-widget p-title="Ações da Operação">
+  <div class="report-actions">
+    <po-button
+      [p-label]="primaryLabel"
+      p-kind="primary"
+      [p-loading]="primaryLoading"
+      [p-disabled]="primaryDisabled"
+      (p-click)="primaryAction.emit()"
+    ></po-button>
+
+    <po-button p-label="Parada" p-kind="secondary" [p-disabled]="paradaDisabled" (p-click)="parada.emit()"></po-button>
+    <po-button p-label="Voltar" p-kind="secondary" (p-click)="voltar.emit()"></po-button>
+    <po-button p-label="Sair" p-kind="secondary" (p-click)="sair.emit()"></po-button>
+  </div>
+</po-widget>

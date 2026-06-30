@@ -1,0 +1,27 @@
+<po-page-slide #pageSlide p-title="Registrar Refugo" p-size="sm" [p-click-out]="false">
+  <section class="refugo-slide">
+    <po-number
+      name="quantidadeRefugoSlide"
+      p-label="Quantidade Refugo"
+      p-required="true"
+      [ngModel]="quantidade"
+      (ngModelChange)="quantidade = $event ?? 0"
+    ></po-number>
+
+    <po-input
+      name="motivoRefugo"
+      p-label="Motivo"
+      p-placeholder="Informe o motivo do refugo"
+      p-required="true"
+      [ngModel]="motivo"
+      (ngModelChange)="motivo = $event"
+    ></po-input>
+  </section>
+
+  <po-page-slide-footer>
+    <div class="refugo-slide__footer">
+      <po-button p-label="Salvar" p-kind="primary" [p-disabled]="!canSalvar" (p-click)="salvar()"></po-button>
+      <po-button p-label="Voltar" p-kind="secondary" (p-click)="fechar()"></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>
