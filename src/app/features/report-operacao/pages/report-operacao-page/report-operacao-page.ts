@@ -7,7 +7,7 @@ import { OpDetalhesCard } from '../../components/op-detalhes-card/op-detalhes-ca
 import { OpIdentificacaoCard } from '../../components/op-identificacao-card/op-identificacao-card';
 import { OperacaoInfoCard } from '../../components/operacao-info-card/operacao-info-card';
 import { ProducaoChange, ProducaoForm } from '../../components/producao-form/producao-form';
-import { RefugoRegistrado, RefugoSlide } from '../../components/refugo-slide/refugo-slide';
+import { RefugoRegistrado, RefugoRegistradoItem, RefugoSlide } from '../../components/refugo-slide/refugo-slide';
 import { ReportActions } from '../../components/report-actions/report-actions';
 import { ConsultaOPRequest, ReportarOperacaoRequest } from '../../interfaces/report-operacao.dto';
 import { EstadoOperacao, ReportOperacao } from '../../models/report-operacao.model';
@@ -48,6 +48,7 @@ export class ReportOperacaoPage {
   operacao: ReportOperacao | null = null;
   feedback = 'Informe Ordem e OP para consultar a operação.';
   ultimoMotivoRefugo = '';
+  refugoItens: ReadonlyArray<RefugoRegistradoItem> = [];
 
   get isBusy(): boolean {
     return this.estado === EstadoOperacao.Carregando || this.estado === EstadoOperacao.Reportando;
@@ -91,6 +92,7 @@ export class ReportOperacaoPage {
 
         this.estado = EstadoOperacao.OPEncontrada;
         this.operacao = resultado.operacao;
+        this.refugoItens = [];
         this.ordem = resultado.operacao.ordem;
         this.op = resultado.operacao.op;
         this.split = resultado.operacao.split;
@@ -134,7 +136,7 @@ export class ReportOperacaoPage {
       return;
     }
 
-    this.refugoSlide?.abrir(this.operacao.quantidadeRefugo);
+    this.refugoSlide?.abrir(this.operacao.quantidadeRefugo, this.refugoItens);
   }
 
   registrarRefugo(refugo: RefugoRegistrado): void {
@@ -146,6 +148,7 @@ export class ReportOperacaoPage {
       ...this.operacao,
       quantidadeRefugo: refugo.quantidade,
     };
+    this.refugoItens = refugo.itens.map(item => ({ ...item }));
     this.ultimoMotivoRefugo = refugo.motivo;
     this.feedback = 'Refugo registrado no painel lateral.';
     this.notification.success('Refugo registrado.');

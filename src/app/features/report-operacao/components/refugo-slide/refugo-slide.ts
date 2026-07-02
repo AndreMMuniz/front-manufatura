@@ -1,16 +1,29 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Output, ViewChild } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { PoButtonModule, PoFieldModule, PoPageSlideComponent, PoPageSlideModule } from '@po-ui/ng-components';
 
+export interface MotivoRefugo {
+  readonly codigo: string;
+  readonly descricao: string;
+}
+
+export interface RefugoRegistradoItem {
+  readonly codigo: string;
+  readonly descricao: string;
+  readonly quantidade: number;
+}
+
 export interface RefugoRegistrado {
   readonly quantidade: number;
   readonly motivo: string;
+  readonly itens: ReadonlyArray<RefugoRegistradoItem>;
 }
 
 @Component({
   selector: 'app-refugo-slide',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoPageSlideModule],
+  imports: [DecimalPipe, FormsModule, PoButtonModule, PoFieldModule, PoPageSlideModule],
   templateUrl: './refugo-slide.html',
   styleUrls: ['./refugo-slide.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,17 +33,59 @@ export class RefugoSlide {
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
 
-  quantidade = 0;
-  motivo = '';
+  readonly motivos: ReadonlyArray<MotivoRefugo> = [
+    { codigo: '05', descricao: 'Borra' },
+    { codigo: '32', descricao: 'Varredura' },
+    { codigo: '35', descricao: 'Setup' },
+  ];
 
-  get canSalvar(): boolean {
-    return this.quantidade > 0 && Boolean(this.motivo.trim());
+  readonly motivoOptions = this.motivos.map(motivo => ({
+    label: `${motivo.codigo} - ${motivo.descricao}`,
+    value: motivo.codigo,
+  }));
+
+  quantidade = 0;
+  motivoCodigo = '';
+  itens: ReadonlyArray<RefugoRegistradoItem> = [];
+
+  get canAdicionar(): boolean {
+    return Boolean(this.motivoDescricao) && this.quantidade > 0;
   }
 
-  abrir(quantidadeAtual: number): void {
-    this.quantidade = quantidadeAtual;
-    this.motivo = '';
+  get canSalvar(): boolean {
+    return this.itens.length > 0;
+  }
+
+  get totalRefugo(): number {
+    return this.itens.reduce((total, item) => total + item.quantidade, 0);
+  }
+
+  get motivoDescricao(): string {
+    return this.motivoSelecionado?.descricao ?? '';
+  }
+
+  abrir(_quantidadeAtual: number, itensAtuais: ReadonlyArray<RefugoRegistradoItem> = []): void {
+    this.itens = itensAtuais.map(item => ({ ...item }));
+    this.quantidade = 0;
+    this.motivoCodigo = '';
     this.pageSlide.open();
+  }
+
+  adicionarRefugo(): void {
+    if (!this.canAdicionar || !this.motivoSelecionado) {
+      return;
+    }
+
+    this.itens = [
+      ...this.itens,
+      {
+        codigo: this.motivoSelecionado.codigo,
+        descricao: this.motivoSelecionado.descricao,
+        quantidade: this.quantidade,
+      },
+    ];
+    this.quantidade = 0;
+    this.motivoCodigo = '';
   }
 
   salvar(): void {
@@ -39,13 +94,18 @@ export class RefugoSlide {
     }
 
     this.refugoRegistrado.emit({
-      quantidade: this.quantidade,
-      motivo: this.motivo.trim(),
+      quantidade: this.totalRefugo,
+      motivo: this.itens.map(item => `${item.codigo} - ${item.descricao}`).join(', '),
+      itens: this.itens.map(item => ({ ...item })),
     });
     this.fechar();
   }
 
   fechar(): void {
     this.pageSlide.close();
+  }
+
+  private get motivoSelecionado(): MotivoRefugo | undefined {
+    return this.motivos.find(motivo => motivo.codigo === this.motivoCodigo);
   }
 }

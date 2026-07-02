@@ -1,21 +1,64 @@
 <po-page-slide #pageSlide p-title="Registrar Refugo" p-size="sm" [p-click-out]="false">
   <section class="refugo-slide">
+    <div class="refugo-slide__entry">
+      <po-combo
+        name="motivoRefugo"
+        p-label="Motivo"
+        p-placeholder="Selecione o motivo"
+        p-required="true"
+        [p-options]="motivoOptions"
+        [ngModel]="motivoCodigo"
+        (ngModelChange)="motivoCodigo = $event ?? ''"
+      ></po-combo>
+
+      <po-number
+        name="quantidadeRefugoSlide"
+        p-label="Quantidade"
+        p-required="true"
+        [ngModel]="quantidade"
+        (ngModelChange)="quantidade = $event ?? 0"
+      ></po-number>
+
+      <po-button
+        p-label="Adicionar"
+        p-kind="secondary"
+        [p-disabled]="!canAdicionar"
+        (p-click)="adicionarRefugo()"
+      ></po-button>
+    </div>
+
+    <div class="refugo-slide__list" aria-label="Refugos adicionados">
+      <div class="refugo-slide__row refugo-slide__row--header">
+        <span>Código</span>
+        <span>Descrição</span>
+        <span>Quantidade</span>
+      </div>
+
+      @for (item of itens; track item.codigo + item.descricao + item.quantidade + $index) {
+        <div class="refugo-slide__row">
+          <span>{{ item.codigo }}</span>
+          <span>{{ item.descricao }}</span>
+          <span>{{ item.quantidade | number: '1.3-3' }}</span>
+        </div>
+      } @empty {
+        <p class="refugo-slide__empty">Nenhum refugo adicionado.</p>
+      }
+    </div>
+
     <po-number
-      name="quantidadeRefugoSlide"
-      p-label="Quantidade Refugo"
-      p-required="true"
-      [ngModel]="quantidade"
-      (ngModelChange)="quantidade = $event ?? 0"
+      name="totalRefugo"
+      p-label="Total Refugo"
+      [p-disabled]="true"
+      [ngModel]="totalRefugo"
     ></po-number>
 
-    <po-input
-      name="motivoRefugo"
-      p-label="Motivo"
-      p-placeholder="Informe o motivo do refugo"
+    <!-- Keep the total as derived state: the operator adds items, then saves the consolidated composition. -->
+    <input
+      type="hidden"
+      name="refugoItemCount"
       p-required="true"
-      [ngModel]="motivo"
-      (ngModelChange)="motivo = $event"
-    ></po-input>
+      [ngModel]="itens.length"
+    />
   </section>
 
   <po-page-slide-footer>
