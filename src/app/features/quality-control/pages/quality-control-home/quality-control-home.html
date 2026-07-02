@@ -86,7 +86,7 @@
           <app-ordem-info-card [route]="productionOrderRoute"></app-ordem-info-card>
         </po-widget>
 
-        <po-widget p-title="Resultado do Componente">
+        <po-widget p-title="Digitação do Exame">
           <div class="inspection-process__selected">
             <span>Componente atual</span>
             <strong>
@@ -100,18 +100,10 @@
 
           <div class="inspection-process__decision-actions">
             <po-button
-              p-label="Reprovar"
-              p-kind="secondary"
-              p-type="danger"
-              [p-disabled]="!canRegisterResult"
-              (p-click)="rejectSelectedComponent()"
-            ></po-button>
-
-            <po-button
-              p-label="Aprovar"
+              p-label="Digitar medição"
               p-kind="primary"
-              [p-disabled]="!canRegisterResult"
-              (p-click)="approveSelectedComponent()"
+              [p-disabled]="!canOpenExamEntry"
+              (p-click)="openExamEntry()"
             ></po-button>
           </div>
 

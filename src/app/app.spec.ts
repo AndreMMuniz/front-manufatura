@@ -17,6 +17,7 @@ import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-cen
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
+import { ExamEntryPage } from './features/quality-control/pages/exam-entry/exam-entry';
 import { RouteGenerationPage } from './features/quality-control/pages/route-generation/route-generation';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
@@ -79,6 +80,15 @@ describe('App', () => {
       const harness = await RouterTestingHarness.create();
 
       const component = await harness.navigateByUrl('/quality-control/inspection', RouteGenerationPage);
+
+      expect(component).toBeInstanceOf(RouteGenerationPage);
+      expect(TestBed.inject(Router).url).toBe('/quality-control');
+    });
+
+    it('should return direct exam entry access to route generation when no exam was selected', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/quality-control/exam-entry', RouteGenerationPage);
 
       expect(component).toBeInstanceOf(RouteGenerationPage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');

@@ -8,6 +8,7 @@ import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
+import { ExamEntryPage } from './features/quality-control/pages/exam-entry/exam-entry';
 import { RouteGenerationPage } from './features/quality-control/pages/route-generation/route-generation';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
@@ -52,6 +53,7 @@ export const routes: Routes = [
   },
   { path: 'quality-control', component: RouteGenerationPage, canActivate: [authGuard] },
   { path: 'quality-control/inspection', component: QualityControlHome, canActivate: [authGuard] },
+  { path: 'quality-control/exam-entry', component: ExamEntryPage, canActivate: [authGuard] },
   // Empty root redirects to /menu (which is guarded) so the auth
   // round-trip still lands authenticated users at the SFC main menu and
   // anonymous users are forwarded to /login with returnUrl=/menu.

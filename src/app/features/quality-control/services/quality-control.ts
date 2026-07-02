@@ -12,8 +12,11 @@ import {
   ReactionPlanAuthorizationRequest,
 } from '../models/reaction-plan-authorization';
 import {
+  MeasurementValidationResult,
   RegisterComponentResultRequest,
   RegisterComponentResultResponse,
+  SaveMeasurementRequest,
+  SaveMeasurementResponse,
   SaveInspectionPayload,
   SaveInspectionResult,
 } from '../models/inspection-record';
@@ -91,6 +94,59 @@ export class QualityControlService {
 
   validateMeasurement(component: QualityExamComponent, measuredValue: number): QualityComponentStatus {
     return measuredValue >= component.minValue && measuredValue <= component.maxValue ? 'APPROVED' : 'REJECTED';
+  }
+
+  validateMeasurementRange(
+    component: QualityExamComponent,
+    measurement: { minimum: number; maximum: number },
+  ): MeasurementValidationResult {
+    if (!Number.isFinite(measurement.minimum) || !Number.isFinite(measurement.maximum)) {
+      return {
+        valid: false,
+        reason: 'INVALID_NUMBER',
+        message: 'Informe valores numéricos para Min e Max.',
+      };
+    }
+
+    if (measurement.minimum > measurement.maximum) {
+      return {
+        valid: false,
+        reason: 'INVALID_RANGE',
+        message: 'Min deve ser menor ou igual ao Max.',
+      };
+    }
+
+    if (measurement.minimum < component.minValue || measurement.maximum > component.maxValue) {
+      return {
+        valid: false,
+        reason: 'OUT_OF_RANGE',
+        message: 'Valores fora da variação permitida',
+      };
+    }
+
+    return {
+      valid: true,
+      status: 'APPROVED',
+    };
+  }
+
+  saveMeasurement(request: SaveMeasurementRequest): Observable<SaveMeasurementResponse> {
+    return of({
+      componentId: request.componentId,
+      measurement: {
+        ...request.measurement,
+        operatorId: request.operatorId,
+        savedAt: new Date(),
+      },
+    });
+  }
+
+  finishExam(request: { examId: string }): Observable<{ examId: string; success: boolean; finishedAt: Date }> {
+    return of({
+      examId: request.examId,
+      success: true,
+      finishedAt: new Date(),
+    });
   }
 
   authorizeReactionPlan(request: ReactionPlanAuthorizationRequest): Observable<ReactionPlanAuthorization> {

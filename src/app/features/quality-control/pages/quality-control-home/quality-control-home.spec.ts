@@ -78,6 +78,32 @@ describe('QualityControlHome', () => {
     };
   }
 
+  function secondExam(): QualityExam {
+    return {
+      id: '61035-10-600100',
+      code: '600100',
+      description: 'Dimensional complementar',
+      version: '2',
+      frequency: '1',
+      unit: 'pc',
+      nqa: '0,000',
+      level: '1',
+      components: [
+        {
+          id: '600100-010',
+          code: '010',
+          description: 'Cota 100,0 +/- 1,0mm',
+          reference: '99 - 101',
+          minValue: 99,
+          maxValue: 101,
+          unit: 'mm',
+          sequence: 30,
+          status: 'PENDING',
+        },
+      ],
+    };
+  }
+
   it('redirects to route generation when no generated route is provided', () => {
     const router = routerWithRoute(undefined);
 
@@ -111,31 +137,71 @@ describe('QualityControlHome', () => {
     expect(component.feedback).toBe('Siga a sequência do roteiro definida pelo Datasul.');
   });
 
-  it('registers approval immediately and advances to the next component', () => {
-    const qualityControlService = new QualityControlService();
-    const registerSpy = vi.spyOn(qualityControlService, 'registerComponentResult').mockReturnValue(
-      of({
+  it('opens exam entry with route, exam and selected component context', () => {
+    const router = routerWithRoute(route());
+    const component = createComponent(new OperatorService(), new QualityControlService(), router);
+
+    component.openExamEntry();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/quality-control/exam-entry'], {
+      state: {
+        productionOrderRoute: route(),
+        qualityExams: component.qualityExams,
+        exam: component.currentExam,
         componentId: '500517-010',
-        status: 'APPROVED',
-        inspectedAt: new Date('2026-06-23T10:00:00'),
-        operatorId: '',
-      }),
-    );
-    const component = createComponent(new OperatorService(), qualityControlService);
-
-    component.approveSelectedComponent();
-
-    expect(registerSpy).toHaveBeenCalledWith({
-      routeNumber: '475.956',
-      examId: '61035-10-500517',
-      componentId: '500517-010',
-      result: 'APPROVED',
-      operatorId: '',
+      },
     });
+    expect(component.components[0].status).toBe('PENDING');
+    expect(component.selectedComponent?.code).toBe('010');
+  });
+
+  it('opens exam entry with the exam that owns the selected component', () => {
+    const qualityControlService = new QualityControlService();
+    vi.spyOn(qualityControlService, 'getQualityExams').mockReturnValue(of([exam('APPROVED'), secondExam()]));
+    const router = routerWithRoute(route());
+    const component = createComponent(new OperatorService(), qualityControlService, router);
+
+    component.selectComponent(component.components[2]);
+    component.openExamEntry();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/quality-control/exam-entry'], {
+      state: {
+        productionOrderRoute: route(),
+        qualityExams: component.qualityExams,
+        exam: component.qualityExams[1],
+        componentId: '600100-010',
+      },
+    });
+  });
+
+  it('restores quality exams from navigation state instead of reloading when returning from exam entry', () => {
+    const restoredExam = exam();
+    restoredExam.components[1].measurement = {
+      minimum: 486,
+      maximum: 489,
+      status: 'APPROVED',
+      savedAt: new Date('2026-07-02T10:00:00'),
+    };
+    restoredExam.components[1].status = 'APPROVED';
+    const qualityControlService = new QualityControlService();
+    const getQualityExamsSpy = vi.spyOn(qualityControlService, 'getQualityExams');
+    const router = {
+      getCurrentNavigation: () => ({
+        extras: {
+          state: {
+            productionOrderRoute: route(),
+            qualityExams: [restoredExam],
+          },
+        },
+      }),
+      navigate: vi.fn(),
+    };
+
+    const component = createComponent(new OperatorService(), qualityControlService, router);
+
+    expect(getQualityExamsSpy).not.toHaveBeenCalled();
+    expect(component.components[0].measurement?.minimum).toBe(486);
     expect(component.components[0].status).toBe('APPROVED');
-    expect(component.selectedComponent?.code).toBe('020');
-    expect(component.selectedComponent?.status).toBe('IN_PROGRESS');
-    expect(component.progressPercentage).toBe(33);
   });
 
   it('keeps the current component selected when register result fails', () => {

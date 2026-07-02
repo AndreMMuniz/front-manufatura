@@ -1,4 +1,5 @@
 export type QualityComponentStatus = 'PENDING' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED';
+export type QualityMeasurementStatus = Extract<QualityComponentStatus, 'APPROVED' | 'REJECTED'>;
 
 export interface QualityComponentAuthorization {
   supervisorId: string;
@@ -20,6 +21,7 @@ export interface QualityExamComponent {
   operatorId?: string;
   measuredValue?: number;
   observation?: string;
+  measurement?: QualityMeasurement;
   authorization?: QualityComponentAuthorization;
 }
 
@@ -34,4 +36,13 @@ export interface QualityExam {
   level: string;
   responsible?: string;
   components: QualityExamComponent[];
+}
+
+export interface QualityMeasurement {
+  minimum: number;
+  maximum: number;
+  observation?: string;
+  status: QualityMeasurementStatus;
+  savedAt?: Date;
+  operatorId?: string;
 }

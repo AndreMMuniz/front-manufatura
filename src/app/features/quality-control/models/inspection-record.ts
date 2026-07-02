@@ -1,4 +1,4 @@
-import { QualityComponentStatus } from './quality-exam';
+import { QualityComponentStatus, QualityMeasurement } from './quality-exam';
 
 export interface RegisterComponentResultRequest {
   routeNumber: string;
@@ -15,11 +15,42 @@ export interface RegisterComponentResultResponse {
   operatorId: string;
 }
 
+export type MeasurementValidationFailureReason =
+  | 'REQUIRED'
+  | 'INVALID_NUMBER'
+  | 'INVALID_RANGE'
+  | 'OUT_OF_RANGE';
+
+export type MeasurementValidationResult =
+  | {
+      valid: true;
+      status: Extract<QualityComponentStatus, 'APPROVED'>;
+    }
+  | {
+      valid: false;
+      reason: MeasurementValidationFailureReason;
+      message: string;
+    };
+
+export interface SaveMeasurementRequest {
+  examId: string;
+  componentId: string;
+  measurement: QualityMeasurement;
+  operatorId: string;
+}
+
+export interface SaveMeasurementResponse {
+  componentId: string;
+  measurement: QualityMeasurement;
+}
+
 export interface InspectionMeasurementPayload {
   componentId: string;
   componentCode: string;
   description: string;
-  measuredValue: number;
+  measuredValue?: number;
+  measuredMinimum?: number;
+  measuredMaximum?: number;
   expectedMin: number;
   expectedMax: number;
   unit: string;

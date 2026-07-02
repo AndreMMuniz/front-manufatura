@@ -63,6 +63,16 @@ export class QualityControlHome {
     return this.qualityExams[0];
   }
 
+  get selectedExam(): QualityExam | undefined {
+    if (!this.selectedComponent) {
+      return this.currentExam;
+    }
+
+    return this.qualityExams.find(exam =>
+      exam.components.some(component => component.id === this.selectedComponent?.id),
+    );
+  }
+
   get canRegisterResult(): boolean {
     return Boolean(
       this.productionOrderRoute &&
@@ -73,6 +83,10 @@ export class QualityControlHome {
         !this.isLoadingComponents &&
         !this.isRegisteringResult,
     );
+  }
+
+  get canOpenExamEntry(): boolean {
+    return this.canRegisterResult;
   }
 
   get isInspectionFinished(): boolean {
@@ -110,6 +124,7 @@ export class QualityControlHome {
   private loadGeneratedRouteFromNavigation(): void {
     const state = this.router?.getCurrentNavigation()?.extras.state;
     const route = state?.['productionOrderRoute'] as ProductionOrderRoute | undefined;
+    const qualityExams = state?.['qualityExams'] as QualityExam[] | undefined;
 
     if (!route) {
       this.feedback = 'Gere o roteiro antes de iniciar a inspeção de processo.';
@@ -118,6 +133,14 @@ export class QualityControlHome {
     }
 
     this.productionOrderRoute = route;
+
+    if (qualityExams) {
+      this.qualityExams = this.orderExams(qualityExams);
+      this.selectedComponent = this.components.find(component => component.status === 'PENDING' || component.status === 'IN_PROGRESS');
+      this.feedback = 'Medições do exame restauradas.';
+      return;
+    }
+
     this.loadQualityExams(route);
   }
 
@@ -127,10 +150,7 @@ export class QualityControlHome {
 
     this.qualityControlService.getQualityExams(route.itemCode, route.operationCode).subscribe({
       next: exams => {
-        this.qualityExams = exams.map(exam => ({
-          ...exam,
-          components: [...exam.components].sort((a, b) => a.sequence - b.sequence),
-        }));
+        this.qualityExams = this.orderExams(exams);
         this.selectedComponent = this.components.find(component => component.status === 'PENDING');
         this.isLoadingComponents = false;
         this.feedback = this.components.length
@@ -173,6 +193,28 @@ export class QualityControlHome {
 
   rejectSelectedComponent(): void {
     this.registerSelectedComponentResult('REJECTED');
+  }
+
+  openExamEntry(): void {
+    if (!this.canOpenExamEntry || !this.productionOrderRoute || !this.selectedExam || !this.selectedComponent) {
+      return;
+    }
+
+    void this.router?.navigate(['/quality-control/exam-entry'], {
+      state: {
+        productionOrderRoute: this.productionOrderRoute,
+        qualityExams: this.qualityExams,
+        exam: this.selectedExam,
+        componentId: this.selectedComponent.id,
+      },
+    });
+  }
+
+  private orderExams(exams: QualityExam[]): QualityExam[] {
+    return exams.map(exam => ({
+      ...exam,
+      components: [...exam.components].sort((a, b) => a.sequence - b.sequence),
+    }));
   }
 
   private registerSelectedComponentResult(result: 'APPROVED' | 'REJECTED'): void {

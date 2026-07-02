@@ -1,3 +1,5 @@
+import { firstValueFrom } from 'rxjs';
+
 import { QualityExamComponent } from '../models/quality-exam';
 
 import { QualityControlService } from './quality-control';
@@ -28,5 +30,61 @@ describe('QualityControlService', () => {
   it('rejects values outside tolerance', () => {
     expect(service.validateMeasurement(component, 484.99)).toBe('REJECTED');
     expect(service.validateMeasurement(component, 491.01)).toBe('REJECTED');
+  });
+
+  it('approves min and max measurements inside tolerance boundaries', () => {
+    expect(service.validateMeasurementRange(component, { minimum: 485, maximum: 491 })).toEqual({
+      valid: true,
+      status: 'APPROVED',
+    });
+  });
+
+  it('blocks measurement ranges when minimum is greater than maximum', () => {
+    expect(service.validateMeasurementRange(component, { minimum: 490, maximum: 488 })).toEqual({
+      valid: false,
+      reason: 'INVALID_RANGE',
+      message: 'Min deve ser menor ou igual ao Max.',
+    });
+  });
+
+  it('blocks measurement ranges outside tolerance without approving the component', () => {
+    expect(service.validateMeasurementRange(component, { minimum: 484.99, maximum: 490 })).toEqual({
+      valid: false,
+      reason: 'OUT_OF_RANGE',
+      message: 'Valores fora da variação permitida',
+    });
+
+    expect(service.validateMeasurementRange(component, { minimum: 486, maximum: 491.01 })).toEqual({
+      valid: false,
+      reason: 'OUT_OF_RANGE',
+      message: 'Valores fora da variação permitida',
+    });
+  });
+
+  it('persists a partial min max measurement through the service boundary', async () => {
+    await expect(
+      firstValueFrom(
+        service.saveMeasurement({
+          examId: '61035-10-500517',
+          componentId: component.id,
+          measurement: {
+            minimum: 486,
+            maximum: 489,
+            observation: 'Medição conferida',
+            status: 'APPROVED',
+          },
+          operatorId: 'OP-001',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      componentId: component.id,
+      measurement: {
+        minimum: 486,
+        maximum: 489,
+        observation: 'Medição conferida',
+        status: 'APPROVED',
+        operatorId: 'OP-001',
+      },
+    });
   });
 });
