@@ -32,6 +32,12 @@ export interface IniciarOperacaoRequest {
   readonly horaInicio: string;
 }
 
+export interface RefugoItemRequest {
+  readonly codigo: string;
+  readonly descricao: string;
+  readonly quantidade: number;
+}
+
 export interface ReportarOperacaoRequest {
   readonly ordem: string;
   readonly op: string;
@@ -39,6 +45,7 @@ export interface ReportarOperacaoRequest {
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
+  readonly refugoItens?: ReadonlyArray<RefugoItemRequest>;
   readonly dataInicio: Date;
   readonly horaInicio: string;
   readonly dataFim: Date;

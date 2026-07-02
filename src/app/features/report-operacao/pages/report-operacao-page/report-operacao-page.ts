@@ -144,10 +144,21 @@ export class ReportOperacaoPage {
       return;
     }
 
+    const operacaoAnterior = this.operacao;
     this.operacao = {
       ...this.operacao,
       quantidadeRefugo: refugo.quantidade,
     };
+    const erroValidacao = this.reportOperacaoService.validarReporte(this.operacao);
+
+    if (erroValidacao) {
+      this.operacao = operacaoAnterior;
+      this.feedback = erroValidacao;
+      this.notification.warning(erroValidacao);
+      this.changeDetector.markForCheck();
+      return;
+    }
+
     this.refugoItens = refugo.itens.map(item => ({ ...item }));
     this.ultimoMotivoRefugo = refugo.motivo;
     this.feedback = 'Refugo registrado no painel lateral.';
@@ -285,6 +296,7 @@ export class ReportOperacaoPage {
       quantidadeAprovada: operacao.quantidadeAprovada,
       quantidadeRetrabalho: operacao.quantidadeRetrabalho,
       quantidadeRefugo: operacao.quantidadeRefugo,
+      refugoItens: this.refugoItens.map(item => ({ ...item })),
       dataInicio: operacao.dataInicio ?? new Date(),
       horaInicio: operacao.horaInicio,
       dataFim: operacao.dataFim ?? new Date(),

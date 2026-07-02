@@ -19,7 +19,7 @@
 .refugo-slide__row {
   display: grid;
   gap: var(--app-space-sm);
-  grid-template-columns: 72px 1fr 104px;
+  grid-template-columns: 56px minmax(0, 1fr) 96px auto;
   min-height: 44px;
   padding: var(--app-space-sm);
 }
@@ -42,5 +42,11 @@
   .refugo-slide__footer {
     grid-template-columns: auto auto;
     justify-content: start;
+  }
+}
+
+@media (max-width: 519px) {
+  .refugo-slide__row {
+    grid-template-columns: 48px minmax(0, 1fr);
   }
 }

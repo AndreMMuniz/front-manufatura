@@ -38,7 +38,13 @@
         <div class="refugo-slide__row">
           <span>{{ item.codigo }}</span>
           <span>{{ item.descricao }}</span>
-          <span>{{ item.quantidade | number: '1.3-3' }}</span>
+          <span>{{ formatQuantidade(item.quantidade) }}</span>
+          <po-button
+            p-label="Remover"
+            p-kind="tertiary"
+            [p-danger]="true"
+            (p-click)="removerRefugo($index)"
+          ></po-button>
         </div>
       } @empty {
         <p class="refugo-slide__empty">Nenhum refugo adicionado.</p>
@@ -51,20 +57,13 @@
       [p-disabled]="true"
       [ngModel]="totalRefugo"
     ></po-number>
-
-    <!-- Keep the total as derived state: the operator adds items, then saves the consolidated composition. -->
-    <input
-      type="hidden"
-      name="refugoItemCount"
-      p-required="true"
-      [ngModel]="itens.length"
-    />
   </section>
 
   <po-page-slide-footer>
     <div class="refugo-slide__footer">
       <po-button p-label="Salvar" p-kind="primary" [p-disabled]="!canSalvar" (p-click)="salvar()"></po-button>
-      <po-button p-label="Voltar" p-kind="secondary" (p-click)="fechar()"></po-button>
+      <po-button p-label="Voltar" p-kind="secondary" (p-click)="voltar()"></po-button>
+      <po-button p-label="Sair" p-kind="tertiary" (p-click)="sair()"></po-button>
     </div>
   </po-page-slide-footer>
 </po-page-slide>
