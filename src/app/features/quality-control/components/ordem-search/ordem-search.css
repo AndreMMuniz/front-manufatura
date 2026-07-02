@@ -1,0 +1,12 @@
+.ordem-search {
+  display: grid;
+  gap: 16px;
+}
+
+.ordem-search__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+}

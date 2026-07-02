@@ -1,5 +1,20 @@
 import { QualityComponentStatus } from './quality-exam';
 
+export interface RegisterComponentResultRequest {
+  routeNumber: string;
+  examId: string;
+  componentId: string;
+  result: Extract<QualityComponentStatus, 'APPROVED' | 'REJECTED'>;
+  operatorId: string;
+}
+
+export interface RegisterComponentResultResponse {
+  componentId: string;
+  status: Extract<QualityComponentStatus, 'APPROVED' | 'REJECTED'>;
+  inspectedAt: Date;
+  operatorId: string;
+}
+
 export interface InspectionMeasurementPayload {
   componentId: string;
   componentCode: string;

@@ -4,6 +4,11 @@ export interface ProductionOrderRouteRequest {
   split?: string;
 }
 
+export interface GenerateInspectionRouteRequest {
+  route: ProductionOrderRoute;
+  moveBalance: boolean;
+}
+
 export interface ProductionOrderRoute {
   routeNumber: string;
   processDescription: string;

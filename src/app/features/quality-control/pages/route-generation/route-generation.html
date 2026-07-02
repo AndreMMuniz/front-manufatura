@@ -1,0 +1,50 @@
+<po-page-default p-title="Inspeção Processo">
+  <section class="route-generation">
+    <header class="route-generation__header">
+      <div class="route-generation__brand" aria-label="Cortag">Cortag</div>
+      <div>
+        <p class="route-generation__eyebrow">Inspeção Processo</p>
+        <h1>Geração de Roteiro</h1>
+      </div>
+    </header>
+
+    <po-widget p-title="Localização da Ordem">
+      <app-ordem-search
+        [(orderNumber)]="orderNumber"
+        [(opNumber)]="opNumber"
+        [(split)]="split"
+        [disabled]="isBusy"
+        [canSearch]="canSearchOrder"
+        (search)="searchOrder()"
+        (scan)="scanOrder()"
+        (clear)="clearSearch()"
+      ></app-ordem-search>
+    </po-widget>
+
+    <po-widget p-title="Dados da Ordem">
+      <app-ordem-info-card [route]="productionOrderRoute"></app-ordem-info-card>
+    </po-widget>
+
+    <po-widget p-title="Configuração da Inspeção">
+      <app-movimenta-saldo-checkbox
+        [(moveBalance)]="moveBalance"
+        [disabled]="isBusy"
+      ></app-movimenta-saldo-checkbox>
+    </po-widget>
+
+    @if (feedback) {
+      <p class="route-generation__feedback" role="status">{{ feedback }}</p>
+    }
+
+    <nav class="route-generation__actions" aria-label="Ações da geração de roteiro">
+      <po-button p-label="Voltar" [p-disabled]="isBusy" (p-click)="goBack()"></po-button>
+      <po-button p-label="Sair" [p-disabled]="isBusy" (p-click)="exit()"></po-button>
+      <po-button
+        p-label="Gerar Roteiro"
+        p-kind="primary"
+        [p-disabled]="!canGenerateRoute"
+        (p-click)="generateRoute()"
+      ></po-button>
+    </nav>
+  </section>
+</po-page-default>

@@ -8,7 +8,9 @@ import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
+import { RouteGenerationPage } from './features/quality-control/pages/route-generation/route-generation';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
+import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage },
@@ -27,12 +29,8 @@ export const routes: Routes = [
   },
   {
     path: 'stoppages',
-    component: SfcPlaceholderPage,
+    component: ReporteParadasPage,
     canActivate: [authGuard],
-    data: {
-      title: 'Paradas',
-      description: 'Fluxos de inicio, encerramento, programacao e reporte de paradas serao implementados em uma etapa futura.',
-    },
   },
   {
     path: 'scrap-rework',
@@ -52,7 +50,8 @@ export const routes: Routes = [
       description: 'A consulta de itens sera implementada em uma etapa futura.',
     },
   },
-  { path: 'quality-control', component: QualityControlHome, canActivate: [authGuard] },
+  { path: 'quality-control', component: RouteGenerationPage, canActivate: [authGuard] },
+  { path: 'quality-control/inspection', component: QualityControlHome, canActivate: [authGuard] },
   // Empty root redirects to /menu (which is guarded) so the auth
   // round-trip still lands authenticated users at the SFC main menu and
   // anonymous users are forwarded to /login with returnUrl=/menu.
@@ -60,5 +59,13 @@ export const routes: Routes = [
   // `**` is guarded (rather than redirecting to /quality-control) so that
   // deep-links preserve their original URL as `returnUrl` through the auth
   // round-trip instead of being collapsed to /quality-control.
-  { path: '**', component: QualityControlHome, canActivate: [authGuard] },
+  {
+    path: '**',
+    component: SfcPlaceholderPage,
+    canActivate: [authGuard],
+    data: {
+      title: 'Funcionalidade não encontrada',
+      description: 'Acesse uma opção disponível pelo menu principal.',
+    },
+  },
 ];

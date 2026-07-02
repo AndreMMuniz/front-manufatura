@@ -1,14 +1,9 @@
 import { Component } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 
-import { PoButtonModule, PoFieldModule, PoPageModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoPageModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
 
-import { MeasurementEntryForm } from '../../components/measurement-entry-form/measurement-entry-form';
-import { QualityExamCard } from '../../components/quality-exam-card/quality-exam-card';
-import { ReactionPlanAuthorizationForm } from '../../components/reaction-plan-authorization-form/reaction-plan-authorization-form';
-import { RouteLookupForm } from '../../components/route-lookup-form/route-lookup-form';
-import { RouteSummary } from '../../components/route-summary/route-summary';
-import { SaveInspectionActions } from '../../components/save-inspection-actions/save-inspection-actions';
+import { OrdemInfoCard } from '../../components/ordem-info-card/ordem-info-card';
 import { ProductionOrderRoute } from '../../models/production-order-route';
 import { QualityExam, QualityExamComponent } from '../../models/quality-exam';
 import { QualityControlService } from '../../services/quality-control';
@@ -16,150 +11,72 @@ import { OperatorService } from '../../../shop-floor/services/operator';
 
 @Component({
   selector: 'app-quality-control-home',
-  imports: [
-    FormsModule,
-    MeasurementEntryForm,
-    QualityExamCard,
-    ReactionPlanAuthorizationForm,
-    RouteLookupForm,
-    RouteSummary,
-    SaveInspectionActions,
-    PoButtonModule,
-    PoFieldModule,
-    PoPageModule,
-    PoWidgetModule,
-  ],
+  imports: [OrdemInfoCard, PoButtonModule, PoPageModule, PoProgressModule, PoWidgetModule],
   templateUrl: './quality-control-home.html',
   styleUrls: ['./quality-control-home.css'],
 })
 export class QualityControlHome {
-  opNumber = '';
-  operationCode = '';
-  split = '';
   productionOrderRoute?: ProductionOrderRoute;
   qualityExams: QualityExam[] = [];
   selectedComponent?: QualityExamComponent;
-  measuredValue = '';
-  measurementObservation = '';
-  measurementFeedback = '';
-  supervisorId = '';
-  supervisorPassword = '';
-  authorizationReason = 'Plano de reacao aplicado para continuidade do processo.';
-  authorizationFeedback = '';
-  saveFeedback = '';
+  feedback = '';
+  isLoadingComponents = false;
+  isRegisteringResult = false;
 
   constructor(
     private readonly qualityControlService: QualityControlService,
     private readonly operatorService: OperatorService,
-  ) {}
+    private readonly router?: Router,
+  ) {
+    this.loadGeneratedRouteFromNavigation();
+  }
 
   get operatorId(): string {
     return this.operatorService.selectedOperator?.code ?? '';
   }
 
-  get canGenerateRoute(): boolean {
-    return Boolean(this.opNumber.trim() && this.operationCode.trim());
+  get components(): QualityExamComponent[] {
+    return this.qualityExams.flatMap(exam => exam.components).sort((a, b) => a.sequence - b.sequence);
   }
 
-  generateRoute(): void {
-    if (!this.canGenerateRoute) {
-      return;
+  get completedComponentsCount(): number {
+    return this.components.filter(component => this.isComponentCompleted(component)).length;
+  }
+
+  get pendingComponentsCount(): number {
+    return this.components.length - this.completedComponentsCount;
+  }
+
+  get progressPercentage(): number {
+    if (this.components.length === 0) {
+      return 0;
     }
 
-    this.qualityControlService
-      .getProductionOrderRoute({
-        opNumber: this.opNumber.trim(),
-        operationCode: this.operationCode.trim(),
-        split: this.split.trim(),
-      })
-      .subscribe(route => {
-        this.productionOrderRoute = route;
-        this.loadQualityExams(route);
-      });
+    return Math.round((this.completedComponentsCount / this.components.length) * 100);
   }
 
-  private loadQualityExams(route: ProductionOrderRoute): void {
-    this.qualityControlService.getQualityExams(route.itemCode, route.operationCode).subscribe(exams => {
-      this.qualityExams = exams;
-      this.selectedComponent = undefined;
-      this.measuredValue = '';
-      this.measurementObservation = '';
-      this.measurementFeedback = '';
-      this.resetAuthorizationForm();
-      this.saveFeedback = '';
-    });
+  get progressText(): string {
+    return `${this.completedComponentsCount} de ${this.components.length} componentes concluídos`;
   }
 
-  selectComponent(component: QualityExamComponent): void {
-    this.selectedComponent = component;
-    this.measuredValue = component.measuredValue?.toString() ?? '';
-    this.measurementObservation = component.observation ?? '';
-    this.measurementFeedback = '';
-    this.resetAuthorizationForm();
+  get currentExam(): QualityExam | undefined {
+    return this.qualityExams[0];
   }
 
-  saveMeasurement(): void {
-    if (!this.selectedComponent || !this.measuredValue.trim()) {
-      return;
-    }
-
-    const measuredValue = Number(this.measuredValue.replace(',', '.'));
-
-    if (Number.isNaN(measuredValue)) {
-      this.measurementFeedback = 'Informe um valor numerico valido.';
-      return;
-    }
-
-    this.selectedComponent.measuredValue = measuredValue;
-    this.selectedComponent.observation = this.measurementObservation.trim();
-    this.selectedComponent.status = this.qualityControlService.validateMeasurement(
-      this.selectedComponent,
-      measuredValue,
+  get canRegisterResult(): boolean {
+    return Boolean(
+      this.productionOrderRoute &&
+        this.currentExam &&
+        this.selectedComponent &&
+        this.selectedComponent.status !== 'APPROVED' &&
+        this.selectedComponent.status !== 'REJECTED' &&
+        !this.isLoadingComponents &&
+        !this.isRegisteringResult,
     );
-    this.measurementFeedback =
-      this.selectedComponent.status === 'APPROVED'
-        ? 'Medicao aprovada dentro da tolerancia.'
-        : 'Medicao reprovada: valor fora da tolerancia.';
-
-    if (this.selectedComponent.status === 'APPROVED') {
-      this.selectedComponent.authorization = undefined;
-      this.resetAuthorizationForm();
-    }
   }
 
-  get requiresAuthorization(): boolean {
-    return this.selectedComponent?.status === 'REJECTED' && !this.selectedComponent.authorization;
-  }
-
-  get canAuthorizeReactionPlan(): boolean {
-    return Boolean(this.supervisorId.trim() && this.supervisorPassword.trim() && this.authorizationReason.trim());
-  }
-
-  authorizeReactionPlan(): void {
-    if (!this.selectedComponent || !this.canAuthorizeReactionPlan) {
-      return;
-    }
-
-    this.qualityControlService
-      .authorizeReactionPlan({
-        componentId: this.selectedComponent.id,
-        supervisorId: this.supervisorId.trim(),
-        password: this.supervisorPassword.trim(),
-        reason: this.authorizationReason.trim(),
-      })
-      .subscribe(authorization => {
-        if (!this.selectedComponent) {
-          return;
-        }
-
-        this.selectedComponent.authorization = {
-          supervisorId: authorization.supervisorId,
-          reason: authorization.reason,
-          approvedAt: authorization.approvedAt,
-        };
-        this.authorizationFeedback = 'Plano de reacao autorizado pelo supervisor.';
-        this.supervisorPassword = '';
-      });
+  get isInspectionFinished(): boolean {
+    return this.components.length > 0 && this.pendingComponentsCount === 0;
   }
 
   get canSaveInspection(): boolean {
@@ -171,28 +88,16 @@ export class QualityControlHome {
       return false;
     }
 
-    const components = this.qualityExams.flatMap(exam => exam.components);
-    const hasPending = components.some(component => component.status === 'PENDING');
-    const hasUnauthorizedRejected = components.some(
-      component => component.status === 'REJECTED' && !component.authorization,
-    );
-
-    return !hasPending && !hasUnauthorizedRejected;
+    return this.isInspectionFinished;
   }
 
   get saveBlockReason(): string {
     if (!this.productionOrderRoute || this.qualityExams.length === 0) {
-      return 'Gere o roteiro e carregue os exames antes de salvar.';
+      return 'Gere o roteiro e carregue os componentes antes de salvar.';
     }
 
-    const components = this.qualityExams.flatMap(exam => exam.components);
-
-    if (components.some(component => component.status === 'PENDING')) {
-      return 'Conclua todas as medicoes antes de salvar.';
-    }
-
-    if (components.some(component => component.status === 'REJECTED' && !component.authorization)) {
-      return 'Autorize o plano de reacao para componentes reprovados antes de salvar.';
+    if (!this.isInspectionFinished) {
+      return 'Registre todos os componentes antes de encerrar a inspeção.';
     }
 
     if (this.operatorService.isOperatorRequired() && this.operatorService.selectedOperator === null) {
@@ -202,51 +107,148 @@ export class QualityControlHome {
     return '';
   }
 
-  saveInspection(): void {
-    if (!this.canSaveInspection || !this.productionOrderRoute) {
-      this.saveFeedback = this.saveBlockReason;
+  private loadGeneratedRouteFromNavigation(): void {
+    const state = this.router?.getCurrentNavigation()?.extras.state;
+    const route = state?.['productionOrderRoute'] as ProductionOrderRoute | undefined;
+
+    if (!route) {
+      this.feedback = 'Gere o roteiro antes de iniciar a inspeção de processo.';
+      void this.router?.navigate(['/quality-control']);
       return;
     }
 
-    const exam = this.qualityExams[0];
-    const hasRejected = exam.components.some(component => component.status === 'REJECTED');
+    this.productionOrderRoute = route;
+    this.loadQualityExams(route);
+  }
+
+  private loadQualityExams(route: ProductionOrderRoute): void {
+    this.isLoadingComponents = true;
+    this.feedback = 'Carregando componentes do roteiro no Datasul...';
+
+    this.qualityControlService.getQualityExams(route.itemCode, route.operationCode).subscribe({
+      next: exams => {
+        this.qualityExams = exams.map(exam => ({
+          ...exam,
+          components: [...exam.components].sort((a, b) => a.sequence - b.sequence),
+        }));
+        this.selectedComponent = this.components.find(component => component.status === 'PENDING');
+        this.isLoadingComponents = false;
+        this.feedback = this.components.length
+          ? 'Componentes carregados. Inicie pelo componente destacado.'
+          : 'Nenhum componente retornado para o roteiro.';
+      },
+      error: () => {
+        this.qualityExams = [];
+        this.selectedComponent = undefined;
+        this.isLoadingComponents = false;
+        this.feedback = 'Nao foi possivel carregar os componentes do roteiro.';
+      },
+    });
+  }
+
+  selectComponent(component: QualityExamComponent): void {
+    if (this.isRegisteringResult || this.isLoadingComponents) {
+      return;
+    }
+
+    const nextOpenComponent = this.components.find(item => item.status === 'PENDING' || item.status === 'IN_PROGRESS');
+
+    if (nextOpenComponent && nextOpenComponent.id !== component.id) {
+      this.feedback = 'Siga a sequência do roteiro definida pelo Datasul.';
+      return;
+    }
+
+    this.selectedComponent = component;
+
+    if (component.status === 'PENDING') {
+      component.status = 'IN_PROGRESS';
+    }
+
+    this.feedback = `${component.code} selecionado para inspeção.`;
+  }
+
+  approveSelectedComponent(): void {
+    this.registerSelectedComponentResult('APPROVED');
+  }
+
+  rejectSelectedComponent(): void {
+    this.registerSelectedComponentResult('REJECTED');
+  }
+
+  private registerSelectedComponentResult(result: 'APPROVED' | 'REJECTED'): void {
+    if (!this.canRegisterResult || !this.productionOrderRoute || !this.currentExam || !this.selectedComponent) {
+      return;
+    }
+
+    const component = this.selectedComponent;
+    this.isRegisteringResult = true;
+    this.feedback = result === 'APPROVED' ? 'Registrando aprovação no Datasul...' : 'Registrando reprovação no Datasul...';
 
     this.qualityControlService
-      .saveInspection({
-        opNumber: this.productionOrderRoute.currentOrder,
-        operationCode: this.productionOrderRoute.operationCode,
-        split: this.productionOrderRoute.split,
+      .registerComponentResult({
         routeNumber: this.productionOrderRoute.routeNumber,
-        itemCode: this.productionOrderRoute.itemCode,
-        itemDescription: this.productionOrderRoute.itemDescription,
-        examId: exam.id,
-        examCode: exam.code,
-        examVersion: exam.version,
+        examId: this.currentExam.id,
+        componentId: component.id,
+        result,
         operatorId: this.operatorId,
-        status: hasRejected ? 'REJECTED' : 'APPROVED',
-        createdAt: new Date(),
-        measurements: exam.components.map(component => ({
-          componentId: component.id,
-          componentCode: component.code,
-          description: component.description,
-          measuredValue: component.measuredValue ?? 0,
-          expectedMin: component.minValue,
-          expectedMax: component.maxValue,
-          unit: component.unit,
-          status: component.status,
-          observation: component.observation,
-          authorization: component.authorization,
-        })),
       })
-      .subscribe(result => {
-        this.saveFeedback = `Inspecao ${result.inspectionId} salva em ${result.savedAt.toLocaleString()}.`;
+      .subscribe({
+        next: response => {
+          component.status = response.status;
+          component.inspectedAt = response.inspectedAt;
+          component.operatorId = response.operatorId;
+          this.isRegisteringResult = false;
+          this.selectNextPendingComponent();
+          this.feedback = this.isInspectionFinished
+            ? 'Inspeção concluída. Todos os componentes foram registrados.'
+            : 'Resultado registrado. Próximo componente selecionado.';
+        },
+        error: () => {
+          this.isRegisteringResult = false;
+          this.feedback = 'Nao foi possivel registrar o resultado. Tente novamente.';
+        },
       });
   }
 
-  private resetAuthorizationForm(): void {
-    this.supervisorId = '';
-    this.supervisorPassword = '';
-    this.authorizationReason = 'Plano de reacao aplicado para continuidade do processo.';
-    this.authorizationFeedback = '';
+  private selectNextPendingComponent(): void {
+    const nextComponent = this.components.find(component => component.status === 'PENDING');
+
+    if (!nextComponent) {
+      return;
+    }
+
+    nextComponent.status = 'IN_PROGRESS';
+    this.selectedComponent = nextComponent;
+  }
+
+  goBack(): void {
+    if (!this.isRegisteringResult) {
+      void this.router?.navigate(['/quality-control']);
+    }
+  }
+
+  exit(): void {
+    if (!this.isRegisteringResult) {
+      void this.router?.navigate(['/menu']);
+    }
+  }
+
+  isSelected(component: QualityExamComponent): boolean {
+    return this.selectedComponent?.id === component.id;
+  }
+
+  isComponentCompleted(component: QualityExamComponent): boolean {
+    return component.status === 'APPROVED' || component.status === 'REJECTED';
+  }
+
+  statusLabel(component: QualityExamComponent): string {
+    const labels = {
+      PENDING: 'Pendente',
+      IN_PROGRESS: 'Em inspeção',
+      APPROVED: 'Aprovado',
+      REJECTED: 'Reprovado',
+    };
+
+    return labels[component.status];
   }
 }

@@ -1,13 +1,22 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 
-import { ProductionOrderRoute, ProductionOrderRouteRequest } from '../models/production-order-route';
+import {
+  GenerateInspectionRouteRequest,
+  ProductionOrderRoute,
+  ProductionOrderRouteRequest,
+} from '../models/production-order-route';
 import { QualityComponentStatus, QualityExam, QualityExamComponent } from '../models/quality-exam';
 import {
   ReactionPlanAuthorization,
   ReactionPlanAuthorizationRequest,
 } from '../models/reaction-plan-authorization';
-import { SaveInspectionPayload, SaveInspectionResult } from '../models/inspection-record';
+import {
+  RegisterComponentResultRequest,
+  RegisterComponentResultResponse,
+  SaveInspectionPayload,
+  SaveInspectionResult,
+} from '../models/inspection-record';
 
 @Injectable({ providedIn: 'root' })
 export class QualityControlService {
@@ -23,6 +32,10 @@ export class QualityControlService {
       itemCode: '61035',
       itemDescription: 'Espacador Cunha 1,5mm',
     });
+  }
+
+  generateInspectionRoute(request: GenerateInspectionRouteRequest): Observable<ProductionOrderRoute> {
+    return of(request.route);
   }
 
   getQualityExams(itemCode: string, operationCode: string): Observable<QualityExam[]> {
@@ -86,6 +99,15 @@ export class QualityControlService {
       supervisorId: request.supervisorId,
       reason: request.reason,
       approvedAt: new Date(),
+    });
+  }
+
+  registerComponentResult(request: RegisterComponentResultRequest): Observable<RegisterComponentResultResponse> {
+    return of({
+      componentId: request.componentId,
+      status: request.result,
+      inspectedAt: new Date(),
+      operatorId: request.operatorId,
     });
   }
 

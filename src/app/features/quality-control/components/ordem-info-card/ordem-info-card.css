@@ -1,0 +1,30 @@
+.ordem-info-card {
+  background: #ffffff;
+  border: 1px solid #dadedf;
+  border-radius: 4px;
+  display: grid;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  gap: 0;
+  margin: 0;
+}
+
+.ordem-info-card div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(112px, 160px) 1fr;
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
+.ordem-info-card div + div {
+  border-top: 1px solid #edf0f2;
+}
+
+.ordem-info-card dt {
+  color: #4a5c60;
+  font-weight: 700;
+}
+
+.ordem-info-card dd {
+  margin: 0;
+}

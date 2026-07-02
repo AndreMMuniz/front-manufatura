@@ -17,7 +17,9 @@ import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-cen
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
+import { RouteGenerationPage } from './features/quality-control/pages/route-generation/route-generation';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
+import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
 
 describe('App', () => {
   let authSessionMock: AuthSessionService;
@@ -64,12 +66,21 @@ describe('App', () => {
       currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
     });
 
-    it('should route quality-control to the quality control home page', async () => {
+    it('should route quality-control to the route generation page', async () => {
       const harness = await RouterTestingHarness.create();
 
-      const component = await harness.navigateByUrl('/quality-control', QualityControlHome);
+      const component = await harness.navigateByUrl('/quality-control', RouteGenerationPage);
 
-      expect(component).toBeInstanceOf(QualityControlHome);
+      expect(component).toBeInstanceOf(RouteGenerationPage);
+      expect(TestBed.inject(Router).url).toBe('/quality-control');
+    });
+
+    it('should return direct inspection access to route generation when no route was generated', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/quality-control/inspection', RouteGenerationPage);
+
+      expect(component).toBeInstanceOf(RouteGenerationPage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');
     });
 
@@ -118,8 +129,16 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/operation-reporting');
     });
 
+    it('should route stoppages to the stoppage reporting page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/stoppages', ReporteParadasPage);
+
+      expect(component).toBeInstanceOf(ReporteParadasPage);
+      expect(TestBed.inject(Router).url).toBe('/stoppages');
+    });
+
     it.each([
-      ['/stoppages', 'Paradas'],
       ['/scrap-rework', 'Refugo / Retrabalho'],
       ['/item-consultation', 'Consulta Item'],
     ])('should route %s to the SFC placeholder page', async (url, title) => {

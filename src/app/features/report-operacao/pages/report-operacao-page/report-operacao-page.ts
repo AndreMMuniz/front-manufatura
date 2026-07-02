@@ -12,6 +12,7 @@ import { ReportActions } from '../../components/report-actions/report-actions';
 import { ConsultaOPRequest, ReportarOperacaoRequest } from '../../interfaces/report-operacao.dto';
 import { EstadoOperacao, ReportOperacao } from '../../models/report-operacao.model';
 import { ReportOperacaoService } from '../../services/report-operacao.service';
+import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 
 @Component({
   selector: 'app-report-operacao-page',
@@ -34,6 +35,7 @@ export class ReportOperacaoPage {
 
   private readonly router = inject(Router);
   private readonly reportOperacaoService = inject(ReportOperacaoService);
+  private readonly reporteParadasService = inject(ReporteParadasService);
   private readonly notification = inject(PoNotificationService);
   private readonly changeDetector = inject(ChangeDetectorRef);
 
@@ -161,9 +163,9 @@ export class ReportOperacaoPage {
     }
 
     this.estado = EstadoOperacao.EmParada;
-    this.feedback = 'Fluxo de parada preparado. O contexto da operação foi preservado.';
-    this.notification.information(this.feedback);
-    this.estado = EstadoOperacao.OperacaoIniciada;
+    this.feedback = 'Abrindo reporte de paradas com o contexto da operação.';
+    this.reporteParadasService.setContextFromOperation(this.operacao);
+    void this.router.navigate(['/stoppages']);
   }
 
   scanner(): void {

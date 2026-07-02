@@ -1,65 +1,132 @@
-<po-page-default p-title="Plano Controle CQ">
-  <section class="quality-control-home">
-    <po-widget p-title="Apontamento do Plano de Controle da Qualidade">
-      <p>
-        Registre eletronicamente os resultados dos exames de qualidade vinculados a OP,
-        operação e item, com validação automática de limites e rastreabilidade no Datasul.
-      </p>
+<po-page-default p-title="Inspeção Processo">
+  <section class="inspection-process">
+    <header class="inspection-process__header">
+      <div>
+        <p class="inspection-process__eyebrow">Inspeção Processo</p>
+        <h1>Execução do roteiro de inspeção</h1>
+      </div>
 
-      <p class="quality-control-home__next-step">
-        Informe OP, operação e split para preparar a geração do roteiro de inspeção.
-      </p>
+      <div class="inspection-process__route">
+        <span>Roteiro</span>
+        <strong>{{ productionOrderRoute?.routeNumber || '-' }}</strong>
+      </div>
+    </header>
 
-      <app-route-lookup-form
-        [(opNumber)]="opNumber"
-        [(operationCode)]="operationCode"
-        [(split)]="split"
-        [canGenerateRoute]="canGenerateRoute"
-        (routeGenerated)="generateRoute()"
-      ></app-route-lookup-form>
+    @if (qualityExams.length > 0) {
+      <section class="inspection-process__exam-strip" aria-label="Exames do roteiro">
+        @for (exam of qualityExams; track exam.id) {
+          <div>
+            <span>Exame</span>
+            <strong>{{ exam.code }}</strong>
+          </div>
 
-      @if (productionOrderRoute; as route) {
-        <app-route-summary [route]="route"></app-route-summary>
-      }
-    </po-widget>
-
-    @for (exam of qualityExams; track exam.id) {
-      <app-quality-exam-card [exam]="exam" (componentSelected)="selectComponent($event)"></app-quality-exam-card>
-
-      @if (selectedComponent; as component) {
-        <po-widget class="quality-control-home__measurement-card" p-title="Digitação do Exame">
-          <app-measurement-entry-form
-            [component]="component"
-            [(measuredValue)]="measuredValue"
-            [(observation)]="measurementObservation"
-            [feedback]="measurementFeedback"
-            (measurementSaved)="saveMeasurement()"
-          ></app-measurement-entry-form>
-
-          @if (requiresAuthorization) {
-            <app-reaction-plan-authorization-form
-              [(supervisorId)]="supervisorId"
-              [(supervisorPassword)]="supervisorPassword"
-              [(authorizationReason)]="authorizationReason"
-              [canAuthorize]="canAuthorizeReactionPlan"
-              (reactionPlanAuthorized)="authorizeReactionPlan()"
-            ></app-reaction-plan-authorization-form>
-          }
-
-          @if (selectedComponent.authorization || authorizationFeedback) {
-            <p class="quality-control-home__authorization-feedback">
-              {{ authorizationFeedback || 'Plano de reacao autorizado.' }}
-            </p>
-          }
-
-          <app-save-inspection-actions
-            [canSaveInspection]="canSaveInspection"
-            [blockReason]="saveBlockReason"
-            [saveFeedback]="saveFeedback"
-            (inspectionSaved)="saveInspection()"
-          ></app-save-inspection-actions>
-        </po-widget>
-      }
+          <div>
+            <span>Versão</span>
+            <strong>{{ exam.version }}</strong>
+          </div>
+        }
+      </section>
     }
+
+    @if (feedback) {
+      <p class="inspection-process__feedback" aria-live="polite">{{ feedback }}</p>
+    }
+
+    <div class="inspection-process__workspace">
+      <po-widget p-title="Componentes">
+        <div class="inspection-process__components" aria-label="Componentes do roteiro de inspeção">
+          @if (isLoadingComponents) {
+            <p class="inspection-process__empty">Carregando componentes...</p>
+          } @else {
+            @for (component of components; track component.id) {
+              <button
+                type="button"
+                class="inspection-process__component"
+                [class.inspection-process__component--selected]="isSelected(component)"
+                [class.inspection-process__component--approved]="component.status === 'APPROVED'"
+                [class.inspection-process__component--rejected]="component.status === 'REJECTED'"
+                [disabled]="isRegisteringResult"
+                (click)="selectComponent(component)"
+              >
+                <span
+                  class="inspection-process__status"
+                  [class.inspection-process__status--selected]="isSelected(component)"
+                  [class.inspection-process__status--approved]="component.status === 'APPROVED'"
+                  [class.inspection-process__status--rejected]="component.status === 'REJECTED'"
+                  aria-hidden="true"
+                ></span>
+
+                <span class="inspection-process__checkbox" aria-hidden="true">
+                  {{ isComponentCompleted(component) ? '☑' : '☐' }}
+                </span>
+
+                <span class="inspection-process__component-text">
+                  <strong>{{ component.code }} - {{ component.description }}</strong>
+                  <small>{{ statusLabel(component) }}</small>
+                </span>
+              </button>
+            } @empty {
+              <p class="inspection-process__empty">Nenhum componente carregado.</p>
+            }
+          }
+        </div>
+
+        <div class="inspection-process__progress">
+          <po-progress
+            [p-value]="progressPercentage"
+            [p-text]="progressText"
+            [p-info]="pendingComponentsCount + ' restantes'"
+            p-aria-label="Progresso da inspeção"
+          ></po-progress>
+        </div>
+      </po-widget>
+
+      <aside class="inspection-process__side">
+        <po-widget p-title="Ordem de Produção">
+          <app-ordem-info-card [route]="productionOrderRoute"></app-ordem-info-card>
+        </po-widget>
+
+        <po-widget p-title="Resultado do Componente">
+          <div class="inspection-process__selected">
+            <span>Componente atual</span>
+            <strong>
+              @if (selectedComponent) {
+                {{ selectedComponent.code }} - {{ selectedComponent.description }}
+              } @else {
+                -
+              }
+            </strong>
+          </div>
+
+          <div class="inspection-process__decision-actions">
+            <po-button
+              p-label="Reprovar"
+              p-kind="secondary"
+              p-type="danger"
+              [p-disabled]="!canRegisterResult"
+              (p-click)="rejectSelectedComponent()"
+            ></po-button>
+
+            <po-button
+              p-label="Aprovar"
+              p-kind="primary"
+              [p-disabled]="!canRegisterResult"
+              (p-click)="approveSelectedComponent()"
+            ></po-button>
+          </div>
+
+          @if (isInspectionFinished) {
+            <p class="inspection-process__done">Roteiro finalizado e pronto para encerramento.</p>
+          } @else if (saveBlockReason) {
+            <p class="inspection-process__hint">{{ saveBlockReason }}</p>
+          }
+        </po-widget>
+      </aside>
+    </div>
+
+    <footer class="inspection-process__footer">
+      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="isRegisteringResult" (p-click)="goBack()"></po-button>
+      <po-button p-label="Sair" p-kind="secondary" [p-disabled]="isRegisteringResult" (p-click)="exit()"></po-button>
+    </footer>
   </section>
 </po-page-default>

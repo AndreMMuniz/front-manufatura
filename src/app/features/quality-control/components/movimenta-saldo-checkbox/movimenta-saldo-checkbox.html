@@ -1,0 +1,7 @@
+<po-checkbox
+  name="moveBalance"
+  p-label="Movimenta saldo"
+  [p-disabled]="disabled"
+  [ngModel]="moveBalance"
+  (ngModelChange)="moveBalanceChange.emit($event)"
+></po-checkbox>
