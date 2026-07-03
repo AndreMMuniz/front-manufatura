@@ -1,0 +1,13 @@
+<po-widget p-title="Quantidades">
+  <div class="quantidades-batelada">
+    <div class="quantidades-batelada__with-action">
+      <po-number name="quantidadeRefugo" p-label="Qtde Refugo" [p-disabled]="true" [ngModel]="quantidadeRefugo"></po-number>
+      <po-button p-label="Editar" p-kind="secondary" [p-disabled]="disabled" (p-click)="editarRefugo.emit()"></po-button>
+    </div>
+
+    <div class="quantidades-batelada__with-action">
+      <po-number name="quantidadeRetrabalho" p-label="Qtde Retrabalho" [p-disabled]="true" [ngModel]="quantidadeRetrabalho"></po-number>
+      <po-button p-label="Editar" p-kind="secondary" [p-disabled]="disabled" (p-click)="editarRetrabalho.emit()"></po-button>
+    </div>
+  </div>
+</po-widget>

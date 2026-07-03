@@ -210,7 +210,7 @@ export class WorkCenterPage implements OnInit {
       return;
     }
 
-    void this.router.navigate(['/operation-reporting']);
+    void this.router.navigate([this.reportType === 'BATCH' ? '/batch-reporting' : '/operation-reporting']);
   }
 
   goToInspection(): void {

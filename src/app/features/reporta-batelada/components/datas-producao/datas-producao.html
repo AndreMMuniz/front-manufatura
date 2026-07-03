@@ -1,0 +1,8 @@
+<po-widget p-title="Datas da Produção">
+  <div class="datas-producao">
+    <po-datepicker name="dataInicio" p-label="Data Início" [p-disabled]="true" [ngModel]="dataInicio"></po-datepicker>
+    <po-input name="horaInicio" p-label="Hora Início" [p-readonly]="true" [ngModel]="horaInicio"></po-input>
+    <po-datepicker name="dataFim" p-label="Data Fim" [p-disabled]="disabled" [ngModel]="dataFim" (ngModelChange)="update({ dataFim: $event })"></po-datepicker>
+    <po-input name="horaFim" p-label="Hora Fim" p-placeholder="HH:mm" [p-disabled]="disabled" [ngModel]="horaFim" (ngModelChange)="update({ horaFim: $event })"></po-input>
+  </div>
+</po-widget>

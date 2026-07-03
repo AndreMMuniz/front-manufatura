@@ -11,6 +11,7 @@ import { QualityControlHome } from './features/quality-control/pages/quality-con
 import { ExamEntryPage } from './features/quality-control/pages/exam-entry/exam-entry';
 import { RouteGenerationPage } from './features/quality-control/pages/route-generation/route-generation';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
+import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
 
 export const routes: Routes = [
@@ -26,6 +27,11 @@ export const routes: Routes = [
   {
     path: 'operation-reporting',
     component: ReportOperacaoPage,
+    canActivate: [authGuard],
+  },
+  {
+    path: 'batch-reporting',
+    component: ReportaBateladaPage,
     canActivate: [authGuard],
   },
   {

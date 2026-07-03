@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable, delay, of } from 'rxjs';
 
 import { ReportOperacao } from '../../report-operacao/models/report-operacao.model';
+import { BatchReportState } from '../../reporta-batelada/models/reporta-batelada.model';
 import { CreateStopRequest } from '../interfaces/reporte-paradas.dto';
 import { ProductionContext, StopEntry, StopReason, StopSaveResult } from '../models/reporte-paradas.model';
 
@@ -29,6 +30,18 @@ export class ReporteParadasService {
       shift: operacao.turno,
       reportId: `${operacao.ordem}-${operacao.op}-${operacao.split}`,
       sourceRoute: '/operation-reporting',
+    };
+  }
+
+  setContextFromBatch(batelada: BatchReportState): void {
+    this.activeContext = {
+      workCenter: batelada.productionInfo.ct,
+      machineGroup: batelada.productionInfo.gm,
+      operatorName: batelada.productionInfo.operatorName,
+      team: batelada.productionInfo.teamName ?? '',
+      shift: batelada.productionInfo.shift,
+      reportId: batelada.id,
+      sourceRoute: '/batch-reporting',
     };
   }
 

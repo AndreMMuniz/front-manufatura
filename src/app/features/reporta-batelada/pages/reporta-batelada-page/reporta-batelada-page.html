@@ -1,0 +1,59 @@
+<po-page-default p-title="Reporta Batelada">
+  <section class="reporta-batelada">
+    @if (isLoading) {
+      <div class="reporta-batelada__loading">
+        <po-loading p-text="Carregando batelada..." p-size="md"></po-loading>
+      </div>
+    }
+
+    @if (batelada) {
+      <app-batelada-list
+        [itens]="batelada.itens"
+        [disabled]="isBusy"
+        [loading]="isLoading"
+        (itensChange)="atualizarItens($event)"
+      ></app-batelada-list>
+
+      <app-datas-producao
+        [dataInicio]="batelada.dataInicio"
+        [horaInicio]="batelada.horaInicio"
+        [dataFim]="batelada.dataFim"
+        [horaFim]="batelada.horaFim"
+        [disabled]="!canEditProduction"
+        (datasChange)="atualizarDatas($event)"
+      ></app-datas-producao>
+
+      <app-quantidades-batelada
+        [quantidadeRefugo]="batelada.quantidadeRefugo"
+        [quantidadeRetrabalho]="batelada.quantidadeRetrabalho"
+        [disabled]="!canEditProduction"
+        (editarRefugo)="abrirRefugo()"
+        (editarRetrabalho)="abrirRetrabalho()"
+      ></app-quantidades-batelada>
+
+      <app-informacoes-operacao-batelada [info]="batelada.productionInfo"></app-informacoes-operacao-batelada>
+    }
+
+    @if (feedback) {
+      <p class="reporta-batelada__feedback" [class.reporta-batelada__feedback--error]="hasError">
+        {{ feedback }}
+      </p>
+    }
+
+    <app-footer-acoes-batelada
+      [primaryLabel]="primaryLabel"
+      [primaryDisabled]="primaryDisabled"
+      [primaryLoading]="isReporting"
+      [paradaDisabled]="!canEditProduction"
+      (primaryAction)="executarAcaoPrincipal()"
+      (parada)="abrirParada()"
+      (voltar)="voltar()"
+      (sair)="sair()"
+    ></app-footer-acoes-batelada>
+
+    <app-refugo-slide
+      (refugoRegistrado)="registrarRefugo($event)"
+      (sairSolicitado)="sair()"
+    ></app-refugo-slide>
+  </section>
+</po-page-default>

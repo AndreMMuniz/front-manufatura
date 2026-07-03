@@ -294,7 +294,7 @@ describe('WorkCenterPage', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/operation-reporting']);
   });
 
-  it('stores batch report context and navigates to operation reporting', () => {
+  it('stores batch report context and navigates to batch reporting', () => {
     component.selectedWorkCenter = centers[0];
     component.selectedOperator = operators[0];
     component.reportType = 'BATCH';
@@ -307,7 +307,7 @@ describe('WorkCenterPage', () => {
         reportType: 'BATCH',
       }),
     );
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/operation-reporting']);
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/batch-reporting']);
   });
 
   it('stores context and navigates to quality control for inspection', () => {

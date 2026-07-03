@@ -1,0 +1,10 @@
+.datas-producao {
+  display: grid;
+  gap: var(--app-space-md);
+}
+
+@media (min-width: 760px) {
+  .datas-producao {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

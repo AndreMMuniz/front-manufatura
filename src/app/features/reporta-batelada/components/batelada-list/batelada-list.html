@@ -1,0 +1,40 @@
+<po-widget p-title="Lista da Batelada">
+  <div class="batelada-list">
+    <label class="batelada-list__all">
+      <input
+        type="checkbox"
+        [checked]="allSelected"
+        [disabled]="disabled || loading || itens.length === 0"
+        (change)="setAll($any($event.target).checked)"
+      />
+      Todas
+      <span>{{ selectedCount }}/{{ itens.length }}</span>
+    </label>
+
+    <div class="batelada-list__rows" aria-label="OPs da batelada">
+      @for (item of itens; track item.opId; let index = $index) {
+        <div class="batelada-list__row">
+          <po-number
+            name="quantidade-{{ item.opId }}"
+            p-label="Qtde"
+            [p-disabled]="disabled || !item.selected"
+            [ngModel]="item.quantity"
+            (ngModelChange)="updateItem(index, { quantity: $event ?? 0 })"
+          ></po-number>
+
+          <label class="batelada-list__check">
+            <input
+              type="checkbox"
+              [checked]="item.selected"
+              [disabled]="disabled"
+              (change)="updateItem(index, { selected: $any($event.target).checked })"
+            />
+            <span>{{ item.opNumber }} - {{ item.orderNumber }} - {{ item.productDescription }}</span>
+          </label>
+        </div>
+      } @empty {
+        <p class="batelada-list__empty">Nenhuma OP encontrada para a batelada.</p>
+      }
+    </div>
+  </div>
+</po-widget>
