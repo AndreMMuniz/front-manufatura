@@ -16,6 +16,16 @@
   overflow: hidden;
 }
 
+.refugo-slide__feedback {
+  color: var(--color-neutral-dark-80);
+  font-size: 0.875rem;
+  min-height: 20px;
+}
+
+.refugo-slide__feedback-error {
+  color: var(--color-danger);
+}
+
 .refugo-slide__row {
   display: grid;
   gap: var(--app-space-sm);

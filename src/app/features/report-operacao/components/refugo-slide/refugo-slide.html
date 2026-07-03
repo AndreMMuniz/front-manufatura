@@ -2,13 +2,14 @@
   <section class="refugo-slide">
     <div class="refugo-slide__entry">
       <po-combo
+        #motivoCombo
         name="motivoRefugo"
         p-label="Motivo"
         p-placeholder="Selecione o motivo"
         p-required="true"
         [p-options]="motivoOptions"
         [ngModel]="motivoCodigo"
-        (ngModelChange)="motivoCodigo = $event ?? ''"
+        (ngModelChange)="atualizarMotivo($event ?? '')"
       ></po-combo>
 
       <po-number
@@ -16,7 +17,7 @@
         p-label="Quantidade"
         p-required="true"
         [ngModel]="quantidade"
-        (ngModelChange)="quantidade = $event ?? 0"
+        (ngModelChange)="atualizarQuantidade($event ?? 0)"
       ></po-number>
 
       <po-button
@@ -26,6 +27,20 @@
         (p-click)="adicionarRefugo()"
       ></po-button>
     </div>
+
+    @if (validationMessage || motivoErrorMessage || adicionarFeedback) {
+      <div class="refugo-slide__feedback" aria-live="polite">
+        @if (validationMessage) {
+          <span class="refugo-slide__feedback-error">{{ validationMessage }}</span>
+        }
+        @if (motivoErrorMessage) {
+          <span class="refugo-slide__feedback-error">{{ motivoErrorMessage }}</span>
+        }
+        @if (adicionarFeedback && !validationMessage && !motivoErrorMessage) {
+          <span>{{ adicionarFeedback }}</span>
+        }
+      </div>
+    }
 
     <div class="refugo-slide__list" aria-label="Refugos adicionados">
       <div class="refugo-slide__row refugo-slide__row--header">

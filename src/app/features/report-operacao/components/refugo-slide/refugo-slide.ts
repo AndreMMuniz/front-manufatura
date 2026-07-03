@@ -10,16 +10,15 @@ import { FormsModule } from '@angular/forms';
 
 import {
   PoButtonModule,
+  PoComboComponent,
   PoDialogService,
   PoFieldModule,
   PoPageSlideComponent,
   PoPageSlideModule,
 } from '@po-ui/ng-components';
 
-export interface MotivoRefugo {
-  readonly codigo: string;
-  readonly descricao: string;
-}
+import { MOTIVOS_REFUGO_MOCK, MotivoRefugo, MotivoRefugoService } from '../../services/motivo-refugo.service';
+import { RefugoService } from '../../services/refugo.service';
 
 export interface RefugoRegistradoItem {
   readonly codigo: string;
@@ -33,6 +32,15 @@ export interface RefugoRegistrado {
   readonly itens: ReadonlyArray<RefugoRegistradoItem>;
 }
 
+export type RefugoSlideState =
+  | 'inicial'
+  | 'pesquisando'
+  | 'motivo-selecionado'
+  | 'item-adicionado'
+  | 'salvando'
+  | 'finalizado'
+  | 'erro';
+
 @Component({
   selector: 'app-refugo-slide',
   imports: [FormsModule, PoButtonModule, PoFieldModule, PoPageSlideModule],
@@ -45,38 +53,39 @@ export class RefugoSlide {
   @Output() sairSolicitado = new EventEmitter<void>();
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
+  @ViewChild('motivoCombo') private motivoCombo?: PoComboComponent;
 
   constructor(
     private readonly changeDetector: ChangeDetectorRef,
     private readonly dialog: PoDialogService,
-  ) {}
+    private readonly motivoRefugoService: MotivoRefugoService,
+    private readonly refugoService: RefugoService,
+  ) {
+    this.motivos = MOTIVOS_REFUGO_MOCK;
+    this.motivoOptions = this.toMotivoOptions(this.motivos);
+  }
 
-  readonly motivos: ReadonlyArray<MotivoRefugo> = [
-    { codigo: '05', descricao: 'Borra' },
-    { codigo: '32', descricao: 'Varredura' },
-    { codigo: '35', descricao: 'Setup' },
-  ];
-
-  readonly motivoOptions = this.motivos.map(motivo => ({
-    label: `${motivo.codigo} - ${motivo.descricao}`,
-    value: motivo.codigo,
-  }));
-
+  motivos: ReadonlyArray<MotivoRefugo> = [];
+  motivoOptions: ReadonlyArray<{ label: string; value: string }> = [];
+  estado: RefugoSlideState = 'inicial';
+  validationMessage = '';
+  motivoErrorMessage = '';
+  adicionarFeedback = '';
   quantidade = 0;
   motivoCodigo = '';
   itens: ReadonlyArray<RefugoRegistradoItem> = [];
   private itensOriginaisKey = '';
 
   get canAdicionar(): boolean {
-    return Boolean(this.motivoDescricao) && this.quantidade > 0;
+    return this.estado !== 'pesquisando' && Boolean(this.motivoDescricao) && this.quantidade > 0;
   }
 
   get canSalvar(): boolean {
-    return this.itens.length > 0;
+    return !this.hasPartialInput() && (this.itens.length > 0 || this.totalRefugo === 0);
   }
 
   get totalRefugo(): number {
-    return this.itens.reduce((total, item) => total + item.quantidade, 0);
+    return this.refugoService.calcularTotal(this.itens);
   }
 
   get motivoDescricao(): string {
@@ -90,32 +99,64 @@ export class RefugoSlide {
         : this.legacyItemFromQuantity(quantidadeAtual);
     this.quantidade = 0;
     this.motivoCodigo = '';
+    this.validationMessage = '';
+    this.adicionarFeedback = '';
+    this.estado = 'inicial';
     this.itensOriginaisKey = this.itemsKey(this.itens);
     this.pageSlide.open();
+    this.buscarMotivos('');
+    setTimeout(() => this.motivoCombo?.focus());
     this.changeDetector.markForCheck();
+  }
+
+  buscarMotivos(termo: string): void {
+    this.estado = 'pesquisando';
+    this.motivoErrorMessage = '';
+    this.motivoRefugoService.buscarMotivos(termo).subscribe({
+      next: motivos => {
+        this.motivos = motivos;
+        this.motivoOptions = this.toMotivoOptions(motivos);
+        this.estado = this.motivoCodigo ? 'motivo-selecionado' : 'inicial';
+        this.changeDetector.markForCheck();
+      },
+      error: () => {
+        this.estado = 'erro';
+        this.motivoErrorMessage = 'Não foi possível carregar os motivos de refugo. Tente novamente.';
+        this.changeDetector.markForCheck();
+      },
+    });
+  }
+
+  atualizarMotivo(codigo: string): void {
+    this.motivoCodigo = codigo ?? '';
+    this.validationMessage = '';
+    this.estado = this.motivoCodigo ? 'motivo-selecionado' : 'inicial';
+  }
+
+  atualizarQuantidade(quantidade: number): void {
+    this.quantidade = quantidade ?? 0;
+    this.validationMessage = '';
   }
 
   adicionarRefugo(): void {
     if (!this.canAdicionar || !this.motivoSelecionado) {
+      this.validationMessage = this.getValidationMessage();
       return;
     }
 
-    this.itens = this.itens.some(item => item.codigo === this.motivoSelecionado?.codigo)
-      ? this.itens.map(item =>
-          item.codigo === this.motivoSelecionado?.codigo
-            ? { ...item, quantidade: item.quantidade + this.quantidade }
-            : item,
-        )
-      : [
-          ...this.itens,
-          {
-            codigo: this.motivoSelecionado.codigo,
-            descricao: this.motivoSelecionado.descricao,
-            quantidade: this.quantidade,
-          },
-        ];
+    this.itens = this.refugoService.consolidarItens([
+      ...this.itens,
+      {
+        codigo: this.motivoSelecionado.codigo,
+        descricao: this.motivoSelecionado.descricao,
+        quantidade: this.quantidade,
+      },
+    ]);
     this.quantidade = 0;
     this.motivoCodigo = '';
+    this.validationMessage = '';
+    this.adicionarFeedback = 'Refugo adicionado.';
+    this.estado = 'item-adicionado';
   }
 
   removerRefugo(index: number): void {
@@ -124,9 +165,11 @@ export class RefugoSlide {
 
   salvar(): void {
     if (!this.canSalvar) {
+      this.validationMessage = this.getValidationMessage();
       return;
     }
 
+    this.estado = 'salvando';
     this.refugoRegistrado.emit({
       quantidade: this.totalRefugo,
       motivo: this.itens.map(item => `${item.codigo} - ${item.descricao}`).join(', '),
@@ -167,10 +210,34 @@ export class RefugoSlide {
 
   private fechar(): void {
     this.pageSlide.close();
+    this.estado = 'finalizado';
   }
 
   private get motivoSelecionado(): MotivoRefugo | undefined {
     return this.motivos.find(motivo => motivo.codigo === this.motivoCodigo);
+  }
+
+  private getValidationMessage(): string {
+    if (this.motivoCodigo && this.quantidade <= 0) {
+      return 'Informe uma quantidade maior que zero.';
+    }
+
+    if (!this.motivoCodigo && this.quantidade > 0) {
+      return 'Selecione um motivo de refugo.';
+    }
+
+    if (!this.motivoDescricao) {
+      return 'Selecione um motivo de refugo.';
+    }
+
+    return '';
+  }
+
+  private hasPartialInput(): boolean {
+    const hasMotivo = Boolean(this.motivoCodigo);
+    const hasQuantidade = this.quantidade > 0;
+
+    return hasMotivo !== hasQuantidade;
   }
 
   private hasUnsavedChanges(): boolean {
@@ -196,5 +263,12 @@ export class RefugoSlide {
 
   private itemsKey(items: ReadonlyArray<RefugoRegistradoItem>): string {
     return JSON.stringify(items);
+  }
+
+  private toMotivoOptions(motivos: ReadonlyArray<MotivoRefugo>): ReadonlyArray<{ label: string; value: string }> {
+    return motivos.map(motivo => ({
+      label: `${motivo.codigo} - ${motivo.descricao}`,
+      value: motivo.codigo,
+    }));
   }
 }

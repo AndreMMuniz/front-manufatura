@@ -1,3 +1,4 @@
+import { Subject, of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { RefugoSlide, RefugoRegistradoItem } from './refugo-slide';
@@ -81,6 +82,67 @@ describe('RefugoSlide', () => {
     });
   });
 
+  it('emits an empty composition when saving a zero total without partial input', () => {
+    const component = createComponent();
+    const emit = vi.spyOn(component.refugoRegistrado, 'emit');
+
+    component.abrir(0, []);
+    component.salvar();
+
+    expect(emit).toHaveBeenCalledWith({
+      quantidade: 0,
+      motivo: '',
+      itens: [],
+    });
+  });
+
+  it('blocks save and explains the problem when the form has partial input', () => {
+    const component = createComponent();
+    const emit = vi.spyOn(component.refugoRegistrado, 'emit');
+
+    component.abrir(0, []);
+    component.motivoCodigo = '05';
+    component.salvar();
+
+    expect(emit).not.toHaveBeenCalled();
+    expect(component.validationMessage).toBe('Informe uma quantidade maior que zero.');
+  });
+
+  it('loads scrap reasons through the service and preserves items when the search fails', () => {
+    const motivoService = {
+      buscarMotivos: vi.fn(() => throwError(() => new Error('API indisponivel'))),
+    };
+    const { component } = createComponentWithMocks({ motivoService });
+    const itens: ReadonlyArray<RefugoRegistradoItem> = [{ codigo: '05', descricao: 'Borra', quantidade: 0.55 }];
+
+    component.abrir(0, itens);
+
+    expect(component.itens).toEqual(itens);
+    expect(component.estado).toBe('erro');
+    expect(component.motivoErrorMessage).toBe('Não foi possível carregar os motivos de refugo. Tente novamente.');
+  });
+
+  it('temporarily blocks add while searching scrap reasons', () => {
+    const search = new Subject<ReadonlyArray<{ codigo: string; descricao: string }>>();
+    const motivoService = {
+      buscarMotivos: vi.fn(() => search.asObservable()),
+    };
+    const { component } = createComponentWithMocks({ motivoService });
+
+    component.buscarMotivos('bo');
+    component.motivoCodigo = '05';
+    component.quantidade = 0.55;
+
+    expect(component.estado).toBe('pesquisando');
+    expect(component.canAdicionar).toBe(false);
+
+    search.next([{ codigo: '05', descricao: 'Borra' }]);
+    search.complete();
+
+    expect(component.estado).toBe('motivo-selecionado');
+    expect(component.canAdicionar).toBe(true);
+  });
+
   it('restores existing scrap items when reopened for the same operation', () => {
     const component = createComponent();
     const itens: ReadonlyArray<RefugoRegistradoItem> = [
@@ -147,7 +209,13 @@ describe('RefugoSlide', () => {
     return createComponentWithMocks().component;
   }
 
-  function createComponentWithMocks(): {
+  function createComponentWithMocks(overrides: {
+    motivoService?: { buscarMotivos: ReturnType<typeof vi.fn> };
+    refugoService?: {
+      calcularTotal: (items: ReadonlyArray<RefugoRegistradoItem>) => number;
+      consolidarItens: (items: ReadonlyArray<RefugoRegistradoItem>) => ReadonlyArray<RefugoRegistradoItem>;
+    };
+  } = {}): {
     component: RefugoSlide;
     dialog: { confirm: ReturnType<typeof vi.fn> };
     pageSlide: { open: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
@@ -155,7 +223,28 @@ describe('RefugoSlide', () => {
     const dialog = { confirm: vi.fn() };
     const changeDetector = { markForCheck: vi.fn() };
     const pageSlide = { open: vi.fn(), close: vi.fn() };
-    const component = new RefugoSlide(changeDetector as never, dialog as never);
+    const motivoService = overrides.motivoService ?? { buscarMotivos: vi.fn(() => of([])) };
+    const refugoService = overrides.refugoService ?? {
+      calcularTotal: (items: ReadonlyArray<RefugoRegistradoItem>) =>
+        items.reduce((total, item) => total + item.quantidade, 0),
+      consolidarItens: (items: ReadonlyArray<RefugoRegistradoItem>) => {
+        const byCode = new Map<string, RefugoRegistradoItem>();
+        for (const item of items) {
+          const existing = byCode.get(item.codigo);
+          byCode.set(
+            item.codigo,
+            existing ? { ...existing, quantidade: existing.quantidade + item.quantidade } : item,
+          );
+        }
+        return Array.from(byCode.values());
+      },
+    };
+    const component = new RefugoSlide(
+      changeDetector as never,
+      dialog as never,
+      motivoService as never,
+      refugoService as never,
+    );
     Object.defineProperty(component, 'pageSlide', { value: pageSlide });
 
     return { component, dialog, pageSlide };
