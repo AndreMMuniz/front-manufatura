@@ -271,7 +271,7 @@ export class QualityControlHome {
 
   exit(): void {
     if (!this.isRegisteringResult) {
-      void this.router?.navigate(['/menu']);
+      void this.router?.navigate(['/quality-control']);
     }
   }
 

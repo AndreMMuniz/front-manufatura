@@ -198,7 +198,7 @@ export class ReportOperacaoPage {
   }
 
   sair(): void {
-    void this.router.navigate(['/menu']);
+    void this.router.navigate(['/quality-control']);
   }
 
   private iniciarOperacao(): void {

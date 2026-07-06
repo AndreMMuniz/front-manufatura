@@ -12,7 +12,6 @@ import { AuthSessionService } from './core/auth/auth-session.service';
 import { User } from './core/auth/auth.models';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
-import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
@@ -93,15 +92,6 @@ describe('App', () => {
 
       expect(component).toBeInstanceOf(RouteGenerationPage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');
-    });
-
-    it('should route menu to the main menu page', async () => {
-      const harness = await RouterTestingHarness.create();
-
-      const component = await harness.navigateByUrl('/menu', MainMenuPage);
-
-      expect(component).toBeInstanceOf(MainMenuPage);
-      expect(TestBed.inject(Router).url).toBe('/menu');
     });
 
     it('should route work-center to the work center page', async () => {
@@ -188,12 +178,12 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/login');
     });
 
-    it('should redirect root to /menu, but keep unknown deep links in place when authenticated', async () => {
+    it('should redirect root to /quality-control, but keep unknown deep links in place when authenticated', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
       await harness.navigateByUrl('/');
-      expect(router.url).toBe('/menu');
+      expect(router.url).toBe('/quality-control');
 
       await harness.navigateByUrl('/orders/42');
       expect(router.url).toBe('/orders/42');
@@ -216,7 +206,7 @@ describe('App', () => {
       expect(returnUrlFrom(router)).toBe('/quality-control');
     });
 
-    it('should redirect menu to login with returnUrl=/menu when not authenticated', async () => {
+    it('should treat the removed menu path as an unknown guarded route when not authenticated', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
@@ -268,14 +258,14 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/login');
     });
 
-    it('should redirect root to login with returnUrl=/menu via /menu redirect', async () => {
+    it('should redirect root to login with returnUrl=/quality-control via default redirect', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
       await harness.navigateByUrl('/');
 
       expect(router.url.startsWith('/login')).toBe(true);
-      expect(returnUrlFrom(router)).toBe('/menu');
+      expect(returnUrlFrom(router)).toBe('/quality-control');
     });
 
     it('should preserve deep-link returnUrl through the auth round trip when hitting unknown routes', async () => {
@@ -307,7 +297,6 @@ describe('App', () => {
 
     expect(app.toolbarTitle).toBe('Plano de Controle CQ - operador');
     expect(app.menus.map(item => item.label)).toEqual([
-      'Menu Principal',
       'Plano Controle CQ',
       'Reporte Operações',
       'Reporte Batelada',
@@ -350,24 +339,14 @@ describe('App', () => {
     }
   });
 
-  it('should expose main menu as a direct shell menu link', async () => {
-    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const app = fixture.componentInstance;
-
-    expect(app.menus[0].label).toBe('Menu Principal');
-    expect(app.menus[0].link).toBe('/menu');
-  });
-
   it('should keep the shell menu entry linking to quality-control', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    expect(app.menus[1].label).toBe('Plano Controle CQ');
-    expect(app.menus[1].link).toBe('/quality-control');
+    expect(app.menus[0].label).toBe('Plano Controle CQ');
+    expect(app.menus[0].link).toBe('/quality-control');
   });
 
   it('should redirect to login when the shell logout clears the session', async () => {

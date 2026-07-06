@@ -54,15 +54,15 @@ describe('SfcPlaceholderPage', () => {
     expect(native.textContent).toContain('Fluxos de reporte de produção serão implementados em uma etapa futura.');
   });
 
-  it('navigates back to the main menu', () => {
-    component.backToMenu();
+  it('navigates back to the default actionable module', () => {
+    component.backToDefaultModule();
 
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/menu']);
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/quality-control']);
   });
 
   it('keeps the back button as type button', () => {
     const buttons = Array.from(fixture.nativeElement.querySelectorAll('po-button')) as Array<HTMLElement>;
-    const backButton = buttons.find(button => button.textContent?.includes('Voltar ao Menu'));
+    const backButton = buttons.find(button => button.textContent?.includes('Voltar ao Plano Controle CQ'));
 
     expect(backButton?.getAttribute('p-type') ?? backButton?.getAttribute('ng-reflect-p-type')).toBe('button');
   });

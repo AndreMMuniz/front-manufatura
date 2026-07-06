@@ -95,7 +95,7 @@ export class EquipesPage {
   }
 
   onVoltar(): void {
-    void this.router.navigate(['/menu']);
+    void this.router.navigate(['/quality-control']);
   }
 
   onSair(): void {

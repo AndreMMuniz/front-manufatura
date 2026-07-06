@@ -44,8 +44,8 @@ export class OperatorsPage implements OnInit {
     this.selectedOperator = null;
   }
 
-  backToMenu(): void {
-    void this.router.navigate(['/menu']);
+  backToDefaultModule(): void {
+    void this.router.navigate(['/quality-control']);
   }
 
   statusLabel(operator: Operator): string {

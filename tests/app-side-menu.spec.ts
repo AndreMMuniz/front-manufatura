@@ -10,7 +10,7 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
   await page.getByRole('textbox', { name: 'Senha' }).fill(credentials.password);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/\/menu$/);
+  await expect(page).toHaveURL(/\/quality-control$/);
 }
 
 test.describe('menu lateral principal', () => {
@@ -26,7 +26,6 @@ test.describe('menu lateral principal', () => {
     await login(page);
 
     const expectedItems = [
-      'Menu Principal',
       'Plano Controle CQ',
       'Reporte Operações',
       'Reporte Batelada',
@@ -55,8 +54,8 @@ test.describe('menu lateral principal', () => {
       expect(boxes[index].y).toBeGreaterThan(boxes[index - 1].y);
     }
 
-    const menuBox = await page.getByRole('menuitem', { name: 'Menu Principal' }).boundingBox();
-    const contentBox = await page.getByRole('heading', { name: 'Menu Principal' }).boundingBox();
+    const menuBox = await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).boundingBox();
+    const contentBox = await page.getByRole('heading', { name: 'Geração de Roteiro' }).boundingBox();
 
     expect(menuBox).not.toBeNull();
     expect(contentBox).not.toBeNull();
@@ -70,7 +69,7 @@ test.describe('menu lateral principal', () => {
 
     await expect(page).toHaveURL(/\/quality-control$/);
     await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Plano Controle CQ/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Geração de Roteiro' })).toBeVisible();
   });
 
   test('navega diretamente para Reporta Batelada pelo menu lateral', async ({ page }) => {
@@ -106,7 +105,6 @@ test.describe('menu lateral principal', () => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await login(page);
 
-    await expect(page.getByRole('menuitem', { name: 'Menu Principal' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
   });
 });

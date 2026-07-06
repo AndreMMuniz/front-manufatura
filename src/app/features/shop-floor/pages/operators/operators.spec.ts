@@ -82,16 +82,16 @@ describe('OperatorsPage', () => {
     expect(component.selectedOperator).toBeNull();
   });
 
-  it('navigates back to the main menu', () => {
-    component.backToMenu();
+  it('navigates back to the default actionable module', () => {
+    component.backToDefaultModule();
 
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/menu']);
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/quality-control']);
   });
 
-  it('does not submit the search form when navigating back to the main menu', () => {
+  it('does not submit the search form when navigating back to the default module', () => {
     fixture.detectChanges();
     const buttons = Array.from(fixture.nativeElement.querySelectorAll('po-button')) as Array<HTMLElement>;
-    const backButton = buttons.find(button => button.textContent?.includes('Voltar ao Menu'));
+    const backButton = buttons.find(button => button.textContent?.includes('Voltar ao Plano Controle CQ'));
 
     expect(backButton?.getAttribute('p-type') ?? backButton?.getAttribute('ng-reflect-p-type')).toBe('button');
   });

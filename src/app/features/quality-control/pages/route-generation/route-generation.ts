@@ -130,7 +130,7 @@ export class RouteGenerationPage {
 
   exit(): void {
     if (!this.isBusy) {
-      void this.router.navigate(['/menu']);
+      void this.router.navigate(['/quality-control']);
     }
   }
 }

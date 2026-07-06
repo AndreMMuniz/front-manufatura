@@ -11,7 +11,12 @@
 
         <div class="operators__actions">
           <po-button p-label="Consultar" p-kind="primary" p-type="submit"></po-button>
-          <po-button p-label="Voltar ao Menu" p-kind="secondary" p-type="button" (p-click)="backToMenu()"></po-button>
+          <po-button
+            p-label="Voltar ao Plano Controle CQ"
+            p-kind="secondary"
+            p-type="button"
+            (p-click)="backToDefaultModule()"
+          ></po-button>
         </div>
       </form>
     </po-widget>

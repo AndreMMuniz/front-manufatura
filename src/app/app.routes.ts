@@ -3,7 +3,6 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
-import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
@@ -16,7 +15,6 @@ import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-par
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage },
-  { path: 'menu', component: MainMenuPage, canActivate: [authGuard] },
   { path: 'work-center', component: WorkCenterPage, canActivate: [authGuard] },
   { path: 'operators', component: OperatorsPage, canActivate: [authGuard] },
   {
@@ -59,10 +57,9 @@ export const routes: Routes = [
   { path: 'quality-control', component: RouteGenerationPage, canActivate: [authGuard] },
   { path: 'quality-control/inspection', component: QualityControlHome, canActivate: [authGuard] },
   { path: 'quality-control/exam-entry', component: ExamEntryPage, canActivate: [authGuard] },
-  // Empty root redirects to /menu (which is guarded) so the auth
-  // round-trip still lands authenticated users at the SFC main menu and
-  // anonymous users are forwarded to /login with returnUrl=/menu.
-  { path: '', pathMatch: 'full', redirectTo: 'menu' },
+  // Empty root redirects to the first actionable module because lateral
+  // navigation already exposes all available destinations.
+  { path: '', pathMatch: 'full', redirectTo: 'quality-control' },
   // `**` is guarded (rather than redirecting to /quality-control) so that
   // deep-links preserve their original URL as `returnUrl` through the auth
   // round-trip instead of being collapsed to /quality-control.
@@ -72,7 +69,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     data: {
       title: 'Funcionalidade não encontrada',
-      description: 'Acesse uma opção disponível pelo menu principal.',
+      description: 'Acesse uma opção disponível pelo menu lateral.',
     },
   },
 ];

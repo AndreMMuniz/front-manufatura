@@ -186,7 +186,7 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   sair(): void {
-    void this.router.navigate(['/menu']);
+    void this.router.navigate(['/quality-control']);
   }
 
   private iniciarBatelada(): void {

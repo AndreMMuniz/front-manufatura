@@ -16,7 +16,7 @@ export class SfcPlaceholderPage {
   readonly title = this.route.snapshot.data['title'] ?? 'Modulo SFC';
   readonly description = this.route.snapshot.data['description'] ?? 'Este fluxo sera implementado em uma etapa futura.';
 
-  backToMenu(): void {
-    void this.router.navigate(['/menu']);
+  backToDefaultModule(): void {
+    void this.router.navigate(['/quality-control']);
   }
 }

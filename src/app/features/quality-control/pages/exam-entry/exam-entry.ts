@@ -224,7 +224,7 @@ export class ExamEntryPage {
 
   exit(): void {
     if (this.canLeaveCurrentMeasurement()) {
-      void this.router?.navigate(['/menu']);
+      void this.router?.navigate(['/quality-control']);
     }
   }
 

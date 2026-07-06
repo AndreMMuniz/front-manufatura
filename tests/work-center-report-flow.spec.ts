@@ -10,7 +10,7 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
   await page.getByRole('textbox', { name: 'Senha' }).fill(credentials.password);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/\/menu$/);
+  await expect(page).toHaveURL(/\/quality-control$/);
 }
 
 test.describe('fluxo de Reporte Operações', () => {

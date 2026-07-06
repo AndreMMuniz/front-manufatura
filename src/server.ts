@@ -5,6 +5,7 @@ import {
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
 import express from 'express';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
@@ -12,17 +13,31 @@ const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-/**
- * Example Express Rest API endpoints can be defined here.
- * Uncomment and define endpoints as necessary.
- *
- * Example:
- * ```ts
- * app.get('/api/{*splat}', (req, res) => {
- *   // Handle API request
- * });
- * ```
- */
+const externalLoginUser = process.env['APP_LOGIN_USER']?.trim() || 'operador';
+const externalLoginPassword = process.env['APP_LOGIN_PASSWORD']?.trim() || 'mock123';
+const externalLoginName = process.env['APP_LOGIN_NAME']?.trim() || 'Operador Cortag';
+
+app.use(express.json({ limit: '16kb' }));
+
+app.post('/api/auth/login', (req, res) => {
+  const login = typeof req.body?.login === 'string' ? req.body.login.trim() : '';
+  const senha = typeof req.body?.senha === 'string' ? req.body.senha.trim() : '';
+
+  if (!login || !senha || login !== externalLoginUser || senha !== externalLoginPassword) {
+    res.status(401).json({ code: 'invalid-credentials' });
+    return;
+  }
+
+  res.json({
+    token: `external-session-${randomUUID()}`,
+    usuario: {
+      id: 'USR-EXTERNAL',
+      nome: externalLoginName,
+      login,
+      permissoes: ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ'],
+    },
+  });
+});
 
 /**
  * Serve static files from /browser

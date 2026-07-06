@@ -155,7 +155,7 @@ export class ReporteParadasPage implements OnInit {
   }
 
   sair(): void {
-    void this.router.navigate(['/menu']);
+    void this.router.navigate(['/quality-control']);
   }
 
   onSearchChange(value: string): void {

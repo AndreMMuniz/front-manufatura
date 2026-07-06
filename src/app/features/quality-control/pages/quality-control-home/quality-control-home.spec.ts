@@ -247,7 +247,7 @@ describe('QualityControlHome', () => {
     expect(component.saveBlockReason).toBe('');
   });
 
-  it('navigates back to route generation and exits to main menu', () => {
+  it('navigates back to route generation and exits to the default module', () => {
     const router = routerWithRoute(route());
     const component = createComponent(new OperatorService(), new QualityControlService(), router);
 
@@ -255,6 +255,6 @@ describe('QualityControlHome', () => {
     component.exit();
 
     expect(router.navigate).toHaveBeenCalledWith(['/quality-control']);
-    expect(router.navigate).toHaveBeenCalledWith(['/menu']);
+    expect(router.navigate).toHaveBeenCalledWith(['/quality-control']);
   });
 });

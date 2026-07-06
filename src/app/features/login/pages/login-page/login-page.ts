@@ -16,7 +16,7 @@ import { LoginError, LoginService } from '../../services/login.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginPage {
-  private static readonly fallbackUrl = '/menu';
+  private static readonly fallbackUrl = '/quality-control';
   private static readonly emptyFieldsMessage = 'Informe login e senha.';
 
   private readonly router = inject(Router);

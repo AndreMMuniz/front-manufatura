@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, delay, map, mergeMap, of, tap, throwError, timer } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, catchError, map, tap, throwError } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LoginRequestDTO, LoginResponseDTO } from '../interfaces/login.dto';
@@ -16,10 +17,7 @@ export class LoginError extends Error {
 
 @Injectable({ providedIn: 'root' })
 export class LoginService {
-  private static readonly mockLogin = 'operador';
-  private static readonly mockSenha = 'mock123';
-  private static readonly mockDelayMs = 300;
-
+  private readonly http = inject(HttpClient);
   private readonly authSession = inject(AuthSessionService);
 
   login(login: string, senha: string): Observable<LoginAutenticado> {
@@ -32,16 +30,10 @@ export class LoginService {
       return throwError(() => new LoginError('invalid-credentials'));
     }
 
-    if (request.login !== LoginService.mockLogin || request.senha !== LoginService.mockSenha) {
-      return timer(LoginService.mockDelayMs).pipe(
-        mergeMap(() => throwError(() => new LoginError('invalid-credentials'))),
-      );
-    }
-
-    return of(this.buildMockResponse(request)).pipe(
-      delay(LoginService.mockDelayMs),
+    return this.http.post<LoginResponseDTO>('/api/auth/login', request).pipe(
       map(response => mapLoginResponse(response)),
       tap(result => this.authSession.startSession(result.usuario, result.token)),
+      catchError(error => throwError(() => new LoginError(this.mapLoginError(error)))),
     );
   }
 
@@ -57,15 +49,17 @@ export class LoginService {
     return this.authSession.token;
   }
 
-  private buildMockResponse(request: LoginRequestDTO): LoginResponseDTO {
-    return {
-      token: 'mock-datasul-token',
-      usuario: {
-        id: 'USR-001',
-        nome: 'Operador Cortag',
-        login: request.login,
-        permissoes: ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ'],
-      },
-    };
+  private mapLoginError(error: unknown): LoginErrorCode {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 400 || error.status === 401) {
+        return 'invalid-credentials';
+      }
+
+      if (error.status === 0 || error.status >= 500) {
+        return 'communication';
+      }
+    }
+
+    return 'unexpected';
   }
 }

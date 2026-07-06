@@ -10,12 +10,6 @@ import { AuthSessionService } from './core/auth/auth-session.service';
 
 const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
   {
-    label: 'Menu Principal',
-    shortLabel: 'Início',
-    icon: 'an an-house',
-    link: '/menu',
-  },
-  {
     label: 'Plano Controle CQ',
     shortLabel: 'CQ',
     icon: 'an an-clipboard-text',
