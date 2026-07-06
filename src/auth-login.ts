@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 export interface AuthenticatedLogin {
   token: string;
   usuario: {
@@ -24,9 +26,7 @@ function readConfig(env: LoginEnvironment) {
 }
 
 function createSessionToken() {
-  const randomId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-
-  return `external-session-${randomId}`;
+  return `external-session-${randomUUID()}`;
 }
 
 export function authenticateExternalLogin(
