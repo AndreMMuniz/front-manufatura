@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -33,6 +33,7 @@ describe('ReportOperacaoPage', () => {
       imports: [ReportOperacaoPage],
       providers: [
         { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: ActivatedRoute, useValue: { snapshot: { data: {} } } },
         { provide: ReportOperacaoService, useValue: reportOperacaoServiceMock },
         { provide: ReporteParadasService, useValue: { setContextFromOperation: vi.fn() } },
         {

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PoNotificationService } from '@po-ui/ng-components';
 
+import { OperationalContext } from '../../../shop-floor/models/operational-context';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 import { EstadoBatelada } from '../../models/reporta-batelada.model';
@@ -26,8 +27,10 @@ describe('ReportaBateladaPage', () => {
   };
   let routerMock: { navigate: ReturnType<typeof vi.fn> };
   let reporteParadasServiceMock: { setContextFromBatch: ReturnType<typeof vi.fn> };
+  let currentContext: OperationalContext | null;
 
   beforeEach(async () => {
+    currentContext = context();
     serviceMock = {
       loadBatch: vi.fn(() => of(batch())),
       startBatch: vi.fn(() => of({ dataInicio: new Date(2026, 6, 3), horaInicio: '08:00' })),
@@ -45,7 +48,7 @@ describe('ReportaBateladaPage', () => {
       providers: [
         { provide: ReportaBateladaService, useValue: serviceMock },
         { provide: Router, useValue: routerMock },
-        { provide: OperationalContextService, useValue: { currentContext: context() } },
+        { provide: OperationalContextService, useValue: { get currentContext() { return currentContext; } } },
         { provide: ReporteParadasService, useValue: reporteParadasServiceMock },
         {
           provide: PoNotificationService,
@@ -63,6 +66,24 @@ describe('ReportaBateladaPage', () => {
     expect(serviceMock.loadBatch).toHaveBeenCalled();
     expect(component.batelada?.code).toBe('BAT-001');
     expect(component.estado).toBe(EstadoBatelada.Carregada);
+  });
+
+  it('loads a menu-accessible batch when opened without operational context', () => {
+    currentContext = null;
+    fixture = TestBed.createComponent(ReportaBateladaPage);
+    component = fixture.componentInstance;
+
+    fixture.detectChanges();
+
+    expect(serviceMock.loadBatch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        reportType: 'BATCH',
+        workCenter: expect.objectContaining({ code: 'CT-EXT-01' }),
+        operator: expect.objectContaining({ code: 'OP-001' }),
+      }),
+    );
+    expect(routerMock.navigate).not.toHaveBeenCalledWith(['/work-center']);
+    expect(component.batelada?.code).toBe('BAT-001');
   });
 
   it('starts selected batch items and switches the primary action to report', () => {

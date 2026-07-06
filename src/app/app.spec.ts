@@ -20,6 +20,7 @@ import { QualityControlHome } from './features/quality-control/pages/quality-con
 import { ExamEntryPage } from './features/quality-control/pages/exam-entry/exam-entry';
 import { RouteGenerationPage } from './features/quality-control/pages/route-generation/route-generation';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
+import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
 
 describe('App', () => {
@@ -139,6 +140,15 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/operation-reporting');
     });
 
+    it('should route batch-reporting to the batch report page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/batch-reporting', ReportaBateladaPage);
+
+      expect(component).toBeInstanceOf(ReportaBateladaPage);
+      expect(TestBed.inject(Router).url).toBe('/batch-reporting');
+    });
+
     it('should route stoppages to the stoppage reporting page', async () => {
       const harness = await RouterTestingHarness.create();
 
@@ -148,17 +158,25 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/stoppages');
     });
 
-    it.each([
-      ['/scrap-rework', 'Refugo / Retrabalho'],
-      ['/item-consultation', 'Consulta Item'],
-    ])('should route %s to the SFC placeholder page', async (url, title) => {
+    it('should route scrap-rework to the operation page in scrap entry mode', async () => {
       const harness = await RouterTestingHarness.create();
 
-      const component = await harness.navigateByUrl(url, SfcPlaceholderPage);
+      const component = await harness.navigateByUrl('/scrap-rework', ReportOperacaoPage);
+
+      expect(component).toBeInstanceOf(ReportOperacaoPage);
+      expect(component.pageTitle).toBe('Refugo / Retrabalho');
+      expect(component.feedback).toBe('Informe Ordem e OP. Ao iniciar a operação, o painel de Refugo será aberto.');
+      expect(TestBed.inject(Router).url).toBe('/scrap-rework');
+    });
+
+    it('should route item-consultation to the SFC placeholder page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/item-consultation', SfcPlaceholderPage);
 
       expect(component).toBeInstanceOf(SfcPlaceholderPage);
-      expect(component.title).toBe(title);
-      expect(TestBed.inject(Router).url).toBe(url);
+      expect(component.title).toBe('Consulta Item');
+      expect(TestBed.inject(Router).url).toBe('/item-consultation');
     });
 
     it('should route login to the login page', async () => {
@@ -228,7 +246,7 @@ describe('App', () => {
       expect(returnUrlFrom(router)).toBe('/operators');
     });
 
-    it.each(['/teams', '/operation-reporting', '/stoppages', '/scrap-rework', '/item-consultation'])(
+    it.each(['/teams', '/operation-reporting', '/batch-reporting', '/stoppages', '/scrap-rework', '/item-consultation'])(
       'should redirect %s to login with the exact returnUrl when not authenticated',
       async url => {
         const harness = await RouterTestingHarness.create();
@@ -292,6 +310,7 @@ describe('App', () => {
       'Menu Principal',
       'Plano Controle CQ',
       'Reporte Operações',
+      'Reporte Batelada',
       'Paradas',
       'Refugo / Retrabalho',
       'Consulta Item',
@@ -310,6 +329,7 @@ describe('App', () => {
     const menuLabels = app.menus.map(item => item.label);
 
     expect(menuLabels).toContain('Reporte Operações');
+    expect(menuLabels).toContain('Reporte Batelada');
     expect(menuLabels).toContain('Paradas');
     expect(menuLabels).toContain('Refugo / Retrabalho');
     expect(menuLabels).toContain('Consulta Item');

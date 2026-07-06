@@ -41,11 +41,10 @@ export const routes: Routes = [
   },
   {
     path: 'scrap-rework',
-    component: SfcPlaceholderPage,
+    component: ReportOperacaoPage,
     canActivate: [authGuard],
     data: {
-      title: 'Refugo / Retrabalho',
-      description: 'Fluxos de apontamento de refugo e retrabalho serao implementados em uma etapa futura.',
+      auxiliaryFlow: 'refugo',
     },
   },
   {

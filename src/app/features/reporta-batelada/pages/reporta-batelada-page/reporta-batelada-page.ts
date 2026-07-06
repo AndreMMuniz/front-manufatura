@@ -5,6 +5,7 @@ import { PoLoadingModule, PoNotificationService, PoPageModule } from '@po-ui/ng-
 
 import { RefugoRegistrado, RefugoRegistradoItem, RefugoSlide } from '../../../report-operacao/components/refugo-slide/refugo-slide';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
+import { OperationalContext } from '../../../shop-floor/models/operational-context';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { BateladaList } from '../../components/batelada-list/batelada-list';
 import { DatasProducao } from '../../components/datas-producao/datas-producao';
@@ -48,7 +49,7 @@ export class ReportaBateladaPage implements OnInit {
   refugoItens: ReadonlyArray<RefugoRegistradoItem> = [];
 
   ngOnInit(): void {
-    const context = this.operationalContextService.currentContext;
+    const context = this.operationalContextService.currentContext ?? this.menuFallbackContext();
 
     if (!context || context.reportType !== 'BATCH') {
       this.feedback = 'Abra Reporta Batelada a partir do Centro de Trabalho.';
@@ -275,5 +276,30 @@ export class ReportaBateladaPage implements OnInit {
 
   private formatTime(date: Date): string {
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+  }
+
+  private menuFallbackContext(): OperationalContext {
+    return {
+      workCenter: {
+        code: 'CT-EXT-01',
+        description: 'Extrusao Linha 01',
+        area: 'Producao',
+        machineGroup: 'Extrusoras',
+        establishment: '101',
+        active: true,
+      },
+      operator: {
+        code: 'OP-001',
+        name: 'Ana Silva',
+        role: 'Operador',
+        active: true,
+      },
+      reportType: 'BATCH',
+      validity: this.formatDate(new Date()),
+    };
+  }
+
+  private formatDate(date: Date): string {
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
   }
 }

@@ -107,7 +107,14 @@ export class ReportaBateladaService {
       return 'Informe quantidade maior que zero para todas as OPs selecionadas.';
     }
 
-    if (this.combineDateAndTime(state.dataFim, state.horaFim).getTime() < this.combineDateAndTime(state.dataInicio, state.horaInicio).getTime()) {
+    const inicio = this.combineDateAndTime(state.dataInicio, state.horaInicio);
+    const fim = this.combineDateAndTime(state.dataFim, state.horaFim);
+
+    if (!inicio || !fim) {
+      return 'Informe datas e horários válidos para reportar.';
+    }
+
+    if (fim.getTime() < inicio.getTime()) {
       return 'Data e hora fim não podem ser anteriores ao início.';
     }
 
@@ -149,10 +156,37 @@ export class ReportaBateladaService {
     return state.itens.filter(item => item.selected);
   }
 
-  private combineDateAndTime(date: Date, time: string): Date {
+  private combineDateAndTime(date: Date | string, time: string): Date | null {
+    const parsedDate = this.toDate(date);
     const [hours = '0', minutes = '0'] = time.split(':');
 
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), Number(hours), Number(minutes));
+    if (!parsedDate || Number(hours) > 23 || Number(minutes) > 59) {
+      return null;
+    }
+
+    return new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate(), Number(hours), Number(minutes));
+  }
+
+  private toDate(value: Date | string): Date | null {
+    if (value instanceof Date) {
+      return value;
+    }
+
+    const brDate = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+
+    if (brDate) {
+      return new Date(Number(brDate[3]), Number(brDate[2]) - 1, Number(brDate[1]));
+    }
+
+    const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+    if (isoDateOnly) {
+      return new Date(Number(isoDateOnly[1]), Number(isoDateOnly[2]) - 1, Number(isoDateOnly[3]));
+    }
+
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private formatTime(date: Date): string {

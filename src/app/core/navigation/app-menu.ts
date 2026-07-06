@@ -17,9 +17,9 @@ const menu = [
     label: 'Produção',
     options: [
       { id: 'iniciar-ordem', label: 'Iniciar Ordem', target: '/operation-reporting', implemented: true },
-      { id: 'iniciar-ordem-batelada', label: 'Iniciar Ordem Batelada', target: '/operation-reporting', implemented: true },
+      { id: 'iniciar-ordem-batelada', label: 'Iniciar Ordem Batelada', target: '/batch-reporting', implemented: true },
       { id: 'reporte-ordem', label: 'Reporte Ordem', target: '/operation-reporting', implemented: true },
-      { id: 'reporte-batelada', label: 'Reporte Batelada', target: '/operation-reporting', implemented: true },
+      { id: 'reporte-batelada', label: 'Reporte Batelada', target: '/batch-reporting', implemented: true },
       { id: 'inicio-de-parada', label: 'Início de Parada', target: '/stoppages', implemented: true },
       { id: 'encerrar-parada', label: 'Encerrar Parada', target: '/stoppages', implemented: true },
       { id: 'parada-programada', label: 'Parada Programada', target: '/stoppages', implemented: true },

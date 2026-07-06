@@ -41,6 +41,36 @@ describe('ReportaBateladaService', () => {
 
     expect(service.validarReporte(state)).toBe('Informe quantidade maior que zero para todas as OPs selecionadas.');
   });
+
+  it('accepts datepicker string dates when validating final report', () => {
+    const state = baseState({
+      estado: EstadoBatelada.ProducaoIniciada,
+      dataInicio: '03/07/2026' as unknown as Date,
+      dataFim: '03/07/2026' as unknown as Date,
+      horaInicio: '08:00',
+      horaFim: '09:00',
+      itens: [
+        { opId: '1', opNumber: 'OP-1', orderNumber: '450001', productDescription: 'Produto A', quantity: 1, selected: true },
+      ],
+    });
+
+    expect(service.validarReporte(state)).toBe('');
+  });
+
+  it('treats ISO date-only strings as local dates when validating final report', () => {
+    const state = baseState({
+      estado: EstadoBatelada.ProducaoIniciada,
+      dataInicio: '2026-07-03T19:05:18.343Z' as unknown as Date,
+      dataFim: '2026-07-03' as unknown as Date,
+      horaInicio: '16:05',
+      horaFim: '23:59',
+      itens: [
+        { opId: '1', opNumber: 'OP-1', orderNumber: '450001', productDescription: 'Produto A', quantity: 1, selected: true },
+      ],
+    });
+
+    expect(service.validarReporte(state)).toBe('');
+  });
 });
 
 function baseState(overrides: Partial<BatchReportState> = {}): BatchReportState {

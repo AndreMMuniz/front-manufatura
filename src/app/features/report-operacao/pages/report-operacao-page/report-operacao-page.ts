@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { PoLoadingModule, PoNotificationService, PoPageModule } from '@po-ui/ng-components';
 
@@ -33,20 +33,26 @@ import { ReporteParadasService } from '../../../reporte-paradas/services/reporte
 export class ReportOperacaoPage {
   @ViewChild(RefugoSlide) private refugoSlide?: RefugoSlide;
 
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly reportOperacaoService = inject(ReportOperacaoService);
   private readonly reporteParadasService = inject(ReporteParadasService);
   private readonly notification = inject(PoNotificationService);
   private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly auxiliaryFlow = this.route.snapshot.data['auxiliaryFlow'];
 
   readonly EstadoOperacao = EstadoOperacao;
+  readonly pageTitle = this.auxiliaryFlow === 'refugo' ? 'Refugo / Retrabalho' : 'Reporta Operação';
 
   estado = EstadoOperacao.SemOP;
   ordem = '';
   op = '';
   split = '';
   operacao: ReportOperacao | null = null;
-  feedback = 'Informe Ordem e OP para consultar a operação.';
+  feedback =
+    this.auxiliaryFlow === 'refugo'
+      ? 'Informe Ordem e OP. Ao iniciar a operação, o painel de Refugo será aberto.'
+      : 'Informe Ordem e OP para consultar a operação.';
   ultimoMotivoRefugo = '';
   refugoItens: ReadonlyArray<RefugoRegistradoItem> = [];
 
@@ -226,8 +232,14 @@ export class ReportOperacaoPage {
             horaFim: this.formatTime(inicio.dataInicio),
           };
           this.estado = EstadoOperacao.OperacaoIniciada;
-          this.feedback = 'Operação iniciada. Informe as quantidades para reportar.';
+          this.feedback =
+            this.auxiliaryFlow === 'refugo'
+              ? 'Operação iniciada. Registre os motivos e quantidades de refugo.'
+              : 'Operação iniciada. Informe as quantidades para reportar.';
           this.notification.success('Operação iniciada.');
+          if (this.auxiliaryFlow === 'refugo') {
+            this.abrirRefugo();
+          }
           this.changeDetector.markForCheck();
         },
         error: () => {

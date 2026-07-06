@@ -28,6 +28,12 @@ const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
     link: '/operation-reporting',
   },
   {
+    label: 'Reporte Batelada',
+    shortLabel: 'Batelada',
+    icon: 'an an-stack',
+    link: '/batch-reporting',
+  },
+  {
     label: 'Paradas',
     shortLabel: 'Paradas',
     icon: 'an an-warning',

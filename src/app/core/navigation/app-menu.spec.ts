@@ -33,9 +33,9 @@ describe('SFC_MENU', () => {
   it('maps pending SFC modules to explicit placeholder routes', () => {
     const expectedTargets = new Map([
       ['iniciar-ordem', '/operation-reporting'],
-      ['iniciar-ordem-batelada', '/operation-reporting'],
+      ['iniciar-ordem-batelada', '/batch-reporting'],
       ['reporte-ordem', '/operation-reporting'],
-      ['reporte-batelada', '/operation-reporting'],
+      ['reporte-batelada', '/batch-reporting'],
       ['inicio-de-parada', '/stoppages'],
       ['encerrar-parada', '/stoppages'],
       ['parada-programada', '/stoppages'],
@@ -78,6 +78,15 @@ describe('SFC_MENU', () => {
     expect(workCenter).toBeDefined();
     expect(workCenter!.implemented).toBe(true);
     expect(workCenter!.target).toBe('/work-center');
+  });
+
+  it('Reporte Batelada is implemented with target /batch-reporting', () => {
+    const producao = SFC_MENU.find(g => g.label === 'Produção');
+    const batchReport = producao?.options.find(o => o.label === 'Reporte Batelada');
+
+    expect(batchReport).toBeDefined();
+    expect(batchReport!.implemented).toBe(true);
+    expect(batchReport!.target).toBe('/batch-reporting');
   });
 
   it('Operador is implemented with target /operators and sits in Administracao', () => {

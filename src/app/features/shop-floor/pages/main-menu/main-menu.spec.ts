@@ -99,6 +99,7 @@ describe('MainMenuPage', () => {
   it.each([
     ['Equipes', '/teams'],
     ['Reporte Operações', '/operation-reporting'],
+    ['Reporte Batelada', '/batch-reporting'],
     ['Reporte Paradas', '/stoppages'],
     ['Apontar Refugo / Retrabalho', '/scrap-rework'],
     ['Consulta Item', '/item-consultation'],
