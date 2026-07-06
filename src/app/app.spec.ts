@@ -302,7 +302,6 @@ describe('App', () => {
       'Reporte Batelada',
       'Paradas',
       'Refugo / Retrabalho',
-      'Consulta Item',
       'Centro de Trabalho',
       'Operador',
       'Equipes',
@@ -321,7 +320,6 @@ describe('App', () => {
     expect(menuLabels).toContain('Reporte Batelada');
     expect(menuLabels).toContain('Paradas');
     expect(menuLabels).toContain('Refugo / Retrabalho');
-    expect(menuLabels).toContain('Consulta Item');
     expect(menuLabels).toContain('Centro de Trabalho');
     expect(menuLabels).toContain('Operador');
     expect(menuLabels).toContain('Equipes');

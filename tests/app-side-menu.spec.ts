@@ -31,7 +31,6 @@ test.describe('menu lateral principal', () => {
       'Reporte Batelada',
       'Paradas',
       'Refugo / Retrabalho',
-      'Consulta Item',
       'Centro de Trabalho',
       'Operador',
       'Equipes',

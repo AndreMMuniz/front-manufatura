@@ -40,12 +40,6 @@ const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
     link: '/scrap-rework',
   },
   {
-    label: 'Consulta Item',
-    shortLabel: 'Item',
-    icon: 'an an-magnifying-glass',
-    link: '/item-consultation',
-  },
-  {
     label: 'Centro de Trabalho',
     shortLabel: 'Centro',
     icon: 'an an-monitor',
