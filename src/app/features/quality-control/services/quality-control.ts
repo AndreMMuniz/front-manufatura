@@ -3,8 +3,8 @@ import { Observable, of } from 'rxjs';
 
 import {
   GenerateInspectionRouteRequest,
+  ProductionOrderOperationsResult,
   ProductionOrderRoute,
-  ProductionOrderRouteRequest,
 } from '../models/production-order-route';
 import { QualityComponentStatus, QualityExam, QualityExamComponent } from '../models/quality-exam';
 import {
@@ -24,21 +24,51 @@ import {
 @Injectable({ providedIn: 'root' })
 export class QualityControlService {
   // API facade: keep the UI bound to these contracts while Datasul endpoints are unavailable.
-  getProductionOrderRoute(request: ProductionOrderRouteRequest): Observable<ProductionOrderRoute> {
+  getProductionOrderOperations(orderNumber: string): Observable<ProductionOrderOperationsResult> {
     return of({
-      routeNumber: '475.956',
-      processDescription: `${request.operationCode} - Extrusao`,
-      currentOrder: request.opNumber,
-      operationCode: request.operationCode,
-      operationDescription: `${request.operationCode} - Extrusao`,
-      split: request.split?.trim() || '1',
-      itemCode: '61035',
-      itemDescription: 'Espacador Cunha 1,5mm',
+      orderNumber,
+      operations: [
+        {
+          operationCode: '10',
+          operationDescription: 'Cortar chapa',
+          split: '1',
+          itemCode: '30907',
+          itemDescription: 'Alavanca Master 75 OP10',
+          processDescription: 'Corte de chapa',
+        },
+        {
+          operationCode: '20',
+          operationDescription: 'Dobrar chapa',
+          split: '1',
+          itemCode: '30907',
+          itemDescription: 'Alavanca Master 75 OP10',
+          processDescription: 'Dobra de chapa',
+        },
+        {
+          operationCode: '30',
+          operationDescription: 'Soldar',
+          split: '1',
+          itemCode: '30907',
+          itemDescription: 'Alavanca Master 75 OP10',
+          processDescription: 'Soldagem',
+        },
+      ],
     });
   }
 
-  generateInspectionRoute(request: GenerateInspectionRouteRequest): Observable<ProductionOrderRoute> {
-    return of(request.route);
+  generateInspectionRoute(
+    request: GenerateInspectionRouteRequest,
+  ): Observable<ProductionOrderRoute> {
+    return of({
+      routeNumber: '475.956',
+      processDescription: request.operation.processDescription,
+      currentOrder: request.orderNumber,
+      operationCode: request.operation.operationCode,
+      operationDescription: `${request.operation.operationCode} - ${request.operation.operationDescription}`,
+      split: request.operation.split?.trim() || '1',
+      itemCode: request.operation.itemCode,
+      itemDescription: request.operation.itemDescription,
+    });
   }
 
   getQualityExams(itemCode: string, operationCode: string): Observable<QualityExam[]> {
@@ -92,8 +122,13 @@ export class QualityControlService {
     ]);
   }
 
-  validateMeasurement(component: QualityExamComponent, measuredValue: number): QualityComponentStatus {
-    return measuredValue >= component.minValue && measuredValue <= component.maxValue ? 'APPROVED' : 'REJECTED';
+  validateMeasurement(
+    component: QualityExamComponent,
+    measuredValue: number,
+  ): QualityComponentStatus {
+    return measuredValue >= component.minValue && measuredValue <= component.maxValue
+      ? 'APPROVED'
+      : 'REJECTED';
   }
 
   validateMeasurementRange(
@@ -141,7 +176,9 @@ export class QualityControlService {
     });
   }
 
-  finishExam(request: { examId: string }): Observable<{ examId: string; success: boolean; finishedAt: Date }> {
+  finishExam(request: {
+    examId: string;
+  }): Observable<{ examId: string; success: boolean; finishedAt: Date }> {
     return of({
       examId: request.examId,
       success: true,
@@ -149,7 +186,9 @@ export class QualityControlService {
     });
   }
 
-  authorizeReactionPlan(request: ReactionPlanAuthorizationRequest): Observable<ReactionPlanAuthorization> {
+  authorizeReactionPlan(
+    request: ReactionPlanAuthorizationRequest,
+  ): Observable<ReactionPlanAuthorization> {
     return of({
       componentId: request.componentId,
       supervisorId: request.supervisorId,
@@ -158,7 +197,9 @@ export class QualityControlService {
     });
   }
 
-  registerComponentResult(request: RegisterComponentResultRequest): Observable<RegisterComponentResultResponse> {
+  registerComponentResult(
+    request: RegisterComponentResultRequest,
+  ): Observable<RegisterComponentResultResponse> {
     return of({
       componentId: request.componentId,
       status: request.result,

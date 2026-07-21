@@ -18,6 +18,58 @@ describe('QualityControlService', () => {
     status: 'PENDING',
   };
 
+  it('returns the operations linked to a production order', async () => {
+    await expect(
+      firstValueFrom(service.getProductionOrderOperations('325571')),
+    ).resolves.toMatchObject({
+      orderNumber: '325571',
+      operations: [
+        {
+          operationCode: '10',
+          operationDescription: 'Cortar chapa',
+        },
+        {
+          operationCode: '20',
+          operationDescription: 'Dobrar chapa',
+        },
+        {
+          operationCode: '30',
+          operationDescription: 'Soldar',
+        },
+      ],
+    });
+  });
+
+  it('generates the inspection route from the selected operation', async () => {
+    const operation = {
+      operationCode: '20',
+      operationDescription: 'Dobrar chapa',
+      split: '1',
+      itemCode: '30907',
+      itemDescription: 'Alavanca Master 75 OP10',
+      processDescription: 'Dobra de chapa',
+    };
+
+    await expect(
+      firstValueFrom(
+        service.generateInspectionRoute({
+          orderNumber: '325571',
+          operation,
+          moveBalance: false,
+        }),
+      ),
+    ).resolves.toEqual({
+      routeNumber: '475.956',
+      processDescription: 'Dobra de chapa',
+      currentOrder: '325571',
+      operationCode: '20',
+      operationDescription: '20 - Dobrar chapa',
+      split: '1',
+      itemCode: '30907',
+      itemDescription: 'Alavanca Master 75 OP10',
+    });
+  });
+
   it('approves values inside tolerance', () => {
     expect(service.validateMeasurement(component, 488)).toBe('APPROVED');
   });

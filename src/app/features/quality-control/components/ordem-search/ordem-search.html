@@ -2,35 +2,21 @@
   <po-input
     name="orderNumber"
     p-label="Ordem"
-    p-placeholder="Ex.: 372635"
+    p-placeholder="Ex.: 325571"
     p-required="true"
     [p-disabled]="disabled"
     [ngModel]="orderNumber"
     (ngModelChange)="orderNumberChange.emit($event)"
   ></po-input>
 
-  <po-input
-    name="opNumber"
-    p-label="OP"
-    p-placeholder="Ex.: 10"
-    p-required="true"
-    [p-disabled]="disabled"
-    [ngModel]="opNumber"
-    (ngModelChange)="opNumberChange.emit($event)"
-  ></po-input>
-
-  <po-input
-    name="split"
-    p-label="Split"
-    p-placeholder="Ex.: 1"
-    [p-disabled]="disabled"
-    [ngModel]="split"
-    (ngModelChange)="splitChange.emit($event)"
-  ></po-input>
-
   <div class="ordem-search__actions">
     <app-scanner-button [disabled]="disabled" (scannerStarted)="scan.emit()"></app-scanner-button>
     <po-button p-label="Limpar" [p-disabled]="disabled" (p-click)="clear.emit()"></po-button>
-    <po-button p-label="Consultar Datasul" p-kind="primary" p-type="submit" [p-disabled]="disabled || !canSearch"></po-button>
+    <po-button
+      p-label="Consultar Ordem"
+      p-kind="primary"
+      p-type="submit"
+      [p-disabled]="disabled || !canSearch"
+    ></po-button>
   </div>
 </form>

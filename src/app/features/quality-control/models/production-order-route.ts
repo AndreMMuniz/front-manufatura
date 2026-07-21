@@ -1,11 +1,20 @@
-export interface ProductionOrderRouteRequest {
-  opNumber: string;
+export interface ProductionOrderOperation {
   operationCode: string;
+  operationDescription: string;
   split?: string;
+  itemCode: string;
+  itemDescription: string;
+  processDescription: string;
+}
+
+export interface ProductionOrderOperationsResult {
+  orderNumber: string;
+  operations: ProductionOrderOperation[];
 }
 
 export interface GenerateInspectionRouteRequest {
-  route: ProductionOrderRoute;
+  orderNumber: string;
+  operation: ProductionOrderOperation;
   moveBalance: boolean;
 }
 

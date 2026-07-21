@@ -6,19 +6,29 @@ import { PoButtonModule, PoPageModule, PoWidgetModule } from '@po-ui/ng-componen
 import { MovimentaSaldoCheckbox } from '../../components/movimenta-saldo-checkbox/movimenta-saldo-checkbox';
 import { OrdemInfoCard } from '../../components/ordem-info-card/ordem-info-card';
 import { OrdemSearch } from '../../components/ordem-search/ordem-search';
-import { ProductionOrderRoute } from '../../models/production-order-route';
+import {
+  ProductionOrderOperation,
+  ProductionOrderRoute,
+} from '../../models/production-order-route';
 import { QualityControlService } from '../../services/quality-control';
 
 @Component({
   selector: 'app-route-generation',
-  imports: [MovimentaSaldoCheckbox, OrdemInfoCard, OrdemSearch, PoButtonModule, PoPageModule, PoWidgetModule],
+  imports: [
+    MovimentaSaldoCheckbox,
+    OrdemInfoCard,
+    OrdemSearch,
+    PoButtonModule,
+    PoPageModule,
+    PoWidgetModule,
+  ],
   templateUrl: './route-generation.html',
   styleUrls: ['./route-generation.css'],
 })
 export class RouteGenerationPage {
   orderNumber = '';
-  opNumber = '';
-  split = '';
+  operations: ProductionOrderOperation[] = [];
+  selectedOperation?: ProductionOrderOperation;
   moveBalance = false;
   productionOrderRoute?: ProductionOrderRoute;
   feedback = '';
@@ -31,11 +41,11 @@ export class RouteGenerationPage {
   ) {}
 
   get canSearchOrder(): boolean {
-    return Boolean(this.orderNumber.trim() && this.opNumber.trim()) && !this.isBusy;
+    return Boolean(this.orderNumber.trim()) && !this.isBusy;
   }
 
   get canGenerateRoute(): boolean {
-    return Boolean(this.productionOrderRoute) && !this.isBusy;
+    return Boolean(this.selectedOperation) && !this.isBusy;
   }
 
   get isBusy(): boolean {
@@ -44,32 +54,33 @@ export class RouteGenerationPage {
 
   searchOrder(): void {
     if (!this.canSearchOrder) {
-      this.feedback = 'Informe Ordem e OP para consultar.';
+      this.feedback = 'Informe a Ordem de Produção para consultar.';
       return;
     }
 
     this.isSearching = true;
     this.feedback = 'Consultando Ordem no Datasul...';
+    this.operations = [];
+    this.selectedOperation = undefined;
     this.productionOrderRoute = undefined;
 
-    this.qualityControlService
-      .getProductionOrderRoute({
-        opNumber: this.orderNumber.trim(),
-        operationCode: this.opNumber.trim(),
-        split: this.split.trim(),
-      })
-      .subscribe({
-        next: route => {
-          this.productionOrderRoute = route;
-          this.isSearching = false;
-          this.feedback = 'Ordem localizada no Datasul.';
-        },
-        error: () => {
-          this.isSearching = false;
-          this.productionOrderRoute = undefined;
-          this.feedback = 'Nao foi possivel consultar a Ordem no Datasul.';
-        },
-      });
+    this.qualityControlService.getProductionOrderOperations(this.orderNumber.trim()).subscribe({
+      next: (result) => {
+        this.orderNumber = result.orderNumber;
+        this.operations = result.operations;
+        this.isSearching = false;
+        this.feedback = this.operations.length
+          ? 'Ordem localizada. Selecione uma operação para gerar o roteiro.'
+          : 'Nenhuma operação foi encontrada para esta Ordem.';
+      },
+      error: () => {
+        this.isSearching = false;
+        this.operations = [];
+        this.selectedOperation = undefined;
+        this.productionOrderRoute = undefined;
+        this.feedback = 'Nao foi possivel consultar a Ordem no Datasul.';
+      },
+    });
   }
 
   scanOrder(): void {
@@ -77,11 +88,34 @@ export class RouteGenerationPage {
       return;
     }
 
-    this.orderNumber = '372635';
-    this.opNumber = '10';
-    this.split = '1';
+    this.orderNumber = '325571';
     this.feedback = 'Leitura por scanner simulada.';
     this.searchOrder();
+  }
+
+  updateOrderNumber(orderNumber: string): void {
+    if (orderNumber !== this.orderNumber) {
+      this.operations = [];
+      this.selectedOperation = undefined;
+      this.productionOrderRoute = undefined;
+      this.feedback = '';
+    }
+
+    this.orderNumber = orderNumber;
+  }
+
+  selectOperation(operation: ProductionOrderOperation): void {
+    if (this.isBusy) {
+      return;
+    }
+
+    this.selectedOperation = operation;
+    this.productionOrderRoute = this.createRoutePreview(operation);
+    this.feedback = `Operação ${operation.operationCode} selecionada.`;
+  }
+
+  isOperationSelected(operation: ProductionOrderOperation): boolean {
+    return this.selectedOperation?.operationCode === operation.operationCode;
   }
 
   clearSearch(): void {
@@ -90,36 +124,42 @@ export class RouteGenerationPage {
     }
 
     this.orderNumber = '';
-    this.opNumber = '';
-    this.split = '';
+    this.operations = [];
+    this.selectedOperation = undefined;
     this.moveBalance = false;
     this.productionOrderRoute = undefined;
     this.feedback = '';
   }
 
   generateRoute(): void {
-    if (!this.productionOrderRoute || !this.canGenerateRoute) {
-      this.feedback = 'Localize uma Ordem valida antes de gerar o roteiro.';
+    if (!this.selectedOperation || !this.canGenerateRoute) {
+      this.feedback = 'Selecione uma operação antes de gerar o roteiro.';
       return;
     }
 
-    const route = this.productionOrderRoute;
+    const operation = this.selectedOperation;
     this.isGenerating = true;
     this.feedback = 'Gerando roteiro de inspecao...';
 
-    this.qualityControlService.generateInspectionRoute({ route, moveBalance: this.moveBalance }).subscribe({
-      next: generatedRoute => {
-        this.isGenerating = false;
-        this.feedback = 'Roteiro gerado.';
-        void this.router.navigate(['/quality-control/inspection'], {
-          state: { productionOrderRoute: generatedRoute },
-        });
-      },
-      error: () => {
-        this.isGenerating = false;
-        this.feedback = 'Nao foi possivel gerar o roteiro.';
-      },
-    });
+    this.qualityControlService
+      .generateInspectionRoute({
+        orderNumber: this.orderNumber,
+        operation,
+        moveBalance: this.moveBalance,
+      })
+      .subscribe({
+        next: (generatedRoute) => {
+          this.isGenerating = false;
+          this.feedback = 'Roteiro gerado.';
+          void this.router.navigate(['/quality-control/inspection'], {
+            state: { productionOrderRoute: generatedRoute },
+          });
+        },
+        error: () => {
+          this.isGenerating = false;
+          this.feedback = 'Nao foi possivel gerar o roteiro.';
+        },
+      });
   }
 
   goBack(): void {
@@ -132,5 +172,18 @@ export class RouteGenerationPage {
     if (!this.isBusy) {
       void this.router.navigate(['/quality-control']);
     }
+  }
+
+  private createRoutePreview(operation: ProductionOrderOperation): ProductionOrderRoute {
+    return {
+      routeNumber: '',
+      processDescription: operation.processDescription,
+      currentOrder: this.orderNumber,
+      operationCode: operation.operationCode,
+      operationDescription: `${operation.operationCode} - ${operation.operationDescription}`,
+      split: operation.split ?? '',
+      itemCode: operation.itemCode,
+      itemDescription: operation.itemDescription,
+    };
   }
 }

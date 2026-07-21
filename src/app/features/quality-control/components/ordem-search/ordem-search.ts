@@ -13,14 +13,10 @@ import { ScannerButton } from '../scanner-button/scanner-button';
 })
 export class OrdemSearch {
   @Input() orderNumber = '';
-  @Input() opNumber = '';
-  @Input() split = '';
   @Input() disabled = false;
   @Input() canSearch = false;
 
   @Output() orderNumberChange = new EventEmitter<string>();
-  @Output() opNumberChange = new EventEmitter<string>();
-  @Output() splitChange = new EventEmitter<string>();
   @Output() search = new EventEmitter<void>();
   @Output() scan = new EventEmitter<void>();
   @Output() clear = new EventEmitter<void>();
