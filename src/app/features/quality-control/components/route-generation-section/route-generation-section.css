@@ -1,9 +1,6 @@
 .route-generation {
   display: grid;
   gap: var(--app-space-lg, 16px);
-  margin-inline: auto;
-  max-width: 600px;
-  width: 100%;
 }
 .route-generation__header { display: flex; }
 .route-generation__brand { aspect-ratio: 3.24; flex: 0 0 128px; overflow: hidden; position: relative; }
