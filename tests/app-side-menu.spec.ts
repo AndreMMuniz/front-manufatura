@@ -5,6 +5,17 @@ const credentials = {
   password: 'mock123',
 };
 
+const modules = [
+  { label: 'Plano Controle CQ', route: '/quality-control' },
+  { label: 'Reporte Operações', route: '/operation-reporting' },
+  { label: 'Reporte Batelada', route: '/batch-reporting' },
+  { label: 'Paradas', route: '/stoppages' },
+  { label: 'Refugo / Retrabalho', route: '/scrap-rework' },
+  { label: 'Centro de Trabalho', route: '/work-center' },
+  { label: 'Operador', route: '/operators' },
+  { label: 'Equipes', route: '/teams' },
+] as const;
+
 async function login(page: import('@playwright/test').Page) {
   await page.goto('/login');
   await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
@@ -116,5 +127,19 @@ test.describe('menu lateral principal', () => {
     await login(page);
 
     await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
+  });
+
+  test('oferece retorno ao Menu Principal em todas as telas dos módulos', async ({ page }) => {
+    await login(page);
+
+    for (const { label, route } of modules) {
+      await page.getByRole('menuitem', { name: label }).click();
+      await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}$`));
+      await expect(page.getByTestId('main-menu-return')).toBeVisible();
+    }
+
+    await page.getByTestId('main-menu-return').click();
+    await expect(page).toHaveURL(/\/menu$/);
+    await expect(page.getByTestId('main-menu-return')).toHaveCount(0);
   });
 });

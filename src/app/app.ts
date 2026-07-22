@@ -1,10 +1,16 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, skip } from 'rxjs';
 
-import { PoMenuItem, PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
+import {
+  PoIconModule,
+  PoMenuItem,
+  PoMenuModule,
+  PoPageModule,
+  PoToolbarModule,
+} from '@po-ui/ng-components';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
@@ -18,7 +24,15 @@ const HOME_MENU: PoMenuItem = {
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, RouterOutlet, PoToolbarModule, PoMenuModule, PoPageModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    RouterOutlet,
+    PoIconModule,
+    PoToolbarModule,
+    PoMenuModule,
+    PoPageModule,
+  ],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,6 +72,10 @@ export class App {
   get toolbarTitle(): string {
     const user = this.authSession.currentUser;
     return user ? `Plano de Controle CQ - ${user.login}` : 'Plano de Controle CQ';
+  }
+
+  get showMainMenuReturn(): boolean {
+    return this.isAuthenticated && this.router.url.split(/[?#]/)[0] !== '/menu';
   }
 
   get menus(): Array<PoMenuItem> {

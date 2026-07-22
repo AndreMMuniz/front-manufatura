@@ -8,6 +8,18 @@
   }
 
   <main class="app-shell__content" data-testid="app-content">
+    @if (showMainMenuReturn) {
+      <a
+        class="app-shell__main-menu-return"
+        routerLink="/menu"
+        data-testid="main-menu-return"
+        aria-label="Voltar ao Menu Principal"
+      >
+        <po-icon p-icon="an an-house-line" aria-hidden="true" />
+        <span>Menu Principal</span>
+      </a>
+    }
+
     <router-outlet />
   </main>
 </div>

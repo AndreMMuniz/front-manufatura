@@ -11,3 +11,40 @@
   min-width: 0;
   background: var(--app-color-background);
 }
+
+.app-shell__main-menu-return {
+  position: fixed;
+  right: var(--app-space-lg);
+  bottom: var(--app-space-lg);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-sm);
+  min-height: var(--app-touch-target);
+  box-sizing: border-box;
+  padding: var(--app-space-sm) var(--app-space-md);
+  border: 1px solid var(--app-color-primary-dark);
+  border-radius: var(--app-radius);
+  background: var(--app-color-primary);
+  color: var(--app-color-surface);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+}
+
+.app-shell__main-menu-return:hover {
+  background: var(--app-color-primary-dark);
+}
+
+.app-shell__main-menu-return:focus-visible {
+  outline: 2px solid var(--color-action-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  .app-shell__main-menu-return {
+    right: var(--app-space-md);
+    bottom: var(--app-space-md);
+  }
+}
