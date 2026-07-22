@@ -13,8 +13,8 @@ const modules = [
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
-  await page.getByRole('textbox', { name: 'Login' }).fill('operador');
-  await page.getByRole('textbox', { name: 'Senha' }).fill('mock123');
+  await page.getByRole('textbox', { name: 'Login' }).fill(process.env['APP_LOGIN_USER'] ?? 'operador');
+  await page.getByRole('textbox', { name: 'Senha' }).fill(process.env['APP_LOGIN_PASSWORD'] ?? 'mock123');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/menu$/);
 }
@@ -34,6 +34,9 @@ test.describe('Home de navegação', () => {
     const cards = navigation.getByRole('link');
     await expect(cards).toHaveCount(8);
     await expect(cards).toHaveText(modules.map(module => module.label));
+    expect(
+      await cards.first().evaluate(element => getComputedStyle(element.closest('.po-page-content')!).opacity),
+    ).toBe('1');
     await expect(navigation.getByText('Sair', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('menuitem', { name: 'Menu Principal' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Sair' })).toBeVisible();

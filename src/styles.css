@@ -63,3 +63,9 @@ body {
 po-page-default {
   display: block;
 }
+
+/* PO UI 21.21 can leave page content at inline opacity: 0 after its
+   asynchronous height calculation, making rendered controls invisible. */
+.po-page-content {
+  opacity: 1 !important;
+}
