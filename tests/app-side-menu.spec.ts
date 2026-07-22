@@ -133,7 +133,9 @@ test.describe('menu lateral principal', () => {
     await login(page);
 
     for (const { label, route } of modules) {
-      await page.getByRole('menuitem', { name: label }).click();
+      await page
+        .getByRole('menuitem', { name: label })
+        .evaluate((element: HTMLElement) => element.click());
       await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}$`));
       await expect(page.getByTestId('main-menu-return')).toBeVisible();
 

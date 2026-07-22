@@ -14,6 +14,7 @@ describe('AuthSessionService', () => {
   let service: AuthSessionService;
 
   beforeEach(() => {
+    sessionStorage.clear();
     service = new AuthSessionService();
   });
 
@@ -38,6 +39,33 @@ describe('AuthSessionService', () => {
     expect(service.isAuthenticated()).toBe(false);
     expect(service.currentUser).toBeNull();
     expect(service.token).toBeNull();
+  });
+
+  it('should restore the authenticated session after the application reloads', () => {
+    service.startSession(USER, 'token-123');
+
+    const reloadedService = new AuthSessionService();
+
+    expect(reloadedService.isAuthenticated()).toBe(true);
+    expect(reloadedService.currentUser).toEqual(USER);
+    expect(reloadedService.token).toBe('token-123');
+  });
+
+  it('should remove the persisted session on logout', () => {
+    service.startSession(USER, 'token-123');
+
+    service.logout();
+
+    expect(new AuthSessionService().isAuthenticated()).toBe(false);
+  });
+
+  it('should discard malformed persisted session data', () => {
+    sessionStorage.setItem('plano-de-controle.auth-session', '{invalid-json');
+
+    const reloadedService = new AuthSessionService();
+
+    expect(reloadedService.isAuthenticated()).toBe(false);
+    expect(sessionStorage.getItem('plano-de-controle.auth-session')).toBeNull();
   });
 
   it('should emit session changes through session$', async () => {
