@@ -13,7 +13,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, Observable, of, tap } from 'rxjs';
 
-import { PoButtonModule, PoDialogService, PoFieldModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
 
 import { SaveMeasurementResponse } from '../../models/inspection-record';
 import { QualityControlService } from '../../services/quality-control';
@@ -22,7 +22,7 @@ import { OperatorService } from '../../../shop-floor/services/operator';
 
 @Component({
   selector: 'app-exam-entry-panel',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoProgressModule, PoWidgetModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule],
   templateUrl: './exam-entry-panel.html',
   styleUrls: ['./exam-entry-panel.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,7 +38,7 @@ export class ExamEntryPanel implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
 
   validationMessage = '';
-  errorTitle = '';
+  alertTitle = '';
 
   ngAfterViewInit(): void {
     this.panelTitle?.nativeElement.focus();
@@ -97,7 +97,7 @@ export class ExamEntryPanel implements AfterViewInit {
     if (validation.valid === false) {
       this.validationMessage = validation.message;
       if (validation.reason === 'OUT_OF_RANGE') {
-        this.errorTitle = 'Erro';
+        this.alertTitle = 'Alerta';
         this.workflow.markComponentOutOfRange(characteristic.id);
       } else {
         this.workflow.clearComponentOutOfRange(characteristic.id);
@@ -172,7 +172,7 @@ export class ExamEntryPanel implements AfterViewInit {
       });
   }
 
-  private clearValidation(): void { this.validationMessage = ''; this.errorTitle = ''; }
+  private clearValidation(): void { this.validationMessage = ''; this.alertTitle = ''; }
   private parseNumber(value: string): number | null {
     if (!value.trim()) return null;
     const parsed = Number(value.replace(',', '.'));

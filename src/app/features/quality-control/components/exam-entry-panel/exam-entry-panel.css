@@ -6,7 +6,9 @@
 .exam-entry__exam, .exam-entry__characteristic { border: 1px solid var(--app-color-border, #dadedf); border-radius: 4px; display: grid; gap: 6px; padding: 12px; }
 .exam-entry__feedback { background: #e5f2fb; border-left: 4px solid #0c6b77; margin: 0; padding: 12px; }
 .exam-entry__form { display: grid; gap: 16px; }
-.exam-entry__error { background: var(--app-color-error-soft, #fdecea); border: 1px solid var(--app-color-error, #b71c1c); color: var(--app-color-error, #b71c1c); display: grid; gap: 6px; margin-bottom: 12px; padding: 12px; }
+.exam-entry__alert { align-items: flex-start; background: var(--app-color-error-soft, #fdecea); border: 1px solid var(--app-color-error, #b71c1c); color: var(--app-color-error, #b71c1c); display: flex; gap: 12px; margin-bottom: 12px; padding: 12px; }
+.exam-entry__alert-icon { flex: 0 0 auto; font-size: 1.5rem; line-height: 1; }
+.exam-entry__alert-content { display: grid; gap: 6px; }
 .exam-entry__validation { background: var(--app-color-warning-soft, #fff8e1); border-left: 4px solid var(--app-color-warning, #f9a825); margin: 0; padding: 12px; }
 .exam-entry__navigation, .exam-entry__footer { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .exam-entry__footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }

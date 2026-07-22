@@ -76,14 +76,19 @@ describe('ExamEntryPanel', () => {
     expect(state.isDirty()).toBe(true);
   });
 
-  it('preserves out-of-range values and shows the exact error', async () => {
+  it('preserves out-of-range values and shows a red alert with the PO UI warning icon', async () => {
     component.updateMinimum('9');
     component.updateMaximum('20');
 
     await firstValueFrom(component.saveCurrentMeasurement());
 
-    expect(component.errorTitle).toBe('Erro');
+    fixture.detectChanges();
+
+    const alert = fixture.nativeElement.querySelector('.exam-entry__alert') as HTMLElement;
+    expect(component.alertTitle).toBe('Alerta');
     expect(component.validationMessage).toBe('Valores fora da variação permitida');
+    expect(alert.textContent).toContain('Alerta');
+    expect(alert.querySelector('po-icon')?.getAttribute('p-icon')).toBe('ICON_WARNING');
     expect(component.minimum).toBe('9');
     expect(state.isComponentOutOfRange('b-10')).toBe(true);
   });
