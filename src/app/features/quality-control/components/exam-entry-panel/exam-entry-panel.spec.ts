@@ -113,6 +113,7 @@ describe('ExamEntryPanel', () => {
 
     expect(saveSpy).toHaveBeenCalledWith(expect.objectContaining({ examId: 'exam-b', componentId: 'b-10', operatorId: 'OP-001' }));
     expect(state.componentById('b-10')?.measurement?.minimum).toBe(10);
+    expect(state.componentById('b-10')?.measurement?.savedAt).toBeInstanceOf(Date);
     expect(state.isDirty()).toBe(false);
   });
 

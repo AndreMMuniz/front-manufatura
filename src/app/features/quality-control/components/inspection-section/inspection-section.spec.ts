@@ -67,6 +67,37 @@ describe('InspectionSection', () => {
     expect(statuses[1].textContent).toContain('Pendente');
   });
 
+  it('shows each approved component saved date and time in Brazilian format', () => {
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 1,
+      maximum: 2,
+      status: 'APPROVED',
+      savedAt: new Date(2026, 6, 22, 14, 5),
+    });
+    state.applyMeasurement('exam-a', 'a-20', {
+      minimum: 3,
+      maximum: 4,
+      status: 'APPROVED',
+      savedAt: new Date(2026, 6, 22, 14, 17),
+    });
+    fixture.detectChanges();
+
+    const statuses = fixture.nativeElement.querySelectorAll('.inspection-process__component-status');
+    expect(statuses[0].textContent).toContain('Aprovado');
+    expect(statuses[0].textContent).toContain('Apontado em 22/07/2026 14:05');
+    expect(statuses[1].textContent).toContain('Apontado em 22/07/2026 14:17');
+  });
+
+  it('does not show an appointment time for a component without a saved date', () => {
+    state.applyMeasurement('exam-a', 'a-10', { minimum: 1, maximum: 2, status: 'APPROVED' });
+    fixture.detectChanges();
+
+    const components = fixture.nativeElement.querySelectorAll('.inspection-process__component');
+    expect(components[0].textContent).toContain('Aprovado');
+    expect(components[0].querySelector('.inspection-process__component-time')).toBeNull();
+    expect(components[1].querySelector('.inspection-process__component-time')).toBeNull();
+  });
+
   it('asks PO-UI confirmation before discarding the current component draft', () => {
     state.applyMeasurement('exam-a', 'a-10', { minimum: 1, maximum: 2, status: 'APPROVED' });
     state.updateDraft('a-10', { observation: 'alterada' });

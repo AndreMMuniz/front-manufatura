@@ -85,4 +85,15 @@ export class InspectionSection {
     if (this.workflow.isComponentOutOfRange(component.id)) return 'Valores fora da variação permitida';
     return this.isSelected(component) ? 'Em inspeção' : 'Pendente';
   }
+
+  measurementSavedAt(component: QualityExamComponent): string | null {
+    const savedAt = component.measurement?.savedAt;
+    if (!savedAt) return null;
+
+    const date = savedAt instanceof Date ? savedAt : new Date(savedAt);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const pad = (value: number) => value.toString().padStart(2, '0');
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
 }

@@ -123,21 +123,21 @@ describe('QualityControlService', () => {
   });
 
   it('persists a partial min max measurement through the service boundary', async () => {
-    await expect(
-      firstValueFrom(
-        service.saveMeasurement({
-          examId: '61035-10-500517',
-          componentId: component.id,
-          measurement: {
-            minimum: 486,
-            maximum: 489,
-            observation: 'Medição conferida',
-            status: 'APPROVED',
-          },
-          operatorId: 'OP-001',
-        }),
-      ),
-    ).resolves.toMatchObject({
+    const result = await firstValueFrom(
+      service.saveMeasurement({
+        examId: '61035-10-500517',
+        componentId: component.id,
+        measurement: {
+          minimum: 486,
+          maximum: 489,
+          observation: 'Medição conferida',
+          status: 'APPROVED',
+        },
+        operatorId: 'OP-001',
+      }),
+    );
+
+    expect(result).toMatchObject({
       componentId: component.id,
       measurement: {
         minimum: 486,
@@ -147,5 +147,6 @@ describe('QualityControlService', () => {
         operatorId: 'OP-001',
       },
     });
+    expect(result.measurement.savedAt).toBeInstanceOf(Date);
   });
 });
