@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
@@ -48,8 +49,13 @@ describe('SfcPlaceholderPage', () => {
 
   it('renders the title, pending message and route description', () => {
     const native = fixture.nativeElement as HTMLElement;
+    const pageTitle = fixture.debugElement.query(By.css('po-page-default')).componentInstance.title;
+    const widgetTitle = fixture.debugElement.query(By.css('po-widget')).componentInstance.title;
 
     expect(native.textContent).toContain('Reporte de Operações');
+    expect(native.textContent?.match(/Reporte de Operações/g)).toHaveLength(1);
+    expect(pageTitle).toBe('Reporte de Operações');
+    expect(widgetTitle).toBeFalsy();
     expect(native.textContent).toContain('Este módulo está pendente de implementação');
     expect(native.textContent).toContain('Fluxos de reporte de produção serão implementados em uma etapa futura.');
   });

@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -13,6 +13,7 @@ describe('RouteGenerationSection', () => {
   let service: QualityControlService;
   let state: QualityControlWorkflowState;
   let component: RouteGenerationSection;
+  let fixture: ComponentFixture<RouteGenerationSection>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -23,10 +24,22 @@ describe('RouteGenerationSection', () => {
         { provide: PoDialogService, useValue: { confirm: vi.fn() } },
       ],
     }).compileComponents();
-    const fixture = TestBed.createComponent(RouteGenerationSection);
+    fixture = TestBed.createComponent(RouteGenerationSection);
     component = fixture.componentInstance;
     service = TestBed.inject(QualityControlService);
     state = TestBed.inject(QualityControlWorkflowState);
+  });
+
+  it('keeps the brand without repeating the screen title', () => {
+    fixture.detectChanges();
+    const native = fixture.nativeElement as HTMLElement;
+    const section = native.querySelector('section.route-generation');
+    const logo = native.querySelector<HTMLImageElement>('.route-generation__brand img');
+
+    expect(section?.getAttribute('aria-label')).toBe('Geração do roteiro de inspeção');
+    expect(logo?.alt).toBe('Cortag — Revolution Tools');
+    expect(native.textContent).not.toContain('Plano de Controle CQ');
+    expect(native.textContent).toContain('Localização da Ordem');
   });
 
   it('generates inline and loads exams exactly once without router navigation', () => {

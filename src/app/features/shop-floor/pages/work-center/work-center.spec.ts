@@ -95,8 +95,14 @@ describe('WorkCenterPage', () => {
 
   it('renders the operational fields and no local back button', () => {
     const native = fixture.nativeElement as HTMLElement;
+    const pageTitle = fixture.debugElement.query(By.css('po-page-default')).componentInstance.title;
+    const widgetTitles = fixture.debugElement.queryAll(By.css('po-widget'))
+      .map(widget => widget.componentInstance.title);
 
     expect(native.textContent).toContain('Centro de Trabalho');
+    expect(pageTitle).toBe('Centro de Trabalho');
+    expect(widgetTitles).not.toContain('Centro de Trabalho');
+    expect(widgetTitles).toEqual(expect.arrayContaining(['Reporte', 'Operador']));
     expect(native.textContent).toContain('Reporte por');
     expect(native.textContent).toContain('Operador');
     expect(native.textContent).toContain('Validade');
