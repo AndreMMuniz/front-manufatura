@@ -1,9 +1,19 @@
-<div class="po-wrapper app-shell">
+<div class="app-shell">
   @if (isAuthenticated) {
+    <ng-template #sessionActionsIcon>
+      <button
+        type="button"
+        class="app-shell__session-actions-trigger"
+        aria-label="Abrir ações da sessão"
+      >
+        <po-icon p-icon="an an-sign-out" aria-hidden="true" />
+      </button>
+    </ng-template>
+
     <po-toolbar
       [p-title]="toolbarTitle"
       [p-actions]="toolbarActions"
-      p-actions-icon="an an-sign-out"
+      [p-actions-icon]="sessionActionsIcon"
     ></po-toolbar>
   }
 

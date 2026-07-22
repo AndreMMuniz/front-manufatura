@@ -25,18 +25,28 @@ async function login(page: Page): Promise<void> {
 }
 
 async function expectFullWidthWithoutOverflow(page: Page): Promise<void> {
-  const dimensions = await page.getByTestId('app-content').evaluate(element => {
-    const box = element.getBoundingClientRect();
+  const dimensions = await page.evaluate(() => {
+    const contentBox = document.querySelector<HTMLElement>('[data-testid="app-content"]')?.getBoundingClientRect();
+    const toolbarBox = document.querySelector<HTMLElement>('po-toolbar .po-toolbar')?.getBoundingClientRect();
+
+    if (!contentBox || !toolbarBox) {
+      throw new Error('Shell autenticado não encontrado.');
+    }
+
     return {
-      left: box.left,
-      right: box.right,
+      contentLeft: contentBox.left,
+      contentRight: contentBox.right,
+      toolbarLeft: toolbarBox.left,
+      toolbarRight: toolbarBox.right,
       viewportWidth: document.documentElement.clientWidth,
       hasOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
     };
   });
 
-  expect(dimensions.left).toBe(0);
-  expect(Math.abs(dimensions.right - dimensions.viewportWidth)).toBeLessThanOrEqual(1);
+  expect(dimensions.contentLeft).toBe(0);
+  expect(Math.abs(dimensions.contentRight - dimensions.viewportWidth)).toBeLessThanOrEqual(1);
+  expect(dimensions.toolbarLeft).toBe(0);
+  expect(Math.abs(dimensions.toolbarRight - dimensions.viewportWidth)).toBeLessThanOrEqual(1);
   expect(dimensions.hasOverflow).toBe(false);
 }
 
@@ -101,7 +111,10 @@ test.describe('shell autenticado sem menu lateral', () => {
   test('encerra a sessão pela ação Sair do toolbar na Home', async ({ page }) => {
     await login(page);
 
-    await page.locator('po-toolbar-actions .po-toolbar-actions').click();
+    const sessionActions = page.getByRole('button', { name: 'Abrir ações da sessão' });
+    await sessionActions.focus();
+    await expect(sessionActions).toBeFocused();
+    await page.keyboard.press('Enter');
     const logoutAction = page.getByText('Sair', { exact: true });
     await expect(logoutAction).toBeVisible();
     await logoutAction.click();

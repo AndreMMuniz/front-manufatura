@@ -10,6 +10,24 @@
   background: var(--app-color-background);
 }
 
+.app-shell__session-actions-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--app-touch-target);
+  min-height: var(--app-touch-target);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.app-shell__session-actions-trigger:focus-visible {
+  outline: 2px solid var(--color-action-focus);
+  outline-offset: 2px;
+}
+
 .app-shell__main-menu-bar {
   display: flex;
   justify-content: flex-start;

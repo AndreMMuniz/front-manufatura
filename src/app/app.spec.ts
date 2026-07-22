@@ -334,6 +334,9 @@ describe('App', () => {
       type: 'danger',
     });
     expect(fixture.nativeElement.querySelector('po-toolbar-actions')).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Abrir ações da sessão"]'),
+    ).not.toBeNull();
   });
 
   it('should redirect to login when the shell logout clears the session', async () => {

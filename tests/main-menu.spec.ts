@@ -39,7 +39,7 @@ test.describe('Home de navegação', () => {
     ).toBe('1');
     await expect(navigation.getByText('Sair', { exact: true })).toHaveCount(0);
     await expect(page.locator('po-menu')).toHaveCount(0);
-    await expect(page.locator('po-toolbar-actions')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Abrir ações da sessão' })).toBeVisible();
   });
 
   test('cada cartão navega para seu destino', async ({ page }) => {
