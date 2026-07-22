@@ -3,7 +3,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { PoButtonModule, PoDialogService, PoWidgetModule } from '@po-ui/ng-components';
 
-import { MovimentaSaldoCheckbox } from '../movimenta-saldo-checkbox/movimenta-saldo-checkbox';
 import { OrdemInfoCard } from '../ordem-info-card/ordem-info-card';
 import { OrdemSearch } from '../ordem-search/ordem-search';
 import { ProductionOrderOperation } from '../../models/production-order-route';
@@ -12,7 +11,7 @@ import { QualityControlWorkflowState } from '../../services/quality-control-work
 
 @Component({
   selector: 'app-route-generation-section',
-  imports: [MovimentaSaldoCheckbox, OrdemInfoCard, OrdemSearch, PoButtonModule, PoWidgetModule],
+  imports: [OrdemInfoCard, OrdemSearch, PoButtonModule, PoWidgetModule],
   templateUrl: './route-generation-section.html',
   styleUrls: ['./route-generation-section.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

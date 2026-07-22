@@ -48,13 +48,6 @@
       <po-widget p-title="Dados da Ordem">
         <app-ordem-info-card [route]="workflow.route()"></app-ordem-info-card>
       </po-widget>
-      <po-widget p-title="Configuração da Inspeção">
-        <app-movimenta-saldo-checkbox
-          [moveBalance]="workflow.moveBalance()"
-          (moveBalanceChange)="workflow.moveBalance.set($event)"
-          [disabled]="workflow.isBusy()"
-        ></app-movimenta-saldo-checkbox>
-      </po-widget>
       <div class="route-generation__primary-action">
         <po-button p-label="Gerar Roteiro" p-kind="primary" [p-disabled]="!canGenerateRoute" (p-click)="generateRoute()"></po-button>
       </div>
