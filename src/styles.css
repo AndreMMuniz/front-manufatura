@@ -64,9 +64,9 @@ po-page-default {
   display: block;
 }
 
-/* PO UI 21.21 can leave page content at its initial inline height and opacity
-   when the asynchronous viewport calculation does not complete. */
+/* PO UI 21.21 can leave page content transparent when the asynchronous
+   viewport calculation does not complete. Keep its calculated height so the
+   internal scroll area still accounts for the toolbar and page header. */
 .po-page-content {
-  height: auto !important;
   opacity: 1 !important;
 }
