@@ -58,6 +58,14 @@ describe('ExamEntryPanel', () => {
     expect(fixture.nativeElement.textContent).toContain('Paquímetro');
   });
 
+  it('shows the requested title in the measurement widget', () => {
+    fixture.detectChanges();
+
+    const measurementWidget = fixture.nativeElement.querySelectorAll('po-widget')[1] as HTMLElement;
+
+    expect(measurementWidget.querySelector('.po-widget-text')?.textContent?.trim()).toBe('Status/Medidas encontradas');
+  });
+
   it('uses the exam that owns the selected component and sanitizes numeric drafts', () => {
     component.updateMinimum('1x2,5mm');
     component.updateMaximum('20.0x');
