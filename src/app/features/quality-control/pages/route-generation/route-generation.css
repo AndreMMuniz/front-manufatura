@@ -13,16 +13,19 @@
 }
 
 .route-generation__brand {
-  align-items: center;
-  background: #c8102e;
-  border-radius: 4px;
-  color: #ffffff;
-  display: flex;
-  font-size: 1rem;
-  font-weight: 700;
-  height: 48px;
-  justify-content: center;
-  min-width: 112px;
+  aspect-ratio: 3.24;
+  flex: 0 0 128px;
+  overflow: hidden;
+  position: relative;
+}
+
+.route-generation__brand img {
+  height: auto;
+  left: -20%;
+  max-width: none;
+  position: absolute;
+  top: -86%;
+  width: 144%;
 }
 
 .route-generation__eyebrow {

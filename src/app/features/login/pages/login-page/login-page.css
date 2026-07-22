@@ -19,14 +19,19 @@
 }
 
 .login-page__logo {
-  min-width: 180px;
-  border: 3px solid var(--app-color-primary);
-  color: var(--app-color-primary);
-  padding: 14px 24px;
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1;
+  aspect-ratio: 3.24;
+  overflow: hidden;
+  position: relative;
+  width: min(100%, 280px);
+}
+
+.login-page__logo img {
+  height: auto;
+  left: -20%;
+  max-width: none;
+  position: absolute;
+  top: -86%;
+  width: 144%;
 }
 
 .login-page__header h1 {
