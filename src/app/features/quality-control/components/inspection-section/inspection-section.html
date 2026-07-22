@@ -10,7 +10,12 @@
   @if (workflow.exams().length > 0) {
     <div class="inspection-process__exam-strip" aria-label="Exames do roteiro">
       @for (exam of workflow.exams(); track exam.id) {
-        <div><span>Exame</span><strong>{{ exam.code }}</strong><small>Versão {{ exam.version }}</small></div>
+        <div>
+          <span>Exame</span><strong>{{ exam.code }}</strong>
+          <small>Versão {{ exam.version }}</small>
+          <small>Frequência: {{ exam.frequency }}</small>
+          <small>Amostra: {{ exam.sample }}</small>
+        </div>
       }
     </div>
   }

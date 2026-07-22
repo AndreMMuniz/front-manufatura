@@ -8,8 +8,8 @@ async function login(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/quality-control$/);
 }
 
-test.describe('fluxo de Ordem do Plano Controle CQ', () => {
-  test('consulta a Ordem, seleciona uma operação e gera o roteiro', async ({ page }) => {
+test.describe('workspace unificado do Plano Controle CQ', () => {
+  test('mantém contexto, inspeção e digitação na mesma URL e salva uma medição', async ({ page }) => {
     await login(page);
 
     await expect(page.getByRole('textbox', { name: 'Ordem' })).toBeVisible();
@@ -33,19 +33,43 @@ test.describe('fluxo de Ordem do Plano Controle CQ', () => {
 
     await page.getByRole('button', { name: 'Gerar Roteiro' }).click();
 
-    await expect(page).toHaveURL(/\/quality-control\/inspection$/);
+    await expect(page).toHaveURL(/\/quality-control$/);
     await expect(
       page.getByRole('heading', { name: 'Execução do roteiro de inspeção' }),
     ).toBeVisible();
     await expect(page.getByText('500517')).toBeVisible();
-    await expect(page.getByText('Frequência', { exact: true })).toBeVisible();
-    await expect(page.getByText('2', { exact: true })).toBeVisible();
-    await expect(page.getByText('Amostra', { exact: true })).toBeVisible();
-    await expect(page.getByText('1 pc', { exact: true })).toBeVisible();
+    await expect(page.getByText('Frequência: 2')).toBeVisible();
+    await expect(page.getByText('Amostra: 1 pc')).toBeVisible();
+    await expect(page.getByText('325571', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Digitar medição' }).click();
+    await expect(page.getByRole('heading', { name: 'Registro das medições' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Execução do roteiro de inspeção' })).toBeVisible();
+    await expect(page).toHaveURL(/\/quality-control$/);
+
+    const minimum = page.getByRole('textbox', { name: 'Min' });
+    const maximum = page.getByRole('textbox', { name: 'Max' });
+    await minimum.fill('484');
+    await maximum.fill('490');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByRole('alert')).toContainText('Valores fora da variação permitida');
+    await expect(minimum).toHaveValue('484');
+    await expect(maximum).toHaveValue('490');
+
+    await minimum.fill('485');
+    await maximum.fill('491');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByText('Medição salva.')).toBeVisible();
+    await expect(page.getByText('1 de 3 componentes concluídos')).toBeVisible();
+    await expect(page).toHaveURL(/\/quality-control$/);
   });
 
-  test('mantém a seleção de operações utilizável em viewport móvel', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+  for (const viewport of [
+    { name: 'móvel', width: 390, height: 844 },
+    { name: 'tablet', width: 1024, height: 768 },
+  ]) {
+    test(`não cria overflow horizontal em viewport ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await login(page);
 
     await page.getByRole('textbox', { name: 'Ordem' }).fill('325571');
@@ -54,10 +78,13 @@ test.describe('fluxo de Ordem do Plano Controle CQ', () => {
 
     await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Gerar Roteiro' }).click();
+    await page.getByRole('button', { name: 'Digitar medição' }).click();
 
     const hasHorizontalOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
     expect(hasHorizontalOverflow).toBe(false);
-  });
+    });
+  }
 });

@@ -28,7 +28,9 @@ export class RouteGenerationSection {
   }
 
   get canGenerateRoute(): boolean {
-    return Boolean(this.workflow.selectedOperation()) && !this.workflow.isBusy();
+    return Boolean(this.workflow.selectedOperation())
+      && !this.workflow.route()?.routeNumber
+      && !this.workflow.isBusy();
   }
 
   searchOrder(): void {
