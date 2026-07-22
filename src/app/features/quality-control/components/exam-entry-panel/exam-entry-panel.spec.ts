@@ -16,6 +16,7 @@ describe('ExamEntryPanel', () => {
   let state: QualityControlWorkflowState;
   let service: QualityControlService;
   let component: ExamEntryPanel;
+  const confirm = vi.fn();
 
   const route: ProductionOrderRoute = { routeNumber: '1', processDescription: 'P', currentOrder: '10', operationCode: '10', operationDescription: '10 - P', split: '1', itemCode: 'I', itemDescription: 'Item' };
   const exams: QualityExam[] = [
@@ -29,13 +30,14 @@ describe('ExamEntryPanel', () => {
   ];
 
   beforeEach(async () => {
+    confirm.mockReset();
     await TestBed.configureTestingModule({
       imports: [ExamEntryPanel],
       providers: [
         QualityControlWorkflowState,
         QualityControlService,
         OperatorService,
-        { provide: PoDialogService, useValue: { confirm: vi.fn() } },
+        { provide: PoDialogService, useValue: { confirm } },
       ],
     }).compileComponents();
     state = TestBed.inject(QualityControlWorkflowState);
@@ -91,6 +93,21 @@ describe('ExamEntryPanel', () => {
     expect(component.minimum).toBe('10');
     expect(state.selectedComponentId()).toBe('b-10');
     expect(state.panelOpen()).toBe(true);
+  });
+
+  it('protects closing the panel when a non-current characteristic is dirty', () => {
+    const dialog = (component as unknown as { dialog: PoDialogService }).dialog;
+    const confirmSpy = vi.spyOn(dialog, 'confirm');
+    state.updateDraft('a-10', { minimum: '1' });
+    expect(state.isDirty()).toBe(true);
+
+    component.closePanel();
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({ title: 'Fechar digitação?' }));
+    expect(state.panelOpen()).toBe(true);
+    confirmSpy.mock.calls[0][0].confirm?.();
+    expect(state.panelOpen()).toBe(false);
+    expect(state.isDirty()).toBe(false);
   });
 
   it('closes only after a successful exam completion and selects the next pending component', () => {

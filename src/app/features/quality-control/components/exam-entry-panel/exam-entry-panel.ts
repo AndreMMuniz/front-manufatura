@@ -130,14 +130,13 @@ export class ExamEntryPanel implements AfterViewInit {
   }
 
   closePanel(): void {
-    const exam = this.exam;
     const close = () => { this.workflow.closePanel(); this.panelClosed.emit(); };
-    if (!exam || !this.workflow.isExamDirty(exam.id)) { close(); return; }
+    if (!this.workflow.isDirty()) { close(); return; }
     this.dialog.confirm({
       title: 'Fechar digitação?',
-      message: 'As medições não salvas deste exame serão descartadas.',
+      message: 'Todas as medições não salvas abertas na digitação serão descartadas.',
       literals: { cancel: 'Cancelar', confirm: 'Descartar' },
-      confirm: () => { this.workflow.discardExamDrafts(exam.id); close(); },
+      confirm: () => { this.workflow.discardAllDrafts(); close(); },
     });
   }
 

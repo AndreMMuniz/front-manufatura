@@ -222,20 +222,6 @@ export class QualityControlWorkflowState {
     return draft ? !this.sameDraft(draft, this.componentById(componentId)?.measurement) : false;
   }
 
-  isExamDirty(examId: string): boolean {
-    const exam = this.exams().find(item => item.id === examId);
-    return exam?.components.some(component => this.isComponentDirty(component.id)) ?? false;
-  }
-
-  discardExamDrafts(examId: string): void {
-    const componentIds = new Set(
-      this.exams().find(item => item.id === examId)?.components.map(component => component.id) ?? [],
-    );
-    this.drafts.update(drafts => Object.fromEntries(
-      Object.entries(drafts).filter(([componentId]) => !componentIds.has(componentId)),
-    ));
-  }
-
   discardDraft(componentId: string): void {
     this.drafts.update(drafts => {
       const next = { ...drafts };
