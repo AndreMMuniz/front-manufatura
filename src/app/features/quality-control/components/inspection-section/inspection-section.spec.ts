@@ -58,6 +58,15 @@ describe('InspectionSection', () => {
     expect(state.inspectionFeedback()).toBe('Siga a sequência do roteiro definida pelo Datasul.');
   });
 
+  it('shows the out-of-range validation in the affected component status', () => {
+    state.markComponentOutOfRange('a-10');
+    fixture.detectChanges();
+
+    const statuses = fixture.nativeElement.querySelectorAll('.inspection-process__component small');
+    expect(statuses[0].textContent).toContain('Valores fora da variação permitida');
+    expect(statuses[1].textContent).toContain('Pendente');
+  });
+
   it('asks PO-UI confirmation before discarding the current component draft', () => {
     state.applyMeasurement('exam-a', 'a-10', { minimum: 1, maximum: 2, status: 'APPROVED' });
     state.updateDraft('a-10', { observation: 'alterada' });

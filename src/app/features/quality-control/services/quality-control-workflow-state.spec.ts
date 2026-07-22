@@ -122,4 +122,18 @@ describe('QualityControlWorkflowState', () => {
     expect(state.selectedExam()?.id).toBe('exam-a');
     expect(state.panelOpen()).toBe(true);
   });
+
+  it('tracks out-of-range validation per component and clears it after approval', () => {
+    const state = loadedState();
+    state.markComponentOutOfRange('a-10');
+
+    expect(state.isComponentOutOfRange('a-10')).toBe(true);
+    expect(state.isComponentOutOfRange('a-20')).toBe(false);
+
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
+    });
+
+    expect(state.isComponentOutOfRange('a-10')).toBe(false);
+  });
 });

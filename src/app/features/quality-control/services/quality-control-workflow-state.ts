@@ -23,6 +23,7 @@ export class QualityControlWorkflowState {
   readonly selectedComponentId = signal<string | undefined>(undefined);
   readonly panelOpen = signal(false);
   readonly drafts = signal<Record<string, MeasurementDraft>>({});
+  readonly outOfRangeComponents = signal<Record<string, true>>({});
   readonly routeFeedback = signal('');
   readonly inspectionFeedback = signal('');
   readonly examFeedback = signal('');
@@ -140,6 +141,7 @@ export class QualityControlWorkflowState {
     this.selectedComponentId.set(undefined);
     this.panelOpen.set(false);
     this.drafts.set({});
+    this.outOfRangeComponents.set({});
     this.isGenerating.set(false);
     this.isLoadingExams.set(false);
     this.examLoadFailed.set(false);
@@ -222,16 +224,36 @@ export class QualityControlWorkflowState {
     return draft ? !this.sameDraft(draft, this.componentById(componentId)?.measurement) : false;
   }
 
+  isComponentOutOfRange(componentId: string): boolean {
+    return Boolean(this.outOfRangeComponents()[componentId]);
+  }
+
+  markComponentOutOfRange(componentId: string): void {
+    if (!this.componentById(componentId)) return;
+    this.outOfRangeComponents.update(components => ({ ...components, [componentId]: true }));
+  }
+
+  clearComponentOutOfRange(componentId: string): void {
+    if (!this.isComponentOutOfRange(componentId)) return;
+    this.outOfRangeComponents.update(components => {
+      const next = { ...components };
+      delete next[componentId];
+      return next;
+    });
+  }
+
   discardDraft(componentId: string): void {
     this.drafts.update(drafts => {
       const next = { ...drafts };
       delete next[componentId];
       return next;
     });
+    this.clearComponentOutOfRange(componentId);
   }
 
   discardAllDrafts(): void {
     this.drafts.set({});
+    this.outOfRangeComponents.set({});
   }
 
   applyMeasurement(examId: string, componentId: string, measurement: QualityMeasurement): void {
@@ -289,6 +311,7 @@ export class QualityControlWorkflowState {
     this.selectedComponentId.set(undefined);
     this.panelOpen.set(false);
     this.drafts.set({});
+    this.outOfRangeComponents.set({});
     this.inspectionFeedback.set('');
     this.examFeedback.set('');
     this.isLoadingExams.set(false);

@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { firstValueFrom, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -16,6 +16,7 @@ describe('ExamEntryPanel', () => {
   let state: QualityControlWorkflowState;
   let service: QualityControlService;
   let component: ExamEntryPanel;
+  let fixture: ComponentFixture<ExamEntryPanel>;
   const confirm = vi.fn();
 
   const route: ProductionOrderRoute = { routeNumber: '1', processDescription: 'P', currentOrder: '10', operationCode: '10', operationDescription: '10 - P', split: '1', itemCode: 'I', itemDescription: 'Item' };
@@ -25,7 +26,7 @@ describe('ExamEntryPanel', () => {
       { id: 'a-20', code: '020', description: 'A20', reference: '1 - 5', minValue: 1, maxValue: 5, unit: 'mm', sequence: 20, status: 'PENDING' },
     ] },
     { id: 'exam-b', code: 'B', description: 'B', version: '1', frequency: '1', sample: '1 pc', unit: 'pc', nqa: '0', level: '1', components: [
-      { id: 'b-10', code: '010', description: 'B10', reference: '10 - 20', minValue: 10, maxValue: 20, unit: 'mm', sequence: 10, status: 'PENDING' },
+      { id: 'b-10', code: '010', description: 'B10', reference: '10 - 20', measurementMethod: 'Paquímetro', minValue: 10, maxValue: 20, unit: 'mm', sequence: 10, status: 'PENDING' },
     ] },
   ];
 
@@ -46,7 +47,15 @@ describe('ExamEntryPanel', () => {
     state.beginExamLoad();
     state.completeExamLoad(1, exams);
     state.openPanel('b-10');
-    component = TestBed.createComponent(ExamEntryPanel).componentInstance;
+    fixture = TestBed.createComponent(ExamEntryPanel);
+    component = fixture.componentInstance;
+  });
+
+  it('shows the measurement method returned by the API in the characteristic card', () => {
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Meio de Medição');
+    expect(fixture.nativeElement.textContent).toContain('Paquímetro');
   });
 
   it('uses the exam that owns the selected component and sanitizes numeric drafts', () => {
@@ -68,6 +77,17 @@ describe('ExamEntryPanel', () => {
     expect(component.errorTitle).toBe('Erro');
     expect(component.validationMessage).toBe('Valores fora da variação permitida');
     expect(component.minimum).toBe('9');
+    expect(state.isComponentOutOfRange('b-10')).toBe(true);
+  });
+
+  it('clears the shared out-of-range status when the measurement is corrected', async () => {
+    component.updateMinimum('9');
+    component.updateMaximum('20');
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    component.updateMinimum('10');
+
+    expect(state.isComponentOutOfRange('b-10')).toBe(false);
   });
 
   it('saves with the selected operator and updates the shared list immutably', async () => {

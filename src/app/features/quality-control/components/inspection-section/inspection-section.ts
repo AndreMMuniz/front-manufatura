@@ -82,6 +82,7 @@ export class InspectionSection {
 
   statusLabel(component: QualityExamComponent): string {
     if (component.measurement?.status === 'APPROVED') return 'Aprovado';
+    if (this.workflow.isComponentOutOfRange(component.id)) return 'Valores fora da variação permitida';
     return this.isSelected(component) ? 'Em inspeção' : 'Pendente';
   }
 }

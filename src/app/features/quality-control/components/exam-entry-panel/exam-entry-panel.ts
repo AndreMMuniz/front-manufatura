@@ -67,11 +67,17 @@ export class ExamEntryPanel implements AfterViewInit {
   }
 
   updateMinimum(value: string): void {
-    if (this.currentCharacteristic) this.workflow.updateDraft(this.currentCharacteristic.id, { minimum: this.sanitizeNumericInput(value) });
+    if (this.currentCharacteristic) {
+      this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
+      this.workflow.updateDraft(this.currentCharacteristic.id, { minimum: this.sanitizeNumericInput(value) });
+    }
   }
 
   updateMaximum(value: string): void {
-    if (this.currentCharacteristic) this.workflow.updateDraft(this.currentCharacteristic.id, { maximum: this.sanitizeNumericInput(value) });
+    if (this.currentCharacteristic) {
+      this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
+      this.workflow.updateDraft(this.currentCharacteristic.id, { maximum: this.sanitizeNumericInput(value) });
+    }
   }
 
   saveCurrentMeasurement(): Observable<SaveMeasurementResponse | null> {
@@ -90,7 +96,12 @@ export class ExamEntryPanel implements AfterViewInit {
     const validation = this.qualityControlService.validateMeasurementRange(characteristic, { minimum, maximum });
     if (validation.valid === false) {
       this.validationMessage = validation.message;
-      if (validation.reason === 'OUT_OF_RANGE') this.errorTitle = 'Erro';
+      if (validation.reason === 'OUT_OF_RANGE') {
+        this.errorTitle = 'Erro';
+        this.workflow.markComponentOutOfRange(characteristic.id);
+      } else {
+        this.workflow.clearComponentOutOfRange(characteristic.id);
+      }
       return of(null);
     }
 
