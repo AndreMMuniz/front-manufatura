@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
@@ -6,33 +5,15 @@ import { filter, skip } from 'rxjs';
 
 import {
   PoIconModule,
-  PoMenuItem,
-  PoMenuModule,
-  PoPageModule,
+  PoToolbarAction,
   PoToolbarModule,
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
-import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
-
-const HOME_MENU: PoMenuItem = {
-  label: 'Menu Principal',
-  shortLabel: 'Home',
-  icon: 'an an-house-line',
-  link: '/menu',
-};
 
 @Component({
   selector: 'app-root',
-  imports: [
-    CommonModule,
-    RouterLink,
-    RouterOutlet,
-    PoIconModule,
-    PoToolbarModule,
-    PoMenuModule,
-    PoPageModule,
-  ],
+  imports: [RouterLink, RouterOutlet, PoIconModule, PoToolbarModule],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -41,6 +22,15 @@ export class App {
   private readonly router = inject(Router);
   private readonly authSession = inject(AuthSessionService);
   private readonly destroyRef = inject(DestroyRef);
+
+  readonly toolbarActions: Array<PoToolbarAction> = [
+    {
+      label: 'Sair',
+      icon: 'an an-sign-out',
+      type: 'danger',
+      action: () => this.logout(),
+    },
+  ];
 
   constructor() {
     this.authSession.session$
@@ -76,31 +66,6 @@ export class App {
 
   get showMainMenuReturn(): boolean {
     return this.isAuthenticated && this.router.url.split(/[?#]/)[0] !== '/menu';
-  }
-
-  get menus(): Array<PoMenuItem> {
-    if (!this.isAuthenticated) {
-      return [];
-    }
-
-    const items: PoMenuItem[] = [
-      { ...HOME_MENU },
-      ...APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({
-        label,
-        shortLabel,
-        icon,
-        link: route,
-      })),
-    ];
-
-    items.push({
-      label: 'Sair',
-      shortLabel: 'Sair',
-      icon: 'an an-sign-out',
-      action: () => this.logout(),
-    });
-
-    return items;
   }
 
   logout(): void {

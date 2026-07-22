@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const credentials = {
   user: 'operador',
@@ -16,7 +16,7 @@ const modules = [
   { label: 'Equipes', route: '/teams' },
 ] as const;
 
-async function login(page: import('@playwright/test').Page) {
+async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
   await page.getByRole('textbox', { name: 'Senha' }).fill(credentials.password);
@@ -24,165 +24,90 @@ async function login(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/menu$/);
 }
 
-test.describe('menu lateral principal', () => {
-  test('não aparece na tela de login antes da autenticação', async ({ page }) => {
+async function expectFullWidthWithoutOverflow(page: Page): Promise<void> {
+  const dimensions = await page.getByTestId('app-content').evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return {
+      left: box.left,
+      right: box.right,
+      viewportWidth: document.documentElement.clientWidth,
+      hasOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    };
+  });
+
+  expect(dimensions.left).toBe(0);
+  expect(Math.abs(dimensions.right - dimensions.viewportWidth)).toBeLessThanOrEqual(1);
+  expect(dimensions.hasOverflow).toBe(false);
+}
+
+test.describe('shell autenticado sem menu lateral', () => {
+  test('não renderiza menu lateral antes nem depois da autenticação', async ({ page }) => {
     await page.goto('/login');
 
-    await expect(page.getByTestId('app-side-menu')).toHaveCount(0);
-    await expect(page.getByRole('menuitem')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Apontamento Manufatura' })).toBeVisible();
-  });
+    await expect(page.locator('po-menu')).toHaveCount(0);
 
-  test('renderiza as opções principais uma abaixo da outra no desktop', async ({ page }) => {
     await login(page);
 
-    const expectedItems = [
-      'Menu Principal',
-      'Plano Controle CQ',
-      'Reporte Operações',
-      'Reporte Batelada',
-      'Paradas',
-      'Refugo / Retrabalho',
-      'Centro de Trabalho',
-      'Operador',
-      'Equipes',
-      'Sair',
+    await expect(page.locator('po-menu')).toHaveCount(0);
+    await expect(page.getByRole('menuitem')).toHaveCount(0);
+  });
+
+  test('usa toda a largura em desktop, tablet e celular', async ({ page }) => {
+    const viewports = [
+      { width: 1440, height: 900 },
+      { width: 768, height: 1024 },
+      { width: 375, height: 812 },
     ];
 
-    for (const label of expectedItems) {
-      await expect(page.getByRole('menuitem', { name: label })).toBeVisible();
+    await page.setViewportSize(viewports[0]);
+    await login(page);
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto('/menu');
+      await expect(page).toHaveURL(/\/menu$/);
+      await expectFullWidthWithoutOverflow(page);
+
+      await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
+      await expect(page.getByTestId('main-menu-return')).toBeVisible();
+      await expectFullWidthWithoutOverflow(page);
     }
-
-    await expect(
-      page.getByRole('menuitem', { name: 'Plano Controle CQ' }).locator('.an-flask'),
-    ).toBeVisible();
-
-    const boxes = await Promise.all(
-      expectedItems.slice(0, 5).map(async label => {
-        const box = await page.getByRole('menuitem', { name: label }).boundingBox();
-        expect(box).not.toBeNull();
-        return box!;
-      }),
-    );
-
-    for (let index = 1; index < boxes.length; index += 1) {
-      expect(boxes[index].y).toBeGreaterThan(boxes[index - 1].y);
-    }
-
-    const menuBox = await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).boundingBox();
-    const contentBox = await page.getByRole('heading', { name: 'Menu Principal' }).boundingBox();
-
-    expect(menuBox).not.toBeNull();
-    expect(contentBox).not.toBeNull();
-    expect(contentBox!.x).toBeGreaterThanOrEqual(menuBox!.x + menuBox!.width - 1);
-  });
-
-  test('navega pelo menu e mantém o item selecionado distinguível', async ({ page }) => {
-    await login(page);
-
-    await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
-
-    await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).click();
-
-    await expect(page).toHaveURL(/\/quality-control$/);
-    await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Plano de Controle CQ' })).toBeVisible();
-
-    await page.getByRole('menuitem', { name: 'Menu Principal' }).click();
-    await expect(page).toHaveURL(/\/menu$/);
-    await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
-  });
-
-  test('navega diretamente para Reporta Batelada pelo menu lateral', async ({ page }) => {
-    await login(page);
-
-    await page.getByRole('menuitem', { name: 'Reporte Batelada' }).click();
-
-    await expect(page).toHaveURL(/\/batch-reporting$/);
-    await expect(page.getByRole('heading', { name: 'Reporta Batelada' })).toBeVisible();
-  });
-
-  test('navega para o fluxo implementado de Refugo pelo menu lateral', async ({ page }) => {
-    await login(page);
-
-    await page.getByRole('menuitem', { name: 'Refugo / Retrabalho' }).click();
-
-    await expect(page).toHaveURL(/\/scrap-rework$/);
-    await expect(page.getByRole('heading', { name: 'Refugo / Retrabalho' })).toBeVisible();
-    await expect(page.getByText('Ao iniciar a operação, o painel de Refugo será aberto.')).toBeVisible();
-    await expect(page.getByText('Este módulo está pendente de implementação')).toHaveCount(0);
-
-    await page.getByRole('textbox', { name: 'Ordem' }).fill('450001');
-    await page.getByRole('textbox', { name: 'OP' }).fill('OP-10458');
-    await page.getByRole('button', { name: 'Consultar' }).click();
-    await expect(page.getByText('OP carregada. Inicie a operação para liberar os apontamentos.')).toBeVisible();
-
-    await page.getByRole('button', { name: 'Iniciar' }).click();
-    await expect(page.getByText('Registrar Refugo')).toBeVisible();
-    await expect(page.getByText('Nenhum refugo adicionado.')).toBeVisible();
-  });
-
-  test('mantém o menu acessível em viewport de tablet', async ({ page }) => {
-    await page.setViewportSize({ width: 768, height: 1024 });
-    await login(page);
-
-    await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
-  });
-
-  test('posiciona o retorno no topo esquerdo sem cobrir o conteúdo em tela compacta', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    const pageErrors: string[] = [];
-    page.on('pageerror', error => pageErrors.push(error.message));
-    await login(page);
-
-    await page
-      .getByRole('menuitem', { name: 'Plano Controle CQ' })
-      .evaluate((element: HTMLElement) => element.click());
-
-    const returnButton = page.getByTestId('main-menu-return');
-    const pageHeading = page.getByRole('heading', { name: 'Plano Controle CQ', level: 2 });
-    const buttonBox = await returnButton.boundingBox();
-    const headingBox = await pageHeading.boundingBox();
-
-    expect(buttonBox).not.toBeNull();
-    expect(headingBox).not.toBeNull();
-    expect(buttonBox!.x).toBe(16);
-    expect(buttonBox!.y).toBeGreaterThanOrEqual(56);
-    expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(headingBox!.y);
-    expect(pageErrors).toEqual([]);
-
-    await returnButton.click();
-    await expect(page).toHaveURL(/\/menu$/);
   });
 
   test('oferece retorno ao Menu Principal em todas as telas dos módulos', async ({ page }) => {
     await login(page);
 
     for (const { label, route } of modules) {
-      await page
-        .getByRole('menuitem', { name: label })
-        .evaluate((element: HTMLElement) => element.click());
+      await page.getByRole('link', { name: label }).click();
       await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}$`));
-      await expect(page.getByTestId('main-menu-return')).toBeVisible();
 
       const returnButton = page.getByTestId('main-menu-return');
       const buttonBox = await returnButton.boundingBox();
       const contentBox = await page.getByTestId('app-content').boundingBox();
-      const sideMenuBox = await page.getByTestId('app-side-menu').locator('.po-menu').boundingBox();
 
       expect(buttonBox).not.toBeNull();
       expect(contentBox).not.toBeNull();
-      expect(sideMenuBox).not.toBeNull();
       expect(await returnButton.evaluate(element => getComputedStyle(element).position)).toBe('static');
       expect(buttonBox!.x).toBeGreaterThanOrEqual(contentBox!.x);
-      expect(buttonBox!.x).toBeGreaterThanOrEqual(sideMenuBox!.x + sideMenuBox!.width);
       expect(buttonBox!.y).toBeLessThan(160);
+
+      await returnButton.click();
+      await expect(page).toHaveURL(/\/menu$/);
     }
 
-    await page.getByTestId('main-menu-return').click();
-    await expect(page).toHaveURL(/\/menu$/);
     await expect(page.getByTestId('main-menu-return')).toHaveCount(0);
+  });
+
+  test('encerra a sessão pela ação Sair do toolbar na Home', async ({ page }) => {
+    await login(page);
+
+    await page.locator('po-toolbar-actions .po-toolbar-actions').click();
+    const logoutAction = page.getByText('Sair', { exact: true });
+    await expect(logoutAction).toBeVisible();
+    await logoutAction.click();
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole('heading', { name: 'Apontamento Manufatura' })).toBeVisible();
+    await expect(page.locator('po-toolbar')).toHaveCount(0);
   });
 });

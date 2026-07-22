@@ -4,13 +4,12 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject } from 'rxjs';
 import { vi } from 'vitest';
 
-import { PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
+import { PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
 
 import { App } from './app';
 import { routes } from './app.routes';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { User } from './core/auth/auth.models';
-import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
@@ -44,7 +43,7 @@ describe('App', () => {
     } as unknown as AuthSessionService;
 
     await TestBed.configureTestingModule({
-      imports: [PoToolbarModule, PoMenuModule, PoPageModule, App],
+      imports: [PoToolbarModule, PoPageModule, App],
       providers: [provideRouter(routes), { provide: AuthSessionService, useValue: authSessionMock }],
     }).compileComponents();
   });
@@ -301,94 +300,40 @@ describe('App', () => {
     });
   });
 
-  it('should not expose shell navigation when anonymous', () => {
+  it('should not render authenticated shell navigation when anonymous', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(false);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    const app = fixture.componentInstance;
 
-    expect(app.menus).toEqual([]);
+    expect(fixture.nativeElement.querySelector('po-toolbar')).toBeNull();
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
   });
 
-  it('should show shell navigation with logout when authenticated', () => {
+  it('should render the authenticated toolbar without a side menu', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-      currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
     expect(app.toolbarTitle).toBe('Plano de Controle CQ - operador');
-    expect(app.menus.map(item => item.label)).toEqual([
-      'Menu Principal',
-      'Plano Controle CQ',
-      'Reporte Operações',
-      'Reporte Batelada',
-      'Paradas',
-      'Refugo / Retrabalho',
-      'Centro de Trabalho',
-      'Operador',
-      'Equipes',
-      'Sair',
-    ]);
+    expect(fixture.nativeElement.querySelector('po-toolbar')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
   });
 
-  it('should map the shared module navigation between Home first and logout last without mutating it', () => {
+  it('should expose Sair as the only toolbar action using the installed PO-UI API', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    const before = APP_MODULE_NAVIGATION.map(item => ({ ...item }));
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
-    const menus = app.menus;
 
-    expect(menus[0]).toMatchObject({
-      label: 'Menu Principal',
-      shortLabel: 'Home',
-      icon: 'an an-house-line',
-      link: '/menu',
+    expect(app.toolbarActions).toHaveLength(1);
+    expect(app.toolbarActions[0]).toMatchObject({
+      label: 'Sair',
+      icon: 'an an-sign-out',
+      type: 'danger',
     });
-    expect(menus.slice(1, -1).map(({ label, shortLabel, icon, link }) => ({ label, shortLabel, icon, route: link })))
-      .toEqual(APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({ label, shortLabel, icon, route })));
-    expect(menus.at(-1)?.label).toBe('Sair');
-    expect(APP_MODULE_NAVIGATION).toEqual(before);
-  });
-
-  it('should expose a direct lateral navigation item for every implemented SFC destination', () => {
-    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const app = fixture.componentInstance;
-    const menuLabels = app.menus.map(item => item.label);
-
-    expect(menuLabels).toContain('Reporte Operações');
-    expect(menuLabels).toContain('Reporte Batelada');
-    expect(menuLabels).toContain('Paradas');
-    expect(menuLabels).toContain('Refugo / Retrabalho');
-    expect(menuLabels).toContain('Centro de Trabalho');
-    expect(menuLabels).toContain('Operador');
-    expect(menuLabels).toContain('Equipes');
-  });
-
-  it('should use PO-UI icon-capable menu items so the side menu can collapse cleanly', () => {
-    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const app = fixture.componentInstance;
-
-    for (const item of app.menus) {
-      expect(item.icon).toBeTruthy();
-      expect(item.shortLabel).toBeTruthy();
-    }
-  });
-
-  it('should keep the shell menu entry linking to quality-control', async () => {
-    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const app = fixture.componentInstance;
-
-    expect(app.menus[1].label).toBe('Plano Controle CQ');
-    expect(app.menus[1].icon).toBe('an an-flask');
-    expect(app.menus[1].link).toBe('/quality-control');
+    expect(fixture.nativeElement.querySelector('po-toolbar-actions')).not.toBeNull();
   });
 
   it('should redirect to login when the shell logout clears the session', async () => {
@@ -401,7 +346,7 @@ describe('App', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-    app.logout();
+    app.toolbarActions[0].action?.();
     await Promise.resolve();
 
     expect(authSessionMock.logout).toHaveBeenCalled();

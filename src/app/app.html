@@ -1,10 +1,10 @@
 <div class="po-wrapper app-shell">
   @if (isAuthenticated) {
-    <po-toolbar [p-title]="toolbarTitle"></po-toolbar>
-
-    <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
-      <po-menu [p-menus]="menus"></po-menu>
-    </nav>
+    <po-toolbar
+      [p-title]="toolbarTitle"
+      [p-actions]="toolbarActions"
+      p-actions-icon="an an-sign-out"
+    ></po-toolbar>
   }
 
   <main class="app-shell__content" data-testid="app-content">

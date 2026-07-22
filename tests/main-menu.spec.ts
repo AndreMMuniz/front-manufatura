@@ -26,7 +26,7 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Home de navegação', () => {
-  test('é o landing do login e expõe os oito cartões e a Home global', async ({ page }) => {
+  test('é o landing do login e expõe os oito cartões sem navegação lateral', async ({ page }) => {
     await login(page);
 
     await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
@@ -38,8 +38,8 @@ test.describe('Home de navegação', () => {
       await cards.first().evaluate(element => getComputedStyle(element.closest('.po-page-content')!).opacity),
     ).toBe('1');
     await expect(navigation.getByText('Sair', { exact: true })).toHaveCount(0);
-    await expect(page.getByRole('menuitem', { name: 'Menu Principal' })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: 'Sair' })).toBeVisible();
+    await expect(page.locator('po-menu')).toHaveCount(0);
+    await expect(page.locator('po-toolbar-actions')).toBeVisible();
   });
 
   test('cada cartão navega para seu destino', async ({ page }) => {
