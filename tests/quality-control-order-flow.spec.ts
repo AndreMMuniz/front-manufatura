@@ -5,6 +5,8 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByRole('textbox', { name: 'Login' }).fill('operador');
   await page.getByRole('textbox', { name: 'Senha' }).fill('mock123');
   await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/menu$/);
+  await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
   await expect(page).toHaveURL(/\/quality-control$/);
 }
 

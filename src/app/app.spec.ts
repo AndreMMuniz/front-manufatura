@@ -10,11 +10,13 @@ import { App } from './app';
 import { routes } from './app.routes';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { User } from './core/auth/auth.models';
+import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
+import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { QualityControlWorkspacePage } from './features/quality-control/pages/quality-control-workspace/quality-control-workspace';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
@@ -72,6 +74,15 @@ describe('App', () => {
 
       expect(component).toBeInstanceOf(QualityControlWorkspacePage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');
+    });
+
+    it('should route menu to the authenticated main menu page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/menu', MainMenuPage);
+
+      expect(component).toBeInstanceOf(MainMenuPage);
+      expect(TestBed.inject(Router).url).toBe('/menu');
     });
 
     it('should return direct inspection access to route generation when no route was generated', async () => {
@@ -176,12 +187,12 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/login');
     });
 
-    it('should redirect root to /quality-control, but keep unknown deep links in place when authenticated', async () => {
+    it('should redirect root to /menu, but keep unknown deep links in place when authenticated', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
       await harness.navigateByUrl('/');
-      expect(router.url).toBe('/quality-control');
+      expect(router.url).toBe('/menu');
 
       await harness.navigateByUrl('/orders/42');
       expect(router.url).toBe('/orders/42');
@@ -217,7 +228,7 @@ describe('App', () => {
       },
     );
 
-    it('should treat the removed menu path as an unknown guarded route when not authenticated', async () => {
+    it('should protect the main menu with returnUrl=/menu when not authenticated', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
@@ -269,14 +280,14 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/login');
     });
 
-    it('should redirect root to login with returnUrl=/quality-control via default redirect', async () => {
+    it('should redirect root to login with returnUrl=/menu via default redirect', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
       await harness.navigateByUrl('/');
 
       expect(router.url.startsWith('/login')).toBe(true);
-      expect(returnUrlFrom(router)).toBe('/quality-control');
+      expect(returnUrlFrom(router)).toBe('/menu');
     });
 
     it('should preserve deep-link returnUrl through the auth round trip when hitting unknown routes', async () => {
@@ -308,6 +319,7 @@ describe('App', () => {
 
     expect(app.toolbarTitle).toBe('Plano de Controle CQ - operador');
     expect(app.menus.map(item => item.label)).toEqual([
+      'Menu Principal',
       'Plano Controle CQ',
       'Reporte Operações',
       'Reporte Batelada',
@@ -318,6 +330,26 @@ describe('App', () => {
       'Equipes',
       'Sair',
     ]);
+  });
+
+  it('should map the shared module navigation between Home first and logout last without mutating it', () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    const before = APP_MODULE_NAVIGATION.map(item => ({ ...item }));
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+    const menus = app.menus;
+
+    expect(menus[0]).toMatchObject({
+      label: 'Menu Principal',
+      shortLabel: 'Home',
+      icon: 'an an-house-line',
+      link: '/menu',
+    });
+    expect(menus.slice(1, -1).map(({ label, shortLabel, icon, link }) => ({ label, shortLabel, icon, route: link })))
+      .toEqual(APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({ label, shortLabel, icon, route })));
+    expect(menus.at(-1)?.label).toBe('Sair');
+    expect(APP_MODULE_NAVIGATION).toEqual(before);
   });
 
   it('should expose a direct lateral navigation item for every implemented SFC destination', () => {
@@ -354,9 +386,9 @@ describe('App', () => {
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    expect(app.menus[0].label).toBe('Plano Controle CQ');
-    expect(app.menus[0].icon).toBe('an an-flask');
-    expect(app.menus[0].link).toBe('/quality-control');
+    expect(app.menus[1].label).toBe('Plano Controle CQ');
+    expect(app.menus[1].icon).toBe('an an-flask');
+    expect(app.menus[1].link).toBe('/quality-control');
   });
 
   it('should redirect to login when the shell logout clears the session', async () => {

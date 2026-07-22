@@ -15,6 +15,7 @@
           <small>Versão {{ exam.version }}</small>
           <small>Frequência: {{ formatExamFrequency(exam.frequency) }}</small>
           <small>Amostra: {{ exam.sample }}</small>
+          <small>Observação do Exame: {{ exam.observation?.trim() || '-' }}</small>
         </div>
       }
     </div>
@@ -45,6 +46,12 @@
               <strong>{{ component.code }} - {{ component.description }}</strong>
               <small class="inspection-process__component-status">
                 <span>{{ statusLabel(component) }}</span>
+                @if (component.measurement?.status === 'APPROVED') {
+                  <span class="inspection-process__component-measurements">
+                    <span>Mín: {{ formatMeasurementValue(component.measurement!.minimum) }}</span>
+                    <span>Máx: {{ formatMeasurementValue(component.measurement!.maximum) }}</span>
+                  </span>
+                }
                 @if (measurementSavedAt(component); as savedAt) {
                   <span class="inspection-process__component-time">Apontado em {{ savedAt }}</span>
                 }

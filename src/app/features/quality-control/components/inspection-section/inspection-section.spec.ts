@@ -14,7 +14,7 @@ describe('InspectionSection', () => {
   let fixture: ComponentFixture<InspectionSection>;
   const confirm = vi.fn();
   const exams: QualityExam[] = [{
-    id: 'exam-a', code: 'A', description: 'A', version: '1', frequency: '120', sample: '1 pc', unit: 'pc', nqa: '0', level: '1',
+    id: 'exam-a', code: 'A', description: 'A', version: '1', frequency: '120', sample: '1 pc', unit: 'pc', nqa: '0', level: '1', observation: 'Visual 100% do corte !',
     components: [
       { id: 'a-10', code: '010', description: 'A10', reference: '0 - 10', minValue: 0, maxValue: 10, unit: 'mm', sequence: 10, status: 'PENDING' },
       { id: 'a-20', code: '020', description: 'A20', reference: '0 - 20', minValue: 0, maxValue: 20, unit: 'mm', sequence: 20, status: 'PENDING' },
@@ -51,6 +51,23 @@ describe('InspectionSection', () => {
     expect(frequency?.textContent).toContain('Frequência: 02:00 h');
   });
 
+  it('shows the exam observation', () => {
+    const observation = Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.inspection-process__exam-strip small'))
+      .find(element => element.textContent?.includes('Observação do Exame'));
+
+    expect(observation?.textContent).toContain('Observação do Exame: Visual 100% do corte !');
+  });
+
+  it('shows a fallback when the exam observation is blank', () => {
+    state.exams.update(current => current.map(exam => ({ ...exam, observation: '   ' })));
+    fixture.detectChanges();
+
+    const observation = Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.inspection-process__exam-strip small'))
+      .find(element => element.textContent?.includes('Observação do Exame'));
+
+    expect(observation?.textContent).toContain('Observação do Exame: -');
+  });
+
   it('blocks jumping over the next Datasul component', () => {
     component.selectComponent(state.componentById('a-20')!);
 
@@ -84,8 +101,23 @@ describe('InspectionSection', () => {
 
     const statuses = fixture.nativeElement.querySelectorAll('.inspection-process__component-status');
     expect(statuses[0].textContent).toContain('Aprovado');
+    expect(statuses[0].textContent).toContain('Mín: 1');
+    expect(statuses[0].textContent).toContain('Máx: 2');
     expect(statuses[0].textContent).toContain('Apontado em 22/07/2026 14:05');
+    expect(statuses[1].textContent).toContain('Mín: 3');
+    expect(statuses[1].textContent).toContain('Máx: 4');
     expect(statuses[1].textContent).toContain('Apontado em 22/07/2026 14:17');
+  });
+
+  it('shows the saved minimum and maximum with Brazilian decimal separators', () => {
+    state.applyMeasurement('exam-a', 'a-10', { minimum: 1.5, maximum: 2.75, status: 'APPROVED' });
+    fixture.detectChanges();
+
+    const components = fixture.nativeElement.querySelectorAll('.inspection-process__component');
+    expect(components[0].textContent).toContain('Aprovado');
+    expect(components[0].textContent).toContain('Mín: 1,5');
+    expect(components[0].textContent).toContain('Máx: 2,75');
+    expect(components[1].querySelector('.inspection-process__component-measurements')).toBeNull();
   });
 
   it('does not show an appointment time for a component without a saved date', () => {

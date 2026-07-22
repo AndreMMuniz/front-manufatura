@@ -84,6 +84,7 @@ export class QualityControlService {
         nqa: '0,000',
         level: '1',
         responsible: 'BUENO',
+        observation: 'Visual 100% do corte !',
         components: [
           {
             id: '500517-010',

@@ -37,6 +37,7 @@ export interface QualityExam {
   nqa: string;
   level: string;
   responsible?: string;
+  observation?: string;
   components: QualityExamComponent[];
 }
 

@@ -1,0 +1,18 @@
+<po-page-default p-title="Menu Principal">
+  <nav aria-label="Módulos disponíveis">
+    <ul class="main-menu__grid">
+      @for (module of modules; track module.id) {
+        <li class="main-menu__item">
+          <a
+            class="main-menu__card"
+            [routerLink]="module.route"
+            (keydown.space)="navigateWithSpace($event, module.route)"
+          >
+            <po-icon class="main-menu__icon" [p-icon]="module.icon" aria-hidden="true" />
+            <span class="main-menu__label">{{ module.label }}</span>
+          </a>
+        </li>
+      }
+    </ul>
+  </nav>
+</po-page-default>

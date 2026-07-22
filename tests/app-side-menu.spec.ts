@@ -10,7 +10,7 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
   await page.getByRole('textbox', { name: 'Senha' }).fill(credentials.password);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/\/quality-control$/);
+  await expect(page).toHaveURL(/\/menu$/);
 }
 
 test.describe('menu lateral principal', () => {
@@ -26,6 +26,7 @@ test.describe('menu lateral principal', () => {
     await login(page);
 
     const expectedItems = [
+      'Menu Principal',
       'Plano Controle CQ',
       'Reporte Operações',
       'Reporte Batelada',
@@ -58,7 +59,7 @@ test.describe('menu lateral principal', () => {
     }
 
     const menuBox = await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).boundingBox();
-    const contentBox = await page.getByRole('heading', { name: 'Plano de Controle CQ' }).boundingBox();
+    const contentBox = await page.getByRole('heading', { name: 'Menu Principal' }).boundingBox();
 
     expect(menuBox).not.toBeNull();
     expect(contentBox).not.toBeNull();
@@ -67,6 +68,8 @@ test.describe('menu lateral principal', () => {
 
   test('navega pelo menu e mantém o item selecionado distinguível', async ({ page }) => {
     await login(page);
+
+    await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
 
     await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).click();
 

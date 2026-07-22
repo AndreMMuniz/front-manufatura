@@ -86,6 +86,13 @@ export class InspectionSection {
     return this.isSelected(component) ? 'Em inspeção' : 'Pendente';
   }
 
+  formatMeasurementValue(value: number): string {
+    return value.toLocaleString('pt-BR', {
+      useGrouping: false,
+      maximumFractionDigits: 20,
+    });
+  }
+
   measurementSavedAt(component: QualityExamComponent): string | null {
     const savedAt = component.measurement?.savedAt;
     if (!savedAt) return null;

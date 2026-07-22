@@ -7,57 +7,14 @@ import { filter, skip } from 'rxjs';
 import { PoMenuItem, PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
+import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 
-const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
-  {
-    label: 'Plano Controle CQ',
-    shortLabel: 'CQ',
-    icon: 'an an-flask',
-    link: '/quality-control',
-  },
-  {
-    label: 'Reporte Operações',
-    shortLabel: 'Reporte',
-    icon: 'an an-factory',
-    link: '/operation-reporting',
-  },
-  {
-    label: 'Reporte Batelada',
-    shortLabel: 'Batelada',
-    icon: 'an an-stack',
-    link: '/batch-reporting',
-  },
-  {
-    label: 'Paradas',
-    shortLabel: 'Paradas',
-    icon: 'an an-warning',
-    link: '/stoppages',
-  },
-  {
-    label: 'Refugo / Retrabalho',
-    shortLabel: 'Refugo',
-    icon: 'an an-arrows-clockwise',
-    link: '/scrap-rework',
-  },
-  {
-    label: 'Centro de Trabalho',
-    shortLabel: 'Centro',
-    icon: 'an an-monitor',
-    link: '/work-center',
-  },
-  {
-    label: 'Operador',
-    shortLabel: 'Operador',
-    icon: 'an an-user',
-    link: '/operators',
-  },
-  {
-    label: 'Equipes',
-    shortLabel: 'Equipes',
-    icon: 'an an-users',
-    link: '/teams',
-  },
-];
+const HOME_MENU: PoMenuItem = {
+  label: 'Menu Principal',
+  shortLabel: 'Home',
+  icon: 'an an-house-line',
+  link: '/menu',
+};
 
 @Component({
   selector: 'app-root',
@@ -108,7 +65,15 @@ export class App {
       return [];
     }
 
-    const items: PoMenuItem[] = [...AUTHENTICATED_MENUS];
+    const items: PoMenuItem[] = [
+      { ...HOME_MENU },
+      ...APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({
+        label,
+        shortLabel,
+        icon,
+        link: route,
+      })),
+    ];
 
     items.push({
       label: 'Sair',

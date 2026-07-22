@@ -119,14 +119,14 @@ describe('LoginPage', () => {
     expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/quality-control/reports');
   });
 
-  it('falls back to /quality-control without returnUrl', () => {
+  it('falls back to /menu without returnUrl', () => {
     vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     component.login = 'operador';
     component.senha = 'mock123';
 
     component.entrar();
 
-    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/quality-control');
+    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
   });
 
   it.each([
@@ -147,7 +147,7 @@ describe('LoginPage', () => {
 
     component.entrar();
 
-    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/quality-control');
+    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
   });
 
   it('resets submitting when navigation is rejected', async () => {

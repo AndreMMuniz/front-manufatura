@@ -13,6 +13,7 @@
 .inspection-process__component-text { display: grid; gap: 4px; min-width: 0; }
 .inspection-process__component-text strong { overflow-wrap: anywhere; }
 .inspection-process__component-status { align-items: baseline; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.inspection-process__component-measurements { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
 .inspection-process__component-time { color: var(--color-neutral-dark-70, #4a5c60); }
 .inspection-process__progress { margin-top: 16px; }
 .inspection-process__action { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-top: 16px; }

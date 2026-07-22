@@ -4,6 +4,7 @@ import { authGuard } from './core/auth/auth.guard';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
+import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
@@ -12,6 +13,7 @@ import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-par
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage },
+  { path: 'menu', component: MainMenuPage, canActivate: [authGuard] },
   { path: 'work-center', component: WorkCenterPage, canActivate: [authGuard] },
   { path: 'operators', component: OperatorsPage, canActivate: [authGuard] },
   {
@@ -59,12 +61,11 @@ export const routes: Routes = [
       .then(module => module.QualityControlWorkspacePage),
     canActivate: [authGuard],
   },
-  // Empty root redirects to the first actionable module because lateral
-  // navigation already exposes all available destinations.
-  { path: '', pathMatch: 'full', redirectTo: 'quality-control' },
-  // `**` is guarded (rather than redirecting to /quality-control) so that
+  // Empty root redirects to the authenticated Home.
+  { path: '', pathMatch: 'full', redirectTo: 'menu' },
+  // `**` is guarded (rather than redirecting to /menu) so that
   // deep-links preserve their original URL as `returnUrl` through the auth
-  // round-trip instead of being collapsed to /quality-control.
+  // round-trip instead of being collapsed to /menu.
   {
     path: '**',
     component: SfcPlaceholderPage,
