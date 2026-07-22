@@ -12,7 +12,7 @@ const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
   {
     label: 'Plano Controle CQ',
     shortLabel: 'CQ',
-    icon: 'an an-clipboard-text',
+    icon: 'an an-flask',
     link: '/quality-control',
   },
   {

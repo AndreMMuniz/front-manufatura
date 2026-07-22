@@ -355,6 +355,7 @@ describe('App', () => {
     const app = fixture.componentInstance;
 
     expect(app.menus[0].label).toBe('Plano Controle CQ');
+    expect(app.menus[0].icon).toBe('an an-flask');
     expect(app.menus[0].link).toBe('/quality-control');
   });
 

@@ -23,7 +23,7 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await expect(operation).toBeVisible();
     await expect(page.getByRole('option', { name: /20.*Dobrar chapa/ })).toBeVisible();
     await expect(page.getByRole('option', { name: /30.*Soldar/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toHaveCount(0);
 
     await operation.click();
 
@@ -52,7 +52,9 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await minimum.fill('484');
     await maximum.fill('490');
     await page.getByRole('button', { name: 'Salvar' }).click();
-    await expect(page.getByRole('alert')).toContainText('Valores fora da variação permitida');
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Valores fora da variação permitida' }),
+    ).toBeVisible();
     await expect(minimum).toHaveValue('484');
     await expect(maximum).toHaveValue('490');
 
@@ -69,22 +71,22 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     { name: 'tablet', width: 1024, height: 768 },
   ]) {
     test(`não cria overflow horizontal em viewport ${viewport.name}`, async ({ page }) => {
-    await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await login(page);
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await login(page);
 
-    await page.getByRole('textbox', { name: 'Ordem' }).fill('325571');
-    await page.getByRole('button', { name: 'Consultar Ordem' }).click();
-    await page.getByRole('option', { name: /30.*Soldar/ }).click();
+      await page.getByRole('textbox', { name: 'Ordem' }).fill('325571');
+      await page.getByRole('button', { name: 'Consultar Ordem' }).click();
+      await page.getByRole('option', { name: /30.*Soldar/ }).click();
 
-    await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Gerar Roteiro' }).click();
-    await page.getByRole('button', { name: 'Digitar medição' }).click();
+      await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Gerar Roteiro' })).toBeEnabled();
+      await page.getByRole('button', { name: 'Gerar Roteiro' }).click();
+      await page.getByRole('button', { name: 'Digitar medição' }).click();
 
-    const hasHorizontalOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(hasHorizontalOverflow).toBe(false);
+      const hasHorizontalOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      );
+      expect(hasHorizontalOverflow).toBe(false);
     });
   }
 });

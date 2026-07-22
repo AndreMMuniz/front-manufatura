@@ -46,7 +46,19 @@ export default defineConfig({
 
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      // VS Code installed through Snap exports GTK/library paths that make the
+      // Playwright WPE network process load an incompatible core20 libpthread.
+      // Keep the WebKit child process isolated while preserving the test runner
+      // and web-server environment.
+      use: {
+        ...devices['Desktop Safari'],
+        launchOptions: {
+          env: {
+            HOME: process.env['HOME'] ?? '',
+            PATH: process.env['PATH'] ?? '',
+          },
+        },
+      },
     },
 
     /* Test against mobile viewports. */

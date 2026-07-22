@@ -19,7 +19,7 @@ test.describe('menu lateral principal', () => {
 
     await expect(page.getByTestId('app-side-menu')).toHaveCount(0);
     await expect(page.getByRole('menuitem')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Apontamento Manufatura' })).toBeVisible();
   });
 
   test('renderiza as opções principais uma abaixo da outra no desktop', async ({ page }) => {
@@ -41,6 +41,10 @@ test.describe('menu lateral principal', () => {
       await expect(page.getByRole('menuitem', { name: label })).toBeVisible();
     }
 
+    await expect(
+      page.getByRole('menuitem', { name: 'Plano Controle CQ' }).locator('.an-flask'),
+    ).toBeVisible();
+
     const boxes = await Promise.all(
       expectedItems.slice(0, 5).map(async label => {
         const box = await page.getByRole('menuitem', { name: label }).boundingBox();
@@ -54,7 +58,7 @@ test.describe('menu lateral principal', () => {
     }
 
     const menuBox = await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).boundingBox();
-    const contentBox = await page.getByRole('heading', { name: 'Geração de Roteiro' }).boundingBox();
+    const contentBox = await page.getByRole('heading', { name: 'Plano de Controle' }).boundingBox();
 
     expect(menuBox).not.toBeNull();
     expect(contentBox).not.toBeNull();
@@ -68,7 +72,7 @@ test.describe('menu lateral principal', () => {
 
     await expect(page).toHaveURL(/\/quality-control$/);
     await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Geração de Roteiro' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Plano de Controle' })).toBeVisible();
   });
 
   test('navega diretamente para Reporta Batelada pelo menu lateral', async ({ page }) => {
