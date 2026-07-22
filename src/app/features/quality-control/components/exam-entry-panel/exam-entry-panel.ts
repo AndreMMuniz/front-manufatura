@@ -38,7 +38,7 @@ export class ExamEntryPanel implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
 
   validationMessage = '';
-  alertTitle = '';
+  hasOutOfRangeAlert = false;
 
   ngAfterViewInit(): void {
     this.panelTitle?.nativeElement.focus();
@@ -97,7 +97,7 @@ export class ExamEntryPanel implements AfterViewInit {
     if (validation.valid === false) {
       this.validationMessage = validation.message;
       if (validation.reason === 'OUT_OF_RANGE') {
-        this.alertTitle = 'Alerta';
+        this.hasOutOfRangeAlert = true;
         this.workflow.markComponentOutOfRange(characteristic.id);
       } else {
         this.workflow.clearComponentOutOfRange(characteristic.id);
@@ -172,7 +172,7 @@ export class ExamEntryPanel implements AfterViewInit {
       });
   }
 
-  private clearValidation(): void { this.validationMessage = ''; this.alertTitle = ''; }
+  private clearValidation(): void { this.validationMessage = ''; this.hasOutOfRangeAlert = false; }
   private parseNumber(value: string): number | null {
     if (!value.trim()) return null;
     const parsed = Number(value.replace(',', '.'));
