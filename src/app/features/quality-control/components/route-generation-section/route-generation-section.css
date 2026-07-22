@@ -2,8 +2,7 @@
 .route-generation__header { align-items: center; display: flex; gap: 16px; }
 .route-generation__brand { aspect-ratio: 3.24; flex: 0 0 128px; overflow: hidden; position: relative; }
 .route-generation__brand img { height: auto; left: -20%; max-width: none; position: absolute; top: -86%; width: 144%; }
-.route-generation__eyebrow { color: var(--app-color-primary, #0c6b77); font-weight: 800; margin: 0; text-transform: uppercase; }
-.route-generation h1 { font-size: 1.6rem; margin: 4px 0 0; }
+.route-generation h1 { font-size: 1.6rem; margin: 0; }
 .route-generation__operations { border: 1px solid var(--app-color-border, #b6c2c5); display: grid; }
 .route-generation__operation { align-items: center; background: #fff; border: 0; border-bottom: 1px solid #dadedf; color: #1d282b; cursor: pointer; display: grid; font: inherit; gap: 12px; grid-template-columns: 56px minmax(0, 1fr) auto; min-height: 48px; padding: 10px 14px; text-align: left; width: 100%; }
 .route-generation__operation:focus-visible { outline: 3px solid #0c6b77; outline-offset: -3px; }

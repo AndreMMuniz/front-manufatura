@@ -58,7 +58,7 @@ test.describe('menu lateral principal', () => {
     }
 
     const menuBox = await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).boundingBox();
-    const contentBox = await page.getByRole('heading', { name: 'Plano de Controle' }).boundingBox();
+    const contentBox = await page.getByRole('heading', { name: 'Plano de Controle CQ' }).boundingBox();
 
     expect(menuBox).not.toBeNull();
     expect(contentBox).not.toBeNull();
@@ -72,7 +72,7 @@ test.describe('menu lateral principal', () => {
 
     await expect(page).toHaveURL(/\/quality-control$/);
     await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Plano de Controle' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Plano de Controle CQ' })).toBeVisible();
   });
 
   test('navega diretamente para Reporta Batelada pelo menu lateral', async ({ page }) => {
