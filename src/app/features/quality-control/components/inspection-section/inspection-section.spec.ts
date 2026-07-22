@@ -104,6 +104,9 @@ describe('InspectionSection', () => {
     expect(statuses[0].textContent).toContain('Mín: 1');
     expect(statuses[0].textContent).toContain('Máx: 2');
     expect(statuses[0].textContent).toContain('Apontado em 22/07/2026 14:05');
+    expect(statuses[0].textContent!.indexOf('Aprovado')).toBeLessThan(statuses[0].textContent!.indexOf('Mín: 1'));
+    expect(statuses[0].textContent!.indexOf('Mín: 1')).toBeLessThan(statuses[0].textContent!.indexOf('Máx: 2'));
+    expect(statuses[0].textContent!.indexOf('Máx: 2')).toBeLessThan(statuses[0].textContent!.indexOf('Apontado em'));
     expect(statuses[1].textContent).toContain('Mín: 3');
     expect(statuses[1].textContent).toContain('Máx: 4');
     expect(statuses[1].textContent).toContain('Apontado em 22/07/2026 14:17');
@@ -118,6 +121,20 @@ describe('InspectionSection', () => {
     expect(components[0].textContent).toContain('Mín: 1,5');
     expect(components[0].textContent).toContain('Máx: 2,75');
     expect(components[1].querySelector('.inspection-process__component-measurements')).toBeNull();
+  });
+
+  it('updates the displayed values when an approved measurement is replaced', () => {
+    state.applyMeasurement('exam-a', 'a-10', { minimum: 1, maximum: 2, status: 'APPROVED' });
+    fixture.detectChanges();
+
+    state.applyMeasurement('exam-a', 'a-10', { minimum: 3.5, maximum: 4.75, status: 'APPROVED' });
+    fixture.detectChanges();
+
+    const measurements = fixture.nativeElement.querySelector('.inspection-process__component-measurements');
+    expect(measurements.textContent).toContain('Mín: 3,5');
+    expect(measurements.textContent).toContain('Máx: 4,75');
+    expect(measurements.textContent).not.toContain('Mín: 1');
+    expect(measurements.textContent).not.toContain('Máx: 2');
   });
 
   it('does not show an appointment time for a component without a saved date', () => {
