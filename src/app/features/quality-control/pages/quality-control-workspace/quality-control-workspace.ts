@@ -36,8 +36,8 @@ export class QualityControlWorkspacePage {
     this.runAfterGlobalDiscard('Sair do Plano Controle CQ?', () => this.workflow.reset());
   }
 
-  restoreInspectionFocus(): void {
-    this.inspectionSection?.restoreFocus();
+  restoreInspectionFocus(componentId?: string): void {
+    this.inspectionSection?.restoreFocus(componentId);
   }
 
   private runAfterGlobalDiscard(title: string, action: () => void): void {

@@ -43,7 +43,7 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await expect(page.getByText('325571', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Digitar medição' }).click();
-    await expect(page.getByRole('heading', { name: 'Registro das medições' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Registro das medições' })).toBeFocused();
     await expect(page.getByRole('heading', { name: 'Execução do roteiro de inspeção' })).toBeVisible();
     await expect(page).toHaveURL(/\/quality-control$/);
 

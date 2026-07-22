@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 
 import { PoDialogService } from '@po-ui/ng-components';
@@ -11,6 +11,7 @@ import { InspectionSection } from './inspection-section';
 describe('InspectionSection', () => {
   let state: QualityControlWorkflowState;
   let component: InspectionSection;
+  let fixture: ComponentFixture<InspectionSection>;
   const confirm = vi.fn();
   const exams: QualityExam[] = [{
     id: 'exam-a', code: 'A', description: 'A', version: '1', frequency: '1', sample: '1 pc', unit: 'pc', nqa: '0', level: '1',
@@ -30,7 +31,9 @@ describe('InspectionSection', () => {
     state.setGeneratedRoute({ routeNumber: '1', processDescription: 'P', currentOrder: '10', operationCode: '10', operationDescription: 'P', split: '1', itemCode: 'I', itemDescription: 'Item' });
     const token = state.beginExamLoad()!;
     state.completeExamLoad(token, exams);
-    component = TestBed.createComponent(InspectionSection).componentInstance;
+    fixture = TestBed.createComponent(InspectionSection);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
   });
 
   it('opens the selected characteristic inline without changing route context', () => {
@@ -60,5 +63,12 @@ describe('InspectionSection', () => {
     confirmation.confirm();
     expect(state.selectedComponentId()).toBe('a-20');
     expect(state.isComponentDirty('a-10')).toBe(false);
+  });
+
+  it('focuses the next selected component after exam completion', () => {
+    component.restoreFocus('a-20');
+
+    const buttons = fixture.nativeElement.querySelectorAll('.inspection-process__component');
+    expect(document.activeElement).toBe(buttons[1]);
   });
 });

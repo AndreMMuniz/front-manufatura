@@ -28,7 +28,7 @@ import { OperatorService } from '../../../shop-floor/services/operator';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExamEntryPanel implements AfterViewInit {
-  @Output() panelClosed = new EventEmitter<void>();
+  @Output() panelClosed = new EventEmitter<string | undefined>();
   @ViewChild('panelTitle', { read: ElementRef }) private panelTitle?: ElementRef<HTMLElement>;
 
   readonly workflow = inject(QualityControlWorkflowState);
@@ -152,8 +152,8 @@ export class ExamEntryPanel implements AfterViewInit {
         next: () => {
           this.workflow.isFinishing.set(false);
           this.workflow.examFeedback.set('Exame concluído.');
-          this.workflow.selectNextPendingAndClose();
-          this.panelClosed.emit();
+          const nextComponentId = this.workflow.selectNextPendingAndClose();
+          this.panelClosed.emit(nextComponentId);
         },
         error: () => {
           this.workflow.isFinishing.set(false);

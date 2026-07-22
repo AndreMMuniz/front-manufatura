@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, ViewChildren, QueryList, inject } from '@angular/core';
 
 import { PoButtonModule, PoDialogService, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
 
@@ -14,6 +14,7 @@ import { QualityControlWorkflowState } from '../../services/quality-control-work
 })
 export class InspectionSection {
   @ViewChild('measurementButton', { read: ElementRef }) private measurementButton?: ElementRef<HTMLElement>;
+  @ViewChildren('componentButton', { read: ElementRef }) private componentButtons?: QueryList<ElementRef<HTMLElement>>;
 
   readonly workflow = inject(QualityControlWorkflowState);
   private readonly dialog = inject(PoDialogService);
@@ -57,7 +58,15 @@ export class InspectionSection {
     if (selected && this.canOpenExamEntry) this.workflow.openPanel(selected.id);
   }
 
-  restoreFocus(): void {
+  restoreFocus(componentId?: string): void {
+    if (componentId) {
+      const index = this.workflow.components().findIndex(component => component.id === componentId);
+      const target = index >= 0 ? this.componentButtons?.get(index) : undefined;
+      if (target) {
+        target.nativeElement.focus();
+        return;
+      }
+    }
     this.measurementButton?.nativeElement.focus();
   }
 

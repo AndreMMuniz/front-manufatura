@@ -6,7 +6,7 @@
       <div class="quality-workspace__execution" [class.quality-workspace__execution--editing]="workflow.panelOpen()">
         <app-inspection-section></app-inspection-section>
         @if (workflow.panelOpen()) {
-          <app-exam-entry-panel (panelClosed)="restoreInspectionFocus()"></app-exam-entry-panel>
+          <app-exam-entry-panel (panelClosed)="restoreInspectionFocus($event)"></app-exam-entry-panel>
         }
       </div>
     }
