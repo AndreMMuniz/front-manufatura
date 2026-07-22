@@ -1,11 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { PoButtonModule, PoFieldModule, PoLoadingModule } from '@po-ui/ng-components';
 
-import { buildSafeReturnUrl } from '../../../../core/auth/safe-return-url';
 import { LoginError, LoginService } from '../../services/login.service';
 
 @Component({
@@ -20,7 +19,6 @@ export class LoginPage {
   private static readonly emptyFieldsMessage = 'Informe login e senha.';
 
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
   private readonly loginService = inject(LoginService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly changeDetector = inject(ChangeDetectorRef);
@@ -86,8 +84,7 @@ export class LoginPage {
   }
 
   redirecionar(): void {
-    const target = this.safeReturnUrl;
-    this.router.navigateByUrl(target).then(
+    this.router.navigateByUrl(LoginPage.fallbackUrl).then(
       navigated => {
         if (!navigated) {
           this.submitting = false;
@@ -107,11 +104,6 @@ export class LoginPage {
 
   logout(): void {
     this.loginService.logout();
-  }
-
-  private get safeReturnUrl(): string {
-    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    return buildSafeReturnUrl(returnUrl) ?? LoginPage.fallbackUrl;
   }
 
   private messageForError(error: unknown): string {

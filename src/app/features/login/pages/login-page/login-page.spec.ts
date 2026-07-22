@@ -95,7 +95,7 @@ describe('LoginPage', () => {
     expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
   });
 
-  it('navigates to a safe internal returnUrl after valid credentials', () => {
+  it('always navigates to /menu after valid credentials even with a returnUrl', () => {
     vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     setReturnUrl('/quality-control');
     component.login = 'operador';
@@ -105,10 +105,10 @@ describe('LoginPage', () => {
 
     expect(loginServiceMock.login).toHaveBeenCalledWith('operador', 'mock123');
     expect(component.senha).toBe('');
-    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/quality-control');
+    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
   });
 
-  it('decodes encoded returnUrl before navigating', () => {
+  it('ignores encoded returnUrl after valid credentials', () => {
     vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     setReturnUrl('/quality-control%2Freports');
     component.login = 'operador';
@@ -116,7 +116,7 @@ describe('LoginPage', () => {
 
     component.entrar();
 
-    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/quality-control/reports');
+    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
   });
 
   it('falls back to /menu without returnUrl', () => {

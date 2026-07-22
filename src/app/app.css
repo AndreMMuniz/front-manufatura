@@ -12,11 +12,13 @@
   background: var(--app-color-background);
 }
 
+.app-shell__main-menu-bar {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--app-space-md) var(--app-space-lg) 0;
+}
+
 .app-shell__main-menu-return {
-  position: fixed;
-  right: var(--app-space-lg);
-  bottom: var(--app-space-lg);
-  z-index: 10;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -43,8 +45,8 @@
 }
 
 @media (max-width: 639px) {
-  .app-shell__main-menu-return {
-    right: var(--app-space-md);
-    bottom: var(--app-space-md);
+  .app-shell__main-menu-bar {
+    padding-right: var(--app-space-md);
+    padding-left: var(--app-space-md);
   }
 }

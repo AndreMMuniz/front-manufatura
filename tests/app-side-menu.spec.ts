@@ -136,6 +136,16 @@ test.describe('menu lateral principal', () => {
       await page.getByRole('menuitem', { name: label }).click();
       await expect(page).toHaveURL(new RegExp(`${route.replace('/', '\\/')}$`));
       await expect(page.getByTestId('main-menu-return')).toBeVisible();
+
+      const returnButton = page.getByTestId('main-menu-return');
+      const buttonBox = await returnButton.boundingBox();
+      const contentBox = await page.getByTestId('app-content').boundingBox();
+
+      expect(buttonBox).not.toBeNull();
+      expect(contentBox).not.toBeNull();
+      expect(await returnButton.evaluate(element => getComputedStyle(element).position)).toBe('static');
+      expect(buttonBox!.x).toBeGreaterThanOrEqual(contentBox!.x);
+      expect(buttonBox!.y).toBeLessThan(160);
     }
 
     await page.getByTestId('main-menu-return').click();
