@@ -1,4 +1,4 @@
-<div class="app-shell">
+<div class="app-shell" [class.po-wrapper]="showSideMenu">
   @if (isAuthenticated) {
     <ng-template #sessionActionsIcon>
       <button
@@ -15,23 +15,15 @@
       [p-actions]="toolbarActions"
       [p-actions-icon]="sessionActionsIcon"
     ></po-toolbar>
+
+    @if (showSideMenu) {
+      <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
+        <po-menu [p-menus]="menus"></po-menu>
+      </nav>
+    }
   }
 
   <main class="app-shell__content" data-testid="app-content">
-    @if (showMainMenuReturn) {
-      <div class="app-shell__main-menu-bar">
-        <a
-          class="app-shell__main-menu-return"
-          routerLink="/menu"
-          data-testid="main-menu-return"
-          aria-label="Voltar ao Menu Principal"
-        >
-          <po-icon p-icon="an an-house-line" aria-hidden="true" />
-          <span>Menu Principal</span>
-        </a>
-      </div>
-    }
-
     <router-outlet />
   </main>
 </div>

@@ -10,6 +10,7 @@ import { App } from './app';
 import { routes } from './app.routes';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { User } from './core/auth/auth.models';
+import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
@@ -309,9 +310,10 @@ describe('App', () => {
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
   });
 
-  it('should render the authenticated toolbar without a side menu', () => {
+  it('should render the authenticated Home toolbar without a side menu', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    await TestBed.inject(Router).navigateByUrl('/menu');
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
@@ -319,6 +321,55 @@ describe('App', () => {
     expect(app.toolbarTitle).toBe('Plano de Controle CQ - operador');
     expect(fixture.nativeElement.querySelector('po-toolbar')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+  });
+
+  it('should keep the side menu hidden during the root redirect and with Home matrix parameters', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(app.showSideMenu).toBe(false);
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+
+    await TestBed.inject(Router).navigateByUrl('/menu;origin=toolbar');
+    fixture.detectChanges();
+
+    expect(app.showSideMenu).toBe(false);
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+  });
+
+  it('should render contextual navigation on module routes with Home first and shared modules in order', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    await TestBed.inject(Router).navigateByUrl('/quality-control');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+
+    expect(app.showSideMenu).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-testid="app-side-menu"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('po-menu')).not.toBeNull();
+    expect(app.menus[0]).toMatchObject({
+      label: 'Menu Principal',
+      shortLabel: 'Home',
+      icon: 'an an-house-line',
+      link: '/menu',
+    });
+    expect(app.menus.slice(1).map(({ label, shortLabel, icon, link }) => ({
+      label,
+      shortLabel,
+      icon,
+      route: link,
+    }))).toEqual(APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({
+      label,
+      shortLabel,
+      icon,
+      route,
+    })));
+    expect(app.menus.some(item => item.label === 'Sair')).toBe(false);
+    expect(fixture.nativeElement.querySelector('[data-testid="main-menu-return"]')).toBeNull();
   });
 
   it('should expose Sair as the only toolbar action using the installed PO-UI API', () => {

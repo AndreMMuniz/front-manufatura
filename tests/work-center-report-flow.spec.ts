@@ -21,6 +21,7 @@ test.describe('fluxo de Reporte Operações', () => {
     await page.getByRole('link', { name: 'Reporte Operações' }).click();
 
     await expect(page).toHaveURL(/\/operation-reporting$/);
+    await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Reporta Operação' })).toBeVisible();
   });
 
@@ -28,6 +29,7 @@ test.describe('fluxo de Reporte Operações', () => {
     await login(page);
     await page.getByRole('link', { name: 'Centro de Trabalho' }).click();
 
+    await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Report' })).toBeVisible();
     await page.getByRole('button', { name: 'Report' }).click();
     await expect(page.getByText('Complete Centro de Trabalho, Operador e Validade para acessar o Report.')).toBeVisible();

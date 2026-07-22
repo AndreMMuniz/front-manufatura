@@ -1,19 +1,29 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { PRIMARY_OUTLET, Router, RouterOutlet } from '@angular/router';
 import { filter, skip } from 'rxjs';
 
 import {
   PoIconModule,
+  PoMenuItem,
+  PoMenuModule,
   PoToolbarAction,
   PoToolbarModule,
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
+import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
+
+const HOME_MENU: PoMenuItem = {
+  label: 'Menu Principal',
+  shortLabel: 'Home',
+  icon: 'an an-house-line',
+  link: '/menu',
+};
 
 @Component({
   selector: 'app-root',
-  imports: [RouterLink, RouterOutlet, PoIconModule, PoToolbarModule],
+  imports: [RouterOutlet, PoIconModule, PoMenuModule, PoToolbarModule],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -30,6 +40,16 @@ export class App {
       type: 'danger',
       action: () => this.logout(),
     },
+  ];
+
+  readonly menus: Array<PoMenuItem> = [
+    HOME_MENU,
+    ...APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({
+      label,
+      shortLabel,
+      icon,
+      link: route,
+    })),
   ];
 
   constructor() {
@@ -64,8 +84,10 @@ export class App {
     return user ? `Plano de Controle CQ - ${user.login}` : 'Plano de Controle CQ';
   }
 
-  get showMainMenuReturn(): boolean {
-    return this.isAuthenticated && this.router.url.split(/[?#]/)[0] !== '/menu';
+  get showSideMenu(): boolean {
+    const primaryRoute = this.router.parseUrl(this.router.url).root.children[PRIMARY_OUTLET];
+    const path = `/${primaryRoute?.segments.map(segment => segment.path).join('/') ?? ''}`;
+    return this.isAuthenticated && path !== '/' && path !== '/menu' && path !== '/login';
   }
 
   logout(): void {

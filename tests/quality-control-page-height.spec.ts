@@ -7,6 +7,8 @@ test('exibe as ações do Plano Controle CQ sem cortá-las no contêiner da pág
   await page.getByRole('textbox', { name: 'Senha' }).fill('mock123');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await page.goto('/quality-control');
+  await expect(page).toHaveURL(/\/quality-control$/);
+  await expect(page.locator('.quality-workspace__actions')).toBeVisible();
 
   const layout = await page.evaluate(() => {
     const pageContent = document.querySelector<HTMLElement>('.po-page-content');

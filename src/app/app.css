@@ -10,6 +10,10 @@
   background: var(--app-color-background);
 }
 
+.app-shell__menu {
+  display: block;
+}
+
 .app-shell__session-actions-trigger {
   display: inline-flex;
   align-items: center;
@@ -26,45 +30,4 @@
 .app-shell__session-actions-trigger:focus-visible {
   outline: 2px solid var(--color-action-focus);
   outline-offset: 2px;
-}
-
-.app-shell__main-menu-bar {
-  display: flex;
-  justify-content: flex-start;
-  box-sizing: border-box;
-  width: 100%;
-  padding: var(--app-space-md) var(--app-space-lg) 0;
-}
-
-.app-shell__main-menu-return {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--app-space-sm);
-  min-height: var(--app-touch-target);
-  box-sizing: border-box;
-  padding: var(--app-space-sm) var(--app-space-md);
-  border: 1px solid var(--app-color-primary-dark);
-  border-radius: var(--app-radius);
-  background: var(--app-color-primary);
-  color: var(--app-color-surface);
-  font-weight: 600;
-  text-decoration: none;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
-}
-
-.app-shell__main-menu-return:hover {
-  background: var(--app-color-primary-dark);
-}
-
-.app-shell__main-menu-return:focus-visible {
-  outline: 2px solid var(--color-action-focus);
-  outline-offset: 2px;
-}
-
-@media (max-width: 639px) {
-  .app-shell__main-menu-bar {
-    padding-right: var(--app-space-md);
-    padding-left: var(--app-space-md);
-  }
 }
