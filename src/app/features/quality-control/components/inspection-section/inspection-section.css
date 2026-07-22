@@ -1,0 +1,17 @@
+.inspection-process { display: grid; gap: var(--app-space-lg, 16px); min-width: 0; }
+.inspection-process__header { align-items: end; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(160px, 220px); }
+.inspection-process__eyebrow { color: var(--app-color-primary, #0c6b77); font-weight: 800; margin: 0 0 8px; text-transform: uppercase; }
+.inspection-process h2 { font-size: 1.4rem; margin: 0; }
+.inspection-process__route, .inspection-process__exam-strip > div { border: 1px solid var(--app-color-border, #dadedf); border-radius: 4px; display: grid; gap: 4px; padding: 12px; }
+.inspection-process__exam-strip { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.inspection-process__feedback { background: #e5f2fb; border-left: 4px solid #0c6b77; margin: 0; padding: 12px; }
+.inspection-process__components { display: grid; gap: 8px; max-height: 48vh; min-height: 180px; overflow-y: auto; }
+.inspection-process__component { align-items: center; background: #fff; border: 1px solid var(--app-color-border, #dadedf); border-left: 6px solid #dadedf; border-radius: 4px; color: inherit; cursor: pointer; display: grid; font: inherit; gap: 12px; grid-template-columns: 28px minmax(0, 1fr); min-height: 60px; padding: 12px; text-align: left; width: 100%; }
+.inspection-process__component:focus-visible { outline: 3px solid #0c6b77; outline-offset: 2px; }
+.inspection-process__component--selected { background: #e7f3f4; border-color: #0c6b77; }
+.inspection-process__component--approved { border-left-color: var(--app-color-success, #2e7d32); }
+.inspection-process__component-text { display: grid; gap: 4px; min-width: 0; }
+.inspection-process__component-text strong { overflow-wrap: anywhere; }
+.inspection-process__progress { margin-top: 16px; }
+.inspection-process__action { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-top: 16px; }
+@media (max-width: 640px) { .inspection-process__header { grid-template-columns: 1fr; } .inspection-process__components { max-height: none; } }

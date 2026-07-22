@@ -70,6 +70,15 @@ describe('QualityControlService', () => {
     });
   });
 
+  it('returns frequency and sample metadata for the inspection header', async () => {
+    await expect(firstValueFrom(service.getQualityExams('30907', '20'))).resolves.toEqual([
+      expect.objectContaining({
+        frequency: '2',
+        sample: '1 pc',
+      }),
+    ]);
+  });
+
   it('approves values inside tolerance', () => {
     expect(service.validateMeasurement(component, 488)).toBe('APPROVED');
   });

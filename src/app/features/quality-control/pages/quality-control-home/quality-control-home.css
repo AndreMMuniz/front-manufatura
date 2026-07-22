@@ -203,6 +203,10 @@
     grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
   }
 
+  .inspection-process__exam-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .inspection-process__workspace {
     align-items: start;
     grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);

@@ -1,0 +1,19 @@
+<po-page-default p-title="Plano Controle CQ">
+  <main class="quality-workspace">
+    <app-route-generation-section></app-route-generation-section>
+
+    @if (workflow.route()?.routeNumber && (workflow.exams().length > 0 || workflow.isLoadingExams())) {
+      <div class="quality-workspace__execution" [class.quality-workspace__execution--editing]="workflow.panelOpen()">
+        <app-inspection-section></app-inspection-section>
+        @if (workflow.panelOpen()) {
+          <app-exam-entry-panel (panelClosed)="restoreInspectionFocus()"></app-exam-entry-panel>
+        }
+      </div>
+    }
+
+    <nav class="quality-workspace__actions" aria-label="Ações do Plano Controle CQ">
+      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="goBack()"></po-button>
+      <po-button p-label="Sair" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="exit()"></po-button>
+    </nav>
+  </main>
+</po-page-default>

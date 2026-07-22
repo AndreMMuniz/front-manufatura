@@ -24,6 +24,16 @@
             <span>Versão</span>
             <strong>{{ exam.version }}</strong>
           </div>
+
+          <div>
+            <span>Frequência</span>
+            <strong>{{ exam.frequency || '-' }}</strong>
+          </div>
+
+          <div>
+            <span>Amostra</span>
+            <strong>{{ exam.sample || '-' }}</strong>
+          </div>
         }
       </section>
     }

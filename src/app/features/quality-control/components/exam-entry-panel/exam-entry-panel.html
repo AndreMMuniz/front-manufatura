@@ -1,0 +1,48 @@
+<section class="exam-entry" aria-labelledby="exam-entry-title">
+  <header class="exam-entry__header">
+    <div>
+      <p class="exam-entry__eyebrow">Digitação de Exame</p>
+      <h2 #panelTitle id="exam-entry-title" tabindex="-1">Registro das medições</h2>
+    </div>
+    <div class="exam-entry__exam"><span>Exame</span><strong>{{ exam?.code || '-' }}</strong></div>
+  </header>
+
+  @if (workflow.examFeedback()) {
+    <p class="exam-entry__feedback" role="status" aria-live="polite">{{ workflow.examFeedback() }}</p>
+  }
+
+  <po-widget p-title="Característica">
+    <div class="exam-entry__characteristic">
+      <span>Código</span><strong>{{ currentCharacteristic?.code || '-' }}</strong>
+      <span>Descrição</span><strong>{{ currentCharacteristic?.description || '-' }}</strong>
+      <span>Referência</span><strong>{{ currentMeasurementReference }}</strong>
+    </div>
+  </po-widget>
+
+  <po-widget p-title="Medição">
+    @if (errorTitle) {
+      <div class="exam-entry__error" role="alert"><strong>{{ errorTitle }}</strong><span>{{ validationMessage }}</span></div>
+    }
+    <form class="exam-entry__form" (ngSubmit)="saveCurrentMeasurement().subscribe()">
+      <po-input name="minimum" p-label="Min" p-placeholder="Ex.: 485" p-required="true" [p-disabled]="workflow.isSaving()" [ngModel]="minimum" (ngModelChange)="updateMinimum($event)"></po-input>
+      <po-input name="maximum" p-label="Max" p-placeholder="Ex.: 491" p-required="true" [p-disabled]="workflow.isSaving()" [ngModel]="maximum" (ngModelChange)="updateMaximum($event)"></po-input>
+      <po-input name="observation" p-label="Observação" p-placeholder="Observação da medição" [p-disabled]="workflow.isSaving()" [(ngModel)]="observation"></po-input>
+      @if (validationMessage && !errorTitle) { <p class="exam-entry__validation" aria-live="polite">{{ validationMessage }}</p> }
+      <div class="exam-entry__navigation">
+        <po-button p-label="Anterior" p-kind="secondary" [p-disabled]="!canGoPrevious" (p-click)="goPrevious()"></po-button>
+        <po-button p-label="Salvar" p-kind="primary" p-type="submit" [p-disabled]="workflow.isSaving()"></po-button>
+        <po-button p-label="Próxima" p-kind="secondary" [p-disabled]="!canGoNext" (p-click)="goNext()"></po-button>
+      </div>
+    </form>
+  </po-widget>
+
+  <po-widget p-title="Progresso do exame">
+    <strong>Característica {{ progressText }}</strong>
+    <po-progress [p-value]="progressPercentage" [p-text]="completedCount + ' de ' + characteristics.length + ' salvas'" p-aria-label="Progresso da digitação do exame"></po-progress>
+  </po-widget>
+
+  <footer class="exam-entry__footer">
+    <po-button p-label="Fechar" p-kind="secondary" [p-disabled]="workflow.isSaving()" (p-click)="closePanel()"></po-button>
+    <po-button p-label="Concluir exame" p-kind="primary" [p-disabled]="!canCompleteExam" (p-click)="completeExam()"></po-button>
+  </footer>
+</section>

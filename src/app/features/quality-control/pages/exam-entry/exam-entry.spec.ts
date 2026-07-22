@@ -29,6 +29,7 @@ describe('ExamEntryPage', () => {
       description: 'Filmes e Mangueiras',
       version: '1',
       frequency: '2',
+      sample: '1 pc',
       unit: 'pc',
       nqa: '0,000',
       level: '1',

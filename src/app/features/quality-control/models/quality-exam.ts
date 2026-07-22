@@ -31,6 +31,7 @@ export interface QualityExam {
   description: string;
   version: string;
   frequency: string;
+  sample: string;
   unit: string;
   nqa: string;
   level: string;

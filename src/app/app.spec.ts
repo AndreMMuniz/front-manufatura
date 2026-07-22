@@ -15,9 +15,7 @@ import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page'
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
-import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
-import { ExamEntryPage } from './features/quality-control/pages/exam-entry/exam-entry';
-import { RouteGenerationPage } from './features/quality-control/pages/route-generation/route-generation';
+import { QualityControlWorkspacePage } from './features/quality-control/pages/quality-control-workspace/quality-control-workspace';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
@@ -67,30 +65,30 @@ describe('App', () => {
       currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
     });
 
-    it('should route quality-control to the route generation page', async () => {
+    it('should route quality-control to the unified workspace', async () => {
       const harness = await RouterTestingHarness.create();
 
-      const component = await harness.navigateByUrl('/quality-control', RouteGenerationPage);
+      const component = await harness.navigateByUrl('/quality-control', QualityControlWorkspacePage);
 
-      expect(component).toBeInstanceOf(RouteGenerationPage);
+      expect(component).toBeInstanceOf(QualityControlWorkspacePage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');
     });
 
     it('should return direct inspection access to route generation when no route was generated', async () => {
       const harness = await RouterTestingHarness.create();
 
-      const component = await harness.navigateByUrl('/quality-control/inspection', RouteGenerationPage);
+      const component = await harness.navigateByUrl('/quality-control/inspection', QualityControlWorkspacePage);
 
-      expect(component).toBeInstanceOf(RouteGenerationPage);
+      expect(component).toBeInstanceOf(QualityControlWorkspacePage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');
     });
 
     it('should return direct exam entry access to route generation when no exam was selected', async () => {
       const harness = await RouterTestingHarness.create();
 
-      const component = await harness.navigateByUrl('/quality-control/exam-entry', RouteGenerationPage);
+      const component = await harness.navigateByUrl('/quality-control/exam-entry', QualityControlWorkspacePage);
 
-      expect(component).toBeInstanceOf(RouteGenerationPage);
+      expect(component).toBeInstanceOf(QualityControlWorkspacePage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');
     });
 
@@ -205,6 +203,19 @@ describe('App', () => {
       expect(router.url.startsWith('/login')).toBe(true);
       expect(returnUrlFrom(router)).toBe('/quality-control');
     });
+
+    it.each(['/quality-control/inspection', '/quality-control/exam-entry'])(
+      'should protect legacy CQ redirect %s through the effective workspace target',
+      async url => {
+        const harness = await RouterTestingHarness.create();
+        const router = TestBed.inject(Router);
+
+        await harness.navigateByUrl(url);
+
+        expect(router.url.startsWith('/login')).toBe(true);
+        expect(returnUrlFrom(router)).toBe('/quality-control');
+      },
+    );
 
     it('should treat the removed menu path as an unknown guarded route when not authenticated', async () => {
       const harness = await RouterTestingHarness.create();

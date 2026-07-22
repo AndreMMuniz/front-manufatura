@@ -38,6 +38,10 @@ test.describe('fluxo de Ordem do Plano Controle CQ', () => {
       page.getByRole('heading', { name: 'Execução do roteiro de inspeção' }),
     ).toBeVisible();
     await expect(page.getByText('500517')).toBeVisible();
+    await expect(page.getByText('Frequência', { exact: true })).toBeVisible();
+    await expect(page.getByText('2', { exact: true })).toBeVisible();
+    await expect(page.getByText('Amostra', { exact: true })).toBeVisible();
+    await expect(page.getByText('1 pc', { exact: true })).toBeVisible();
   });
 
   test('mantém a seleção de operações utilizável em viewport móvel', async ({ page }) => {
