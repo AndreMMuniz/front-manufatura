@@ -129,6 +129,34 @@ test.describe('menu lateral principal', () => {
     await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
   });
 
+  test('posiciona o retorno no topo esquerdo sem cobrir o conteúdo em tela compacta', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await login(page);
+
+    await page
+      .getByRole('menuitem', { name: 'Plano Controle CQ' })
+      .evaluate((element: HTMLElement) => element.click());
+
+    const returnButton = page.getByTestId('main-menu-return');
+    const pageHeading = page.getByRole('heading', { name: 'Plano Controle CQ', level: 2 });
+    const buttonBox = await returnButton.boundingBox();
+    const headingBox = await pageHeading.boundingBox();
+
+    expect(buttonBox).not.toBeNull();
+    expect(headingBox).not.toBeNull();
+    expect(buttonBox!.x).toBe(16);
+    expect(buttonBox!.y).toBeGreaterThanOrEqual(56);
+    expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(headingBox!.y);
+    expect(pageErrors).toEqual([]);
+
+    await returnButton.click();
+    await expect(page).toHaveURL(/\/menu$/);
+  });
+
   test('oferece retorno ao Menu Principal em todas as telas dos módulos', async ({ page }) => {
     await login(page);
 
@@ -142,11 +170,14 @@ test.describe('menu lateral principal', () => {
       const returnButton = page.getByTestId('main-menu-return');
       const buttonBox = await returnButton.boundingBox();
       const contentBox = await page.getByTestId('app-content').boundingBox();
+      const sideMenuBox = await page.getByTestId('app-side-menu').locator('.po-menu').boundingBox();
 
       expect(buttonBox).not.toBeNull();
       expect(contentBox).not.toBeNull();
+      expect(sideMenuBox).not.toBeNull();
       expect(await returnButton.evaluate(element => getComputedStyle(element).position)).toBe('static');
       expect(buttonBox!.x).toBeGreaterThanOrEqual(contentBox!.x);
+      expect(buttonBox!.x).toBeGreaterThanOrEqual(sideMenuBox!.x + sideMenuBox!.width);
       expect(buttonBox!.y).toBeLessThan(160);
     }
 
