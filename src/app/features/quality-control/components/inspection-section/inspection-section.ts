@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, ViewChildren
 
 import { PoButtonModule, PoDialogService, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
 
+import { formatExamFrequency } from '../../models/format-exam-frequency';
 import { QualityExamComponent } from '../../models/quality-exam';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 
@@ -17,6 +18,7 @@ export class InspectionSection {
   @ViewChildren('componentButton', { read: ElementRef }) private componentButtons?: QueryList<ElementRef<HTMLElement>>;
 
   readonly workflow = inject(QualityControlWorkflowState);
+  readonly formatExamFrequency = formatExamFrequency;
   private readonly dialog = inject(PoDialogService);
 
   get progressText(): string {

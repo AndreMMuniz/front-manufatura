@@ -14,7 +14,7 @@ describe('InspectionSection', () => {
   let fixture: ComponentFixture<InspectionSection>;
   const confirm = vi.fn();
   const exams: QualityExam[] = [{
-    id: 'exam-a', code: 'A', description: 'A', version: '1', frequency: '1', sample: '1 pc', unit: 'pc', nqa: '0', level: '1',
+    id: 'exam-a', code: 'A', description: 'A', version: '1', frequency: '120', sample: '1 pc', unit: 'pc', nqa: '0', level: '1',
     components: [
       { id: 'a-10', code: '010', description: 'A10', reference: '0 - 10', minValue: 0, maxValue: 10, unit: 'mm', sequence: 10, status: 'PENDING' },
       { id: 'a-20', code: '020', description: 'A20', reference: '0 - 20', minValue: 0, maxValue: 20, unit: 'mm', sequence: 20, status: 'PENDING' },
@@ -42,6 +42,13 @@ describe('InspectionSection', () => {
     expect(state.panelOpen()).toBe(true);
     expect(state.selectedExam()?.id).toBe('exam-a');
     expect(state.route()?.routeNumber).toBe('1');
+  });
+
+  it('shows the exam frequency as hours and minutes', () => {
+    const frequency = Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.inspection-process__exam-strip small'))
+      .find(element => element.textContent?.includes('Frequência'));
+
+    expect(frequency?.textContent).toContain('Frequência: 02:00 h');
   });
 
   it('blocks jumping over the next Datasul component', () => {

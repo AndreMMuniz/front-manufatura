@@ -13,7 +13,7 @@
         <div>
           <span>Exame</span><strong>{{ exam.code }}</strong>
           <small>Versão {{ exam.version }}</small>
-          <small>Frequência: {{ exam.frequency }}</small>
+          <small>Frequência: {{ formatExamFrequency(exam.frequency) }}</small>
           <small>Amostra: {{ exam.sample }}</small>
         </div>
       }
