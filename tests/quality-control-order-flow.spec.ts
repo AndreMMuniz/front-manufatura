@@ -40,7 +40,7 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
       page.getByRole('heading', { name: 'Execução do roteiro de inspeção' }),
     ).toBeVisible();
     await expect(page.getByText('500517')).toBeVisible();
-    await expect(page.getByText('Frequência: 2')).toBeVisible();
+    await expect(page.getByText('Frequência: 00:02 h')).toBeVisible();
     await expect(page.getByText('Amostra: 1 pc')).toBeVisible();
     await expect(page.getByText('325571', { exact: true })).toBeVisible();
 

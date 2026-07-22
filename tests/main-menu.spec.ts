@@ -45,7 +45,7 @@ test.describe('Home de navegação', () => {
     for (const module of modules) {
       await page.getByRole('link', { name: module.label }).click();
       await expect(page).toHaveURL(new RegExp(`${module.route.replace('/', '\\/')}$`));
-      await page.getByRole('menuitem', { name: 'Menu Principal' }).click();
+      await page.goBack();
       await expect(page).toHaveURL(/\/menu$/);
     }
   });
@@ -55,6 +55,8 @@ test.describe('Home de navegação', () => {
 
     const first = page.getByRole('link', { name: modules[0].label });
     await first.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
     await expect(first).toBeFocused();
     expect(
       await first.evaluate(element => {
@@ -71,7 +73,7 @@ test.describe('Home de navegação', () => {
     await first.focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/quality-control$/);
-    await page.getByRole('menuitem', { name: 'Menu Principal' }).click();
+    await page.goBack();
     await page.getByRole('link', { name: modules[1].label }).focus();
     await page.keyboard.press('Space');
     await expect(page).toHaveURL(/\/operation-reporting$/);
@@ -97,7 +99,7 @@ test.describe('Home de navegação', () => {
       expect(box.width).toBeGreaterThanOrEqual(48);
     }
     expect(
-      await page.getByRole('link', { name: 'Refugo / Retrabalho' }).evaluate(element =>
+      await page.getByRole('link', { name: 'Refugo / Retrabalho' }).locator('.main-menu__label').evaluate(element =>
         getComputedStyle(element).overflowWrap !== 'normal'),
     ).toBe(true);
     await expectNoHorizontalOverflow(page);

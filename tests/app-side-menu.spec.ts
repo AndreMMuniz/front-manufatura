@@ -76,6 +76,10 @@ test.describe('menu lateral principal', () => {
     await expect(page).toHaveURL(/\/quality-control$/);
     await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Plano de Controle CQ' })).toBeVisible();
+
+    await page.getByRole('menuitem', { name: 'Menu Principal' }).click();
+    await expect(page).toHaveURL(/\/menu$/);
+    await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
   });
 
   test('navega diretamente para Reporta Batelada pelo menu lateral', async ({ page }) => {
