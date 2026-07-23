@@ -19,14 +19,20 @@
         (ngModelChange)="atualizarQuantidade('quantidadeRetrabalho', $event)"
       ></po-number>
 
-      <po-number
-        name="reporteQuantidadeRefugo"
-        p-label="Qtde Refugo"
-        [p-min]="0"
-        [p-disabled]="salvando"
-        [ngModel]="quantidadeRefugo"
-        (ngModelChange)="atualizarQuantidade('quantidadeRefugo', $event)"
-      ></po-number>
+      <div class="reporte-slide__with-action">
+        <po-number
+          name="reporteQuantidadeRefugo"
+          p-label="Qtde Refugo"
+          [p-disabled]="true"
+          [ngModel]="quantidadeRefugo"
+        ></po-number>
+        <po-button
+          p-label="Editar Refugo"
+          p-kind="secondary"
+          [p-disabled]="salvando"
+          (p-click)="editarRefugo.emit()"
+        ></po-button>
+      </div>
     </div>
 
     @if (validationMessage) {
@@ -52,7 +58,13 @@
           <span><small>Data/Hora</small>{{ formatDataHora(reporte.registradoEm) }}</span>
           <span><small>Aprovada</small>{{ formatQuantidade(reporte.quantidadeAprovada) }}</span>
           <span><small>Retrabalho</small>{{ formatQuantidade(reporte.quantidadeRetrabalho) }}</span>
-          <span><small>Refugo</small>{{ formatQuantidade(reporte.quantidadeRefugo) }}</span>
+          <span
+            [attr.title]="reporte.refugoItens.length
+              ? 'Motivos: ' + reporte.refugoItens.length
+              : 'Sem refugo'"
+          >
+            <small>Refugo</small>{{ formatQuantidade(reporte.quantidadeRefugo) }}
+          </span>
         </div>
       } @empty {
         <p class="reporte-slide__empty">Nenhum reporte realizado nesta operação.</p>

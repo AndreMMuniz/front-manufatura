@@ -16,12 +16,16 @@ import {
   PoPageSlideModule,
 } from '@po-ui/ng-components';
 
-import { ReporteParcialOperacao } from '../../models/report-operacao.model';
+import {
+  ReporteParcialOperacao,
+  ReporteRefugoItem,
+} from '../../models/report-operacao.model';
 
 export interface ReporteParcialDraft {
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
+  readonly refugoItens: ReadonlyArray<ReporteRefugoItem>;
 }
 
 @Component({
@@ -33,12 +37,14 @@ export interface ReporteParcialDraft {
 })
 export class ReporteSlide {
   @Output() reporteSolicitado = new EventEmitter<ReporteParcialDraft>();
+  @Output() editarRefugo = new EventEmitter<void>();
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
 
   quantidadeAprovada = 0;
   quantidadeRetrabalho = 0;
   quantidadeRefugo = 0;
+  refugoItens: ReadonlyArray<ReporteRefugoItem> = [];
   historico: ReadonlyArray<ReporteParcialOperacao> = [];
   salvando = false;
   validationMessage = '';
@@ -78,6 +84,7 @@ export class ReporteSlide {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
+      refugoItens: reporte.refugoItens.map(item => ({ ...item })),
     }));
     this.resetDraft();
     this.pageSlide.open();
@@ -103,6 +110,7 @@ export class ReporteSlide {
       quantidadeAprovada: this.quantidadeAprovada,
       quantidadeRetrabalho: this.quantidadeRetrabalho,
       quantidadeRefugo: this.quantidadeRefugo,
+      refugoItens: this.refugoItens.map(item => ({ ...item })),
     });
   }
 
@@ -112,6 +120,7 @@ export class ReporteSlide {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
+      refugoItens: reporte.refugoItens.map(item => ({ ...item })),
     }];
     this.salvando = false;
     this.resetDraft();
@@ -121,6 +130,15 @@ export class ReporteSlide {
   informarErro(message: string): void {
     this.salvando = false;
     this.validationMessage = message;
+    this.changeDetector.markForCheck();
+  }
+
+  aplicarRefugo(itens: ReadonlyArray<ReporteRefugoItem>): void {
+    this.refugoItens = itens.map(item => ({ ...item }));
+    this.quantidadeRefugo = this.round3(
+      this.refugoItens.reduce((total, item) => total + item.quantidade, 0),
+    );
+    this.validationMessage = '';
     this.changeDetector.markForCheck();
   }
 
@@ -163,6 +181,11 @@ export class ReporteSlide {
     this.quantidadeAprovada = 0;
     this.quantidadeRetrabalho = 0;
     this.quantidadeRefugo = 0;
+    this.refugoItens = [];
     this.validationMessage = '';
+  }
+
+  private round3(value: number): number {
+    return Math.round((value + Number.EPSILON) * 1000) / 1000;
   }
 }

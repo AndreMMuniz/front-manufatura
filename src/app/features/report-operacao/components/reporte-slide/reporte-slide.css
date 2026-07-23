@@ -12,6 +12,13 @@
   margin: 0;
 }
 
+.reporte-slide__with-action {
+  align-items: end;
+  display: grid;
+  gap: var(--app-space-sm);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .reporte-slide__total {
   background: var(--app-color-background-soft);
   border-left: 4px solid var(--app-color-primary);
