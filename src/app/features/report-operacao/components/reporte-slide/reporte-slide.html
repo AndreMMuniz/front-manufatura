@@ -66,6 +66,16 @@
             <small>Refugo</small>{{ formatQuantidade(reporte.quantidadeRefugo) }}
           </span>
         </div>
+        @if (reporte.refugoItens.length > 0) {
+          <div class="reporte-slide__reasons">
+            @for (item of reporte.refugoItens; track item.codigo + $index) {
+              <span>
+                {{ item.codigo }} - {{ item.descricao }}:
+                {{ formatQuantidade(item.quantidade) }}
+              </span>
+            }
+          </div>
+        }
       } @empty {
         <p class="reporte-slide__empty">Nenhum reporte realizado nesta operação.</p>
       }

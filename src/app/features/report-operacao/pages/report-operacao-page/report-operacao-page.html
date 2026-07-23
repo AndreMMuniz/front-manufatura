@@ -77,9 +77,13 @@
 
     <app-refugo-slide
       (refugoRegistrado)="registrarRefugo($event)"
+      (refugoCancelado)="cancelarRefugoDoReporte()"
       (sairSolicitado)="sair()"
     ></app-refugo-slide>
 
-    <app-reporte-slide (reporteSolicitado)="salvarReporte($event)"></app-reporte-slide>
+    <app-reporte-slide
+      (reporteSolicitado)="salvarReporte($event)"
+      (editarRefugo)="abrirRefugoDoReporte()"
+    ></app-reporte-slide>
   </section>
 </po-page-default>

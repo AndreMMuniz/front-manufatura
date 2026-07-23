@@ -99,6 +99,7 @@ export class ReportOperacaoPage implements OnInit {
   encerrando = false;
   loadingResponsaveis = false;
   responsaveisError = '';
+  private refugoEmEdicaoParaReporte = false;
 
   private areasRequest = 0;
   private centersRequest = 0;
@@ -277,6 +278,18 @@ export class ReportOperacaoPage implements OnInit {
     }
   }
 
+  abrirRefugoDoReporte(): void {
+    if (!this.operacao || this.reporteDisabled) {
+      return;
+    }
+
+    this.refugoEmEdicaoParaReporte = true;
+    this.refugoSlide?.abrir(
+      this.reporteSlide?.quantidadeRefugo ?? 0,
+      this.reporteSlide?.refugoItens ?? [],
+    );
+  }
+
   alterarTipoResponsavel(tipo: TipoResponsavelOperacao): void {
     if (this.operacao?.dataInicio || this.isBusy) {
       return;
@@ -330,6 +343,14 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
 
+    if (this.refugoEmEdicaoParaReporte) {
+      this.refugoEmEdicaoParaReporte = false;
+      this.reporteSlide?.aplicarRefugo(refugo.itens);
+      this.feedback = 'Composição de refugo adicionada ao reporte em edição.';
+      this.changeDetector.markForCheck();
+      return;
+    }
+
     const previous = this.operacao;
     this.operacao = { ...this.operacao, quantidadeRefugo: refugo.quantidade };
     const validation = this.reportOperacaoService.validarReporte(this.operacao);
@@ -349,6 +370,10 @@ export class ReportOperacaoPage implements OnInit {
     this.feedback = 'Refugo registrado no painel lateral.';
     this.notification.success('Refugo registrado.');
     this.changeDetector.markForCheck();
+  }
+
+  cancelarRefugoDoReporte(): void {
+    this.refugoEmEdicaoParaReporte = false;
   }
 
   abrirRetrabalho(): void {
@@ -669,6 +694,7 @@ export class ReportOperacaoPage implements OnInit {
   private reportOperation(draft: ReporteParcialDraft): void {
     const operation = this.operacao;
     const responsavel = this.responsavelSelecionado;
+    const refugoItens = draft.refugoItens ?? [];
     if (!operation?.dataInicio || !operation.horaInicio || !responsavel || !this.canEditProduction) {
       const message = 'Inicie a operação com uma equipe ou operador válido antes de reportar.';
       this.feedback = message;
@@ -695,6 +721,7 @@ export class ReportOperacaoPage implements OnInit {
       draft.quantidadeAprovada,
       draft.quantidadeRetrabalho,
       draft.quantidadeRefugo,
+      refugoItens,
     );
 
     if (validation) {
@@ -718,7 +745,7 @@ export class ReportOperacaoPage implements OnInit {
       quantidadeRefugo: draft.quantidadeRefugo,
     };
 
-    this.reportOperacaoService.reportarOperacao(this.toReportRequest(parcial, responsavel))
+    this.reportOperacaoService.reportarOperacao(this.toReportRequest(parcial, responsavel, refugoItens))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: result => {
@@ -734,6 +761,7 @@ export class ReportOperacaoPage implements OnInit {
             dataFim: end.dataFim ?? result.reportadoEm,
             horaFim: end.horaFim,
             ...draft,
+            refugoItens: refugoItens.map(item => ({ ...item })),
           };
           this.reportes = [...this.reportes, reporte];
           this.operacao = {
@@ -863,6 +891,7 @@ export class ReportOperacaoPage implements OnInit {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
+      refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }));
     this.tipoResponsavel = snapshot.responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = snapshot.responsavel?.codigo ?? '';
@@ -906,6 +935,7 @@ export class ReportOperacaoPage implements OnInit {
   private toReportRequest(
     operation: ReportOperacao,
     responsavel: ResponsavelOperacao,
+    refugoItens: ReportarOperacaoRequest['refugoItens'],
   ): ReportarOperacaoRequest {
     return {
       ordem: operation.ordem,
@@ -914,6 +944,7 @@ export class ReportOperacaoPage implements OnInit {
       quantidadeAprovada: operation.quantidadeAprovada,
       quantidadeRetrabalho: operation.quantidadeRetrabalho,
       quantidadeRefugo: operation.quantidadeRefugo,
+      refugoItens: refugoItens?.map(item => ({ ...item })),
       dataInicio: operation.dataInicio!,
       horaInicio: operation.horaInicio,
       dataFim: operation.dataFim ?? new Date(),

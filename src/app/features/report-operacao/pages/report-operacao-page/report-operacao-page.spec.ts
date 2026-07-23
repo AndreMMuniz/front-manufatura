@@ -470,6 +470,7 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
+      refugoItens: [],
     });
 
     fixture.detectChanges();
@@ -534,13 +535,63 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0.5,
       quantidadeRefugo: 1.5,
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
+        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
+      ],
     });
 
     expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0.5,
       quantidadeRefugo: 1.5,
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
+        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
+      ],
     }));
+  });
+
+  it('keeps scrap reasons in the report draft until that partial report is saved', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({
+      dataInicio: new Date(2026, 5, 30),
+      horaInicio: '08:00',
+    });
+    const aplicarRefugo = vi.fn();
+    const abrirRefugo = vi.fn();
+    (component as unknown as {
+      reporteSlide: {
+        quantidadeRefugo: number;
+        refugoItens: ReadonlyArray<unknown>;
+        aplicarRefugo: typeof aplicarRefugo;
+      };
+      refugoSlide: { abrir: typeof abrirRefugo };
+    }).reporteSlide = { quantidadeRefugo: 0, refugoItens: [], aplicarRefugo };
+    (component as unknown as { refugoSlide: { abrir: typeof abrirRefugo } }).refugoSlide = {
+      abrir: abrirRefugo,
+    };
+
+    component.abrirRefugoDoReporte();
+    component.registrarRefugo({
+      quantidade: 1.5,
+      motivo: '05 - Borra, 32 - Varredura',
+      itens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
+        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
+      ],
+    });
+
+    expect(abrirRefugo).toHaveBeenCalledWith(0, []);
+    expect(aplicarRefugo).toHaveBeenCalledWith([
+      { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
+      { codigo: '32', descricao: 'Varredura', quantidade: 1 },
+    ]);
+    expect(component.operacao.quantidadeRefugo).toBe(0);
   });
 
   it('requires a selected operator or team before starting and locks it after start', () => {

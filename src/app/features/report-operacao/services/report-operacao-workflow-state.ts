@@ -244,7 +244,7 @@ export class ReportOperacaoWorkflowState {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
-      refugoItens: reporte.refugoItens.map(item => ({ ...item })),
+      refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     };
   }
 }

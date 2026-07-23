@@ -17,6 +17,7 @@ describe('ReporteSlide', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
+      refugoItens: [],
     });
   });
 
@@ -40,6 +41,7 @@ describe('ReporteSlide', () => {
       quantidadeAprovada: 3,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
+      refugoItens: [],
     });
 
     expect(component.quantidadeAprovada).toBe(0);
@@ -63,5 +65,26 @@ describe('ReporteSlide', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
 
     expect(component.formatDataHora(new Date('invalid'))).toBe('Data inválida');
+  });
+
+  it('derives partial scrap quantity from its own reasons and emits the composition', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const emitted = vi.fn();
+    component.reporteSolicitado.subscribe(emitted);
+    component.aplicarRefugo([
+      { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
+      { codigo: '32', descricao: 'Varredura', quantidade: 1 },
+    ]);
+
+    component.salvar();
+
+    expect(component.quantidadeRefugo).toBe(1.5);
+    expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
+      quantidadeRefugo: 1.5,
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
+        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
+      ],
+    }));
   });
 });

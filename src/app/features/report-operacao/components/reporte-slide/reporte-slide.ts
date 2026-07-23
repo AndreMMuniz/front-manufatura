@@ -25,7 +25,7 @@ export interface ReporteParcialDraft {
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
-  readonly refugoItens: ReadonlyArray<ReporteRefugoItem>;
+  readonly refugoItens?: ReadonlyArray<ReporteRefugoItem>;
 }
 
 @Component({
@@ -62,6 +62,7 @@ export class ReporteSlide {
     return !this.salvando
       && [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
         .every(quantidade => Number.isFinite(quantidade) && quantidade >= 0)
+      && this.hasValidRefugoComposition()
       && this.totalInformado > 0;
   }
 
@@ -84,7 +85,7 @@ export class ReporteSlide {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
-      refugoItens: reporte.refugoItens.map(item => ({ ...item })),
+      refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }));
     this.resetDraft();
     this.pageSlide.open();
@@ -97,10 +98,13 @@ export class ReporteSlide {
     }
 
     if (!this.canSave) {
-      this.validationMessage = [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
+      const invalidQuantity = [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
         .some(quantidade => !Number.isFinite(quantidade) || quantidade < 0)
+      this.validationMessage = invalidQuantity
         ? 'As quantidades não podem ser negativas.'
-        : 'Informe ao menos uma quantidade produzida.';
+        : !this.hasValidRefugoComposition()
+          ? 'Informe os motivos que compõem a quantidade de refugo.'
+          : 'Informe ao menos uma quantidade produzida.';
       return;
     }
 
@@ -120,7 +124,7 @@ export class ReporteSlide {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
-      refugoItens: reporte.refugoItens.map(item => ({ ...item })),
+      refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }];
     this.salvando = false;
     this.resetDraft();
@@ -187,5 +191,16 @@ export class ReporteSlide {
 
   private round3(value: number): number {
     return Math.round((value + Number.EPSILON) * 1000) / 1000;
+  }
+
+  private hasValidRefugoComposition(): boolean {
+    if (this.quantidadeRefugo === 0) {
+      return this.refugoItens.length === 0;
+    }
+
+    return this.refugoItens.length > 0
+      && this.refugoItens.every(item => Number.isFinite(item.quantidade) && item.quantidade > 0)
+      && this.round3(this.refugoItens.reduce((total, item) => total + item.quantidade, 0))
+        === this.round3(this.quantidadeRefugo);
   }
 }

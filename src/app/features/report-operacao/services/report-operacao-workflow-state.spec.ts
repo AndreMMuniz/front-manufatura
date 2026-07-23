@@ -51,6 +51,7 @@ describe('ReportOperacaoWorkflowState', () => {
       quantidadeAprovada: 1,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
+      refugoItens: [],
     });
 
     const next = state.completeActiveOrder();
@@ -80,6 +81,7 @@ describe('ReportOperacaoWorkflowState', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 1,
       quantidadeRefugo: 0,
+      refugoItens: [],
     });
 
     const first = state.snapshot();

@@ -50,6 +50,7 @@ export type RefugoSlideState =
 })
 export class RefugoSlide {
   @Output() refugoRegistrado = new EventEmitter<RefugoRegistrado>();
+  @Output() refugoCancelado = new EventEmitter<void>();
   @Output() sairSolicitado = new EventEmitter<void>();
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
@@ -179,12 +180,17 @@ export class RefugoSlide {
   }
 
   voltar(): void {
-    if (!this.hasUnsavedChanges()) {
+    const closeAsCancelled = () => {
+      this.refugoCancelado.emit();
       this.fechar();
+    };
+
+    if (!this.hasUnsavedChanges()) {
+      closeAsCancelled();
       return;
     }
 
-    this.confirmDiscard(() => this.fechar());
+    this.confirmDiscard(closeAsCancelled);
   }
 
   sair(): void {
