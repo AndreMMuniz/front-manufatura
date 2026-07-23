@@ -40,6 +40,14 @@ describe('ContextoProducaoCard', () => {
     expect(component.consultDisabled).toBe(false);
   });
 
+  it('keeps work center disabled while the options for the selected area are loading', () => {
+    component.areaCode = '4001';
+    component.loadingCenters = true;
+
+    expect(component.centerDisabled).toBe(true);
+    expect(component.consultDisabled).toBe(true);
+  });
+
   it('emits typed changes without mutating inputs before the parent confirms them', () => {
     const areaChanges: string[] = [];
     const centerChanges: string[] = [];
@@ -76,7 +84,22 @@ describe('ContextoProducaoCard', () => {
     fixture.detectChanges();
 
     expect(fixture.debugElement.query(By.css('po-select[name="areaCode"]'))).toBeTruthy();
-    expect(fixture.debugElement.query(By.css('po-combo[name="workCenterCode"]'))).toBeTruthy();
+    expect(fixture.debugElement.query(By.css('po-select[name="workCenterCode"]'))).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('Consultando ordens');
+  });
+
+  it('renders the work centers received for the selected area as dropdown options', () => {
+    component.areaCode = '4001';
+    fixture.detectChanges();
+
+    const workCenterSelect = fixture.debugElement.query(
+      By.css('po-select[name="workCenterCode"]'),
+    );
+
+    expect(workCenterSelect).toBeTruthy();
+    expect(component.centerOptions).toEqual([
+      { value: 'CT-EXT-01', label: 'CT-EXT-01 - Extrusao Linha 01' },
+    ]);
+    expect(fixture.debugElement.query(By.css('po-combo[name="workCenterCode"]'))).toBeNull();
   });
 });

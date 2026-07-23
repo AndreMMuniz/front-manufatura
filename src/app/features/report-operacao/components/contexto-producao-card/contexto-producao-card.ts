@@ -39,7 +39,7 @@ export class ContextoProducaoCard {
   }
 
   get centerDisabled(): boolean {
-    return this.disabled || this.loadingAreas || !this.areaCode;
+    return this.disabled || this.loadingAreas || this.loadingCenters || !this.areaCode;
   }
 
   get consultDisabled(): boolean {

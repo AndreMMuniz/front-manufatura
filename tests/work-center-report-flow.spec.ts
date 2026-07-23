@@ -18,11 +18,9 @@ async function selectProductionContext(page: import('@playwright/test').Page) {
   await expect(area).toBeEnabled();
   await area.selectOption('4001');
 
-  const center = page.getByRole('textbox', { name: 'Centro de Trabalho' });
+  const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
   await expect(center).toBeEnabled();
-  await center.fill('CT-EXT-01');
-  await center.press('ArrowDown');
-  await center.press('Enter');
+  await center.selectOption('CT-EXT-01');
   await expect(center).toHaveValue('CT-EXT-01 - Extrusao Linha 01');
 
   await page.getByRole('button', { name: 'Consultar ordens' }).click();
@@ -131,7 +129,7 @@ test.describe('fluxo de Reporte Operações', () => {
     await expect(page).toHaveURL(/\/operation-reporting$/);
     await expect(page.getByRole('heading', { name: 'Reporta Operação' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Área de Produção' })).toHaveValue('4001 - Produção');
-    await expect(page.getByRole('textbox', { name: 'Centro de Trabalho' })).toHaveValue('CT-EXT-01 - Extrusao Linha 01');
+    await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' })).toHaveValue('CT-EXT-01 - Extrusao Linha 01');
     await page.getByRole('button', { name: 'Consultar ordens' }).click();
     await expect(page.getByRole('cell', { name: '450001' })).toBeVisible();
   });

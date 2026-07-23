@@ -11,17 +11,16 @@
       (ngModelChange)="changeArea($event)"
     ></po-select>
 
-    <po-combo
+    <po-select
       name="workCenterCode"
       p-label="Centro de Trabalho"
-      p-placeholder="Pesquise pelo código ou descrição"
-      p-filter-mode="contains"
+      p-placeholder="Selecione o Centro de Trabalho"
       [p-options]="centerOptions"
       [p-disabled]="centerDisabled"
       [p-loading]="loadingCenters"
       [ngModel]="workCenterCode"
       (ngModelChange)="changeWorkCenter($event)"
-    ></po-combo>
+    ></po-select>
 
     <po-button
       class="contexto-producao__action"
