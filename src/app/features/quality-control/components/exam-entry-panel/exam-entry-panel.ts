@@ -142,7 +142,7 @@ export class ExamEntryPanel implements AfterViewInit {
         this.workflow.isSaving.set(false);
         this.workflow.examFeedback.set('Medição salva.');
         this.clearValidation();
-        this.workflow.moveWithinExam(1);
+        this.workflow.moveToNextPending();
       }),
       catchError(() => {
         this.workflow.isSaving.set(false);

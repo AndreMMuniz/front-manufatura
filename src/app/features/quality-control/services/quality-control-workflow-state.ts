@@ -281,6 +281,18 @@ export class QualityControlWorkflowState {
     if (target) this.selectedComponentId.set(target.id);
   }
 
+  moveToNextPending(): void {
+    const currentId = this.selectedComponentId();
+    if (!currentId) return;
+    const ordered = this.components();
+    const currentIndex = ordered.findIndex(component => component.id === currentId);
+    if (currentIndex < 0) return;
+    const next = ordered
+      .slice(currentIndex + 1)
+      .find(component => !this.isCompleted(component));
+    if (next) this.selectedComponentId.set(next.id);
+  }
+
   selectNextPendingAndClose(): string | undefined {
     this.panelOpen.set(false);
     const next = this.components().find(component => !this.isCompleted(component));

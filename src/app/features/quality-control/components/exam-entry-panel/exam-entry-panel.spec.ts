@@ -159,6 +159,18 @@ describe('ExamEntryPanel', () => {
     expect(state.completedCount()).toBe(0);
   });
 
+  it('requires both minimum and maximum before calling the API', async () => {
+    const saveSpy = vi.spyOn(service, 'saveMeasurement');
+    component.updateMinimum('10');
+
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(component.validationMessage).toBe('Informe valores numéricos para Min e Max.');
+    expect(state.selectedComponentId()).toBe('b-10');
+    expect(component.isCurrentMeasurementLocked).toBe(false);
+  });
+
   it('retains an out-of-range draft and keeps it editable when the API fails', async () => {
     vi.spyOn(service, 'saveMeasurement').mockReturnValue(throwError(() => new Error('offline')));
     component.updateMinimum('9');
@@ -208,6 +220,12 @@ describe('ExamEntryPanel', () => {
     expect(state.isDirty()).toBe(false);
     expect(state.selectedComponentId()).toBe('b-10');
     expect(state.panelOpen()).toBe(true);
+
+    fixture.detectChanges();
+    const saveButton = fixture.nativeElement.querySelector(
+      '.exam-entry__navigation po-button:nth-child(2) button',
+    ) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
   });
 
   it('advances to the next characteristic only after the API confirms the save', () => {
@@ -238,6 +256,19 @@ describe('ExamEntryPanel', () => {
     expect(state.selectedComponentId()).toBe('a-20');
     expect(state.isSaving()).toBe(false);
     expect(state.isDirty()).toBe(false);
+  });
+
+  it('advances from the last characteristic of one exam to the next pending exam', async () => {
+    state.openPanel('a-20');
+    component.updateMinimum('1');
+    component.updateMaximum('5');
+
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(state.componentById('a-20')?.measurement?.status).toBe('APPROVED');
+    expect(state.selectedComponentId()).toBe('b-10');
+    expect(component.exam?.id).toBe('exam-b');
+    expect(state.panelOpen()).toBe(true);
   });
 
   it('retains the draft, selection and panel when save fails', async () => {

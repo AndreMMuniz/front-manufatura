@@ -144,6 +144,33 @@ describe('QualityControlWorkflowState', () => {
     expect(state.panelOpen()).toBe(true);
   });
 
+  it('moves to the next pending component across exams and skips completed components', () => {
+    const state = loadedState();
+    state.applyMeasurement('exam-a', 'a-20', {
+      minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
+    });
+    state.openPanel('a-10');
+
+    state.moveToNextPending();
+
+    expect(state.selectedComponentId()).toBe('b-10');
+    expect(state.selectedExam()?.id).toBe('exam-b');
+    expect(state.panelOpen()).toBe(true);
+  });
+
+  it('keeps the saved component selected when there is no later pending component', () => {
+    const state = loadedState();
+    state.openPanel('b-10');
+    state.applyMeasurement('exam-b', 'b-10', {
+      minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
+    });
+
+    state.moveToNextPending();
+
+    expect(state.selectedComponentId()).toBe('b-10');
+    expect(state.panelOpen()).toBe(true);
+  });
+
   it('tracks out-of-range validation per component and clears it after approval', () => {
     const state = loadedState();
     state.markComponentOutOfRange('a-10');
