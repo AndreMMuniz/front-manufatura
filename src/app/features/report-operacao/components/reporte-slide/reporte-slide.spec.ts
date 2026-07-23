@@ -83,24 +83,18 @@ describe('ReporteSlide', () => {
     expect(component.formatDataHora(new Date('invalid'))).toBe('Data inválida');
   });
 
-  it('derives partial scrap quantity from its own reasons and emits the composition', () => {
+  it('emits a directly entered scrap quantity without requiring reasons', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
     const emitted = vi.fn();
     component.reporteSolicitado.subscribe(emitted);
-    component.aplicarRefugo([
-      { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-      { codigo: '32', descricao: 'Varredura', quantidade: 1 },
-    ]);
+    component.atualizarQuantidade('quantidadeRefugo', 1.5);
 
     component.salvar();
 
     expect(component.quantidadeRefugo).toBe(1.5);
     expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRefugo: 1.5,
-      refugoItens: [
-        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
-      ],
+      refugoItens: [],
     }));
   });
 });

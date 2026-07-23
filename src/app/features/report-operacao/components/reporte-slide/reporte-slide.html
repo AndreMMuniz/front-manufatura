@@ -19,20 +19,14 @@
         (ngModelChange)="atualizarQuantidade('quantidadeRetrabalho', $event)"
       ></po-number>
 
-      <div class="reporte-slide__with-action">
-        <po-number
-          name="reporteQuantidadeRefugo"
-          p-label="Qtde Refugo"
-          [p-disabled]="true"
-          [ngModel]="quantidadeRefugo"
-        ></po-number>
-        <po-button
-          p-label="Editar Refugo"
-          p-kind="secondary"
-          [p-disabled]="salvando"
-          (p-click)="editarRefugo.emit()"
-        ></po-button>
-      </div>
+      <po-number
+        name="reporteQuantidadeRefugo"
+        p-label="Qtde Refugo"
+        [p-min]="0"
+        [p-disabled]="salvando"
+        [ngModel]="quantidadeRefugo"
+        (ngModelChange)="atualizarQuantidade('quantidadeRefugo', $event)"
+      ></po-number>
     </div>
 
     @if (validationMessage) {

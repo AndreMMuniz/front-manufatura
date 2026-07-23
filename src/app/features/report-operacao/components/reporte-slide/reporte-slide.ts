@@ -38,14 +38,12 @@ export interface ReporteParcialDraft {
 })
 export class ReporteSlide {
   @Output() reporteSolicitado = new EventEmitter<ReporteParcialDraft>();
-  @Output() editarRefugo = new EventEmitter<void>();
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
 
   quantidadeAprovada = 0;
   quantidadeRetrabalho = 0;
   quantidadeRefugo = 0;
-  refugoItens: ReadonlyArray<ReporteRefugoItem> = [];
   historico: ReadonlyArray<ReporteParcialOperacao> = [];
   salvando = false;
   validationMessage = '';
@@ -64,7 +62,6 @@ export class ReporteSlide {
     return !this.salvando
       && [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
         .every(quantidade => Number.isFinite(quantidade) && quantidade >= 0)
-      && this.hasValidRefugoComposition()
       && this.totalInformado > 0;
   }
 
@@ -105,9 +102,7 @@ export class ReporteSlide {
         .some(quantidade => !Number.isFinite(quantidade) || quantidade < 0)
       this.validationMessage = invalidQuantity
         ? 'As quantidades não podem ser negativas.'
-        : !this.hasValidRefugoComposition()
-          ? 'Informe os motivos que compõem a quantidade de refugo.'
-          : 'Informe ao menos uma quantidade produzida.';
+        : 'Informe ao menos uma quantidade produzida.';
       return;
     }
 
@@ -119,7 +114,7 @@ export class ReporteSlide {
       quantidadeAprovada: this.quantidadeAprovada,
       quantidadeRetrabalho: this.quantidadeRetrabalho,
       quantidadeRefugo: this.quantidadeRefugo,
-      refugoItens: this.refugoItens.map(item => ({ ...item })),
+      refugoItens: [],
     });
   }
 
@@ -139,16 +134,6 @@ export class ReporteSlide {
   informarErro(message: string): void {
     this.salvando = false;
     this.validationMessage = message;
-    this.changeDetector.markForCheck();
-  }
-
-  aplicarRefugo(itens: ReadonlyArray<ReporteRefugoItem>): void {
-    this.refugoItens = itens.map(item => ({ ...item }));
-    this.quantidadeRefugo = this.round3(
-      this.refugoItens.reduce((total, item) => total + item.quantidade, 0),
-    );
-    this.validationMessage = '';
-    this.idempotencyKey = '';
     this.changeDetector.markForCheck();
   }
 
@@ -191,24 +176,8 @@ export class ReporteSlide {
     this.quantidadeAprovada = 0;
     this.quantidadeRetrabalho = 0;
     this.quantidadeRefugo = 0;
-    this.refugoItens = [];
     this.idempotencyKey = '';
     this.validationMessage = '';
-  }
-
-  private round3(value: number): number {
-    return Math.round((value + Number.EPSILON) * 1000) / 1000;
-  }
-
-  private hasValidRefugoComposition(): boolean {
-    if (this.quantidadeRefugo === 0) {
-      return this.refugoItens.length === 0;
-    }
-
-    return this.refugoItens.length > 0
-      && this.refugoItens.every(item => Number.isFinite(item.quantidade) && item.quantidade > 0)
-      && this.round3(this.refugoItens.reduce((total, item) => total + item.quantidade, 0))
-        === this.round3(this.quantidadeRefugo);
   }
 
   private createIdempotencyKey(): string {

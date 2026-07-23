@@ -27,7 +27,6 @@ import { OpDetalhesCard } from '../../components/op-detalhes-card/op-detalhes-ca
 import { OperacaoInfoCard } from '../../components/operacao-info-card/operacao-info-card';
 import { OrdensCentroList } from '../../components/ordens-centro-list/ordens-centro-list';
 import { ProducaoForm } from '../../components/producao-form/producao-form';
-import { RefugoRegistrado, RefugoRegistradoItem, RefugoSlide } from '../../components/refugo-slide/refugo-slide';
 import { ReporteParcialDraft, ReporteSlide } from '../../components/reporte-slide/reporte-slide';
 import { ReportActions } from '../../components/report-actions/report-actions';
 import { ReportarOperacaoRequest } from '../../interfaces/report-operacao.dto';
@@ -52,7 +51,6 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
     OperacaoInfoCard,
     OrdensCentroList,
     ProducaoForm,
-    RefugoSlide,
     ReporteSlide,
     ReportActions,
     PoButtonModule,
@@ -65,7 +63,6 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportOperacaoPage implements OnInit {
-  @ViewChild(RefugoSlide) private refugoSlide?: RefugoSlide;
   @ViewChild(ReporteSlide) private reporteSlide?: ReporteSlide;
 
   private readonly route = inject(ActivatedRoute);
@@ -94,8 +91,6 @@ export class ReportOperacaoPage implements OnInit {
   feedback = 'Selecione a Área de Produção e o Centro de Trabalho para consultar as ordens.';
   contextError = '';
   isLoadingCenters = false;
-  ultimoMotivoRefugo = '';
-  refugoItens: ReadonlyArray<RefugoRegistradoItem> = [];
   responsaveis: ReadonlyArray<ResponsavelOperacao> = [];
   tipoResponsavel: TipoResponsavelOperacao = 'OPERADOR';
   responsavelCodigo = '';
@@ -281,26 +276,6 @@ export class ReportOperacaoPage implements OnInit {
     }
   }
 
-  abrirRefugoDoReporte(): void {
-    if (!this.operacao || this.reporteDisabled) {
-      return;
-    }
-
-    this.refugoSlide?.abrir(
-      this.reporteSlide?.quantidadeRefugo ?? 0,
-      this.reporteSlide?.refugoItens ?? [],
-    );
-  }
-
-  abrirReporteComRefugo(): void {
-    if (this.reporteDisabled) {
-      return;
-    }
-
-    this.abrirReporte();
-    this.abrirRefugoDoReporte();
-  }
-
   alterarTipoResponsavel(tipo: TipoResponsavelOperacao): void {
     if (this.operacao?.dataInicio || this.isBusy) {
       return;
@@ -344,20 +319,9 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   abrirRefugo(): void {
-    this.abrirReporteComRefugo();
-  }
-
-  registrarRefugo(refugo: RefugoRegistrado): void {
-    if (!this.operacao) {
-      return;
-    }
-
-    this.reporteSlide?.aplicarRefugo(refugo.itens);
-    this.feedback = 'Composição de refugo adicionada ao reporte em edição.';
-    this.changeDetector.markForCheck();
-  }
-
-  cancelarRefugoDoReporte(): void {
+    this.abrirReporte();
+    this.feedback = 'Informe a quantidade de refugo no reporte em edição.';
+    this.notification.information(this.feedback);
   }
 
   abrirRetrabalho(): void {
@@ -372,7 +336,6 @@ export class ReportOperacaoPage implements OnInit {
     }
 
     this.workflowState.setActiveOperation(this.operacao, this.estado);
-    this.workflowState.setScrap(this.refugoItens, this.ultimoMotivoRefugo);
     this.feedback = 'Abrindo reporte de paradas com o contexto da operação.';
     this.reporteParadasService.setContextFromOperation(this.operacao);
     void this.router.navigate(['/stoppages']);
@@ -580,8 +543,6 @@ export class ReportOperacaoPage implements OnInit {
           this.consultaEstado = 'ordens-disponiveis';
           this.contextError = '';
           this.retryTarget = null;
-          this.refugoItens = [];
-          this.ultimoMotivoRefugo = '';
           this.reportes = [];
           this.responsaveis = [];
           this.workflowState.setActiveOperation(this.operacao, this.estado);
@@ -652,7 +613,7 @@ export class ReportOperacaoPage implements OnInit {
         this.estado = EstadoOperacao.OperacaoIniciada;
         this.workflowState.setActiveOperation(this.operacao, this.estado);
         this.feedback = this.auxiliaryFlow === 'refugo'
-          ? 'Operação iniciada. Registre os motivos e quantidades de refugo.'
+          ? 'Operação iniciada. Informe a quantidade de refugo no reporte.'
           : 'Operação iniciada. Informe as quantidades para reportar.';
         this.notification.success('Operação iniciada.');
         if (this.auxiliaryFlow === 'refugo') {
@@ -870,8 +831,6 @@ export class ReportOperacaoPage implements OnInit {
     this.estado = snapshot.operationState === EstadoOperacao.Reportando
       ? (snapshot.operation?.dataInicio ? EstadoOperacao.OperacaoIniciada : EstadoOperacao.OPEncontrada)
       : snapshot.operationState;
-    this.refugoItens = snapshot.scrapItems.map(item => ({ ...item }));
-    this.ultimoMotivoRefugo = snapshot.lastScrapReason;
     this.reportes = snapshot.reportes.map(reporte => ({
       ...reporte,
       registradoEm: new Date(reporte.registradoEm),
@@ -905,8 +864,6 @@ export class ReportOperacaoPage implements OnInit {
   private clearActiveOperation(): void {
     this.operacao = null;
     this.estado = EstadoOperacao.SemOP;
-    this.refugoItens = [];
-    this.ultimoMotivoRefugo = '';
     this.reportes = [];
     this.responsavelCodigo = '';
     this.tipoResponsavel = 'OPERADOR';

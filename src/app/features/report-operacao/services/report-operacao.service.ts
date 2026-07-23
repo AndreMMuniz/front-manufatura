@@ -225,7 +225,7 @@ export class ReportOperacaoService {
     quantidadeAprovada: number,
     quantidadeRetrabalho: number,
     quantidadeRefugo: number,
-    refugoItens: ReadonlyArray<RefugoItemRequest> = [],
+    _refugoItens: ReadonlyArray<RefugoItemRequest> = [],
   ): string {
     const parcial = quantidadeAprovada + quantidadeRetrabalho + quantidadeRefugo;
     const acumulado =
@@ -240,18 +240,6 @@ export class ReportOperacaoService {
 
     if (parcial <= 0) {
       return 'Informe ao menos uma quantidade produzida.';
-    }
-
-    const totalMotivosRefugo = this.round3(
-      refugoItens.reduce((total, item) => total + item.quantidade, 0),
-    );
-    if (
-      refugoItens.some(item => !Number.isFinite(item.quantidade) || item.quantidade <= 0)
-      || (this.round3(quantidadeRefugo) === 0 && refugoItens.length > 0)
-      || (this.round3(quantidadeRefugo) > 0
-        && (refugoItens.length === 0 || totalMotivosRefugo !== this.round3(quantidadeRefugo)))
-    ) {
-      return 'Os motivos de refugo devem totalizar a quantidade de refugo do reporte.';
     }
 
     if (this.round3(acumulado + parcial) > this.round3(operacao.quantidadeSaldo)) {

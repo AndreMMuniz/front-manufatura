@@ -69,7 +69,7 @@
             p-label="Refugo"
             p-kind="secondary"
             [p-disabled]="!canOpenAuxiliaryFlows"
-            (p-click)="abrirReporteComRefugo()"
+            (p-click)="abrirRefugo()"
           ></po-button>
           <po-button
             p-label="Retrabalho"
@@ -98,15 +98,8 @@
       {{ feedback }}
     </p>
 
-    <app-refugo-slide
-      (refugoRegistrado)="registrarRefugo($event)"
-      (refugoCancelado)="cancelarRefugoDoReporte()"
-      (sairSolicitado)="sair()"
-    ></app-refugo-slide>
-
     <app-reporte-slide
       (reporteSolicitado)="salvarReporte($event)"
-      (editarRefugo)="abrirRefugoDoReporte()"
     ></app-reporte-slide>
   </section>
 </po-page-default>

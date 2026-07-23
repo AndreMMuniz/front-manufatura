@@ -136,17 +136,10 @@ describe('ReportOperacaoService', () => {
     expect(service.validarReporteParcial(operacao, 0.2, 0, 0)).toBe('');
   });
 
-  it('requires each partial scrap quantity to match its own reasons', () => {
+  it('accepts a partial scrap quantity without requiring reasons', () => {
     const operacao = baseOperacaoIniciada();
 
-    expect(service.validarReporteParcial(operacao, 0, 0, 1.5, [])).toContain('motivos de refugo');
-    expect(service.validarReporteParcial(operacao, 0, 0, 1.5, [
-      { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-      { codigo: '32', descricao: 'Varredura', quantidade: 1 },
-    ])).toBe('');
-    expect(service.validarReporteParcial(operacao, 1, 0, 0, [
-      { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-    ])).toContain('motivos de refugo');
+    expect(service.validarReporteParcial(operacao, 0, 0, 1.5, [])).toBe('');
   });
 
   it('lists operators and teams as selectable operation responsibles', async () => {

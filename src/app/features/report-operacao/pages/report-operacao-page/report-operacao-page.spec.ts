@@ -561,7 +561,7 @@ describe('ReportOperacaoPage', () => {
     }));
   });
 
-  it('keeps scrap reasons in the report draft until that partial report is saved', () => {
+  it('opens the unified report for scrap without mounting the scrap-only drawer', () => {
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -571,36 +571,17 @@ describe('ReportOperacaoPage', () => {
       dataInicio: new Date(2026, 5, 30),
       horaInicio: '08:00',
     });
-    const aplicarRefugo = vi.fn();
-    const abrirRefugo = vi.fn();
-    (component as unknown as {
-      reporteSlide: {
-        quantidadeRefugo: number;
-        refugoItens: ReadonlyArray<unknown>;
-        aplicarRefugo: typeof aplicarRefugo;
-      };
-      refugoSlide: { abrir: typeof abrirRefugo };
-    }).reporteSlide = { quantidadeRefugo: 0, refugoItens: [], aplicarRefugo };
-    (component as unknown as { refugoSlide: { abrir: typeof abrirRefugo } }).refugoSlide = {
-      abrir: abrirRefugo,
+    const abrirReporte = vi.fn();
+    (component as unknown as { reporteSlide: { abrir: typeof abrirReporte } }).reporteSlide = {
+      abrir: abrirReporte,
     };
 
-    component.abrirRefugoDoReporte();
-    component.registrarRefugo({
-      quantidade: 1.5,
-      motivo: '05 - Borra, 32 - Varredura',
-      itens: [
-        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
-      ],
-    });
+    component.abrirRefugo();
 
-    expect(abrirRefugo).toHaveBeenCalledWith(0, []);
-    expect(aplicarRefugo).toHaveBeenCalledWith([
-      { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-      { codigo: '32', descricao: 'Varredura', quantidade: 1 },
-    ]);
-    expect(component.operacao.quantidadeRefugo).toBe(0);
+    expect(abrirReporte).toHaveBeenCalledWith([]);
+    expect(component.feedback).toContain('quantidade de refugo');
+    expect(fixture.nativeElement.querySelector('app-refugo-slide')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Editar Refugo');
   });
 
   it('requires a selected operator or team before starting and locks it after start', () => {
