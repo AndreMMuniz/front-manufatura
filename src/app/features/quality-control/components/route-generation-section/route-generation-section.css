@@ -2,7 +2,6 @@
   display: grid;
   gap: var(--app-space-lg, 16px);
   margin-inline: auto;
-  max-width: 600px;
   width: 100%;
 }
 .route-generation__header { display: flex; }
