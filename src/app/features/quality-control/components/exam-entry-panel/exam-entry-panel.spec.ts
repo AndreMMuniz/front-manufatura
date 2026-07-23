@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { firstValueFrom, of, throwError } from 'rxjs';
+import { firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { PoDialogService } from '@po-ui/ng-components';
 
+import { SaveMeasurementResponse } from '../../models/inspection-record';
 import { ProductionOrderRoute } from '../../models/production-order-route';
 import { QualityExam } from '../../models/quality-exam';
 import { OperatorService } from '../../../shop-floor/services/operator';
@@ -77,8 +78,10 @@ describe('ExamEntryPanel', () => {
   });
 
   it('preserves out-of-range values and shows an amber warning with an icon', async () => {
-    component.updateMinimum('9');
-    component.updateMaximum('20');
+    const saveSpy = vi.spyOn(service, 'saveMeasurement');
+    state.openPanel('a-10');
+    component.updateMinimum('0');
+    component.updateMaximum('5');
 
     await firstValueFrom(component.saveCurrentMeasurement());
 
@@ -89,8 +92,11 @@ describe('ExamEntryPanel', () => {
     expect(component.validationMessage).toBe('Valores fora da variação permitida');
     expect(alert.textContent?.trim()).toBe('Valores fora da variação permitida');
     expect(alert.querySelector('po-icon')?.getAttribute('p-icon')).toBe('an an-warning');
-    expect(component.minimum).toBe('9');
-    expect(state.isComponentOutOfRange('b-10')).toBe(true);
+    expect(component.minimum).toBe('0');
+    expect(state.isComponentOutOfRange('a-10')).toBe(true);
+    expect(state.selectedComponentId()).toBe('a-10');
+    expect(state.panelOpen()).toBe(true);
+    expect(saveSpy).not.toHaveBeenCalled();
   });
 
   it('clears the shared out-of-range status when the measurement is corrected', async () => {
@@ -115,17 +121,51 @@ describe('ExamEntryPanel', () => {
     expect(state.componentById('b-10')?.measurement?.minimum).toBe(10);
     expect(state.componentById('b-10')?.measurement?.savedAt).toBeInstanceOf(Date);
     expect(state.isDirty()).toBe(false);
+    expect(state.selectedComponentId()).toBe('b-10');
+    expect(state.panelOpen()).toBe(true);
+  });
+
+  it('advances to the next characteristic only after the API confirms the save', () => {
+    const response = new Subject<SaveMeasurementResponse>();
+    vi.spyOn(service, 'saveMeasurement').mockReturnValue(response);
+    state.openPanel('a-10');
+    component.updateMinimum('1');
+    component.updateMaximum('5');
+
+    component.saveCurrentMeasurement().subscribe();
+
+    expect(state.selectedComponentId()).toBe('a-10');
+    expect(state.componentById('a-10')?.measurement).toBeUndefined();
+    expect(state.isSaving()).toBe(true);
+
+    response.next({
+      componentId: 'a-10',
+      measurement: {
+        minimum: 1,
+        maximum: 5,
+        status: 'APPROVED',
+        savedAt: new Date(),
+      },
+    });
+    response.complete();
+
+    expect(state.componentById('a-10')?.measurement?.minimum).toBe(1);
+    expect(state.selectedComponentId()).toBe('a-20');
+    expect(state.isSaving()).toBe(false);
+    expect(state.isDirty()).toBe(false);
   });
 
   it('retains the draft, selection and panel when save fails', async () => {
     vi.spyOn(service, 'saveMeasurement').mockReturnValue(throwError(() => new Error('offline')));
-    component.updateMinimum('10');
-    component.updateMaximum('20');
+    state.openPanel('a-10');
+    component.updateMinimum('1');
+    component.updateMaximum('5');
 
     await firstValueFrom(component.saveCurrentMeasurement());
 
-    expect(component.minimum).toBe('10');
-    expect(state.selectedComponentId()).toBe('b-10');
+    expect(component.minimum).toBe('1');
+    expect(component.maximum).toBe('5');
+    expect(state.selectedComponentId()).toBe('a-10');
     expect(state.panelOpen()).toBe(true);
   });
 

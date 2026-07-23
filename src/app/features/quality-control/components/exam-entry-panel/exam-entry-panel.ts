@@ -122,6 +122,7 @@ export class ExamEntryPanel implements AfterViewInit {
         this.workflow.applyMeasurement(exam.id, characteristic.id, response.measurement);
         this.workflow.isSaving.set(false);
         this.workflow.examFeedback.set('Medição salva.');
+        this.workflow.moveWithinExam(1);
       }),
       catchError(() => {
         this.workflow.isSaving.set(false);
