@@ -90,7 +90,7 @@ test.describe('fluxo de Reporte Operações', () => {
     await page.waitForTimeout(200);
     await page.getByRole('button', { name: 'Reportar' }).click();
 
-    await expect(page.getByText('Ordens liberadas')).toBeVisible();
+    await expect(page.getByText('Ordens liberadas', { exact: true })).toBeVisible();
     await expect(page.getByText(/Ordem ativa/)).toHaveCount(0);
     await expect(page).toHaveURL(/\/operation-reporting$/);
   });

@@ -19,7 +19,7 @@
       p-label="Data Fim"
       [p-disabled]="disabled"
       [ngModel]="operacao?.dataFim"
-      (ngModelChange)="update({ dataFim: $event })"
+      (ngModelChange)="updateEndDate($event)"
     ></po-datepicker>
 
     <po-input

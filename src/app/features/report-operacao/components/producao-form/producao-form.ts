@@ -46,4 +46,21 @@ export class ProducaoForm {
       ...partial,
     });
   }
+
+  updateEndDate(value: Date | string | null | undefined): void {
+    this.update({ dataFim: this.toLocalDate(value) });
+  }
+
+  private toLocalDate(value: Date | string | null | undefined): Date | undefined {
+    if (value instanceof Date) {
+      return new Date(value);
+    }
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
+    if (!match) {
+      return undefined;
+    }
+
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
 }
