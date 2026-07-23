@@ -64,11 +64,8 @@
       [iniciarLoading]="estado === 'Carregando' && !operacao?.dataInicio"
       [reporteDisabled]="reporteDisabled"
       [reporteLoading]="estado === 'Reportando' && !encerrando"
-      [encerrarDisabled]="encerrarDisabled"
-      [encerrarLoading]="encerrando"
       (iniciar)="iniciarOperacao()"
       (reporte)="abrirReporte()"
-      (encerrar)="solicitarEncerramento()"
     ></app-report-actions>
 
     <p class="report-operacao__feedback" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">

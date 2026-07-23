@@ -432,11 +432,11 @@ describe('ReportOperacaoPage', () => {
     expect(card.consultDisabled).toBe(true);
   });
 
-  it('renders exactly the three requested operation actions', () => {
+  it('renders only the start and report operation actions', () => {
     fixture.detectChanges();
 
     const actions = fixture.debugElement.queryAll(By.css('app-report-actions po-button'));
-    expect(actions.map(action => action.attributes['p-label'])).toEqual(['Iniciar', 'Reporte', 'Encerrar']);
+    expect(actions.map(action => action.attributes['p-label'])).toEqual(['Iniciar', 'Reporte']);
   });
 
   it('preserves a restored queue and exposes recovery when its Center is unavailable', () => {

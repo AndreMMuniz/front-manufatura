@@ -62,7 +62,7 @@ test.describe('fluxo de Reporte Operações', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 
-  test('registra reportes parciais, mantém histórico e só avança ao encerrar', async ({ page }) => {
+  test('registra reportes parciais e mantém a operação ativa sem ação de encerramento', async ({ page }) => {
     await login(page);
     await page.getByRole('link', { name: 'Reporte Operações' }).click();
     await selectProductionContext(page);
@@ -92,26 +92,11 @@ test.describe('fluxo de Reporte Operações', () => {
     await expect(
       page.locator('app-producao-form').getByRole('spinbutton', { name: 'Qtde Aprovada' }),
     ).toHaveValue('3');
-
-    await page.getByRole('button', { name: 'Encerrar', exact: true }).click();
-    await page.getByRole('button', { name: 'Encerrar', exact: true }).last().click();
-    await expect(page.getByText(/Ordem ativa 450002/)).toBeVisible();
-
-    await page.getByRole('combobox', { name: 'Operador' }).selectOption('001');
-    await page.getByRole('button', { name: 'Iniciar' }).click();
-    await page.getByRole('button', { name: 'Reporte' }).click();
-    await drawer.getByRole('spinbutton', { name: 'Qtde Aprovada' }).fill('1');
-    await drawer.getByRole('button', { name: 'Salvar reporte' }).click();
-    await drawer.getByRole('button', { name: 'Voltar' }).click();
-    await page.getByRole('button', { name: 'Encerrar', exact: true }).click();
-    await page.getByRole('button', { name: 'Encerrar', exact: true }).last().click();
-
-    await expect(page.getByText('Ordens liberadas', { exact: true })).toBeVisible();
-    await expect(page.getByText(/Ordem ativa/)).toHaveCount(0);
-    await expect(page).toHaveURL(/\/operation-reporting$/);
+    await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Encerrar', exact: true })).toHaveCount(0);
   });
 
-  test('exibe somente Iniciar, Reporte e Encerrar nas ações e bloqueia responsável após iniciar', async ({ page }) => {
+  test('exibe somente Iniciar e Reporte nas ações e bloqueia responsável após iniciar', async ({ page }) => {
     await login(page);
     await page.getByRole('link', { name: 'Reporte Operações' }).click();
     await selectProductionContext(page);
@@ -119,9 +104,9 @@ test.describe('fluxo de Reporte Operações', () => {
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
     const actions = page.locator('app-report-actions');
-    await expect(actions.getByRole('button')).toHaveCount(3);
+    await expect(actions.getByRole('button')).toHaveCount(2);
     const actionLabels = (await actions.getByRole('button').allTextContents()).map(label => label.trim());
-    expect(actionLabels).toEqual(expect.arrayContaining(['Iniciar', 'Reporte', 'Encerrar']));
+    expect(actionLabels).toEqual(['Iniciar', 'Reporte']);
 
     const operator = page.getByRole('combobox', { name: 'Operador' });
     await expect(operator).toBeEnabled();
@@ -131,7 +116,7 @@ test.describe('fluxo de Reporte Operações', () => {
     await expect(operator).toBeDisabled();
     await expect(actions.getByRole('button', { name: 'Iniciar' })).toBeDisabled();
     await expect(actions.getByRole('button', { name: 'Reporte' })).toBeEnabled();
-    await expect(actions.getByRole('button', { name: 'Encerrar' })).toBeEnabled();
+    await expect(actions.getByRole('button', { name: 'Encerrar' })).toHaveCount(0);
   });
 
   test('mantém o botão Report visível no Centro de Trabalho e navega após contexto completo', async ({ page }) => {

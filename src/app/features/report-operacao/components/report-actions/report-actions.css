@@ -5,7 +5,7 @@
 
 @media (min-width: 760px) {
   .report-actions {
-    grid-template-columns: auto auto auto;
+    grid-template-columns: auto auto;
     justify-content: start;
   }
 }
