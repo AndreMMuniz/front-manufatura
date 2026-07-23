@@ -1,0 +1,155 @@
+<po-page-slide
+  #pageSlide
+  p-title="Reporte da Batelada"
+  p-size="lg"
+  [p-click-out]="false"
+  [p-hide-close]="true"
+>
+  <section class="batch-report">
+    <div class="batch-report__orders" aria-label="Quantidades por ordem">
+      @for (item of items; track item.orderId) {
+        <article class="batch-report__order">
+          <h3>Ordem {{ item.ordem }}</h3>
+          <div class="batch-report__fields">
+            <po-number
+              [name]="'aprovada-' + item.orderId"
+              [p-label]="'Aprovada — Ordem ' + item.ordem"
+              [p-min]="0"
+              [p-disabled]="salvando"
+              [ngModel]="item.quantidadeAprovada"
+              (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeAprovada', $event)"
+            ></po-number>
+            <po-number
+              [name]="'retrabalho-' + item.orderId"
+              [p-label]="'Retrabalho — Ordem ' + item.ordem"
+              [p-min]="0"
+              [p-disabled]="salvando"
+              [ngModel]="item.quantidadeRetrabalho"
+              (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeRetrabalho', $event)"
+            ></po-number>
+            <po-number
+              [name]="'refugo-' + item.orderId"
+              [p-label]="'Refugo — Ordem ' + item.ordem"
+              [p-min]="0"
+              [p-disabled]="salvando"
+              [ngModel]="item.quantidadeRefugo"
+              (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeRefugo', $event)"
+            ></po-number>
+          </div>
+
+          <po-button
+            [p-label]="'Editar motivos de refugo da Ordem ' + item.ordem"
+            p-kind="secondary"
+            [p-disabled]="salvando"
+            (p-click)="editarRefugo(item.orderId)"
+          ></po-button>
+
+          @if (editingOrderId === item.orderId) {
+            <div class="batch-report__reason-editor">
+              <po-select
+                [name]="'motivo-' + item.orderId"
+                [p-label]="'Motivo — Ordem ' + item.ordem"
+                [p-options]="motivoOptions"
+                [p-disabled]="salvando"
+                [ngModel]="motivoCodigo"
+                (ngModelChange)="atualizarMotivo($event)"
+              ></po-select>
+              <po-number
+                [name]="'quantidade-motivo-' + item.orderId"
+                [p-label]="'Quantidade do motivo — Ordem ' + item.ordem"
+                [p-min]="0"
+                [p-disabled]="salvando"
+                [ngModel]="quantidadeMotivo"
+                (ngModelChange)="atualizarQuantidadeMotivo($event)"
+              ></po-number>
+              <po-button
+                p-label="Adicionar motivo"
+                p-kind="tertiary"
+                [p-disabled]="salvando"
+                (p-click)="adicionarMotivo()"
+              ></po-button>
+            </div>
+          }
+
+          @if (item.refugoItens.length > 0) {
+            <ul class="batch-report__reasons" [attr.aria-label]="'Motivos da Ordem ' + item.ordem">
+              @for (reason of item.refugoItens; track reason.motivoCode + $index) {
+                <li>
+                  <span>
+                    {{ reason.motivoCode }} — {{ reason.descricao }}:
+                    {{ formatQuantidade(reason.quantidade) }}
+                  </span>
+                  <po-button
+                    [p-label]="'Remover motivo ' + reason.motivoCode + ' da Ordem ' + item.ordem"
+                    p-kind="tertiary"
+                    [p-disabled]="salvando"
+                    (p-click)="removerMotivo(item.orderId, $index)"
+                  ></po-button>
+                </li>
+              }
+            </ul>
+          }
+        </article>
+      }
+    </div>
+
+    @if (validationMessage) {
+      <p class="batch-report__feedback" role="alert">{{ validationMessage }}</p>
+    }
+
+    <p class="batch-report__total" aria-live="polite">
+      Total deste reporte: <strong>{{ formatQuantidade(totalInformado) }}</strong>
+    </p>
+
+    <section class="batch-report__history" aria-label="Reportes anteriores">
+      <h3>Reportes anteriores</h3>
+      <div class="batch-report__history-row batch-report__history-row--header">
+        <span>Ordem</span>
+        <span>Data/Hora</span>
+        <span>Aprovada</span>
+        <span>Retrabalho</span>
+        <span>Refugo</span>
+      </div>
+
+      @for (report of historico; track report.reporteId) {
+        @for (item of report.items; track item.orderId) {
+          <div class="batch-report__history-row">
+            <span><small>Ordem</small>{{ item.ordem }}</span>
+            <span><small>Data/Hora</small>{{ formatDataHora(report.confirmadoEm) }}</span>
+            <span><small>Aprovada</small>{{ formatQuantidade(item.quantidadeAprovada) }}</span>
+            <span><small>Retrabalho</small>{{ formatQuantidade(item.quantidadeRetrabalho) }}</span>
+            <span><small>Refugo</small>{{ formatQuantidade(item.quantidadeRefugo) }}</span>
+          </div>
+          @if (item.refugoItens.length > 0) {
+            <div class="batch-report__history-reasons">
+              <strong>Ordem {{ item.ordem }}:</strong>
+              @for (reason of item.refugoItens; track reason.motivoCode + $index) {
+                <span>{{ reason.motivoCode }} — {{ reason.descricao }}: {{ formatQuantidade(reason.quantidade) }}</span>
+              }
+            </div>
+          }
+        }
+      } @empty {
+        <p class="batch-report__empty">Nenhum reporte realizado nesta batelada.</p>
+      }
+    </section>
+  </section>
+
+  <po-page-slide-footer>
+    <div class="batch-report__footer">
+      <po-button
+        p-label="Salvar reporte"
+        p-kind="primary"
+        [p-loading]="salvando"
+        [p-disabled]="!canSave"
+        (p-click)="salvar()"
+      ></po-button>
+      <po-button
+        p-label="Voltar"
+        p-kind="secondary"
+        [p-disabled]="salvando"
+        (p-click)="voltar()"
+      ></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>

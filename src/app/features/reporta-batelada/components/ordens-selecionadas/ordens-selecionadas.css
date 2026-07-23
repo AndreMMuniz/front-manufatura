@@ -24,6 +24,16 @@ th {
   font-weight: 600;
 }
 
+.ordens-selecionadas__consolidated {
+  background: var(--app-color-background-soft);
+  border-left: 4px solid var(--app-color-primary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-sm) var(--app-space-lg);
+  margin-top: var(--app-space-md);
+  padding: var(--app-space-sm) var(--app-space-md);
+}
+
 @media (max-width: 640px) {
   thead {
     border: 0;
@@ -53,5 +63,9 @@ th {
   td::before {
     content: attr(data-label);
     font-weight: 700;
+  }
+
+  .ordens-selecionadas__consolidated {
+    display: grid;
   }
 }

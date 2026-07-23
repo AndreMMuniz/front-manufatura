@@ -180,4 +180,64 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(composition.getByRole('row').filter({ hasText: '450002' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
+
+  test('salva parciais por ordem, restaura histórico, preserva Parada e encerra sem reporte implícito', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Batelada' }).click();
+    await selectProductionContext(page);
+    await selectOrderWithKeyboard(page, '450001');
+    await selectOrderWithKeyboard(page, '450002');
+    await page.getByRole('button', { name: 'Abrir batelada' }).click();
+    await page.getByRole('combobox', { name: 'Responsável' }).selectOption('OPERADOR|OP-001');
+    await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+
+    const reportAction = page.getByRole('button', { name: 'Reporte', exact: true });
+    const endAction = page.getByRole('button', { name: 'Encerrar', exact: true });
+    await expect(reportAction).toBeEnabled();
+    await expect(endAction).toBeEnabled();
+    await reportAction.click();
+
+    const drawer = page.locator('app-reporte-batelada-slide');
+    await drawer.getByRole('spinbutton', { name: 'Aprovada — Ordem 450001', exact: true }).fill('1');
+    await drawer.getByRole('spinbutton', { name: 'Aprovada — Ordem 450002', exact: true }).fill('2');
+    await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
+    await expect(drawer.getByText('Reportes anteriores')).toBeVisible();
+    await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(1);
+    await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450002' })).toHaveCount(1);
+
+    await drawer.getByRole('spinbutton', { name: 'Retrabalho — Ordem 450001', exact: true }).fill('3');
+    await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
+    await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(2);
+    await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();
+
+    const composition = page.getByRole('table', { name: 'Composição da batelada' });
+    await expect(composition.getByRole('row').filter({ hasText: '450001' })).toContainText('4,000');
+    await expect(composition.getByRole('row').filter({ hasText: '450002' })).toContainText('2,000');
+    await expect(page.getByRole('region', { name: 'Consolidado da batelada' })).toContainText('6,000');
+
+    await reportAction.click();
+    await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(2);
+    await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450002' })).toHaveCount(2);
+
+    await page.setViewportSize({ width: 480, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();
+    await page.setViewportSize({ width: 1024, height: 768 });
+
+    await page.getByRole('button', { name: 'Parada', exact: true }).click();
+    await expect(page).toHaveURL(/\/stoppages$/);
+    await expect(page.getByRole('heading', { name: 'Paradas' })).toBeVisible();
+    await expect(page.getByText('CT-EXT-01', { exact: true })).toBeVisible();
+    await expect(page.getByText('Contexto obrigatório')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+    await expect(page).toHaveURL(/\/batch-reporting$/);
+    await expect(composition.getByRole('row').filter({ hasText: '450001' })).toContainText('4,000');
+    await expect(reportAction).toBeEnabled();
+
+    await endAction.click();
+    await expect(page.getByText('Deseja encerrar conjuntamente todas as ordens desta batelada?')).toBeVisible();
+    await page.getByRole('button', { name: 'Encerrar', exact: true }).last().click();
+    await expect(page).toHaveURL(/\/work-center$/);
+  });
 });

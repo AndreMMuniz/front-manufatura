@@ -6,6 +6,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import {
   EstadoBatelada,
   OrdemLiberadaBatelada,
+  ReporteParcialBatelada,
   ResponsavelBatelada,
 } from '../models/reporta-batelada.model';
 
@@ -121,7 +122,11 @@ describe('ReportaBateladaWorkflowState', () => {
     state.setResponsaveis([responsavel()]);
     state.setResponsavel(responsavel());
     state.beginStart();
-    state.completeStart({ iniciadoEm: new Date(2026, 6, 23, 8, 15), ordensIniciadas: ['2', '1'] });
+    state.completeStart({
+      batchId: 'batch-1',
+      iniciadoEm: new Date(2026, 6, 23, 8, 15),
+      ordensIniciadas: ['2', '1'],
+    });
 
     expect(state.setArea({ code: '4002', description: 'Qualidade' })).toBe(false);
     expect(state.setWorkCenter(workCenter('CT-EXT-02'))).toBe(false);
@@ -143,6 +148,156 @@ describe('ReportaBateladaWorkflowState', () => {
     }));
   });
 
+  it('stores a deeply defensive multi-order draft and invalidates its key after changes', () => {
+    startBatch();
+    const draft = {
+      idempotencyKey: 'idem-1',
+      items: report().items,
+    };
+
+    state.setDraft(draft);
+    const first = state.snapshot().draft;
+    (first?.items[0].refugoItens[0] as { quantidade: number }).quantidade = 99;
+
+    expect(state.snapshot().draft?.items[0].refugoItens[0].quantidade).toBe(1);
+
+    state.setDraft({
+      idempotencyKey: 'idem-1',
+      items: draft.items.map((item, index) =>
+        index === 0 ? { ...item, quantidadeAprovada: 11 } : item),
+    });
+    expect(state.snapshot().draft?.idempotencyKey).toBeNull();
+  });
+
+  it('transitions through reporting, preserves a failed draft and deduplicates confirmation', () => {
+    startBatch();
+    const draft = { idempotencyKey: 'idem-1', items: report().items };
+    state.setDraft(draft);
+
+    expect(state.beginReport()).toBe(true);
+    expect(state.snapshot().estado).toBe(EstadoBatelada.ReportandoParcial);
+    expect(state.beginReport()).toBe(false);
+
+    state.failReport('Falha Datasul');
+    expect(state.snapshot()).toEqual(expect.objectContaining({
+      estado: EstadoBatelada.BateladaIniciada,
+      reportAsyncState: 'erro',
+      draft,
+    }));
+
+    state.beginReport();
+    state.completeReport(report());
+    state.completeReport(report());
+
+    expect(state.snapshot().estado).toBe(EstadoBatelada.BateladaIniciada);
+    expect(state.snapshot().history).toHaveLength(1);
+    expect(state.snapshot().draft?.items.every(item =>
+      item.quantidadeAprovada === 0 &&
+      item.quantidadeRetrabalho === 0 &&
+      item.quantidadeRefugo === 0 &&
+      item.refugoItens.length === 0)).toBe(true);
+  });
+
+  it('merges restored history without loss, reorder or duplication', () => {
+    startBatch();
+    const second = report('report-2', 'idem-2', new Date(2026, 6, 23, 10));
+
+    state.setHistory([report(), second, report()]);
+    state.setHistory([report(), second]);
+
+    expect(state.snapshot().history.map(item => item.reporteId)).toEqual(['report-1', 'report-2']);
+    expect(state.snapshot().historyAsyncState).toBe('sucesso');
+  });
+
+  it('derives rounded order and consolidated totals exclusively from confirmed history', () => {
+    startBatch();
+    state.setDraft({
+      idempotencyKey: null,
+      items: report().items.map(item => ({ ...item, quantidadeAprovada: 1000 })),
+    });
+    state.setHistory([
+      report(),
+      {
+        ...report('report-2', 'idem-2'),
+        items: report().items.map(item => ({
+          ...item,
+          quantidadeAprovada: 0.0006,
+          quantidadeRetrabalho: 0.0006,
+          quantidadeRefugo: 0,
+          refugoItens: [],
+        })),
+      },
+    ]);
+
+    expect(state.totalsByOrder()).toEqual([
+      {
+        orderId: '2',
+        ordem: '450002',
+        quantidadeAprovada: 8.252,
+        quantidadeRetrabalho: 0.502,
+        quantidadeRefugo: 1,
+        quantidadeTotal: 9.754,
+      },
+      {
+        orderId: '1',
+        ordem: '450001',
+        quantidadeAprovada: 10.126,
+        quantidadeRetrabalho: 0.001,
+        quantidadeRefugo: 1,
+        quantidadeTotal: 11.127,
+      },
+    ]);
+    expect(state.batchTotals()).toEqual({
+      quantidadeAprovada: 18.378,
+      quantidadeRetrabalho: 0.503,
+      quantidadeRefugo: 2,
+      quantidadeTotal: 20.881,
+    });
+  });
+
+  it('preserves the full operational snapshot through the stop flow', () => {
+    startBatch();
+    state.setHistory([report()]);
+    state.setDraft({ idempotencyKey: 'idem-2', items: report().items });
+
+    expect(state.enterStop()).toBe(true);
+    expect(state.snapshot().estado).toBe(EstadoBatelada.EmParada);
+    expect(state.returnFromStop()).toBe(true);
+
+    expect(state.snapshot()).toEqual(expect.objectContaining({
+      estado: EstadoBatelada.BateladaIniciada,
+      history: [report()],
+      draft: { idempotencyKey: 'idem-2', items: report().items },
+    }));
+  });
+
+  it('ends only from the operational state and restores it on failure', () => {
+    startBatch();
+    state.setHistory([report()]);
+
+    expect(state.beginEnding()).toBe(true);
+    expect(state.snapshot().estado).toBe(EstadoBatelada.Encerrando);
+    expect(state.beginReport()).toBe(false);
+
+    state.failEnding('Falha ao encerrar');
+    expect(state.snapshot()).toEqual(expect.objectContaining({
+      estado: EstadoBatelada.BateladaIniciada,
+      endingAsyncState: 'erro',
+      history: [report()],
+    }));
+
+    state.beginEnding();
+    state.completeEnding({
+      batchId: 'batch-1',
+      encerradoEm: new Date(2026, 6, 23, 12),
+      ordensEncerradas: ['2', '1'],
+    });
+
+    expect(state.snapshot().estado).toBe(EstadoBatelada.Encerrada);
+    expect(state.canReport()).toBe(false);
+    expect(state.canEnd()).toBe(false);
+  });
+
   function prepareContext(): void {
     state.setArea({ code: '4001', description: 'Produção' });
     state.setWorkCenter(workCenter());
@@ -154,6 +309,18 @@ describe('ReportaBateladaWorkflowState', () => {
     state.selectOrder('2', true);
     state.selectOrder('1', true);
     state.prepareBatch();
+  }
+
+  function startBatch(): void {
+    prepareBatch();
+    state.setResponsaveis([responsavel()]);
+    state.setResponsavel(responsavel());
+    state.beginStart();
+    state.completeStart({
+      batchId: 'batch-1',
+      iniciadoEm: new Date(2026, 6, 23, 8, 15),
+      ordensIniciadas: ['2', '1'],
+    });
   }
 });
 
@@ -181,4 +348,35 @@ function order(id: string): OrdemLiberadaBatelada {
 
 function responsavel(): ResponsavelBatelada {
   return { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' };
+}
+
+function report(
+  reporteId = 'report-1',
+  idempotencyKey = 'idem-1',
+  confirmadoEm = new Date(2026, 6, 23, 9),
+): ReporteParcialBatelada {
+  return {
+    reporteId,
+    batchId: 'batch-1',
+    idempotencyKey,
+    confirmadoEm,
+    items: [
+      {
+        orderId: '2',
+        ordem: '450002',
+        quantidadeAprovada: 8.251,
+        quantidadeRetrabalho: 0.501,
+        quantidadeRefugo: 1,
+        refugoItens: [{ motivoCode: 'R02', descricao: 'Bolha', quantidade: 1 }],
+      },
+      {
+        orderId: '1',
+        ordem: '450001',
+        quantidadeAprovada: 10.125,
+        quantidadeRetrabalho: 0,
+        quantidadeRefugo: 1,
+        refugoItens: [{ motivoCode: 'R01', descricao: 'Apara', quantidade: 1 }],
+      },
+    ],
+  };
 }

@@ -3,7 +3,12 @@ import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
-import { IniciarBateladaResponse } from '../interfaces/reporta-batelada.dto';
+import {
+  EncerrarBateladaResponse,
+  IniciarBateladaResponse,
+  ReporteParcialBateladaRequest,
+  ReporteParcialBateladaResponse,
+} from '../interfaces/reporta-batelada.dto';
 import {
   AreaProducaoBatelada,
   OrdemLiberadaBatelada,
@@ -95,6 +100,7 @@ describe('ReportaBateladaService', () => {
 
     const result = await firstValueFrom(service.iniciarBatelada(request));
 
+    expect(result.batchId).toMatch(/^batch-/);
     expect(result.ordensIniciadas).toEqual(['1', '2']);
     expect(result.iniciadoEm).toBeInstanceOf(Date);
   });
@@ -118,6 +124,191 @@ describe('ReportaBateladaService', () => {
         .toThrowError('O início conjunto não foi confirmado para todas as ordens.');
     },
   );
+
+  it.each([
+    { field: 'quantidadeAprovada', value: Number.NaN },
+    { field: 'quantidadeRetrabalho', value: Number.POSITIVE_INFINITY },
+    { field: 'quantidadeRefugo', value: -0.001 },
+  ] as const)('rejects invalid $field quantities', ({ field, value }) => {
+    const request = reportRequest();
+    const invalid = {
+      ...request,
+      items: request.items.map((item, index) => index === 0 ? { ...item, [field]: value } : item),
+    };
+
+    expect(() => service.validarReporteParcial(invalid))
+      .toThrowError('As quantidades devem ser números finitos e não negativos.');
+  });
+
+  it('requires a globally positive quantity and exact scrap reasons for each order', () => {
+    const base = reportRequest();
+    const zero = {
+      ...base,
+      items: base.items.map(item => ({
+        ...item,
+        quantidadeAprovada: 0,
+        quantidadeRetrabalho: 0,
+        quantidadeRefugo: 0,
+        refugoItens: [],
+      })),
+    };
+    expect(() => service.validarReporteParcial(zero))
+      .toThrowError('Informe ao menos uma quantidade positiva para salvar o reporte.');
+
+    const wrongScrap = reportRequest({
+      first: {
+        quantidadeAprovada: 0,
+        quantidadeRefugo: 2,
+        refugoItens: [{ motivoCode: 'R01', descricao: 'Apara', quantidade: 1 }],
+      },
+    });
+    expect(() => service.validarReporteParcial(wrongScrap))
+      .toThrowError('Os motivos de refugo da ordem 450001 devem totalizar 2,000.');
+  });
+
+  it('persists one ordered multi-order report and returns defensive history copies', async () => {
+    const inicio = await startBatch();
+    const request = reportRequest({ batchId: inicio.batchId });
+
+    const confirmed = await firstValueFrom(service.reportarBateladaParcial(request));
+    const history = await firstValueFrom(service.listarReportesBatelada(inicio.batchId));
+
+    expect(confirmed.items.map(item => item.orderId)).toEqual(['1', '2']);
+    expect(history).toEqual([confirmed]);
+    expect(history[0]).not.toBe(confirmed);
+    expect(history[0].items).not.toBe(confirmed.items);
+    expect(history[0].confirmadoEm).not.toBe(confirmed.confirmadoEm);
+    expect(history[0].items[0].refugoItens).not.toBe(confirmed.items[0].refugoItens);
+  });
+
+  it('deduplicates the complete event by batch and idempotency key', async () => {
+    const inicio = await startBatch();
+    const request = reportRequest({ batchId: inicio.batchId });
+
+    const first = await firstValueFrom(service.reportarBateladaParcial(request));
+    const retry = await firstValueFrom(service.reportarBateladaParcial(structuredClone(request)));
+    const history = await firstValueFrom(service.listarReportesBatelada(inicio.batchId));
+
+    expect(retry).toEqual(first);
+    expect(history).toHaveLength(1);
+  });
+
+  it('creates a second partial report when the event has a new idempotency key', async () => {
+    const inicio = await startBatch();
+    const first = reportRequest({ batchId: inicio.batchId });
+    const second = { ...first, idempotencyKey: 'idem-2' };
+
+    await firstValueFrom(service.reportarBateladaParcial(first));
+    await firstValueFrom(service.reportarBateladaParcial(second));
+
+    expect(await firstValueFrom(service.listarReportesBatelada(inicio.batchId))).toHaveLength(2);
+  });
+
+  it('clones the complete report command before the asynchronous mock processes it', async () => {
+    const inicio = await startBatch();
+    const request = reportRequest({ batchId: inicio.batchId });
+    const pending = firstValueFrom(service.reportarBateladaParcial(request));
+
+    (request.items[0] as { quantidadeAprovada: number }).quantidadeAprovada = 999;
+    (request.items[0].refugoItens[0] as { quantidade: number }).quantidade = 999;
+    const confirmed = await pending;
+
+    expect(confirmed.items[0].quantidadeAprovada).toBe(10.125);
+    expect(confirmed.items[0].refugoItens[0].quantidade).toBe(1.5);
+  });
+
+  it('rejects reuse of an idempotency key with a materially different command', async () => {
+    const inicio = await startBatch();
+    const request = reportRequest({ batchId: inicio.batchId });
+    await firstValueFrom(service.reportarBateladaParcial(request));
+
+    const changed = {
+      ...request,
+      items: request.items.map((item, index) =>
+        index === 0 ? { ...item, quantidadeAprovada: item.quantidadeAprovada + 1 } : item),
+    };
+
+    await expect(firstValueFrom(service.reportarBateladaParcial(changed)))
+      .rejects.toThrow('A chave de idempotência já foi usada com outro conteúdo.');
+  });
+
+  it.each([
+    {
+      status: 'RESULTADO_PARCIAL',
+      resultados: [
+        { ordemId: '1', sucesso: true },
+        { ordemId: '2', sucesso: false },
+      ],
+    },
+    {
+      status: 'SUCESSO_INTEGRAL',
+      resultados: [
+        { ordemId: '1', sucesso: true },
+        { ordemId: '1', sucesso: true },
+      ],
+    },
+    {
+      status: 'SUCESSO_INTEGRAL',
+      resultados: [
+        { ordemId: '1', sucesso: true },
+        { ordemId: 'desconhecida', sucesso: true },
+      ],
+    },
+  ] satisfies ReadonlyArray<Partial<ReporteParcialBateladaResponse> & Pick<ReporteParcialBateladaResponse, 'status' | 'resultados'>>)(
+    'rejects partial, duplicate or unknown report results',
+    response => {
+      expect(() => service.validarRespostaReporte({
+        reporteId: 'report-1',
+        batchId: 'batch-1',
+        idempotencyKey: 'idem-1',
+        confirmadoEm: new Date(),
+        ...response,
+      }, reportRequest()))
+        .toThrowError('O reporte conjunto não foi confirmado para todas as ordens.');
+    },
+  );
+
+  it('ends the batch atomically without creating an implicit report', async () => {
+    const inicio = await startBatch();
+
+    const encerramento = await firstValueFrom(service.encerrarBatelada({
+      batchId: inicio.batchId,
+      orderIds: ['1', '2'],
+    }));
+    const history = await firstValueFrom(service.listarReportesBatelada(inicio.batchId));
+
+    expect(encerramento.batchId).toBe(inicio.batchId);
+    expect(encerramento.ordensEncerradas).toEqual(['1', '2']);
+    expect(history).toEqual([]);
+  });
+
+  it.each([
+    {
+      status: 'RESULTADO_PARCIAL',
+      resultados: [
+        { ordemId: '1', sucesso: true },
+        { ordemId: '2', sucesso: false },
+      ],
+    },
+    {
+      status: 'SUCESSO_INTEGRAL',
+      resultados: [{ ordemId: '1', sucesso: true }],
+    },
+  ] satisfies ReadonlyArray<EncerrarBateladaResponse>)(
+    'rejects partial or inconsistent ending responses',
+    response => {
+      expect(() => service.validarRespostaEncerramento(response, 'batch-1', ['1', '2']))
+        .toThrowError('O encerramento conjunto não foi confirmado para todas as ordens.');
+    },
+  );
+
+  async function startBatch() {
+    return firstValueFrom(service.iniciarBatelada(service.montarComandoInicio(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      responsavel(),
+      [order('1'), order('2')],
+    )));
+  }
 });
 
 function workCenter() {
@@ -147,3 +338,32 @@ function responsavel(): ResponsavelBatelada {
 }
 
 const _areaTypeCheck: AreaProducaoBatelada = { code: '4001', description: 'Produção' };
+
+function reportRequest(options: {
+  readonly batchId?: string;
+  readonly first?: Partial<ReporteParcialBateladaRequest['items'][number]>;
+} = {}): ReporteParcialBateladaRequest {
+  return {
+    batchId: options.batchId ?? 'batch-1',
+    idempotencyKey: 'idem-1',
+    items: [
+      {
+        orderId: '1',
+        ordem: '450001',
+        quantidadeAprovada: 10.125,
+        quantidadeRetrabalho: 0,
+        quantidadeRefugo: 1.5,
+        refugoItens: [{ motivoCode: 'R01', descricao: 'Apara', quantidade: 1.5 }],
+        ...options.first,
+      },
+      {
+        orderId: '2',
+        ordem: '450002',
+        quantidadeAprovada: 8.25,
+        quantidadeRetrabalho: 0.5,
+        quantidadeRefugo: 0,
+        refugoItens: [],
+      },
+    ],
+  };
+}

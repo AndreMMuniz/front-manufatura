@@ -1,12 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PoNotificationService } from '@po-ui/ng-components';
+import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
-import { OrdemLiberadaBatelada } from '../../models/reporta-batelada.model';
+import { ReporteBateladaSlide } from '../../components/reporte-batelada-slide/reporte-batelada-slide';
+import {
+  OrdemLiberadaBatelada,
+  RascunhoReporteBatelada,
+  ReporteParcialBatelada,
+} from '../../models/reporta-batelada.model';
 import { ReportaBateladaService } from '../../services/reporta-batelada.service';
 
 import { ReportaBateladaPage } from './reporta-batelada-page';
@@ -15,6 +21,8 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
   let fixture: ComponentFixture<ReportaBateladaPage>;
   let component: ReportaBateladaPage;
   let currentContext: ReturnType<typeof context> | null;
+  let routerMock: { navigate: ReturnType<typeof vi.fn> };
+  let dialogMock: { confirm: ReturnType<typeof vi.fn> };
   let serviceMock: {
     listarAreas: ReturnType<typeof vi.fn>;
     pesquisarCentros: ReturnType<typeof vi.fn>;
@@ -22,10 +30,17 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     listarResponsaveisElegiveis: ReturnType<typeof vi.fn>;
     montarComandoInicio: ReturnType<typeof vi.fn>;
     iniciarBatelada: ReturnType<typeof vi.fn>;
+    listarReportesBatelada: ReturnType<typeof vi.fn>;
+    reportarBateladaParcial: ReturnType<typeof vi.fn>;
+    encerrarBatelada: ReturnType<typeof vi.fn>;
+    preservarFluxoParada: ReturnType<typeof vi.fn>;
+    retomarFluxoParada: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
     currentContext = context();
+    routerMock = { navigate: vi.fn().mockResolvedValue(true) };
+    dialogMock = { confirm: vi.fn() };
     serviceMock = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([context().workCenter])),
@@ -37,9 +52,25 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
         ordens: ordensSelecionadas,
       })),
       iniciarBatelada: vi.fn(() => of({
+        batchId: 'batch-1',
         iniciadoEm: new Date(2026, 6, 23, 8, 15),
         ordensIniciadas: ['2', '1'],
       })),
+      listarReportesBatelada: vi.fn(() => of([])),
+      reportarBateladaParcial: vi.fn(request => of({
+        reporteId: 'report-1',
+        batchId: request.batchId,
+        idempotencyKey: request.idempotencyKey,
+        confirmadoEm: new Date(2026, 6, 23, 9),
+        items: request.items,
+      })),
+      encerrarBatelada: vi.fn(request => of({
+        batchId: request.batchId,
+        encerradoEm: new Date(2026, 6, 23, 12),
+        ordensEncerradas: request.orderIds,
+      })),
+      preservarFluxoParada: vi.fn(),
+      retomarFluxoParada: vi.fn(() => null),
     };
 
     await TestBed.configureTestingModule({
@@ -47,13 +78,16 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       providers: [
         { provide: ReportaBateladaService, useValue: serviceMock },
         { provide: OperationalContextService, useValue: { get currentContext() { return currentContext; } } },
-        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        { provide: Router, useValue: routerMock },
+        { provide: PoDialogService, useValue: dialogMock },
         {
           provide: PoNotificationService,
           useValue: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), information: vi.fn() },
         },
       ],
-    }).compileComponents();
+    })
+      .overrideProvider(PoDialogService, { useValue: dialogMock })
+      .compileComponents();
 
     fixture = TestBed.createComponent(ReportaBateladaPage);
     component = fixture.componentInstance;
@@ -143,6 +177,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
   it('prevents duplicate start commands from double click', () => {
     const pending = new Subject<{
+      readonly batchId: string;
       readonly iniciadoEm: Date;
       readonly ordensIniciadas: ReadonlyArray<string>;
     }>();
@@ -185,6 +220,144 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.estado).toBe('BateladaPreparada');
   });
 
+  it('loads history when opening the report drawer and keeps composition order', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    const slide = fixture.debugElement.query(By.directive(ReporteBateladaSlide))
+      .componentInstance as ReporteBateladaSlide;
+
+    component.abrirReporte();
+
+    expect(serviceMock.listarReportesBatelada).toHaveBeenCalledWith('batch-1');
+    expect(slide.items.map(item => item.orderId)).toEqual(['2', '1']);
+    expect(component.view.estado).toBe('BateladaIniciada');
+  });
+
+  it('sends one ordered partial command, updates history and keeps the batch started', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    const draft = reportDraft('idem-1');
+
+    component.salvarReporte(draft);
+    component.salvarReporte(draft);
+
+    expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledOnce();
+    expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledWith({
+      batchId: 'batch-1',
+      idempotencyKey: 'idem-1',
+      items: draft.items,
+    });
+    expect(component.view.estado).toBe('BateladaIniciada');
+    expect(component.view.history).toHaveLength(1);
+    expect(component.view.draft?.items.every(item => item.quantidadeAprovada === 0)).toBe(true);
+  });
+
+  it('preserves the draft and idempotency key after report failure for retry', () => {
+    serviceMock.reportarBateladaParcial
+      .mockReturnValueOnce(throwError(() => new Error('offline')));
+    prepareForStart();
+    component.iniciarBatelada();
+    const draft = reportDraft('idem-retry');
+
+    component.salvarReporte(draft);
+    expect(component.view.draft?.idempotencyKey).toBe('idem-retry');
+    expect(component.view.estado).toBe('BateladaIniciada');
+
+    component.salvarReporte(component.view.draft!);
+
+    expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledTimes(2);
+    expect(serviceMock.reportarBateladaParcial.mock.calls[1][0].idempotencyKey)
+      .toBe('idem-retry');
+  });
+
+  it('ends only after confirmation, without an implicit report, and returns to work center', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+
+    component.encerrarBatelada();
+    expect(serviceMock.encerrarBatelada).not.toHaveBeenCalled();
+    const confirmation = dialogMock.confirm.mock.calls[0][0];
+    confirmation.confirm();
+
+    expect(serviceMock.encerrarBatelada).toHaveBeenCalledOnce();
+    expect(serviceMock.reportarBateladaParcial).not.toHaveBeenCalled();
+    expect(component.view.estado).toBe('Encerrada');
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/work-center']);
+  });
+
+  it('does not end or alter the batch when confirmation is cancelled', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+
+    component.encerrarBatelada();
+
+    expect(dialogMock.confirm).toHaveBeenCalledOnce();
+    expect(serviceMock.encerrarBatelada).not.toHaveBeenCalled();
+    expect(component.view.estado).toBe('BateladaIniciada');
+  });
+
+  it('protects navigation while a batch is active and allows cancelling the discard', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+
+    component.voltar();
+
+    expect(routerMock.navigate).not.toHaveBeenCalledWith(['/work-center']);
+    expect(dialogMock.confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Sair da batelada?',
+      confirm: expect.any(Function),
+    }));
+  });
+
+  it('ignores an obsolete report response after confirmed navigation', () => {
+    const pending = new Subject<ReporteParcialBatelada>();
+    serviceMock.reportarBateladaParcial.mockReturnValueOnce(pending);
+    prepareForStart();
+    component.iniciarBatelada();
+    component.salvarReporte(reportDraft('idem-stale'));
+
+    component.voltar();
+    dialogMock.confirm.mock.calls.at(-1)![0].confirm();
+    pending.next(confirmedReport('idem-stale'));
+
+    expect(component.view.estado).toBe('ContextoPendente');
+    expect(component.view.history).toEqual([]);
+  });
+
+  it('preserves history and operational state when ending fails', () => {
+    serviceMock.encerrarBatelada.mockReturnValueOnce(throwError(() => new Error('partial')));
+    prepareForStart();
+    component.iniciarBatelada();
+    component.salvarReporte(reportDraft('idem-history'));
+
+    component.encerrarBatelada();
+    dialogMock.confirm.mock.calls.at(-1)![0].confirm();
+
+    expect(component.view.estado).toBe('BateladaIniciada');
+    expect(component.view.endingAsyncState).toBe('erro');
+    expect(component.view.history).toHaveLength(1);
+  });
+
+  it('transfers and restores the complete batch state through the stoppage route', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    component.salvarReporte(reportDraft('idem-stop'));
+    component.abrirParada();
+    const preserved = serviceMock.preservarFluxoParada.mock.calls[0][0];
+
+    expect(preserved.estado).toBe('EmParada');
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/stoppages']);
+
+    serviceMock.retomarFluxoParada.mockReturnValueOnce(preserved);
+    fixture = TestBed.createComponent(ReportaBateladaPage);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.view.estado).toBe('BateladaIniciada');
+    expect(component.view.history).toHaveLength(1);
+    expect(component.view.composition.map(order => order.id)).toEqual(['2', '1']);
+  });
+
   function prepareForStart(): void {
     serviceMock.listarResponsaveisElegiveis.mockReturnValue(of([
       { tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' },
@@ -218,4 +391,38 @@ function orders(): ReadonlyArray<OrdemLiberadaBatelada> {
     { id: '1', ordem: '450001', itemOp: 'ITEM-1 / OP-1', operacao: '10', split: '01' },
     { id: '2', ordem: '450002', itemOp: 'ITEM-2 / OP-2', operacao: '20', split: '01' },
   ];
+}
+
+function reportDraft(idempotencyKey: string): RascunhoReporteBatelada {
+  return {
+    idempotencyKey,
+    items: [
+      {
+        orderId: '2',
+        ordem: '450002',
+        quantidadeAprovada: 2,
+        quantidadeRetrabalho: 0,
+        quantidadeRefugo: 0,
+        refugoItens: [],
+      },
+      {
+        orderId: '1',
+        ordem: '450001',
+        quantidadeAprovada: 1,
+        quantidadeRetrabalho: 0,
+        quantidadeRefugo: 0,
+        refugoItens: [],
+      },
+    ],
+  };
+}
+
+function confirmedReport(idempotencyKey: string): ReporteParcialBatelada {
+  return {
+    reporteId: `report-${idempotencyKey}`,
+    batchId: 'batch-1',
+    idempotencyKey,
+    confirmadoEm: new Date(2026, 6, 23, 9),
+    items: reportDraft(idempotencyKey).items,
+  };
 }

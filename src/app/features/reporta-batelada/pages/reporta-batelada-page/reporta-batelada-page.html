@@ -8,7 +8,7 @@
       [loadingAreas]="loadingAreas"
       [loadingCenters]="loadingCenters"
       [loadingOrders]="view.asyncState === 'carregando'"
-      [disabled]="view.estado === 'Iniciando' || view.estado === 'BateladaIniciada'"
+      [disabled]="contextLocked"
       [errorMessage]="view.asyncState === 'erro' ? view.errorMessage : ''"
       (areaChange)="selecionarArea($event)"
       (workCenterChange)="selecionarCentro($event)"
@@ -20,7 +20,7 @@
       [orders]="view.orders"
       [selectedIds]="selectedIds"
       [loading]="view.asyncState === 'carregando'"
-      [disabled]="view.estado === 'Iniciando' || view.estado === 'BateladaIniciada'"
+      [disabled]="contextLocked"
       [showList]="view.asyncState !== 'ocioso'"
       (selectionChange)="atualizarSelecao($event)"
       (prepare)="prepararBatelada()"
@@ -29,14 +29,16 @@
     @if (view.composition.length > 0) {
       <app-ordens-selecionadas-batelada
         [orders]="view.composition"
-        [locked]="view.estado === 'BateladaIniciada'"
+        [totals]="workflowTotals"
+        [batchTotals]="workflowBatchTotals"
+        [locked]="started"
       ></app-ordens-selecionadas-batelada>
 
       <app-informacoes-batelada
         [workCenter]="view.workCenter"
         [responsaveis]="view.responsaveis"
         [responsavel]="view.responsavel"
-        [disabled]="view.estado === 'Iniciando' || view.estado === 'BateladaIniciada'"
+        [disabled]="contextLocked"
         [startedAt]="view.inicio?.iniciadoEm ?? null"
         (responsavelChange)="selecionarResponsavel($event)"
       ></app-informacoes-batelada>
@@ -54,6 +56,14 @@
       <p class="reporta-batelada__feedback" role="status" aria-live="polite">
         Batelada iniciada com sucesso.
       </p>
+    } @else if (view.estado === 'ReportandoParcial') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Salvando reporte parcial...
+      </p>
+    } @else if (view.estado === 'Encerrando') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Encerrando todas as ordens da batelada...
+      </p>
     } @else if (view.composition.length > 0 && !view.responsavel) {
       <p class="reporta-batelada__feedback" role="status">
         Selecione um responsável elegível para habilitar Iniciar.
@@ -61,14 +71,24 @@
     }
 
     <app-footer-acoes-batelada
-      primaryLabel="Iniciar"
-      [primaryDisabled]="!canStart"
-      [primaryLoading]="view.estado === 'Iniciando'"
-      [paradaDisabled]="!started"
-      (primaryAction)="iniciarBatelada()"
-      (parada)="abrirParada()"
+      [startDisabled]="!canStart"
+      [startLoading]="view.estado === 'Iniciando'"
+      [reportDisabled]="!canReport"
+      [reportLoading]="view.reportAsyncState === 'carregando'"
+      [endDisabled]="!canEnd"
+      [endLoading]="view.endingAsyncState === 'carregando'"
+      [stopDisabled]="!canReport"
+      (start)="iniciarBatelada()"
+      (report)="abrirReporte()"
+      (end)="encerrarBatelada()"
+      (stop)="abrirParada()"
       (voltar)="voltar()"
       (sair)="sair()"
     ></app-footer-acoes-batelada>
   </section>
 </po-page-default>
+
+<app-reporte-batelada-slide
+  (rascunhoAlterado)="atualizarRascunho($event)"
+  (reporteSolicitado)="salvarReporte($event)"
+></app-reporte-batelada-slide>

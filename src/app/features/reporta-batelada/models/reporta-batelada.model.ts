@@ -5,6 +5,10 @@ export enum EstadoBatelada {
   BateladaPreparada = 'BateladaPreparada',
   Iniciando = 'Iniciando',
   BateladaIniciada = 'BateladaIniciada',
+  ReportandoParcial = 'ReportandoParcial',
+  EmParada = 'EmParada',
+  Encerrando = 'Encerrando',
+  Encerrada = 'Encerrada',
 }
 
 export type EstadoAssincronoBatelada = 'ocioso' | 'carregando' | 'sucesso' | 'vazio' | 'erro';
@@ -36,6 +40,61 @@ export interface ContextoBatelada {
 }
 
 export interface InicioBatelada {
+  readonly batchId: string;
   readonly iniciadoEm: Date;
   readonly ordensIniciadas: ReadonlyArray<string>;
+}
+
+export interface MotivoRefugoBatelada {
+  readonly motivoCode: string;
+  readonly descricao: string;
+  readonly quantidade: number;
+}
+
+export interface ItemReporteBatelada {
+  readonly orderId: string;
+  readonly ordem: string;
+  readonly quantidadeAprovada: number;
+  readonly quantidadeRetrabalho: number;
+  readonly quantidadeRefugo: number;
+  readonly refugoItens: ReadonlyArray<MotivoRefugoBatelada>;
+}
+
+export interface RascunhoReporteBatelada {
+  readonly idempotencyKey: string | null;
+  readonly items: ReadonlyArray<ItemReporteBatelada>;
+}
+
+export interface ReporteParcialBatelada {
+  readonly reporteId: string;
+  readonly batchId: string;
+  readonly idempotencyKey: string;
+  readonly confirmadoEm: Date;
+  readonly items: ReadonlyArray<ItemReporteBatelada>;
+}
+
+export interface TotaisOrdemBatelada {
+  readonly orderId: string;
+  readonly ordem: string;
+  readonly quantidadeAprovada: number;
+  readonly quantidadeRetrabalho: number;
+  readonly quantidadeRefugo: number;
+  readonly quantidadeTotal: number;
+}
+
+export interface TotaisBatelada {
+  readonly quantidadeAprovada: number;
+  readonly quantidadeRetrabalho: number;
+  readonly quantidadeRefugo: number;
+  readonly quantidadeTotal: number;
+}
+
+export interface EncerramentoBatelada {
+  readonly batchId: string;
+  readonly encerradoEm: Date;
+  readonly ordensEncerradas: ReadonlyArray<string>;
+}
+
+export function arredondarQuantidadeBatelada(value: number): number {
+  return Math.round((value + Number.EPSILON) * 1000) / 1000;
 }

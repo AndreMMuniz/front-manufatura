@@ -7,6 +7,10 @@
           <th scope="col">Item / OP</th>
           <th scope="col">Operação</th>
           <th scope="col">Split</th>
+          <th scope="col">Aprovada</th>
+          <th scope="col">Retrabalho</th>
+          <th scope="col">Refugo</th>
+          <th scope="col">Total</th>
         </tr>
       </thead>
       <tbody>
@@ -16,11 +20,23 @@
             <td data-label="Item / OP">{{ order.itemOp }}</td>
             <td data-label="Operação">{{ order.operacao }}</td>
             <td data-label="Split">{{ order.split }}</td>
+            <td data-label="Aprovada">{{ formatQuantity(totalsFor(order.id).quantidadeAprovada) }}</td>
+            <td data-label="Retrabalho">{{ formatQuantity(totalsFor(order.id).quantidadeRetrabalho) }}</td>
+            <td data-label="Refugo">{{ formatQuantity(totalsFor(order.id).quantidadeRefugo) }}</td>
+            <td data-label="Total">{{ formatQuantity(totalsFor(order.id).quantidadeTotal) }}</td>
           </tr>
         }
       </tbody>
     </table>
   </div>
+
+  <section class="ordens-selecionadas__consolidated" aria-label="Consolidado da batelada">
+    <strong>Consolidado da batelada</strong>
+    <span>Aprovada: {{ formatQuantity(batchTotals.quantidadeAprovada) }}</span>
+    <span>Retrabalho: {{ formatQuantity(batchTotals.quantidadeRetrabalho) }}</span>
+    <span>Refugo: {{ formatQuantity(batchTotals.quantidadeRefugo) }}</span>
+    <span>Total: {{ formatQuantity(batchTotals.quantidadeTotal) }}</span>
+  </section>
 
   @if (locked) {
     <p class="ordens-selecionadas__status" role="status">
