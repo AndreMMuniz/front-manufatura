@@ -151,7 +151,7 @@ describe('QualityControlWorkflowState', () => {
     });
     state.openPanel('a-10');
 
-    state.moveToNextPending();
+    state.moveToNextPending('a-10');
 
     expect(state.selectedComponentId()).toBe('b-10');
     expect(state.selectedExam()?.id).toBe('exam-b');
@@ -165,7 +165,7 @@ describe('QualityControlWorkflowState', () => {
       minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
     });
 
-    state.moveToNextPending();
+    state.moveToNextPending('b-10');
 
     expect(state.selectedComponentId()).toBe('b-10');
     expect(state.panelOpen()).toBe(true);

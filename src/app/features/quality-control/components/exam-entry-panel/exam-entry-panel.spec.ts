@@ -222,10 +222,13 @@ describe('ExamEntryPanel', () => {
     expect(state.panelOpen()).toBe(true);
 
     fixture.detectChanges();
-    const saveButton = fixture.nativeElement.querySelector(
-      '.exam-entry__navigation po-button:nth-child(2) button',
-    ) as HTMLButtonElement;
-    expect(saveButton.disabled).toBe(true);
+    const actionButtons = Array.from(
+      fixture.nativeElement.querySelectorAll('.exam-entry__navigation po-button'),
+    ) as HTMLElement[];
+    const saveButton = actionButtons
+      .find(button => button.textContent?.trim() === 'Salvar')
+      ?.querySelector('button') as HTMLButtonElement | undefined;
+    expect(saveButton?.disabled).toBe(true);
   });
 
   it('advances to the next characteristic only after the API confirms the save', () => {

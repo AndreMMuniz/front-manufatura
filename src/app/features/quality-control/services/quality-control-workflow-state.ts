@@ -281,9 +281,7 @@ export class QualityControlWorkflowState {
     if (target) this.selectedComponentId.set(target.id);
   }
 
-  moveToNextPending(): void {
-    const currentId = this.selectedComponentId();
-    if (!currentId) return;
+  moveToNextPending(currentId: string): void {
     const ordered = this.components();
     const currentIndex = ordered.findIndex(component => component.id === currentId);
     if (currentIndex < 0) return;
