@@ -7,6 +7,8 @@ import {
   EstadoOperacao,
   OrdemCentroTrabalho,
   ReportOperacao,
+  ReporteParcialOperacao,
+  ResponsavelOperacao,
 } from '../models/report-operacao.model';
 
 export interface WorkflowScrapItem {
@@ -26,6 +28,8 @@ export interface ReportOperacaoWorkflowSnapshot {
   readonly operationState: EstadoOperacao;
   readonly scrapItems: ReadonlyArray<WorkflowScrapItem>;
   readonly lastScrapReason: string;
+  readonly responsavel: ResponsavelOperacao | null;
+  readonly reportes: ReadonlyArray<ReporteParcialOperacao>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -94,6 +98,8 @@ export class ReportOperacaoWorkflowState {
       operationState: EstadoOperacao.SemOP,
       scrapItems: [],
       lastScrapReason: '',
+      responsavel: null,
+      reportes: [],
     });
     return activeOrder ? { ...activeOrder } : null;
   }
@@ -122,6 +128,20 @@ export class ReportOperacaoWorkflowState {
     }));
   }
 
+  setResponsavel(responsavel: ResponsavelOperacao | null): void {
+    this.value.update(current => ({
+      ...current,
+      responsavel: responsavel ? { ...responsavel } : null,
+    }));
+  }
+
+  addReporte(reporte: ReporteParcialOperacao): void {
+    this.value.update(current => ({
+      ...current,
+      reportes: [...current.reportes, this.cloneReporte(reporte)],
+    }));
+  }
+
   completeActiveOrder(): OrdemCentroTrabalho | null {
     const current = this.value();
     const queue = current.activeOrder
@@ -138,6 +158,8 @@ export class ReportOperacaoWorkflowState {
       operationState: EstadoOperacao.SemOP,
       scrapItems: [],
       lastScrapReason: '',
+      responsavel: null,
+      reportes: [],
     });
 
     return activeOrder ? { ...activeOrder } : null;
@@ -153,6 +175,8 @@ export class ReportOperacaoWorkflowState {
       operationState: EstadoOperacao.SemOP,
       scrapItems: [],
       lastScrapReason: '',
+      responsavel: null,
+      reportes: [],
     }));
   }
 
@@ -180,6 +204,8 @@ export class ReportOperacaoWorkflowState {
       operationState: EstadoOperacao.SemOP,
       scrapItems: [],
       lastScrapReason: '',
+      responsavel: null,
+      reportes: [],
     };
   }
 
@@ -195,6 +221,8 @@ export class ReportOperacaoWorkflowState {
       operationState: snapshot.operationState,
       scrapItems: snapshot.scrapItems.map(item => ({ ...item })),
       lastScrapReason: snapshot.lastScrapReason,
+      responsavel: snapshot.responsavel ? { ...snapshot.responsavel } : null,
+      reportes: snapshot.reportes.map(reporte => this.cloneReporte(reporte)),
     };
   }
 
@@ -207,6 +235,13 @@ export class ReportOperacaoWorkflowState {
       ...operation,
       dataInicio: operation.dataInicio ? new Date(operation.dataInicio) : undefined,
       dataFim: operation.dataFim ? new Date(operation.dataFim) : undefined,
+    };
+  }
+
+  private cloneReporte(reporte: ReporteParcialOperacao): ReporteParcialOperacao {
+    return {
+      ...reporte,
+      registradoEm: new Date(reporte.registradoEm),
     };
   }
 }

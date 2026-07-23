@@ -57,6 +57,22 @@ export interface ReportOperacao {
   readonly turno: string;
 }
 
+export type TipoResponsavelOperacao = 'OPERADOR' | 'EQUIPE';
+
+export interface ResponsavelOperacao {
+  readonly tipo: TipoResponsavelOperacao;
+  readonly codigo: string;
+  readonly nome: string;
+}
+
+export interface ReporteParcialOperacao {
+  readonly id: string;
+  readonly registradoEm: Date;
+  readonly quantidadeAprovada: number;
+  readonly quantidadeRetrabalho: number;
+  readonly quantidadeRefugo: number;
+}
+
 export interface ResultadoConsultaOP {
   readonly sucesso: boolean;
   readonly operacao?: ReportOperacao;

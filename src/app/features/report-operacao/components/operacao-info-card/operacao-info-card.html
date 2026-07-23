@@ -7,12 +7,22 @@
       [p-readonly]="true"
       [ngModel]="operacao?.grupoMaquina ?? ''"
     ></po-input>
-    <po-input
-      name="operadorEquipe"
-      p-label="Operador / Equipe"
-      [p-readonly]="true"
-      [ngModel]="operacao ? operacao.operador + ' / ' + operacao.equipe : ''"
-    ></po-input>
+    <po-select
+      name="tipoResponsavel"
+      p-label="Reportar por"
+      [p-options]="tipoOptions"
+      [p-disabled]="responsavelDisabled"
+      [ngModel]="tipoResponsavel"
+      (ngModelChange)="tipoResponsavelChange.emit($event)"
+    ></po-select>
+    <po-select
+      name="responsavelOperacao"
+      [p-label]="tipoResponsavel === 'OPERADOR' ? 'Operador' : 'Equipe'"
+      [p-options]="responsavelOptions"
+      [p-disabled]="responsavelDisabled"
+      [ngModel]="responsavelCodigo"
+      (ngModelChange)="responsavelChange.emit($event)"
+    ></po-select>
     <po-input name="turno" p-label="Turno" [p-readonly]="true" [ngModel]="operacao?.turno ?? ''"></po-input>
   </div>
 </po-widget>

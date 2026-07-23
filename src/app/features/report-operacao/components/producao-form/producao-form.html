@@ -17,56 +17,36 @@
     <po-datepicker
       name="dataFim"
       p-label="Data Fim"
-      [p-disabled]="disabled"
+      [p-disabled]="true"
       [ngModel]="operacao?.dataFim"
-      (ngModelChange)="updateEndDate($event)"
     ></po-datepicker>
 
     <po-input
       name="horaFim"
       p-label="Hora Fim"
-      p-placeholder="HH:mm"
-      [p-disabled]="disabled"
+      [p-readonly]="true"
       [ngModel]="operacao?.horaFim ?? ''"
-      (ngModelChange)="update({ horaFim: $event })"
     ></po-input>
 
     <po-number
       name="quantidadeAprovada"
       p-label="Qtde Aprovada"
-      [p-disabled]="disabled"
+      [p-disabled]="true"
       [ngModel]="operacao?.quantidadeAprovada ?? 0"
-      (ngModelChange)="update({ quantidadeAprovada: $event ?? 0 })"
     ></po-number>
 
-    <div class="producao-form__with-action">
-      <po-number
-        name="quantidadeRetrabalho"
-        p-label="Qtde Retrabalho"
-        [p-disabled]="true"
-        [ngModel]="operacao?.quantidadeRetrabalho ?? 0"
-      ></po-number>
-      <po-button
-        p-label="Editar"
-        p-kind="secondary"
-        [p-disabled]="retrabalhoDisabled"
-        (p-click)="editarRetrabalho.emit()"
-      ></po-button>
-    </div>
+    <po-number
+      name="quantidadeRetrabalho"
+      p-label="Qtde Retrabalho"
+      [p-disabled]="true"
+      [ngModel]="operacao?.quantidadeRetrabalho ?? 0"
+    ></po-number>
 
-    <div class="producao-form__with-action">
-      <po-number
-        name="quantidadeRefugo"
-        p-label="Qtde Refugo"
-        [p-disabled]="true"
-        [ngModel]="operacao?.quantidadeRefugo ?? 0"
-      ></po-number>
-      <po-button
-        p-label="Editar"
-        p-kind="secondary"
-        [p-disabled]="refugoDisabled"
-        (p-click)="editarRefugo.emit()"
-      ></po-button>
-    </div>
+    <po-number
+      name="quantidadeRefugo"
+      p-label="Qtde Refugo"
+      [p-disabled]="true"
+      [ngModel]="operacao?.quantidadeRefugo ?? 0"
+    ></po-number>
   </div>
 </po-widget>

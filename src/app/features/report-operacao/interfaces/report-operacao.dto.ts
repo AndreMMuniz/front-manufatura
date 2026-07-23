@@ -55,6 +55,14 @@ export interface IniciarOperacaoRequest {
   readonly horaInicio: string;
 }
 
+export interface EncerrarOperacaoRequest {
+  readonly ordem: string;
+  readonly op: string;
+  readonly split: string;
+  readonly dataFim: Date;
+  readonly horaFim: string;
+}
+
 export interface RefugoItemRequest {
   readonly codigo: string;
   readonly descricao: string;

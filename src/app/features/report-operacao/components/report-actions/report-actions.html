@@ -1,15 +1,28 @@
 <po-widget p-title="Ações da Operação">
   <div class="report-actions">
     <po-button
-      [p-label]="primaryLabel"
+      p-label="Iniciar"
       p-kind="primary"
-      [p-loading]="primaryLoading"
-      [p-disabled]="primaryDisabled"
-      (p-click)="primaryAction.emit()"
+      [p-loading]="iniciarLoading"
+      [p-disabled]="iniciarDisabled"
+      (p-click)="iniciar.emit()"
     ></po-button>
 
-    <po-button p-label="Parada" p-kind="secondary" [p-disabled]="paradaDisabled" (p-click)="parada.emit()"></po-button>
-    <po-button p-label="Voltar" p-kind="secondary" (p-click)="voltar.emit()"></po-button>
-    <po-button p-label="Sair" p-kind="secondary" (p-click)="sair.emit()"></po-button>
+    <po-button
+      p-label="Reporte"
+      p-kind="secondary"
+      [p-loading]="reporteLoading"
+      [p-disabled]="reporteDisabled"
+      (p-click)="reporte.emit()"
+    ></po-button>
+
+    <po-button
+      p-label="Encerrar"
+      p-kind="secondary"
+      [p-danger]="true"
+      [p-loading]="encerrarLoading"
+      [p-disabled]="encerrarDisabled"
+      (p-click)="encerrar.emit()"
+    ></po-button>
   </div>
 </po-widget>

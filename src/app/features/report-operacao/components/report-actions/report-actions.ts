@@ -10,13 +10,14 @@ import { PoButtonModule, PoWidgetModule } from '@po-ui/ng-components';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportActions {
-  @Input() primaryLabel = 'Iniciar';
-  @Input() primaryDisabled = true;
-  @Input() primaryLoading = false;
-  @Input() paradaDisabled = true;
+  @Input() iniciarDisabled = true;
+  @Input() iniciarLoading = false;
+  @Input() reporteDisabled = true;
+  @Input() reporteLoading = false;
+  @Input() encerrarDisabled = true;
+  @Input() encerrarLoading = false;
 
-  @Output() primaryAction = new EventEmitter<void>();
-  @Output() parada = new EventEmitter<void>();
-  @Output() voltar = new EventEmitter<void>();
-  @Output() sair = new EventEmitter<void>();
+  @Output() iniciar = new EventEmitter<void>();
+  @Output() reporte = new EventEmitter<void>();
+  @Output() encerrar = new EventEmitter<void>();
 }

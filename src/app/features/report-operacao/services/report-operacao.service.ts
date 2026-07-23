@@ -6,6 +6,7 @@ import { WorkCenter } from '../../shop-floor/models/work-center';
 import { WorkCenterService } from '../../shop-floor/services/work-center';
 import {
   AreaProducaoResponseDTO,
+  EncerrarOperacaoRequest,
   IniciarOperacaoRequest,
   OrdemCentroTrabalhoResponseDTO,
   ReportOperacaoResponseDTO,
@@ -16,6 +17,7 @@ import {
   OrdemCentroTrabalho,
   ReportOperacao,
   ReporteResultado,
+  ResponsavelOperacao,
   ResultadoConsultaOP,
 } from '../models/report-operacao.model';
 
@@ -26,6 +28,15 @@ export class ReportOperacaoService {
   private readonly areas: ReadonlyArray<AreaProducaoResponseDTO> = [
     { code: '4001', description: 'Produção' },
     { code: '4002', description: 'Qualidade' },
+  ];
+
+  private readonly responsaveis: ReadonlyArray<ResponsavelOperacao> = [
+    { tipo: 'OPERADOR', codigo: '001', nome: 'Jose Ribeiro Neto' },
+    { tipo: 'OPERADOR', codigo: '002', nome: 'Almir Rogerio Bento' },
+    { tipo: 'OPERADOR', codigo: '003', nome: 'Carlos Silva' },
+    { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem Zap' },
+    { tipo: 'EQUIPE', codigo: 'CORTE01', nome: 'Corte Industrial' },
+    { tipo: 'EQUIPE', codigo: 'EMB02', nome: 'Embalagem' },
   ];
 
   private readonly ordens: ReadonlyArray<OrdemCentroTrabalhoResponseDTO> = [
@@ -173,11 +184,47 @@ export class ReportOperacaoService {
     return of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio }).pipe(delay(200));
   }
 
+  listarResponsaveis(): Observable<ReadonlyArray<ResponsavelOperacao>> {
+    return of(this.responsaveis.map(responsavel => ({ ...responsavel }))).pipe(delay(100));
+  }
+
   reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteResultado> {
     return of({
       apontamentoId: `${request.op}-${Date.now()}`,
       reportadoEm: new Date(),
     }).pipe(delay(300));
+  }
+
+  encerrarOperacao(request: EncerrarOperacaoRequest): Observable<ReporteResultado> {
+    return of({
+      apontamentoId: `${request.op}-ENC-${Date.now()}`,
+      reportadoEm: new Date(),
+    }).pipe(delay(300));
+  }
+
+  validarReporteParcial(
+    operacao: ReportOperacao,
+    quantidadeAprovada: number,
+    quantidadeRetrabalho: number,
+    quantidadeRefugo: number,
+  ): string {
+    const parcial = quantidadeAprovada + quantidadeRetrabalho + quantidadeRefugo;
+    const acumulado =
+      operacao.quantidadeAprovada + operacao.quantidadeRetrabalho + operacao.quantidadeRefugo;
+
+    if ([quantidadeAprovada, quantidadeRetrabalho, quantidadeRefugo].some(quantidade => quantidade < 0)) {
+      return 'As quantidades não podem ser negativas.';
+    }
+
+    if (parcial <= 0) {
+      return 'Informe ao menos uma quantidade produzida.';
+    }
+
+    if (acumulado + parcial > operacao.quantidadeSaldo) {
+      return 'A quantidade acumulada não pode ultrapassar o saldo da OP.';
+    }
+
+    return '';
   }
 
   validarReporte(operacao: ReportOperacao): string {
