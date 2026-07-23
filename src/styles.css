@@ -75,7 +75,7 @@ po-page-default {
    Inline toasters belong to page layouts and retain the PO UI defaults. */
 .po-toaster:not(.po-toaster-inline) {
   width: fit-content;
-  max-width: min(200px, calc(100vw - (2 * var(--app-space-md))));
+  max-width: min(400px, calc(100vw - (2 * var(--app-space-md))));
 }
 
 .po-toaster:not(.po-toaster-inline) .po-toaster-actions {
