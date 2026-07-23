@@ -17,6 +17,7 @@ describe('WorkCenterPage', () => {
     {
       code: 'CT-EXT-01',
       description: 'Extrusao Linha 01',
+      areaCode: '4001',
       area: 'Producao',
       machineGroup: 'Extrusoras',
       establishment: '101',
@@ -25,6 +26,7 @@ describe('WorkCenterPage', () => {
     {
       code: 'CT-CQ-01',
       description: 'Controle de Qualidade',
+      areaCode: '4002',
       area: 'Qualidade',
       machineGroup: 'Qualidade',
       establishment: '101',
@@ -33,6 +35,7 @@ describe('WorkCenterPage', () => {
     {
       code: 'CT-MNT-01',
       description: 'Manutencao',
+      areaCode: '4003',
       area: 'Apoio',
       machineGroup: 'Manutencao',
       establishment: '102',

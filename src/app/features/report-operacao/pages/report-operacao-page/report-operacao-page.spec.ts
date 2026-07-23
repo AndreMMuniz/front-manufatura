@@ -1,30 +1,51 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PoNotificationService } from '@po-ui/ng-components';
+import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
-import { EstadoOperacao, ReportOperacao } from '../../models/report-operacao.model';
-import { ReportOperacaoService } from '../../services/report-operacao.service';
+import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
-
+import { EstadoOperacao, OrdemCentroTrabalho, ReportOperacao } from '../../models/report-operacao.model';
+import { ReportOperacaoWorkflowState } from '../../services/report-operacao-workflow-state';
+import { ReportOperacaoService } from '../../services/report-operacao.service';
 import { ReportOperacaoPage } from './report-operacao-page';
 
 describe('ReportOperacaoPage', () => {
   let fixture: ComponentFixture<ReportOperacaoPage>;
   let component: ReportOperacaoPage;
-  let reportOperacaoServiceMock: {
-    consultarOP: ReturnType<typeof vi.fn>;
+  let router: { navigate: ReturnType<typeof vi.fn> };
+  let dialog: { confirm: ReturnType<typeof vi.fn> };
+  let workflow: ReportOperacaoWorkflowState;
+  let operationalContext: { currentContext: ReturnType<typeof context> | null; setContext: ReturnType<typeof vi.fn> };
+  let service: {
+    listarAreasProducao: ReturnType<typeof vi.fn>;
+    pesquisarCentrosTrabalho: ReturnType<typeof vi.fn>;
+    listarOrdensPorCentro: ReturnType<typeof vi.fn>;
+    carregarOrdemSelecionada: ReturnType<typeof vi.fn>;
     iniciarOperacao: ReturnType<typeof vi.fn>;
     reportarOperacao: ReturnType<typeof vi.fn>;
     validarReporte: ReturnType<typeof vi.fn>;
   };
 
+  const orders: OrdemCentroTrabalho[] = [
+    { id: 'first', ordem: '450001', itemOp: 'PERFIL-100 / OP-10458', operacao: '10', split: '01' },
+    { id: 'second', ordem: '450002', itemOp: 'PERFIL-200 / OP-10459', operacao: '20', split: '01' },
+  ];
+
   beforeEach(async () => {
-    reportOperacaoServiceMock = {
-      consultarOP: vi.fn(() => of({ sucesso: false })),
-      iniciarOperacao: vi.fn(),
+    router = { navigate: vi.fn().mockResolvedValue(true) };
+    dialog = { confirm: vi.fn() };
+    workflow = new ReportOperacaoWorkflowState();
+    operationalContext = { currentContext: null, setContext: vi.fn() };
+    service = {
+      listarAreasProducao: vi.fn(() => of([{ code: '4001', description: 'Produção' }, { code: '4002', description: 'Qualidade' }])),
+      pesquisarCentrosTrabalho: vi.fn((areaCode: string) => of(areaCode === '4001' ? [center()] : [])),
+      listarOrdensPorCentro: vi.fn(() => of(orders)),
+      carregarOrdemSelecionada: vi.fn((order: OrdemCentroTrabalho) =>
+        of({ sucesso: true, operacao: baseOperacao({ ordem: order.ordem, op: order.itemOp.split(' / ')[1] }) })),
+      iniciarOperacao: vi.fn(request => of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio })),
       reportarOperacao: vi.fn(() => of({ apontamentoId: 'APT-1', reportadoEm: new Date() })),
       validarReporte: vi.fn(() => ''),
     };
@@ -32,10 +53,13 @@ describe('ReportOperacaoPage', () => {
     await TestBed.configureTestingModule({
       imports: [ReportOperacaoPage],
       providers: [
-        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: Router, useValue: router },
         { provide: ActivatedRoute, useValue: { snapshot: { data: {} } } },
-        { provide: ReportOperacaoService, useValue: reportOperacaoServiceMock },
+        { provide: ReportOperacaoService, useValue: service },
+        { provide: ReportOperacaoWorkflowState, useValue: workflow },
+        { provide: OperationalContextService, useValue: operationalContext },
         { provide: ReporteParadasService, useValue: { setContextFromOperation: vi.fn() } },
+        { provide: PoDialogService, useValue: dialog },
         {
           provide: PoNotificationService,
           useValue: {
@@ -52,9 +76,154 @@ describe('ReportOperacaoPage', () => {
     component = fixture.componentInstance;
   });
 
-  it('stores the scrap composition and updates operation scrap quantity from the consolidated total', () => {
-    component.operacao = baseOperacao();
+  it('loads Areas on direct access and requests the missing local context', () => {
+    fixture.detectChanges();
 
+    expect(component.areas.map(area => area.code)).toEqual(['4001', '4002']);
+    expect(component.areaCode).toBe('');
+    expect(component.workCenterCode).toBe('');
+    expect(component.feedback).toContain('Selecione');
+  });
+
+  it('prefills Area and Center from operational context without mutating it', () => {
+    operationalContext.currentContext = context();
+
+    fixture.detectChanges();
+
+    expect(component.areaCode).toBe('4001');
+    expect(component.workCenterCode).toBe('CT-EXT-01');
+    expect(service.pesquisarCentrosTrabalho).toHaveBeenCalledWith('4001', '');
+    expect(operationalContext.setContext).not.toHaveBeenCalled();
+  });
+
+  it('ignores a stale Center response after Area changes', () => {
+    const first = new Subject<ReturnType<typeof center>[]>();
+    vi.mocked(service.pesquisarCentrosTrabalho)
+      .mockReturnValueOnce(first.asObservable())
+      .mockReturnValueOnce(of([]));
+    fixture.detectChanges();
+
+    component.onAreaChange('4001');
+    component.onAreaChange('4002');
+    first.next([center()]);
+
+    expect(component.areaCode).toBe('4002');
+    expect(component.centers).toEqual([]);
+  });
+
+  it('consults, snapshots selected orders in table order and loads only the first', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+
+    component.updateSelection(new Set(['second', 'first']));
+    component.openSelectedOrders();
+
+    expect(workflow.snapshot().queue.map(order => order.id)).toEqual(['first', 'second']);
+    expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(1);
+    expect(component.operacao?.ordem).toBe('450001');
+    expect(component.estado).toBe(EstadoOperacao.OPEncontrada);
+  });
+
+  it('advances after an individual report and does not aggregate or navigate away', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(orders.map(order => order.id)));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
+
+    component.executePrimaryAction();
+
+    expect(service.reportarOperacao).toHaveBeenCalledTimes(1);
+    expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(2);
+    expect(workflow.snapshot().activeOrder?.id).toBe('second');
+    expect(component.operacao?.ordem).toBe('450002');
+    expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
+  });
+
+  it('refreshes the Center list after the last report and remains on the page', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
+
+    component.executePrimaryAction();
+
+    expect(service.listarOrdensPorCentro).toHaveBeenCalledTimes(2);
+    expect(component.operacao).toBeNull();
+    expect(workflow.snapshot().activeOrder).toBeNull();
+    expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
+  });
+
+  it('preserves operation, queue and scrap when reporting fails', () => {
+    vi.mocked(service.reportarOperacao).mockReturnValue(throwError(() => new Error('network')));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
+    component.registrarRefugo({
+      quantidade: 2,
+      motivo: '05 - Borra',
+      itens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
+    });
+
+    component.executePrimaryAction();
+
+    expect(component.estado).toBe(EstadoOperacao.Erro);
+    expect(component.operacao?.quantidadeRefugo).toBe(2);
+    expect(workflow.snapshot().queue).toHaveLength(1);
+    expect(workflow.snapshot().scrapItems).toHaveLength(1);
+  });
+
+  it('asks before discarding an active workflow and preserves it until confirmation', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+
+    component.onAreaChange('4002');
+
+    expect(dialog.confirm).toHaveBeenCalled();
+    expect(component.areaCode).toBe('4001');
+    expect(workflow.snapshot().activeOrder?.id).toBe('first');
+
+    vi.mocked(dialog.confirm).mock.calls[0][0].confirm();
+
+    expect(component.areaCode).toBe('4002');
+    expect(workflow.snapshot().activeOrder).toBeNull();
+  });
+
+  it('restores the active order and queue after returning from Stoppages', () => {
+    workflow.setContext({ code: '4001', description: 'Produção' }, center());
+    workflow.setOrders(orders);
+    workflow.setSelectedOrderIds(new Set(orders.map(order => order.id)));
+    workflow.startQueue();
+    workflow.setActiveOperation(baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' }), EstadoOperacao.OperacaoIniciada);
+
+    fixture.detectChanges();
+
+    expect(component.estado).toBe(EstadoOperacao.OperacaoIniciada);
+    expect(component.operacao?.ordem).toBe('450001');
+    expect(component.queueRemaining).toBe(2);
+  });
+
+  it('stores scrap composition and includes it in the individual payload', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({
+      dataInicio: new Date(2026, 5, 30),
+      dataFim: new Date(2026, 5, 30),
+      horaInicio: '08:00',
+      horaFim: '08:30',
+      quantidadeAprovada: 1,
+    });
     component.registrarRefugo({
       quantidade: 2.05,
       motivo: '05 - Borra, 32 - Varredura',
@@ -64,63 +233,65 @@ describe('ReportOperacaoPage', () => {
       ],
     });
 
-    expect(component.operacao?.quantidadeRefugo).toBe(2.05);
-    expect(component.refugoItens).toEqual([
-      { codigo: '05', descricao: 'Borra', quantidade: 0.55 },
-      { codigo: '32', descricao: 'Varredura', quantidade: 1.5 },
-    ]);
-    expect(component.ultimoMotivoRefugo).toBe('05 - Borra, 32 - Varredura');
-  });
+    component.executePrimaryAction();
 
-  it('includes scrap composition in the final operation reporting payload', () => {
-    component.estado = EstadoOperacao.OperacaoIniciada;
-    component.operacao = baseOperacao({
-      dataInicio: new Date(2026, 5, 30),
-      dataFim: new Date(2026, 5, 30),
-      horaInicio: '08:00',
-      horaFim: '08:30',
-      quantidadeAprovada: 1,
+    expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRefugo: 2.05,
-    });
-    component.refugoItens = [
-      { codigo: '05', descricao: 'Borra', quantidade: 0.55 },
-      { codigo: '32', descricao: 'Varredura', quantidade: 1.5 },
-    ];
-
-    component.executarAcaoPrincipal();
-
-    expect(reportOperacaoServiceMock.reportarOperacao).toHaveBeenCalledWith(
-      expect.objectContaining({
-        quantidadeRefugo: 2.05,
-        refugoItens: [
-          { codigo: '05', descricao: 'Borra', quantidade: 0.55 },
-          { codigo: '32', descricao: 'Varredura', quantidade: 1.5 },
-        ],
-      }),
-    );
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 0.55 },
+        { codigo: '32', descricao: 'Varredura', quantidade: 1.5 },
+      ],
+    }));
   });
+
+  function selectContextAndConsult(): void {
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.consultOrders();
+  }
 });
+
+function center() {
+  return {
+    code: 'CT-EXT-01',
+    description: 'Extrusao Linha 01',
+    areaCode: '4001',
+    area: 'Producao',
+    machineGroup: 'Extrusoras',
+    establishment: '101',
+    active: true,
+  };
+}
+
+function context() {
+  return {
+    workCenter: center(),
+    operator: { code: 'OP-001', name: 'Ana Silva', role: 'Operador', active: true },
+    reportType: 'OPERATOR' as const,
+    validity: '2026-07-23',
+  };
+}
 
 function baseOperacao(overrides: Partial<ReportOperacao> = {}): ReportOperacao {
   return {
     ordem: '450001',
     op: 'OP-10458',
     split: '01',
-    item: 'CORT-1200',
-    descricao: 'Riscador profissional para porcelanato',
+    item: 'PERFIL-100',
+    descricao: 'Perfil extrudado',
     unidade: 'PC',
-    roteiro: 'MONO-001',
+    roteiro: '10 - Extrusão',
     quantidadeOrdem: 500,
     quantidadeSaldo: 320,
-    linha: 'Linha Montagem 02',
-    horaInicio: '08:00',
-    horaFim: '08:30',
+    linha: 'Extrusao Linha 01',
+    horaInicio: '',
+    horaFim: '',
     quantidadeAprovada: 0,
     quantidadeRetrabalho: 0,
     quantidadeRefugo: 0,
-    ct: 'CT-ESTAMP-01',
-    grupoMaquina: 'Prensas Hidraulicas',
-    operador: 'Joao Pereira',
+    ct: 'CT-EXT-01',
+    grupoMaquina: 'Extrusoras',
+    operador: 'Ana Silva',
     equipe: 'Equipe A',
     turno: '1o Turno',
     ...overrides,

@@ -135,6 +135,7 @@ function context() {
     workCenter: {
       code: 'CT-EXT-01',
       description: 'Extrusao Linha 01',
+      areaCode: '4001',
       area: 'Producao',
       machineGroup: 'Extrusoras',
       establishment: '101',

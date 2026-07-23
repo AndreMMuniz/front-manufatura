@@ -17,6 +17,7 @@ describe('WorkCenterService', () => {
     expect(centers[0]).toMatchObject({
       code: 'CT-EXT-01',
       description: 'Extrusao Linha 01',
+      areaCode: '4001',
       area: 'Producao',
       machineGroup: 'Extrusoras',
       establishment: '101',
@@ -52,6 +53,26 @@ describe('WorkCenterService', () => {
     const centers = await firstValueFrom(service.searchWorkCenters('   '));
 
     expect(centers).toHaveLength(3);
+  });
+
+  it('filters only active work centers from the selected production area', async () => {
+    await expect(firstValueFrom(service.searchActiveWorkCenters('4001', 'extrusão'))).resolves.toEqual([
+      expect.objectContaining({ code: 'CT-EXT-01', areaCode: '4001', active: true }),
+    ]);
+
+    await expect(firstValueFrom(service.searchActiveWorkCenters('4002', ''))).resolves.toEqual([
+      expect.objectContaining({ code: 'CT-CQ-01', areaCode: '4002', active: true }),
+    ]);
+
+    await expect(firstValueFrom(service.searchActiveWorkCenters('4003', ''))).resolves.toEqual([]);
+  });
+
+  it('returns fresh work center objects from the Datasul-ready boundary', async () => {
+    const first = await firstValueFrom(service.searchActiveWorkCenters('4001', ''));
+    const second = await firstValueFrom(service.searchActiveWorkCenters('4001', ''));
+
+    expect(first).not.toBe(second);
+    expect(first[0]).not.toBe(second[0]);
   });
 
   it('selects an active work center and exposes the current selection', async () => {

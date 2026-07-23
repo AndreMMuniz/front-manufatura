@@ -1,66 +1,161 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 
 import { Observable, delay, map, of } from 'rxjs';
 
+import { WorkCenter } from '../../shop-floor/models/work-center';
+import { WorkCenterService } from '../../shop-floor/services/work-center';
 import {
+  AreaProducaoResponseDTO,
   ConsultaOPRequest,
   IniciarOperacaoRequest,
+  OrdemCentroTrabalhoResponseDTO,
   ReportOperacaoResponseDTO,
   ReportarOperacaoRequest,
 } from '../interfaces/report-operacao.dto';
-import { ReportOperacao, ReporteResultado, ResultadoConsultaOP } from '../models/report-operacao.model';
+import {
+  AreaProducao,
+  OrdemCentroTrabalho,
+  ReportOperacao,
+  ReporteResultado,
+  ResultadoConsultaOP,
+} from '../models/report-operacao.model';
 
 @Injectable({ providedIn: 'root' })
 export class ReportOperacaoService {
-  private readonly operacoes: ReadonlyArray<ReportOperacaoResponseDTO> = [
+  private readonly workCenterService = inject(WorkCenterService);
+
+  private readonly areas: ReadonlyArray<AreaProducaoResponseDTO> = [
+    { code: '4001', description: 'Produção' },
+    { code: '4002', description: 'Qualidade' },
+  ];
+
+  private readonly ordens: ReadonlyArray<OrdemCentroTrabalhoResponseDTO> = [
     {
+      id: '450001|OP-10458|10|01',
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      situacao: 'LIBERADA',
       ordem: '450001',
-      op: 'OP-10458',
+      itemOp: 'PERFIL-100 / OP-10458',
+      operacao: '10',
       split: '01',
-      item: 'CORT-1200',
-      descricao: 'Riscador profissional para porcelanato',
-      unidade: 'PC',
-      roteiro: 'MONO-001',
-      quantidadeOrdem: 500,
-      quantidadeSaldo: 320,
-      linha: 'Linha Montagem 02',
-      ct: 'CT-ESTAMP-01',
-      grupoMaquina: 'Prensas Hidraulicas',
-      operador: 'Joao Pereira',
-      equipe: 'Equipe A',
-      turno: '1o Turno',
+      operation: {
+        ordem: '450001',
+        op: 'OP-10458',
+        split: '01',
+        item: 'PERFIL-100',
+        descricao: 'Perfil extrudado de alumínio',
+        unidade: 'PC',
+        roteiro: '10 - Extrusão',
+        quantidadeOrdem: 500,
+        quantidadeSaldo: 320,
+        linha: 'Extrusao Linha 01',
+        ct: 'CT-EXT-01',
+        grupoMaquina: 'Extrusoras',
+        operador: 'Ana Silva',
+        equipe: 'Equipe A',
+        turno: '1o Turno',
+      },
     },
     {
+      id: '450002|OP-10459|20|01',
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      situacao: 'LIBERADA',
       ordem: '450002',
-      op: 'OP-10459',
-      split: '02',
-      item: 'CORT-2200',
-      descricao: 'Cortador manual linha obra',
-      unidade: 'PC',
-      roteiro: 'MONO-004',
-      quantidadeOrdem: 250,
-      quantidadeSaldo: 75,
-      linha: 'Linha Montagem 04',
-      ct: 'CT-MONT-04',
-      grupoMaquina: 'Bancadas de Montagem',
-      operador: 'Maria Santos',
-      equipe: 'Equipe B',
-      turno: '2o Turno',
+      itemOp: 'PERFIL-200 / OP-10459',
+      operacao: '20',
+      split: '01',
+      operation: {
+        ordem: '450002',
+        op: 'OP-10459',
+        split: '01',
+        item: 'PERFIL-200',
+        descricao: 'Perfil extrudado reforçado',
+        unidade: 'PC',
+        roteiro: '20 - Acabamento',
+        quantidadeOrdem: 250,
+        quantidadeSaldo: 75,
+        linha: 'Extrusao Linha 01',
+        ct: 'CT-EXT-01',
+        grupoMaquina: 'Extrusoras',
+        operador: 'Ana Silva',
+        equipe: 'Equipe A',
+        turno: '1o Turno',
+      },
+    },
+    {
+      id: '450003|OP-10460|30|01',
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      situacao: 'NAO_LIBERADA',
+      ordem: '450003',
+      itemOp: 'PERFIL-300 / OP-10460',
+      operacao: '30',
+      split: '01',
+      operation: {
+        ordem: '450003',
+        op: 'OP-10460',
+        split: '01',
+        item: 'PERFIL-300',
+        descricao: 'Perfil ainda não liberado',
+        unidade: 'PC',
+        roteiro: '30 - Inspeção',
+        quantidadeOrdem: 100,
+        quantidadeSaldo: 100,
+        linha: 'Extrusao Linha 01',
+        ct: 'CT-EXT-01',
+        grupoMaquina: 'Extrusoras',
+        operador: 'Ana Silva',
+        equipe: 'Equipe A',
+        turno: '1o Turno',
+      },
     },
   ];
 
-  consultarOP(request: ConsultaOPRequest): Observable<ResultadoConsultaOP> {
-    return of(request).pipe(
-      delay(250),
-      map(({ ordem, op, split }) => {
-        const operacao = this.operacoes.find(
-          item =>
-            this.normalize(item.ordem) === this.normalize(ordem) &&
-            this.normalize(item.op) === this.normalize(op) &&
-            (!split.trim() || this.normalize(item.split) === this.normalize(split)),
-        );
+  listarAreasProducao(): Observable<ReadonlyArray<AreaProducao>> {
+    return of(this.areas.map(area => this.mapArea(area))).pipe(delay(100));
+  }
 
-        if (!operacao) {
+  pesquisarCentrosTrabalho(areaCode: string, termo: string): Observable<ReadonlyArray<WorkCenter>> {
+    if (!this.areas.some(area => area.code === areaCode.trim())) {
+      return of([]);
+    }
+
+    return this.workCenterService.searchActiveWorkCenters(areaCode, termo);
+  }
+
+  listarOrdensPorCentro(
+    areaCode: string,
+    workCenterCode: string,
+  ): Observable<ReadonlyArray<OrdemCentroTrabalho>> {
+    return this.workCenterService.searchActiveWorkCenters(areaCode, '').pipe(
+      delay(150),
+      map(centers => {
+        const validCenter = centers.some(center => this.normalize(center.code) === this.normalize(workCenterCode));
+        if (!validCenter) {
+          return [];
+        }
+
+        return this.ordens
+          .filter(
+            item =>
+              item.situacao === 'LIBERADA' &&
+              this.normalize(item.areaCode) === this.normalize(areaCode) &&
+              this.normalize(item.workCenterCode) === this.normalize(workCenterCode),
+          )
+          .map(item => this.mapOrdem(item));
+      }),
+    );
+  }
+
+  carregarOrdemSelecionada(ordem: OrdemCentroTrabalho): Observable<ResultadoConsultaOP> {
+    return of(ordem).pipe(
+      delay(250),
+      map(selected => {
+        const found = this.ordens.find(item => item.id === selected.id && item.situacao === 'LIBERADA');
+
+        if (!found) {
           return {
             sucesso: false,
             mensagem: 'OP não encontrada ou não liberada para produção.',
@@ -69,7 +164,33 @@ export class ReportOperacaoService {
 
         return {
           sucesso: true,
-          operacao: this.mapOperacao(operacao),
+          operacao: this.mapOperacao(found.operation),
+        };
+      }),
+    );
+  }
+
+  consultarOP(request: ConsultaOPRequest): Observable<ResultadoConsultaOP> {
+    return of(request).pipe(
+      delay(250),
+      map(({ ordem, op, split }) => {
+        const found = this.ordens.find(
+          item =>
+            this.normalize(item.ordem) === this.normalize(ordem) &&
+            this.normalize(item.operation.op) === this.normalize(op) &&
+            (!split.trim() || this.normalize(item.split) === this.normalize(split)),
+        );
+
+        if (!found || found.situacao !== 'LIBERADA') {
+          return {
+            sucesso: false,
+            mensagem: 'OP não encontrada ou não liberada para produção.',
+          };
+        }
+
+        return {
+          sucesso: true,
+          operacao: this.mapOperacao(found.operation),
         };
       }),
     );
@@ -136,6 +257,20 @@ export class ReportOperacaoService {
       quantidadeAprovada: 0,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
+    };
+  }
+
+  private mapArea(dto: AreaProducaoResponseDTO): AreaProducao {
+    return { code: dto.code, description: dto.description };
+  }
+
+  private mapOrdem(dto: OrdemCentroTrabalhoResponseDTO): OrdemCentroTrabalho {
+    return {
+      id: dto.id,
+      ordem: dto.ordem,
+      itemOp: dto.itemOp,
+      operacao: dto.operacao,
+      split: dto.split,
     };
   }
 

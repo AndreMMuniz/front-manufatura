@@ -4,6 +4,35 @@ export interface ConsultaOPRequest {
   readonly split: string;
 }
 
+export interface AreaProducaoResponseDTO {
+  readonly code: string;
+  readonly description: string;
+}
+
+export interface PesquisaCentroTrabalhoRequest {
+  readonly areaCode: string;
+  readonly term: string;
+}
+
+export interface ConsultaOrdensCentroRequest {
+  readonly areaCode: string;
+  readonly workCenterCode: string;
+}
+
+export type SituacaoOrdemDTO = 'LIBERADA' | 'NAO_LIBERADA';
+
+export interface OrdemCentroTrabalhoResponseDTO {
+  readonly id: string;
+  readonly areaCode: string;
+  readonly workCenterCode: string;
+  readonly situacao: SituacaoOrdemDTO;
+  readonly ordem: string;
+  readonly itemOp: string;
+  readonly operacao: string;
+  readonly split: string;
+  readonly operation: ReportOperacaoResponseDTO;
+}
+
 export interface ReportOperacaoResponseDTO {
   readonly ordem: string;
   readonly op: string;

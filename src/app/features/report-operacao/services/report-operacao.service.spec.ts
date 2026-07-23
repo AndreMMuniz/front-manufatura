@@ -1,26 +1,90 @@
+import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ReportOperacao } from '../models/report-operacao.model';
 
 import { ReportOperacaoService } from './report-operacao.service';
 
 describe('ReportOperacaoService', () => {
-  const service = new ReportOperacaoService();
+  let service: ReportOperacaoService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(ReportOperacaoService);
+  });
 
   it('loads a valid operation from the mock Datasul boundary', async () => {
-    const result = await firstValueFrom(service.consultarOP({ ordem: '450001', op: 'OP-10458', split: '01' }));
+    const orders = await firstValueFrom(service.listarOrdensPorCentro('4001', 'CT-EXT-01'));
+    const result = await firstValueFrom(service.carregarOrdemSelecionada(orders[0]));
 
     expect(result.sucesso).toBe(true);
-    expect(result.operacao?.item).toBe('CORT-1200');
+    expect(result.operacao?.item).toBe('PERFIL-100');
     expect(result.operacao?.quantidadeSaldo).toBe(320);
   });
 
   it('rejects an unknown operation', async () => {
-    const result = await firstValueFrom(service.consultarOP({ ordem: '999999', op: 'OP-00000', split: '' }));
+    const result = await firstValueFrom(
+      service.carregarOrdemSelecionada({
+        id: 'removed-order',
+        ordem: '999999',
+        itemOp: 'ITEM-REMOVIDO',
+        operacao: '999',
+        split: '01',
+      }),
+    );
 
     expect(result.sucesso).toBe(false);
     expect(result.mensagem).toContain('OP não encontrada');
+  });
+
+  it('lists deterministic production areas with fresh immutable values', async () => {
+    const first = await firstValueFrom(service.listarAreasProducao());
+    const second = await firstValueFrom(service.listarAreasProducao());
+
+    expect(first).toEqual([
+      { code: '4001', description: 'Produção' },
+      { code: '4002', description: 'Qualidade' },
+    ]);
+    expect(first).not.toBe(second);
+    expect(first[0]).not.toBe(second[0]);
+  });
+
+  it('searches only active work centers belonging to the selected area', async () => {
+    await expect(firstValueFrom(service.pesquisarCentrosTrabalho('4001', 'ext'))).resolves.toEqual([
+      expect.objectContaining({ code: 'CT-EXT-01', areaCode: '4001', active: true }),
+    ]);
+    await expect(firstValueFrom(service.pesquisarCentrosTrabalho('4001', 'qualidade'))).resolves.toEqual([]);
+    await expect(firstValueFrom(service.pesquisarCentrosTrabalho('area-invalida', ''))).resolves.toEqual([]);
+  });
+
+  it('lists only released orders for a coherent area and work center relation', async () => {
+    const orders = await firstValueFrom(service.listarOrdensPorCentro('4001', 'CT-EXT-01'));
+
+    expect(orders).toHaveLength(2);
+    expect(orders.map(order => order.id)).toEqual(['450001|OP-10458|10|01', '450002|OP-10459|20|01']);
+    expect(orders[0]).toEqual({
+      id: '450001|OP-10458|10|01',
+      ordem: '450001',
+      itemOp: 'PERFIL-100 / OP-10458',
+      operacao: '10',
+      split: '01',
+    });
+  });
+
+  it('returns an empty list for a valid center without orders and rejects mismatched context', async () => {
+    await expect(firstValueFrom(service.listarOrdensPorCentro('4002', 'CT-CQ-01'))).resolves.toEqual([]);
+    await expect(firstValueFrom(service.listarOrdensPorCentro('4002', 'CT-EXT-01'))).resolves.toEqual([]);
+    await expect(firstValueFrom(service.listarOrdensPorCentro('4001', 'CT-MNT-01'))).resolves.toEqual([]);
+  });
+
+  it('does not leak mutations between order-list queries', async () => {
+    const first = await firstValueFrom(service.listarOrdensPorCentro('4001', 'CT-EXT-01'));
+    const second = await firstValueFrom(service.listarOrdensPorCentro('4001', 'CT-EXT-01'));
+
+    expect(first).not.toBe(second);
+    expect(first[0]).not.toBe(second[0]);
+    expect('$selected' in first[0]).toBe(false);
   });
 
   it('blocks reporting without operation start', () => {

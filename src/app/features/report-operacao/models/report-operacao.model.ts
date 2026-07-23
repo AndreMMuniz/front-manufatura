@@ -9,6 +9,29 @@ export enum EstadoOperacao {
   Erro = 'Erro',
 }
 
+export interface AreaProducao {
+  readonly code: string;
+  readonly description: string;
+}
+
+export interface OrdemCentroTrabalho {
+  readonly id: string;
+  readonly ordem: string;
+  readonly itemOp: string;
+  readonly operacao: string;
+  readonly split: string;
+}
+
+export type EstadoConsultaOrdens =
+  | 'contexto-pendente'
+  | 'carregando-areas'
+  | 'pronto'
+  | 'consultando-ordens'
+  | 'ordens-disponiveis'
+  | 'lista-vazia'
+  | 'carregando-ordem'
+  | 'erro';
+
 export interface ReportOperacao {
   readonly ordem: string;
   readonly op: string;
