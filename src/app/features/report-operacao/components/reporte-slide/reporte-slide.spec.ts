@@ -18,7 +18,6 @@ describe('ReporteSlide', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
-      refugoItens: [],
     }));
   });
 
@@ -58,6 +57,7 @@ describe('ReporteSlide', () => {
 
     component.salvar();
     component.informarErro('Resposta perdida.');
+    component.atualizarQuantidade('quantidadeAprovada', 1);
     component.salvar();
 
     expect(emitted).toHaveLength(2);
@@ -77,6 +77,17 @@ describe('ReporteSlide', () => {
     expect(component.canSave).toBe(false);
   });
 
+  it('preserves an invalid scrap entry so the operator receives validation feedback', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    component.quantidadeAprovada = 1;
+
+    component.atualizarQuantidade('quantidadeRefugo', -0.5);
+    component.salvar();
+
+    expect(component.quantidadeRefugo).toBe(-0.5);
+    expect(component.validationMessage).toBe('As quantidades não podem ser negativas.');
+  });
+
   it('renders a safe fallback for an invalid restored date', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
 
@@ -94,7 +105,6 @@ describe('ReporteSlide', () => {
     expect(component.quantidadeRefugo).toBe(1.5);
     expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRefugo: 1.5,
-      refugoItens: [],
     }));
   });
 });

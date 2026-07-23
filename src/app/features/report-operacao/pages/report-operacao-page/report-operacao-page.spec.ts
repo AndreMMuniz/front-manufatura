@@ -544,20 +544,22 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0.5,
       quantidadeRefugo: 1.5,
-      refugoItens: [
-        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
-      ],
     });
 
     expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0.5,
       quantidadeRefugo: 1.5,
-      refugoItens: [
-        { codigo: '05', descricao: 'Borra', quantidade: 0.5 },
-        { codigo: '32', descricao: 'Varredura', quantidade: 1 },
-      ],
+      refugoItens: [],
+    }));
+    expect(component.reportes[0]).toEqual(expect.objectContaining({
+      quantidadeRefugo: 1.5,
+      refugoItens: [],
+    }));
+    expect(component.operacao).toEqual(expect.objectContaining({
+      quantidadeAprovada: 2,
+      quantidadeRetrabalho: 0.5,
+      quantidadeRefugo: 1.5,
     }));
   });
 

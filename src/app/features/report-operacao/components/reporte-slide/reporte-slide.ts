@@ -16,17 +16,13 @@ import {
   PoPageSlideModule,
 } from '@po-ui/ng-components';
 
-import {
-  ReporteParcialOperacao,
-  ReporteRefugoItem,
-} from '../../models/report-operacao.model';
+import { ReporteParcialOperacao } from '../../models/report-operacao.model';
 
 export interface ReporteParcialDraft {
   readonly idempotencyKey?: string;
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
-  readonly refugoItens?: ReadonlyArray<ReporteRefugoItem>;
 }
 
 @Component({
@@ -74,7 +70,12 @@ export class ReporteSlide {
     campo: 'quantidadeAprovada' | 'quantidadeRetrabalho' | 'quantidadeRefugo',
     valor: number | null | undefined,
   ): void {
-    this[campo] = typeof valor === 'number' && Number.isFinite(valor) ? Math.max(0, valor) : 0;
+    const quantidade = typeof valor === 'number' ? valor : 0;
+    if (Object.is(this[campo], quantidade)) {
+      return;
+    }
+
+    this[campo] = quantidade;
     this.idempotencyKey = '';
     this.validationMessage = '';
   }
@@ -114,7 +115,6 @@ export class ReporteSlide {
       quantidadeAprovada: this.quantidadeAprovada,
       quantidadeRetrabalho: this.quantidadeRetrabalho,
       quantidadeRefugo: this.quantidadeRefugo,
-      refugoItens: [],
     });
   }
 

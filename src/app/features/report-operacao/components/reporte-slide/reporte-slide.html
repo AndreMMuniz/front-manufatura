@@ -55,7 +55,9 @@
           <span
             [attr.title]="reporte.refugoItens.length
               ? 'Motivos: ' + reporte.refugoItens.length
-              : 'Sem refugo'"
+              : reporte.quantidadeRefugo > 0
+                ? 'Refugo informado diretamente'
+                : 'Sem refugo'"
           >
             <small>Refugo</small>{{ formatQuantidade(reporte.quantidadeRefugo) }}
           </span>

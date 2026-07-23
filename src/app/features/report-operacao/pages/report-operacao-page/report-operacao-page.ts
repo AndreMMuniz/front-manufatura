@@ -319,6 +319,10 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   abrirRefugo(): void {
+    if (this.reporteDisabled) {
+      return;
+    }
+
     this.abrirReporte();
     this.feedback = 'Informe a quantidade de refugo no reporte em edição.';
     this.notification.information(this.feedback);
@@ -640,7 +644,7 @@ export class ReportOperacaoPage implements OnInit {
   private reportOperation(draft: ReporteParcialDraft): void {
     const operation = this.operacao;
     const responsavel = this.responsavelSelecionado;
-    const refugoItens = draft.refugoItens ?? [];
+    const refugoItens: NonNullable<ReportarOperacaoRequest['refugoItens']> = [];
     const idempotencyKey = draft.idempotencyKey
       ?? `${operation?.op ?? 'sem-op'}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     if (!operation?.dataInicio || !operation.horaInicio || !responsavel || !this.canEditProduction) {
@@ -669,7 +673,6 @@ export class ReportOperacaoPage implements OnInit {
       draft.quantidadeAprovada,
       draft.quantidadeRetrabalho,
       draft.quantidadeRefugo,
-      refugoItens,
     );
 
     if (validation) {

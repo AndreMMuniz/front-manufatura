@@ -9,7 +9,6 @@ import {
   EncerrarOperacaoRequest,
   IniciarOperacaoRequest,
   OrdemCentroTrabalhoResponseDTO,
-  RefugoItemRequest,
   ReportOperacaoResponseDTO,
   ReportarOperacaoRequest,
 } from '../interfaces/report-operacao.dto';
@@ -225,7 +224,6 @@ export class ReportOperacaoService {
     quantidadeAprovada: number,
     quantidadeRetrabalho: number,
     quantidadeRefugo: number,
-    _refugoItens: ReadonlyArray<RefugoItemRequest> = [],
   ): string {
     const parcial = quantidadeAprovada + quantidadeRetrabalho + quantidadeRefugo;
     const acumulado =
