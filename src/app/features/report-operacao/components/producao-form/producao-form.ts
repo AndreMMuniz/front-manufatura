@@ -53,7 +53,7 @@ export class ProducaoForm {
 
   private toLocalDate(value: Date | string | null | undefined): Date | undefined {
     if (value instanceof Date) {
-      return new Date(value);
+      return Number.isNaN(value.getTime()) ? undefined : new Date(value);
     }
 
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
@@ -61,6 +61,13 @@ export class ProducaoForm {
       return undefined;
     }
 
-    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const date = new Date(year, month, day);
+
+    return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day
+      ? date
+      : undefined;
   }
 }

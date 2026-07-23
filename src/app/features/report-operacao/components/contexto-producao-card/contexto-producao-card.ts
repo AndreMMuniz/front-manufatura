@@ -22,6 +22,7 @@ export class ContextoProducaoCard {
   @Input() loadingCenters = false;
   @Input() loadingOrders = false;
   @Input() disabled = false;
+  @Input() consultBlocked = false;
   @Input() errorMessage = '';
 
   @Output() areaChange = new EventEmitter<string>();
@@ -42,18 +43,15 @@ export class ContextoProducaoCard {
   }
 
   get consultDisabled(): boolean {
-    return this.disabled || this.loadingAreas || this.loadingCenters || this.loadingOrders
+    return this.disabled || this.consultBlocked || this.loadingAreas || this.loadingCenters || this.loadingOrders
       || !this.areaCode || !this.workCenterCode;
   }
 
   changeArea(value: string): void {
-    this.areaCode = value ?? '';
-    this.workCenterCode = '';
-    this.areaChange.emit(this.areaCode);
+    this.areaChange.emit(value ?? '');
   }
 
   changeWorkCenter(value: string): void {
-    this.workCenterCode = value ?? '';
-    this.workCenterChange.emit(this.workCenterCode);
+    this.workCenterChange.emit(value ?? '');
   }
 }

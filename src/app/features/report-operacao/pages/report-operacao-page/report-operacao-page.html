@@ -8,7 +8,8 @@
       [loadingAreas]="loadingAreas"
       [loadingCenters]="loadingCenters"
       [loadingOrders]="loadingOrders"
-      [disabled]="isBusy || hasActiveWorkflow"
+      [disabled]="isBusy"
+      [consultBlocked]="hasActiveWorkflow"
       [errorMessage]="contextError"
       (areaChange)="onAreaChange($event)"
       (workCenterChange)="onWorkCenterChange($event)"
@@ -51,17 +52,18 @@
 
       <app-operacao-info-card [operacao]="operacao"></app-operacao-info-card>
 
-      <app-report-actions
-        [primaryLabel]="primaryLabel"
-        [primaryDisabled]="primaryDisabled"
-        [primaryLoading]="estado === 'Reportando'"
-        [paradaDisabled]="!canOpenAuxiliaryFlows"
-        (primaryAction)="executePrimaryAction()"
-        (parada)="abrirParada()"
-        (voltar)="voltar()"
-        (sair)="sair()"
-      ></app-report-actions>
     }
+
+    <app-report-actions
+      [primaryLabel]="primaryLabel"
+      [primaryDisabled]="primaryDisabled"
+      [primaryLoading]="estado === 'Reportando'"
+      [paradaDisabled]="!canOpenAuxiliaryFlows"
+      (primaryAction)="executePrimaryAction()"
+      (parada)="abrirParada()"
+      (voltar)="voltar()"
+      (sair)="sair()"
+    ></app-report-actions>
 
     <p class="report-operacao__feedback" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">
       {{ feedback }}

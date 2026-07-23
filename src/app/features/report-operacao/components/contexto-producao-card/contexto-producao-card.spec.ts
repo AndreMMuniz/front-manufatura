@@ -40,21 +40,33 @@ describe('ContextoProducaoCard', () => {
     expect(component.consultDisabled).toBe(false);
   });
 
-  it('emits typed area and work center changes and clears the center visually on area change', () => {
+  it('emits typed changes without mutating inputs before the parent confirms them', () => {
     const areaChanges: string[] = [];
     const centerChanges: string[] = [];
     component.areaChange.subscribe(value => areaChanges.push(value));
     component.workCenterChange.subscribe(value => centerChanges.push(value));
+    component.areaCode = '4001';
     component.workCenterCode = 'CT-EXT-01';
 
-    component.changeArea('4001');
+    component.changeArea('4002');
 
-    expect(component.workCenterCode).toBe('');
-    expect(areaChanges).toEqual(['4001']);
+    expect(component.areaCode).toBe('4001');
+    expect(component.workCenterCode).toBe('CT-EXT-01');
+    expect(areaChanges).toEqual(['4002']);
 
-    component.changeWorkCenter('CT-EXT-01');
+    component.changeWorkCenter('CT-CQ-01');
 
-    expect(centerChanges).toEqual(['CT-EXT-01']);
+    expect(component.workCenterCode).toBe('CT-EXT-01');
+    expect(centerChanges).toEqual(['CT-CQ-01']);
+  });
+
+  it('blocks consultation without blocking context controls during an active workflow', () => {
+    component.areaCode = '4001';
+    component.workCenterCode = 'CT-EXT-01';
+    component.consultBlocked = true;
+
+    expect(component.centerDisabled).toBe(false);
+    expect(component.consultDisabled).toBe(true);
   });
 
   it('keeps context fields rendered while a localized loading is active', () => {

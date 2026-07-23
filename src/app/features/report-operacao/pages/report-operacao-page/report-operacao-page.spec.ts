@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +8,7 @@ import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
+import { ContextoProducaoCard } from '../../components/contexto-producao-card/contexto-producao-card';
 import { EstadoOperacao, OrdemCentroTrabalho, ReportOperacao } from '../../models/report-operacao.model';
 import { ReportOperacaoWorkflowState } from '../../services/report-operacao-workflow-state';
 import { ReportOperacaoService } from '../../services/report-operacao.service';
@@ -113,6 +115,52 @@ describe('ReportOperacaoPage', () => {
     expect(component.centers).toEqual([]);
   });
 
+  it('ignores stale Area responses after a retry starts a newer request', () => {
+    const first = new Subject<Array<{ code: string; description: string }>>();
+    vi.mocked(service.listarAreasProducao)
+      .mockReturnValueOnce(first.asObservable())
+      .mockReturnValueOnce(of([{ code: '4002', description: 'Qualidade' }]));
+
+    fixture.detectChanges();
+    component.retryContext();
+    first.next([{ code: '4001', description: 'Produção' }]);
+
+    expect(component.areas).toEqual([{ code: '4002', description: 'Qualidade' }]);
+  });
+
+  it('retries the Center request that failed without losing the selected Area', () => {
+    vi.mocked(service.pesquisarCentrosTrabalho)
+      .mockReturnValueOnce(throwError(() => new Error('network')))
+      .mockReturnValueOnce(of([center()]));
+    fixture.detectChanges();
+
+    component.onAreaChange('4001');
+    expect(component.contextError).toContain('Centros');
+
+    component.retryContext();
+
+    expect(service.pesquisarCentrosTrabalho).toHaveBeenCalledTimes(2);
+    expect(component.areaCode).toBe('4001');
+    expect(component.centers).toEqual([center()]);
+    expect(component.contextError).toBe('');
+  });
+
+  it('ignores a stale Orders response after a newer consultation completes', () => {
+    const first = new Subject<OrdemCentroTrabalho[]>();
+    vi.mocked(service.listarOrdensPorCentro)
+      .mockReturnValueOnce(first.asObservable())
+      .mockReturnValueOnce(of([orders[1]]));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+
+    component.consultOrders();
+    component.consultOrders();
+    first.next([orders[0]]);
+
+    expect(component.orders).toEqual([orders[1]]);
+  });
+
   it('consults, snapshots selected orders in table order and loads only the first', () => {
     fixture.detectChanges();
     selectContextAndConsult();
@@ -124,6 +172,47 @@ describe('ReportOperacaoPage', () => {
     expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(1);
     expect(component.operacao?.ordem).toBe('450001');
     expect(component.estado).toBe(EstadoOperacao.OPEncontrada);
+  });
+
+  it('retries a failed active-order load while preserving the queue', () => {
+    vi.mocked(service.carregarOrdemSelecionada)
+      .mockReturnValueOnce(throwError(() => new Error('network')))
+      .mockReturnValueOnce(of({ sucesso: true, operacao: baseOperacao() }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+
+    expect(component.operacao).toBeNull();
+    expect(component.estado).toBe(EstadoOperacao.Erro);
+    expect(workflow.snapshot().operationState).toBe(EstadoOperacao.Erro);
+    expect(workflow.snapshot().activeOrder?.id).toBe('first');
+    expect(component.contextError).toContain('nova tentativa');
+
+    component.retryContext();
+
+    expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(2);
+    expect(component.operacao?.ordem).toBe('450001');
+    expect(component.estado).toBe(EstadoOperacao.OPEncontrada);
+    expect(component.contextError).toBe('');
+  });
+
+  it('ignores a stale active-order response after a confirmed context change', () => {
+    const first = new Subject<{ sucesso: boolean; operacao: ReportOperacao }>();
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValueOnce(first.asObservable());
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+
+    component.onAreaChange('4002');
+    vi.mocked(dialog.confirm).mock.calls[0][0].confirm();
+    first.next({ sucesso: true, operacao: baseOperacao() });
+
+    expect(component.areaCode).toBe('4002');
+    expect(component.operacao).toBeNull();
+    expect(workflow.snapshot().activeOrder).toBeNull();
   });
 
   it('advances after an individual report and does not aggregate or navigate away', () => {
@@ -198,6 +287,42 @@ describe('ReportOperacaoPage', () => {
 
     expect(component.areaCode).toBe('4002');
     expect(workflow.snapshot().activeOrder).toBeNull();
+  });
+
+  it('keeps context controls available for discard confirmation while blocking consultation', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    fixture.detectChanges();
+
+    const card = fixture.debugElement.query(By.directive(ContextoProducaoCard)).componentInstance as ContextoProducaoCard;
+
+    expect(card.disabled).toBe(false);
+    expect(card.consultBlocked).toBe(true);
+    expect(card.centerDisabled).toBe(false);
+    expect(card.consultDisabled).toBe(true);
+  });
+
+  it('keeps Back and Exit actions available before an operation is loaded', () => {
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Voltar');
+    expect(fixture.nativeElement.textContent).toContain('Sair');
+  });
+
+  it('preserves a restored queue and exposes recovery when its Center is unavailable', () => {
+    workflow.setContext({ code: '4001', description: 'Produção' }, center());
+    workflow.setOrders(orders);
+    workflow.setSelectedOrderIds(new Set(['first']));
+    workflow.startQueue();
+    vi.mocked(service.pesquisarCentrosTrabalho).mockReturnValue(of([]));
+
+    fixture.detectChanges();
+
+    expect(component.contextError).toContain('não está mais ativo ou disponível');
+    expect(component.workCenterCode).toBe('CT-EXT-01');
+    expect(workflow.snapshot().activeOrder?.id).toBe('first');
   });
 
   it('restores the active order and queue after returning from Stoppages', () => {

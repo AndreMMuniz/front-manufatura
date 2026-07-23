@@ -93,6 +93,21 @@ describe('ReportOperacaoWorkflowState', () => {
     });
   });
 
+  it('refreshes same-code context metadata without discarding the active workflow', () => {
+    const state = queuedState();
+    const refreshedArea = { ...area, description: 'Produção atualizada' };
+    const refreshedCenter = { ...center, description: 'Extrusão atualizada', machineGroup: 'Extrusoras 2' };
+
+    state.setContext(refreshedArea, refreshedCenter);
+
+    expect(state.snapshot()).toMatchObject({
+      area: refreshedArea,
+      workCenter: refreshedCenter,
+      activeOrder: { id: 'first' },
+      queue: [{ id: 'first' }, { id: 'second' }],
+    });
+  });
+
   function queuedState(): ReportOperacaoWorkflowState {
     const state = new ReportOperacaoWorkflowState();
     state.setContext(area, center);

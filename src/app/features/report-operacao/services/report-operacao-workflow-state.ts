@@ -50,6 +50,11 @@ export class ReportOperacaoWorkflowState {
     const sameCenter = current.workCenter?.code === workCenter?.code;
 
     if (sameArea && sameCenter) {
+      this.value.update(snapshot => ({
+        ...snapshot,
+        area: area ? { ...area } : null,
+        workCenter: workCenter ? { ...workCenter } : null,
+      }));
       return;
     }
 

@@ -91,6 +91,7 @@ export class ReportOperacaoPage implements OnInit {
   private centersRequest = 0;
   private ordersRequest = 0;
   private operationRequest = 0;
+  private retryTarget: 'areas' | 'centers' | 'orders' | 'active-order' | null = null;
 
   get loadingAreas(): boolean {
     return this.consultaEstado === 'carregando-areas';
@@ -182,6 +183,28 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   retryContext(): void {
+    const activeOrder = this.workflowState.snapshot().activeOrder;
+
+    if (this.retryTarget === 'active-order' && activeOrder) {
+      this.loadActiveOrder(activeOrder);
+      return;
+    }
+
+    if (this.retryTarget === 'centers' && this.areaCode) {
+      this.loadCenters(this.areaCode, this.workCenterCode, this.hasActiveWorkflow);
+      return;
+    }
+
+    if (this.retryTarget === 'orders') {
+      this.consultOrders();
+      return;
+    }
+
+    if (this.retryTarget === 'areas') {
+      this.loadAreas();
+      return;
+    }
+
     if (this.areaCode && this.workCenterCode) {
       this.consultOrders();
       return;
@@ -295,6 +318,7 @@ export class ReportOperacaoPage implements OnInit {
     const request = ++this.areasRequest;
     this.consultaEstado = 'carregando-areas';
     this.contextError = '';
+    this.retryTarget = null;
 
     this.reportOperacaoService.listarAreasProducao()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -311,6 +335,7 @@ export class ReportOperacaoPage implements OnInit {
         error: () => {
           if (request !== this.areasRequest) return;
           this.consultaEstado = 'erro';
+          this.retryTarget = 'areas';
           this.contextError = 'Não foi possível carregar as Áreas de Produção.';
           this.feedback = this.contextError;
           this.notification.error(this.contextError);
@@ -359,6 +384,8 @@ export class ReportOperacaoPage implements OnInit {
   private loadCenters(areaCode: string, prefillCode = '', preserveWorkflow = false): void {
     const request = ++this.centersRequest;
     this.isLoadingCenters = true;
+    this.contextError = '';
+    this.retryTarget = null;
     this.reportOperacaoService.pesquisarCentrosTrabalho(areaCode, '')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -369,13 +396,20 @@ export class ReportOperacaoPage implements OnInit {
           const prefill = this.centers.find(center => center.code === prefillCode) ?? null;
           if (prefill) {
             this.workCenterCode = prefill.code;
-            if (!preserveWorkflow) {
-              const area = this.areas.find(item => item.code === areaCode) ?? null;
-              this.workflowState.setContext(area, prefill);
-            }
+            const area = this.areas.find(item => item.code === areaCode) ?? null;
+            this.workflowState.setContext(area, prefill);
             this.feedback = this.workflowState.hasActiveWorkflow()
               ? 'Apontamento restaurado.'
               : 'Centro de Trabalho preenchido. Consulte as ordens liberadas.';
+          } else if (prefillCode) {
+            this.retryTarget = 'centers';
+            this.contextError = 'O Centro de Trabalho restaurado não está mais ativo ou disponível.';
+            this.feedback = this.contextError;
+            if (!preserveWorkflow) {
+              this.workCenterCode = '';
+              const area = this.areas.find(item => item.code === areaCode) ?? null;
+              this.workflowState.setContext(area, null);
+            }
           }
           this.changeDetector.markForCheck();
         },
@@ -383,6 +417,7 @@ export class ReportOperacaoPage implements OnInit {
           if (request !== this.centersRequest) return;
           this.isLoadingCenters = false;
           this.centers = [];
+          this.retryTarget = 'centers';
           this.contextError = 'Não foi possível carregar os Centros de Trabalho.';
           this.feedback = this.contextError;
           this.notification.error(this.contextError);
@@ -413,6 +448,7 @@ export class ReportOperacaoPage implements OnInit {
     const request = ++this.ordersRequest;
     this.consultaEstado = 'consultando-ordens';
     this.contextError = '';
+    this.retryTarget = null;
     this.feedback = 'Consultando ordens liberadas no Datasul...';
 
     this.reportOperacaoService.listarOrdensPorCentro(area.code, center.code)
@@ -433,6 +469,7 @@ export class ReportOperacaoPage implements OnInit {
         error: () => {
           if (request !== this.ordersRequest) return;
           this.consultaEstado = 'erro';
+          this.retryTarget = 'orders';
           this.contextError = 'Não foi possível consultar as ordens. Tente novamente.';
           this.feedback = this.contextError;
           this.notification.error(this.contextError);
@@ -446,6 +483,8 @@ export class ReportOperacaoPage implements OnInit {
     this.consultaEstado = 'carregando-ordem';
     this.estado = EstadoOperacao.Carregando;
     this.feedback = `Carregando Ordem ${order.ordem}...`;
+    this.contextError = '';
+    this.retryTarget = null;
 
     this.reportOperacaoService.carregarOrdemSelecionada(order)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -455,7 +494,10 @@ export class ReportOperacaoPage implements OnInit {
           if (!result.sucesso || !result.operacao) {
             this.consultaEstado = 'erro';
             this.estado = EstadoOperacao.Erro;
+            this.workflowState.setOperationState(this.estado);
             this.feedback = result.mensagem ?? 'OP inválida para produção.';
+            this.contextError = `${this.feedback} Tente novamente.`;
+            this.retryTarget = 'active-order';
             this.notification.warning(this.feedback);
             this.changeDetector.markForCheck();
             return;
@@ -464,6 +506,8 @@ export class ReportOperacaoPage implements OnInit {
           this.operacao = result.operacao;
           this.estado = EstadoOperacao.OPEncontrada;
           this.consultaEstado = 'ordens-disponiveis';
+          this.contextError = '';
+          this.retryTarget = null;
           this.refugoItens = [];
           this.ultimoMotivoRefugo = '';
           this.workflowState.setActiveOperation(this.operacao, this.estado);
@@ -476,7 +520,10 @@ export class ReportOperacaoPage implements OnInit {
           if (request !== this.operationRequest) return;
           this.consultaEstado = 'erro';
           this.estado = EstadoOperacao.Erro;
+          this.workflowState.setOperationState(this.estado);
           this.feedback = 'Não foi possível carregar a ordem. A fila foi preservada para nova tentativa.';
+          this.contextError = this.feedback;
+          this.retryTarget = 'active-order';
           this.notification.error(this.feedback);
           this.changeDetector.markForCheck();
         },

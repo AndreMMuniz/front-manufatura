@@ -37,4 +37,43 @@ describe('ProducaoForm', () => {
     expect(emitted?.getMonth()).toBe(6);
     expect(emitted?.getDate()).toBe(24);
   });
+
+  it('rejects nonexistent calendar dates and invalid Date instances', () => {
+    const component = new ProducaoForm();
+    component.operacao = operation();
+    const emitted: Array<Date | undefined> = [];
+    component.producaoChange.subscribe(change => emitted.push(change.dataFim));
+
+    component.updateEndDate('2026-02-31');
+    component.updateEndDate(new Date('invalid'));
+
+    expect(emitted).toEqual([undefined, undefined]);
+  });
 });
+
+function operation() {
+  return {
+    ordem: '450001',
+    op: 'OP-1',
+    split: '01',
+    item: 'ITEM',
+    descricao: 'Produto',
+    unidade: 'PC',
+    roteiro: '10',
+    quantidadeOrdem: 10,
+    quantidadeSaldo: 10,
+    linha: 'Linha',
+    dataInicio: new Date(2026, 6, 23),
+    horaInicio: '08:00',
+    dataFim: new Date(2026, 6, 23),
+    horaFim: '08:30',
+    quantidadeAprovada: 0,
+    quantidadeRetrabalho: 0,
+    quantidadeRefugo: 0,
+    ct: 'CT-EXT-01',
+    grupoMaquina: 'Extrusoras',
+    operador: 'Ana',
+    equipe: 'A',
+    turno: '1',
+  };
+}

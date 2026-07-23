@@ -77,7 +77,7 @@ test.describe('fluxo de Reporte Operações', () => {
     await firstQuantity.fill('1');
     await firstQuantity.press('Tab');
     await expect(firstQuantity).toHaveValue('1');
-    await page.waitForTimeout(200);
+    await expect(page.getByRole('button', { name: 'Reportar' })).toBeEnabled();
     await page.getByRole('button', { name: 'Reportar' }).click();
 
     await expect(page.getByText(/Ordem ativa 450002/)).toBeVisible();
@@ -87,7 +87,7 @@ test.describe('fluxo de Reporte Operações', () => {
     await secondQuantity.fill('1');
     await secondQuantity.press('Tab');
     await expect(secondQuantity).toHaveValue('1');
-    await page.waitForTimeout(200);
+    await expect(page.getByRole('button', { name: 'Reportar' })).toBeEnabled();
     await page.getByRole('button', { name: 'Reportar' }).click();
 
     await expect(page.getByText('Ordens liberadas', { exact: true })).toBeVisible();
