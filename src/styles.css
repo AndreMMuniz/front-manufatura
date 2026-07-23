@@ -70,3 +70,15 @@ po-page-default {
 .po-page-content {
   opacity: 1 !important;
 }
+
+/* Keep floating event notifications compact and centered at the top.
+   Inline toasters belong to page layouts and retain the PO UI defaults. */
+.po-toaster:not(.po-toaster-inline) {
+  width: fit-content;
+  max-width: min(200px, calc(100vw - (2 * var(--app-space-md))));
+}
+
+.po-toaster:not(.po-toaster-inline) .po-toaster-actions {
+  width: auto;
+  min-width: 0;
+}

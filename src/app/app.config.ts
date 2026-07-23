@@ -12,7 +12,8 @@ import {
 } from '@angular/core';
 import { provideHttpClient, withFetch, withInterceptorsFromDi } from '@angular/common/http';
 
-import { PoHttpRequestModule } from '@po-ui/ng-components';
+import { PoHttpRequestModule, PoNotificationService } from '@po-ui/ng-components';
+import { TopNotificationService } from './core/notifications/top-notification.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -21,5 +22,6 @@ export const appConfig: ApplicationConfig = {
     importProvidersFrom([BrowserAnimationsModule, PoHttpRequestModule]),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideHttpClient(withFetch(), withInterceptorsFromDi()),
+    { provide: PoNotificationService, useClass: TopNotificationService },
   ],
 };
