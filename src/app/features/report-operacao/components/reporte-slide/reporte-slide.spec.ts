@@ -13,12 +13,13 @@ describe('ReporteSlide', () => {
     component.salvar();
 
     expect(emitted).toHaveBeenCalledTimes(1);
-    expect(emitted).toHaveBeenCalledWith({
+    expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
+      idempotencyKey: expect.any(String),
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
       refugoItens: [],
-    });
+    }));
   });
 
   it('keeps the draft on failure and resets it after a successful report', () => {
@@ -47,6 +48,20 @@ describe('ReporteSlide', () => {
 
     expect(component.quantidadeAprovada).toBe(0);
     expect(component.historico).toHaveLength(1);
+  });
+
+  it('reuses the idempotency key when retrying the same preserved draft', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const emitted: Array<{ idempotencyKey?: string }> = [];
+    component.reporteSolicitado.subscribe(draft => emitted.push(draft));
+    component.quantidadeAprovada = 1;
+
+    component.salvar();
+    component.informarErro('Resposta perdida.');
+    component.salvar();
+
+    expect(emitted).toHaveLength(2);
+    expect(emitted[1].idempotencyKey).toBe(emitted[0].idempotencyKey);
   });
 
   it('disables saving when any quantity is negative or non-finite', () => {

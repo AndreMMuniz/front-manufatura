@@ -481,9 +481,11 @@ describe('ReportOperacaoPage', () => {
     expect(component.queueRemaining).toBe(2);
     expect(component.responsavelCodigo).toBe('001');
     expect(component.reportes.map(reporte => reporte.id)).toEqual(['APT-RESTORED']);
+    expect(component.operacao?.quantidadeAprovada).toBe(2);
   });
 
   it('recovers a legacy transient workflow state when recreating the page', () => {
+    vi.mocked(service.listarResponsaveis).mockReturnValue(of([]));
     workflow.setContext({ code: '4001', description: 'Produção' }, center());
     workflow.setOrders(orders);
     workflow.setSelectedOrderIds(new Set(['first']));
@@ -498,6 +500,12 @@ describe('ReportOperacaoPage', () => {
 
     expect(component.estado).toBe(EstadoOperacao.OperacaoIniciada);
     expect(workflow.snapshot().operationState).toBe(EstadoOperacao.OperacaoIniciada);
+    expect(component.responsavelCodigo).toBe('001');
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'OPERADOR',
+      codigo: '001',
+      nome: 'Ana Silva',
+    });
     expect(component.reporteDisabled).toBe(false);
   });
 

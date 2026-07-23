@@ -103,7 +103,6 @@ export class ReportOperacaoPage implements OnInit {
   encerrando = false;
   loadingResponsaveis = false;
   responsaveisError = '';
-  private refugoEmEdicaoParaReporte = false;
 
   private areasRequest = 0;
   private centersRequest = 0;
@@ -287,7 +286,6 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
 
-    this.refugoEmEdicaoParaReporte = true;
     this.refugoSlide?.abrir(
       this.reporteSlide?.quantidadeRefugo ?? 0,
       this.reporteSlide?.refugoItens ?? [],
@@ -340,7 +338,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   retryResponsaveis(): void {
-    if (!this.loadingResponsaveis && this.operacao && !this.operacao.dataInicio) {
+    if (!this.loadingResponsaveis && this.operacao) {
       this.loadResponsaveis();
     }
   }
@@ -354,14 +352,12 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
 
-    this.refugoEmEdicaoParaReporte = false;
     this.reporteSlide?.aplicarRefugo(refugo.itens);
     this.feedback = 'Composição de refugo adicionada ao reporte em edição.';
     this.changeDetector.markForCheck();
   }
 
   cancelarRefugoDoReporte(): void {
-    this.refugoEmEdicaoParaReporte = false;
   }
 
   abrirRetrabalho(): void {
@@ -995,13 +991,25 @@ export class ReportOperacaoPage implements OnInit {
       .subscribe({
         next: responsaveis => {
           this.loadingResponsaveis = false;
+          const frozenResponsavel = this.operacao?.dataInicio
+            ? this.workflowState.snapshot().responsavel
+            : null;
           this.responsaveis = responsaveis.map(responsavel => ({ ...responsavel }));
-          if (this.responsavelCodigo && !this.responsavelSelecionado) {
+          if (
+            frozenResponsavel
+            && !this.responsaveis.some(item =>
+              item.tipo === frozenResponsavel.tipo && item.codigo === frozenResponsavel.codigo)
+          ) {
+            this.responsaveis = [{ ...frozenResponsavel }, ...this.responsaveis];
+          }
+          if (this.responsavelCodigo && !this.responsavelSelecionado && !this.operacao?.dataInicio) {
             this.responsavelCodigo = '';
             this.workflowState.setResponsavel(null);
           }
           if (responsaveis.length === 0) {
-            this.responsaveisError = 'Nenhuma equipe ou operador elegível. Tente novamente.';
+            this.responsaveisError = frozenResponsavel
+              ? 'Responsável iniciado preservado; não foi possível revalidar a elegibilidade.'
+              : 'Nenhuma equipe ou operador elegível. Tente novamente.';
             this.feedback = this.responsaveisError;
           }
           if (this.operacao && !this.responsavelCodigo) {
@@ -1011,7 +1019,19 @@ export class ReportOperacaoPage implements OnInit {
         },
         error: () => {
           this.loadingResponsaveis = false;
-          this.responsaveisError = 'Não foi possível carregar equipes e operadores. Tente novamente.';
+          const frozenResponsavel = this.operacao?.dataInicio
+            ? this.workflowState.snapshot().responsavel
+            : null;
+          if (
+            frozenResponsavel
+            && !this.responsaveis.some(item =>
+              item.tipo === frozenResponsavel.tipo && item.codigo === frozenResponsavel.codigo)
+          ) {
+            this.responsaveis = [{ ...frozenResponsavel }, ...this.responsaveis];
+          }
+          this.responsaveisError = frozenResponsavel
+            ? 'Responsável iniciado preservado; não foi possível revalidar a elegibilidade.'
+            : 'Não foi possível carregar equipes e operadores. Tente novamente.';
           this.feedback = this.responsaveisError;
           this.notification.error(this.feedback);
           this.changeDetector.markForCheck();

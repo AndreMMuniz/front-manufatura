@@ -33,7 +33,7 @@
       <po-button
         p-label="Tentar novamente"
         p-kind="secondary"
-        [p-disabled]="loadingResponsaveis || responsavelDisabled"
+        [p-disabled]="loadingResponsaveis"
         (p-click)="retryResponsaveis.emit()"
       ></po-button>
     </div>
