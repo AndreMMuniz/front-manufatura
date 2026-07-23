@@ -102,6 +102,11 @@ export class ReportaBateladaService {
     responsavel: ResponsavelBatelada,
     ordens: ReadonlyArray<OrdemLiberadaBatelada>,
   ): IniciarBateladaRequest {
+    const uniqueOrderIds = new Set(ordens.map(ordem => ordem.id));
+    if (ordens.length === 0 || uniqueOrderIds.size !== ordens.length) {
+      throw new Error('A batelada deve conter ordens únicas.');
+    }
+
     return {
       contexto: { ...contexto },
       responsavel: { ...responsavel },
@@ -143,6 +148,9 @@ export class ReportaBateladaService {
       typeof response.batchId === 'string' &&
       response.batchId.trim().length > 0 &&
       response.iniciadoEm instanceof Date &&
+      !Number.isNaN(response.iniciadoEm.getTime()) &&
+      expectedOrderIds.length > 0 &&
+      expected.size === expectedOrderIds.length &&
       response.resultados.length === expected.size &&
       response.resultados.every(result => result.sucesso && expected.has(result.ordemId)) &&
       [...expected].every(id => received.has(id));

@@ -148,6 +148,14 @@ describe('ReportaBateladaWorkflowState', () => {
     }));
   });
 
+  it('unsubscribes from the auth session when the page-scoped workflow is destroyed', () => {
+    expect(session$.observers).toHaveLength(1);
+
+    TestBed.resetTestingModule();
+
+    expect(session$.observers).toHaveLength(0);
+  });
+
   it('stores a deeply defensive multi-order draft and invalidates its key after changes', () => {
     startBatch();
     const draft = {

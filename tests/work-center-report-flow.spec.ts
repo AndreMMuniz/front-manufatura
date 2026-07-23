@@ -30,8 +30,17 @@ async function selectProductionContext(page: import('@playwright/test').Page) {
 async function selectOrderWithKeyboard(page: import('@playwright/test').Page, order: string) {
   const row = page.getByRole('row').filter({ hasText: order });
   const checkbox = row.getByRole('checkbox');
+  await expect(checkbox).toBeVisible();
   await checkbox.focus();
   await checkbox.press('Space');
+  await expect(checkbox).toHaveAttribute('aria-checked', 'true');
+}
+
+async function selectOrderWithPointer(page: import('@playwright/test').Page, order: string) {
+  const row = page.getByRole('row').filter({ hasText: order });
+  const checkbox = row.getByRole('checkbox');
+  await checkbox.click();
+  await expect(checkbox).toBeFocused();
   await expect(checkbox).toHaveAttribute('aria-checked', 'true');
 }
 
@@ -67,7 +76,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await page.getByRole('link', { name: 'Reporte Ordem' }).click();
     await selectProductionContext(page);
     await selectOrderWithKeyboard(page, '450001');
-    await selectOrderWithKeyboard(page, '450002');
+    await selectOrderWithPointer(page, '450002');
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
     await page.getByRole('combobox', { name: 'Operador' }).selectOption('001');
@@ -154,7 +163,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(page.getByRole('heading', { name: 'Reporta Batelada' })).toBeVisible();
     await selectProductionContext(page);
     await selectOrderWithKeyboard(page, '450001');
-    await selectOrderWithKeyboard(page, '450002');
+    await selectOrderWithPointer(page, '450002');
     await expect(page.getByText('2 ordem(ns) selecionada(s)')).toBeVisible();
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
 
@@ -163,7 +172,9 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(composition.getByRole('row').filter({ hasText: '450002' })).toBeVisible();
 
     const responsible = page.getByRole('combobox', { name: 'Responsável' });
-    await responsible.selectOption('OPERADOR|OP-001');
+    await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
+      .toHaveCount(1);
+    await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });
     const start = page.getByRole('button', { name: 'Iniciar' });
     await expect(start).toBeEnabled();
     await start.click();
@@ -189,7 +200,10 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithKeyboard(page, '450001');
     await selectOrderWithKeyboard(page, '450002');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
-    await page.getByRole('combobox', { name: 'Responsável' }).selectOption('OPERADOR|OP-001');
+    const responsible = page.getByRole('combobox', { name: 'Responsável' });
+    await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
+      .toHaveCount(1);
+    await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });
     await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
 
     const reportAction = page.getByRole('button', { name: 'Reporte', exact: true });
@@ -239,5 +253,23 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(page.getByText('Deseja encerrar conjuntamente todas as ordens desta batelada?')).toBeVisible();
     await page.getByRole('button', { name: 'Encerrar', exact: true }).last().click();
     await expect(page).toHaveURL(/\/work-center$/);
+  });
+
+  test('entra pelo Centro de Trabalho com contexto BATCH preenchido', async ({ page }) => {
+    await login(page);
+    await page.getByRole('link', { name: 'Centro de Trabalho' }).click();
+    await page.getByRole('textbox', { name: 'Código' }).fill('CT-EXT-01');
+    await page.getByRole('button', { name: 'Consultar' }).click();
+    await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('OP-001');
+    await page.getByRole('button', { name: 'Validar' }).click();
+    await page.getByRole('textbox', { name: 'Validade' }).fill('2026-06-30');
+    await page.getByRole('combobox', { name: 'Reporte por' }).selectOption('BATCH');
+    await page.getByRole('button', { name: 'Report' }).click();
+
+    await expect(page).toHaveURL(/\/batch-reporting$/);
+    await expect(page.getByRole('combobox', { name: 'Área de Produção' }))
+      .toHaveValue('4001 - Produção');
+    await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' }))
+      .toHaveValue('CT-EXT-01 - Extrusao Linha 01');
   });
 });

@@ -47,6 +47,39 @@ describe('ReporteParadasService', () => {
     expect(service.validateStops([stop()], context)).toBe('');
   });
 
+  it('uses the batch identifier and preserves shift in a started batch context', () => {
+    const setContext = service.setContextFromStartedBatch.bind(service) as (
+      workCenter: Parameters<ReporteParadasService['setContextFromStartedBatch']>[0],
+      responsavel: Parameters<ReporteParadasService['setContextFromStartedBatch']>[1],
+      composition: Parameters<ReporteParadasService['setContextFromStartedBatch']>[2],
+      batchId: string,
+      shift: string,
+    ) => void;
+    setContext(
+      {
+        code: 'CT-EXT-01',
+        description: 'Extrusão',
+        areaCode: '4001',
+        area: 'Produção',
+        machineGroup: 'Extrusoras',
+        establishment: '101',
+        active: true,
+      },
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+      [
+        { id: '1-2', ordem: '450001', itemOp: 'ITEM-1 / OP-1', operacao: '10', split: '01' },
+        { id: '3', ordem: '450002', itemOp: 'ITEM-2 / OP-2', operacao: '20', split: '01' },
+      ],
+      'batch-42',
+      '1o Turno',
+    );
+
+    expect(service.getActiveContext()).toEqual(expect.objectContaining({
+      reportId: 'batch-42',
+      shift: '1o Turno',
+    }));
+  });
+
   function stop(overrides: Partial<StopEntry> = {}): StopEntry {
     return {
       id: 1,

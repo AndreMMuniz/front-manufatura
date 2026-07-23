@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import {
+  AfterViewChecked,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  Output,
+  Renderer2,
+  ViewChild,
+} from '@angular/core';
 
 import {
   PoButtonModule,
@@ -21,7 +31,8 @@ export interface OrdemBateladaTableItem extends OrdemLiberadaBatelada {
   styleUrls: ['./ordens-centro-list.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class OrdensCentroBateladaList {
+export class OrdensCentroBateladaList implements AfterViewChecked {
+  @ViewChild('ordersTable', { read: ElementRef }) private ordersTable?: ElementRef<HTMLElement>;
   @Input() orders: ReadonlyArray<OrdemLiberadaBatelada> = [];
   @Input() selectedIds: ReadonlySet<string> = new Set<string>();
   @Input() loading = false;
@@ -39,6 +50,15 @@ export class OrdensCentroBateladaList {
     { property: 'operacao', label: 'Operação', width: '24%' },
     { property: 'split', label: 'Split', width: '20%' },
   ];
+
+  constructor(private readonly renderer: Renderer2) {}
+
+  ngAfterViewChecked(): void {
+    const table = this.ordersTable?.nativeElement.querySelector('table');
+    if (table && !table.hasAttribute('aria-label')) {
+      this.renderer.setAttribute(table, 'aria-label', 'Ordens liberadas para seleção');
+    }
+  }
 
   get prepareDisabled(): boolean {
     return this.disabled || this.loading || this.selectedIds.size === 0;

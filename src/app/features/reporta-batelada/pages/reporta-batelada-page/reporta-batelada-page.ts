@@ -17,6 +17,7 @@ import {
   PoPageModule,
 } from '@po-ui/ng-components';
 
+import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
@@ -30,6 +31,7 @@ import {
   AreaProducaoBatelada,
   EstadoBatelada,
   RascunhoReporteBatelada,
+  ResponsavelBatelada,
   TotaisBatelada,
   TotaisOrdemBatelada,
 } from '../../models/reporta-batelada.model';
@@ -66,6 +68,7 @@ export class ReportaBateladaPage implements OnInit {
   private readonly workflow = inject(ReportaBateladaWorkflowState);
   private readonly notification = inject(PoNotificationService);
   private readonly dialog = inject(PoDialogService);
+  private readonly authSession = inject(AuthSessionService);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -75,10 +78,16 @@ export class ReportaBateladaPage implements OnInit {
   selectedIds: ReadonlySet<string> = new Set<string>();
   loadingAreas = false;
   loadingCenters = false;
+  responsaveisErrorMessage = '';
 
   private centersRequest = 0;
   private ordersRequest = 0;
   private preferredOperatorCode = '';
+  private responsaveisRetry: {
+    readonly request: number;
+    readonly areaCode: string;
+    readonly workCenterCode: string;
+  } | null = null;
   private historyRequest = 0;
   private reportRequest = 0;
   private endingRequest = 0;
@@ -124,6 +133,18 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   ngOnInit(): void {
+    this.authSession.session$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(session => {
+        if (session === null) {
+          this.areas = [];
+          this.centers = [];
+          this.loadingAreas = false;
+          this.loadingCenters = false;
+          this.syncView();
+        }
+      });
+
     const stopped = this.service.retomarFluxoParada();
     if (stopped && this.workflow.restoreAfterStop(stopped)) {
       this.areas = stopped.area ? [{ ...stopped.area }] : [];
@@ -166,9 +187,17 @@ export class ReportaBateladaPage implements OnInit {
 
   selecionarArea(code: string): void {
     const area = this.areas.find(item => item.code === code) ?? null;
+    if (!this.workflow.setArea(area)) {
+      this.syncView();
+      return;
+    }
+
     this.ordersRequest += 1;
+    this.centersRequest += 1;
     this.centers = [];
-    this.workflow.setArea(area);
+    this.loadingCenters = false;
+    this.responsaveisErrorMessage = '';
+    this.responsaveisRetry = null;
     this.syncView();
 
     if (area) {
@@ -177,9 +206,14 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   selecionarCentro(code: string): void {
-    this.ordersRequest += 1;
     const center = this.centers.find(item => item.code === code) ?? null;
-    this.workflow.setWorkCenter(center);
+    if (!this.workflow.setWorkCenter(center)) {
+      this.syncView();
+      return;
+    }
+    this.ordersRequest += 1;
+    this.responsaveisErrorMessage = '';
+    this.responsaveisRetry = null;
     this.syncView();
   }
 
@@ -225,11 +259,7 @@ export class ReportaBateladaPage implements OnInit {
     this.syncView();
   }
 
-  selecionarResponsavel(key: string): void {
-    const [tipo, codigo] = key.split('|');
-    const responsavel =
-      this.view.responsaveis.find(item => item.tipo === tipo && item.codigo === codigo) ??
-      null;
+  selecionarResponsavel(responsavel: ResponsavelBatelada | null): void {
     this.workflow.setResponsavel(responsavel);
     this.syncView();
   }
@@ -283,6 +313,7 @@ export class ReportaBateladaPage implements OnInit {
       this.view.workCenter,
       this.view.responsavel,
       this.view.composition,
+      this.view.batchId ?? undefined,
     );
     void this.router.navigate(['/stoppages']);
   }
@@ -400,6 +431,14 @@ export class ReportaBateladaPage implements OnInit {
     });
   }
 
+  tentarCarregarResponsaveisNovamente(): void {
+    const retry = this.responsaveisRetry;
+    if (!retry) {
+      return;
+    }
+    this.carregarResponsaveis(retry.request, retry.areaCode, retry.workCenterCode);
+  }
+
   private carregarCentros(areaCode: string, prefillCode = ''): void {
     const request = ++this.centersRequest;
     this.loadingCenters = true;
@@ -418,7 +457,7 @@ export class ReportaBateladaPage implements OnInit {
         this.syncView();
       },
       error: () => {
-        if (request !== this.centersRequest) {
+        if (request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
           return;
         }
         this.loadingCenters = false;
@@ -439,6 +478,8 @@ export class ReportaBateladaPage implements OnInit {
         if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
           return;
         }
+        this.responsaveisErrorMessage = '';
+        this.responsaveisRetry = null;
         this.workflow.setResponsaveis(responsaveis, this.preferredOperatorCode);
         this.syncView();
       },
@@ -446,7 +487,11 @@ export class ReportaBateladaPage implements OnInit {
         if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
           return;
         }
+        this.responsaveisErrorMessage =
+          'Não foi possível carregar os responsáveis elegíveis. Tente novamente.';
+        this.responsaveisRetry = { request, areaCode, workCenterCode };
         this.workflow.setResponsaveis([]);
+        this.notification.error(this.responsaveisErrorMessage);
         this.syncView();
       },
     });

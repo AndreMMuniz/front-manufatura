@@ -91,6 +91,20 @@ describe('ReportaBateladaService', () => {
     expect(request.ordens[0]).not.toBe(order('2'));
   });
 
+  it('rejects an empty or duplicated composition at the start boundary', () => {
+    expect(() => service.montarComandoInicio(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      responsavel(),
+      [],
+    )).toThrowError('A batelada deve conter ordens únicas.');
+
+    expect(() => service.montarComandoInicio(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      responsavel(),
+      [order('1'), order('1')],
+    )).toThrowError('A batelada deve conter ordens únicas.');
+  });
+
   it('starts the complete batch atomically and returns a defensive timestamp', async () => {
     const request = service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
@@ -124,6 +138,20 @@ describe('ReportaBateladaService', () => {
         .toThrowError('O início conjunto não foi confirmado para todas as ordens.');
     },
   );
+
+  it('rejects an invalid start timestamp', () => {
+    expect(() => service.validarRespostaInicio({
+      status: 'SUCESSO_INTEGRAL',
+      batchId: 'batch-1',
+      iniciadoEm: new Date(Number.NaN),
+      resultados: [
+        { ordemId: '1', sucesso: true },
+        { ordemId: '2', sucesso: true },
+      ],
+    }, ['1', '2'])).toThrowError(
+      'O início conjunto não foi confirmado para todas as ordens.',
+    );
+  });
 
   it.each([
     { field: 'quantidadeAprovada', value: Number.NaN },

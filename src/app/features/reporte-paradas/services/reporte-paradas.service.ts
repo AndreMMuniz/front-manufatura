@@ -41,14 +41,16 @@ export class ReporteParadasService {
     workCenter: WorkCenter,
     responsavel: ResponsavelBatelada,
     composition: ReadonlyArray<OrdemLiberadaBatelada>,
+    batchId = `BAT-${composition.map(order => `${order.id.length}:${order.id}`).join('|')}`,
+    shift = '1o Turno',
   ): void {
     this.activeContext = {
       workCenter: workCenter.code,
       machineGroup: workCenter.machineGroup,
       operatorName: responsavel.tipo === 'OPERADOR' ? responsavel.nome : '',
       team: responsavel.tipo === 'EQUIPE' ? responsavel.nome : '',
-      shift: '',
-      reportId: `BAT-${composition.map(order => order.id).join('-')}`,
+      shift,
+      reportId: batchId,
       sourceRoute: '/batch-reporting',
     };
   }

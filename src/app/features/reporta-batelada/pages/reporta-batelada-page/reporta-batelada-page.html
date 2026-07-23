@@ -7,9 +7,9 @@
       [workCenterCode]="view.workCenter?.code ?? ''"
       [loadingAreas]="loadingAreas"
       [loadingCenters]="loadingCenters"
-      [loadingOrders]="view.asyncState === 'carregando'"
+      [loadingOrders]="view.estado === 'ConsultandoOrdens'"
       [disabled]="contextLocked"
-      [errorMessage]="view.asyncState === 'erro' ? view.errorMessage : ''"
+      [errorMessage]="view.asyncState === 'erro' && view.estado === 'OrdensDisponiveis' ? view.errorMessage : ''"
       (areaChange)="selecionarArea($event)"
       (workCenterChange)="selecionarCentro($event)"
       (consult)="consultarOrdens()"
@@ -19,7 +19,7 @@
     <app-ordens-centro-batelada-list
       [orders]="view.orders"
       [selectedIds]="selectedIds"
-      [loading]="view.asyncState === 'carregando'"
+      [loading]="view.estado === 'ConsultandoOrdens'"
       [disabled]="contextLocked"
       [showList]="view.asyncState !== 'ocioso'"
       (selectionChange)="atualizarSelecao($event)"
@@ -44,7 +44,12 @@
       ></app-informacoes-batelada>
     }
 
-    @if (view.errorMessage) {
+    @if (responsaveisErrorMessage) {
+      <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">
+        {{ responsaveisErrorMessage }}
+        <button type="button" (click)="tentarCarregarResponsaveisNovamente()">Tentar novamente</button>
+      </p>
+    } @else if (view.errorMessage && view.estado !== 'OrdensDisponiveis') {
       <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">
         {{ view.errorMessage }}
       </p>

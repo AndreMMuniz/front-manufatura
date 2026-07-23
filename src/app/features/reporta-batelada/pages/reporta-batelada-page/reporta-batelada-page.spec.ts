@@ -1,12 +1,15 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
+import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
+import { ContextoProducaoBatelada } from '../../components/contexto-producao/contexto-producao';
+import { OrdensCentroBateladaList } from '../../components/ordens-centro-list/ordens-centro-list';
 import { ReporteBateladaSlide } from '../../components/reporte-batelada-slide/reporte-batelada-slide';
 import {
   OrdemLiberadaBatelada,
@@ -23,6 +26,13 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
   let currentContext: ReturnType<typeof context> | null;
   let routerMock: { navigate: ReturnType<typeof vi.fn> };
   let dialogMock: { confirm: ReturnType<typeof vi.fn> };
+  let notificationMock: {
+    success: ReturnType<typeof vi.fn>;
+    warning: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+    information: ReturnType<typeof vi.fn>;
+  };
+  const session$ = new BehaviorSubject<unknown>({ user: 'operador' });
   let serviceMock: {
     listarAreas: ReturnType<typeof vi.fn>;
     pesquisarCentros: ReturnType<typeof vi.fn>;
@@ -41,6 +51,13 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     currentContext = context();
     routerMock = { navigate: vi.fn().mockResolvedValue(true) };
     dialogMock = { confirm: vi.fn() };
+    notificationMock = {
+      success: vi.fn(),
+      warning: vi.fn(),
+      error: vi.fn(),
+      information: vi.fn(),
+    };
+    session$.next({ user: 'operador' });
     serviceMock = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([context().workCenter])),
@@ -78,12 +95,10 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       providers: [
         { provide: ReportaBateladaService, useValue: serviceMock },
         { provide: OperationalContextService, useValue: { get currentContext() { return currentContext; } } },
+        { provide: AuthSessionService, useValue: { session$ } },
         { provide: Router, useValue: routerMock },
         { provide: PoDialogService, useValue: dialogMock },
-        {
-          provide: PoNotificationService,
-          useValue: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), information: vi.fn() },
-        },
+        { provide: PoNotificationService, useValue: notificationMock },
       ],
     })
       .overrideProvider(PoDialogService, { useValue: dialogMock })
@@ -123,6 +138,42 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.composition).toEqual([]);
   });
 
+  it('cancels a pending centers lookup when Area is cleared', () => {
+    const pending = new Subject<ReadonlyArray<ReturnType<typeof context>['workCenter']>>();
+    component.areas = [
+      { code: '4001', description: 'Produção' },
+      { code: '4002', description: 'Qualidade' },
+    ];
+    serviceMock.pesquisarCentros.mockReturnValueOnce(pending);
+
+    component.selecionarArea('4002');
+    expect(component.loadingCenters).toBe(true);
+
+    component.selecionarArea('');
+    pending.next([context().workCenter]);
+
+    expect(component.loadingCenters).toBe(false);
+    expect(component.centers).toEqual([]);
+    expect(component.view.area).toBeNull();
+  });
+
+  it('ignores a stale centers error after Area is cleared', () => {
+    const pending = new Subject<ReadonlyArray<ReturnType<typeof context>['workCenter']>>();
+    component.areas = [
+      { code: '4001', description: 'Produção' },
+      { code: '4002', description: 'Qualidade' },
+    ];
+    serviceMock.pesquisarCentros.mockReturnValueOnce(pending);
+
+    component.selecionarArea('4002');
+    component.selecionarArea('');
+    pending.error(new Error('offline'));
+
+    expect(notificationMock.error).not.toHaveBeenCalledWith(
+      'Não foi possível carregar os Centros de Trabalho.',
+    );
+  });
+
   it('renders empty, error and retry states without losing context', () => {
     serviceMock.listarOrdensLiberadas.mockReturnValueOnce(of([]));
     component.consultarOrdens();
@@ -137,6 +188,16 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
     component.consultarOrdens();
     expect(serviceMock.listarOrdensLiberadas).toHaveBeenCalledTimes(3);
+  });
+
+  it('renders a query error only once for assistive technology', () => {
+    serviceMock.listarOrdensLiberadas.mockReturnValueOnce(throwError(() => new Error('offline')));
+
+    component.consultarOrdens();
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.queryAll(By.css('.contexto-producao__error'))).toHaveLength(1);
+    expect(fixture.debugElement.query(By.css('.reporta-batelada__feedback--error'))).toBeNull();
   });
 
   it('ignores an obsolete order response after the work center changes', () => {
@@ -191,6 +252,23 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.estado).toBe('Iniciando');
   });
 
+  it('does not present a start request as an orders lookup', () => {
+    serviceMock.iniciarBatelada.mockReturnValue(new Subject());
+    prepareForStart();
+
+    component.iniciarBatelada();
+    fixture.detectChanges();
+
+    const contextCard = fixture.debugElement.query(By.directive(ContextoProducaoBatelada))
+      .componentInstance as ContextoProducaoBatelada;
+    const ordersList = fixture.debugElement.query(By.directive(OrdensCentroBateladaList))
+      .componentInstance as OrdensCentroBateladaList;
+    expect(contextCard.loadingOrders).toBe(false);
+    expect(ordersList.loading).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('Consultando ordens...');
+    expect(fixture.nativeElement.textContent).toContain('Iniciando todas as ordens');
+  });
+
   it('preserves context, responsible party and composition on total/partial failure and allows retry', () => {
     serviceMock.iniciarBatelada.mockReturnValueOnce(
       throwError(() => new Error('O início conjunto não foi confirmado para todas as ordens.')),
@@ -203,10 +281,57 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.composition.map(order => order.id)).toEqual(['2', '1']);
     expect(component.view.responsavel?.codigo).toBe('OP-001');
     expect(component.view.errorMessage).toContain('Não foi possível iniciar');
+    fixture.detectChanges();
+    const contextCard = fixture.debugElement.query(By.directive(ContextoProducaoBatelada))
+      .componentInstance as ContextoProducaoBatelada;
+    expect(contextCard.errorMessage).toBe('');
 
     component.iniciarBatelada();
     expect(serviceMock.iniciarBatelada).toHaveBeenCalledTimes(2);
     expect(component.view.estado).toBe('BateladaIniciada');
+  });
+
+  it('shows a technical responsible lookup error and retries it without requerying orders', () => {
+    serviceMock.listarResponsaveisElegiveis
+      .mockReturnValueOnce(throwError(() => new Error('offline')))
+      .mockReturnValueOnce(of([
+        { tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' },
+      ]));
+
+    component.consultarOrdens();
+
+    const reviewable = component as unknown as {
+      responsaveisErrorMessage: string;
+      tentarCarregarResponsaveisNovamente(): void;
+    };
+    expect(reviewable.responsaveisErrorMessage).toContain('carregar os responsáveis');
+    reviewable.tentarCarregarResponsaveisNovamente();
+
+    expect(serviceMock.listarOrdensLiberadas).toHaveBeenCalledOnce();
+    expect(serviceMock.listarResponsaveisElegiveis).toHaveBeenCalledTimes(2);
+    expect(reviewable.responsaveisErrorMessage).toBe('');
+  });
+
+  it('does not mutate visible context after the batch lock rejects an Area change', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    const centersBefore = component.centers;
+
+    component.selecionarArea('');
+
+    expect(component.centers).toBe(centersBefore);
+    expect(component.view.area?.code).toBe('4001');
+    expect(component.view.workCenter?.code).toBe('CT-EXT-01');
+  });
+
+  it('reflects workflow cleanup immediately after logout', () => {
+    prepareForStart();
+
+    session$.next(null);
+
+    expect(component.view.area).toBeNull();
+    expect(component.view.workCenter).toBeNull();
+    expect(component.view.composition).toEqual([]);
   });
 
   it('keeps start unavailable without an eligible responsible party', () => {

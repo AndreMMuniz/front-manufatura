@@ -20,7 +20,7 @@ export class InformacoesBatelada {
   @Input() disabled = false;
   @Input() startedAt: Date | null = null;
 
-  @Output() responsavelChange = new EventEmitter<string>();
+  @Output() responsavelChange = new EventEmitter<ResponsavelBatelada | null>();
 
   get options(): ReadonlyArray<PoSelectOption> {
     return this.responsaveis.map(item => ({
@@ -35,11 +35,14 @@ export class InformacoesBatelada {
 
   changeResponsavel(value: string): void {
     if (!this.disabled) {
-      this.responsavelChange.emit(value ?? '');
+      const options = this.options;
+      const selected = options.find(option => option.value === value);
+      const index = selected ? options.indexOf(selected) : -1;
+      this.responsavelChange.emit(index >= 0 ? { ...this.responsaveis[index] } : null);
     }
   }
 
   private key(responsavel: ResponsavelBatelada): string {
-    return `${responsavel.tipo}|${responsavel.codigo}`;
+    return JSON.stringify([responsavel.tipo, responsavel.codigo]);
   }
 }

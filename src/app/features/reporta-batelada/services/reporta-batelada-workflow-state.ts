@@ -1,4 +1,5 @@
-import { Injectable, Optional, signal } from '@angular/core';
+import { Injectable, OnDestroy, Optional, signal } from '@angular/core';
+import { Subscription } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { WorkCenter } from '../../shop-floor/models/work-center';
@@ -40,15 +41,20 @@ export interface ReportaBateladaWorkflowSnapshot {
 }
 
 @Injectable()
-export class ReportaBateladaWorkflowState {
+export class ReportaBateladaWorkflowState implements OnDestroy {
   private readonly value = signal<ReportaBateladaWorkflowSnapshot>(this.emptySnapshot());
+  private readonly authSubscription: Subscription | null;
 
   constructor(@Optional() authSession?: AuthSessionService) {
-    authSession?.session$.subscribe(session => {
+    this.authSubscription = authSession?.session$.subscribe(session => {
       if (session === null) {
         this.clear();
       }
-    });
+    }) ?? null;
+  }
+
+  ngOnDestroy(): void {
+    this.authSubscription?.unsubscribe();
   }
 
   snapshot(): ReportaBateladaWorkflowSnapshot {
@@ -277,7 +283,6 @@ export class ReportaBateladaWorkflowState {
     this.value.update(snapshot => ({
       ...snapshot,
       estado: EstadoBatelada.Iniciando,
-      asyncState: 'carregando',
       lastOperationalState: EstadoBatelada.BateladaPreparada,
       errorMessage: '',
     }));
@@ -292,7 +297,6 @@ export class ReportaBateladaWorkflowState {
     this.value.update(snapshot => ({
       ...snapshot,
       estado: EstadoBatelada.BateladaIniciada,
-      asyncState: 'sucesso',
       lastOperationalState: EstadoBatelada.BateladaIniciada,
       errorMessage: '',
       batchId: inicio.batchId,
@@ -312,7 +316,6 @@ export class ReportaBateladaWorkflowState {
     this.value.update(snapshot => ({
       ...snapshot,
       estado: snapshot.lastOperationalState,
-      asyncState: 'erro',
       errorMessage: message,
       inicio: null,
     }));
