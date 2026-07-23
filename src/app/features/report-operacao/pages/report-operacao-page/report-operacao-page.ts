@@ -11,10 +11,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import {
+  PoButtonModule,
   PoDialogService,
   PoLoadingModule,
   PoNotificationService,
   PoPageModule,
+  PoWidgetModule,
 } from '@po-ui/ng-components';
 
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
@@ -53,8 +55,10 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
     RefugoSlide,
     ReporteSlide,
     ReportActions,
+    PoButtonModule,
     PoLoadingModule,
     PoPageModule,
+    PoWidgetModule,
   ],
   templateUrl: './report-operacao-page.html',
   styleUrls: ['./report-operacao-page.css'],
@@ -290,6 +294,15 @@ export class ReportOperacaoPage implements OnInit {
     );
   }
 
+  abrirReporteComRefugo(): void {
+    if (this.reporteDisabled) {
+      return;
+    }
+
+    this.abrirReporte();
+    this.abrirRefugoDoReporte();
+  }
+
   alterarTipoResponsavel(tipo: TipoResponsavelOperacao): void {
     if (this.operacao?.dataInicio || this.isBusy) {
       return;
@@ -333,9 +346,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   abrirRefugo(): void {
-    if (this.operacao && this.canOpenAuxiliaryFlows) {
-      this.refugoSlide?.abrir(this.operacao.quantidadeRefugo, this.refugoItens);
-    }
+    this.abrirReporteComRefugo();
   }
 
   registrarRefugo(refugo: RefugoRegistrado): void {
@@ -343,32 +354,9 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
 
-    if (this.refugoEmEdicaoParaReporte) {
-      this.refugoEmEdicaoParaReporte = false;
-      this.reporteSlide?.aplicarRefugo(refugo.itens);
-      this.feedback = 'Composição de refugo adicionada ao reporte em edição.';
-      this.changeDetector.markForCheck();
-      return;
-    }
-
-    const previous = this.operacao;
-    this.operacao = { ...this.operacao, quantidadeRefugo: refugo.quantidade };
-    const validation = this.reportOperacaoService.validarReporte(this.operacao);
-
-    if (validation) {
-      this.operacao = previous;
-      this.feedback = validation;
-      this.notification.warning(validation);
-      this.changeDetector.markForCheck();
-      return;
-    }
-
-    this.refugoItens = refugo.itens.map(item => ({ ...item }));
-    this.ultimoMotivoRefugo = refugo.motivo;
-    this.workflowState.updateOperation(this.operacao);
-    this.workflowState.setScrap(this.refugoItens, this.ultimoMotivoRefugo);
-    this.feedback = 'Refugo registrado no painel lateral.';
-    this.notification.success('Refugo registrado.');
+    this.refugoEmEdicaoParaReporte = false;
+    this.reporteSlide?.aplicarRefugo(refugo.itens);
+    this.feedback = 'Composição de refugo adicionada ao reporte em edição.';
     this.changeDetector.markForCheck();
   }
 
@@ -377,7 +365,8 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   abrirRetrabalho(): void {
-    this.feedback = 'Fluxo de retrabalho preparado para implementação futura.';
+    this.abrirReporte();
+    this.feedback = 'Informe a quantidade de retrabalho no reporte em edição.';
     this.notification.information(this.feedback);
   }
 
@@ -695,6 +684,8 @@ export class ReportOperacaoPage implements OnInit {
     const operation = this.operacao;
     const responsavel = this.responsavelSelecionado;
     const refugoItens = draft.refugoItens ?? [];
+    const idempotencyKey = draft.idempotencyKey
+      ?? `${operation?.op ?? 'sem-op'}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     if (!operation?.dataInicio || !operation.horaInicio || !responsavel || !this.canEditProduction) {
       const message = 'Inicie a operação com uma equipe ou operador válido antes de reportar.';
       this.feedback = message;
@@ -745,7 +736,9 @@ export class ReportOperacaoPage implements OnInit {
       quantidadeRefugo: draft.quantidadeRefugo,
     };
 
-    this.reportOperacaoService.reportarOperacao(this.toReportRequest(parcial, responsavel, refugoItens))
+    this.reportOperacaoService.reportarOperacao(
+      this.toReportRequest(parcial, responsavel, refugoItens, idempotencyKey),
+    )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: result => {
@@ -756,6 +749,7 @@ export class ReportOperacaoPage implements OnInit {
           ) return;
           const reporte: ReporteParcialOperacao = {
             id: result.apontamentoId,
+            idempotencyKey,
             registradoEm: result.reportadoEm,
             ...intervalStart,
             dataFim: end.dataFim ?? result.reportadoEm,
@@ -764,13 +758,10 @@ export class ReportOperacaoPage implements OnInit {
             refugoItens: refugoItens.map(item => ({ ...item })),
           };
           this.reportes = [...this.reportes, reporte];
-          this.operacao = {
+          this.operacao = this.withDerivedTotals({
             ...operation,
             ...end,
-            quantidadeAprovada: this.round3(operation.quantidadeAprovada + draft.quantidadeAprovada),
-            quantidadeRetrabalho: this.round3(operation.quantidadeRetrabalho + draft.quantidadeRetrabalho),
-            quantidadeRefugo: this.round3(operation.quantidadeRefugo + draft.quantidadeRefugo),
-          };
+          }, this.reportes);
           this.estado = EstadoOperacao.OperacaoIniciada;
           this.workflowState.setActiveOperation(this.operacao, this.estado);
           this.workflowState.addReporte(reporte);
@@ -880,7 +871,6 @@ export class ReportOperacaoPage implements OnInit {
     this.workCenterCode = snapshot.workCenter?.code ?? '';
     this.orders = snapshot.orders.map(order => ({ ...order }));
     this.selectedOrderIds = new Set(snapshot.selectedOrderIds);
-    this.operacao = snapshot.operation ? { ...snapshot.operation } : null;
     this.estado = snapshot.operationState === EstadoOperacao.Reportando
       ? (snapshot.operation?.dataInicio ? EstadoOperacao.OperacaoIniciada : EstadoOperacao.OPEncontrada)
       : snapshot.operationState;
@@ -893,11 +883,23 @@ export class ReportOperacaoPage implements OnInit {
       dataFim: new Date(reporte.dataFim),
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }));
+    this.operacao = snapshot.operation
+      ? this.withDerivedTotals({ ...snapshot.operation }, this.reportes)
+      : null;
     this.tipoResponsavel = snapshot.responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = snapshot.responsavel?.codigo ?? '';
     if (snapshot.operation) {
       if (snapshot.operationState === EstadoOperacao.Reportando) {
-        this.workflowState.setActiveOperation(snapshot.operation, this.estado);
+        this.workflowState.setActiveOperation(this.operacao!, this.estado);
+      } else if (
+        this.operacao
+        && (
+          this.operacao.quantidadeAprovada !== snapshot.operation.quantidadeAprovada
+          || this.operacao.quantidadeRetrabalho !== snapshot.operation.quantidadeRetrabalho
+          || this.operacao.quantidadeRefugo !== snapshot.operation.quantidadeRefugo
+        )
+      ) {
+        this.workflowState.updateOperation(this.operacao);
       }
       this.consultaEstado = 'ordens-disponiveis';
       this.feedback = 'Apontamento restaurado.';
@@ -936,8 +938,10 @@ export class ReportOperacaoPage implements OnInit {
     operation: ReportOperacao,
     responsavel: ResponsavelOperacao,
     refugoItens: ReportarOperacaoRequest['refugoItens'],
+    idempotencyKey: string,
   ): ReportarOperacaoRequest {
     return {
+      idempotencyKey,
       ordem: operation.ordem,
       op: operation.op,
       split: operation.split,
@@ -963,6 +967,24 @@ export class ReportOperacaoPage implements OnInit {
 
   private round3(value: number): number {
     return Math.round((value + Number.EPSILON) * 1000) / 1000;
+  }
+
+  private withDerivedTotals(
+    operation: ReportOperacao,
+    reportes: ReadonlyArray<ReporteParcialOperacao>,
+  ): ReportOperacao {
+    return {
+      ...operation,
+      quantidadeAprovada: this.round3(
+        reportes.reduce((total, reporte) => total + reporte.quantidadeAprovada, 0),
+      ),
+      quantidadeRetrabalho: this.round3(
+        reportes.reduce((total, reporte) => total + reporte.quantidadeRetrabalho, 0),
+      ),
+      quantidadeRefugo: this.round3(
+        reportes.reduce((total, reporte) => total + reporte.quantidadeRefugo, 0),
+      ),
+    };
   }
 
   private loadResponsaveis(): void {

@@ -74,6 +74,7 @@ export interface RefugoItemRequest {
 }
 
 export interface ReportarOperacaoRequest {
+  readonly idempotencyKey: string;
   readonly ordem: string;
   readonly op: string;
   readonly split: string;

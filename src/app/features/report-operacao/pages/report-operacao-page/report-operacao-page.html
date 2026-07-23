@@ -57,6 +57,29 @@
         (retryResponsaveis)="retryResponsaveis()"
       ></app-operacao-info-card>
 
+      <po-widget p-title="Ações Auxiliares">
+        <div class="report-operacao__auxiliary-actions">
+          <po-button
+            p-label="Parada"
+            p-kind="secondary"
+            [p-disabled]="!canOpenAuxiliaryFlows"
+            (p-click)="abrirParada()"
+          ></po-button>
+          <po-button
+            p-label="Refugo"
+            p-kind="secondary"
+            [p-disabled]="!canOpenAuxiliaryFlows"
+            (p-click)="abrirReporteComRefugo()"
+          ></po-button>
+          <po-button
+            p-label="Retrabalho"
+            p-kind="secondary"
+            [p-disabled]="!canOpenAuxiliaryFlows"
+            (p-click)="abrirRetrabalho()"
+          ></po-button>
+        </div>
+      </po-widget>
+
     }
 
     <app-report-actions

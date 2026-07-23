@@ -22,6 +22,7 @@ import {
 } from '../../models/report-operacao.model';
 
 export interface ReporteParcialDraft {
+  readonly idempotencyKey?: string;
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
@@ -48,6 +49,7 @@ export class ReporteSlide {
   historico: ReadonlyArray<ReporteParcialOperacao> = [];
   salvando = false;
   validationMessage = '';
+  private idempotencyKey = '';
 
   constructor(
     private readonly changeDetector: ChangeDetectorRef,
@@ -76,6 +78,7 @@ export class ReporteSlide {
     valor: number | null | undefined,
   ): void {
     this[campo] = typeof valor === 'number' && Number.isFinite(valor) ? Math.max(0, valor) : 0;
+    this.idempotencyKey = '';
     this.validationMessage = '';
   }
 
@@ -110,7 +113,9 @@ export class ReporteSlide {
 
     this.salvando = true;
     this.validationMessage = '';
+    this.idempotencyKey ||= this.createIdempotencyKey();
     this.reporteSolicitado.emit({
+      idempotencyKey: this.idempotencyKey,
       quantidadeAprovada: this.quantidadeAprovada,
       quantidadeRetrabalho: this.quantidadeRetrabalho,
       quantidadeRefugo: this.quantidadeRefugo,
@@ -143,6 +148,7 @@ export class ReporteSlide {
       this.refugoItens.reduce((total, item) => total + item.quantidade, 0),
     );
     this.validationMessage = '';
+    this.idempotencyKey = '';
     this.changeDetector.markForCheck();
   }
 
@@ -186,6 +192,7 @@ export class ReporteSlide {
     this.quantidadeRetrabalho = 0;
     this.quantidadeRefugo = 0;
     this.refugoItens = [];
+    this.idempotencyKey = '';
     this.validationMessage = '';
   }
 
@@ -202,5 +209,10 @@ export class ReporteSlide {
       && this.refugoItens.every(item => Number.isFinite(item.quantidade) && item.quantidade > 0)
       && this.round3(this.refugoItens.reduce((total, item) => total + item.quantidade, 0))
         === this.round3(this.quantidadeRefugo);
+  }
+
+  private createIdempotencyKey(): string {
+    return globalThis.crypto?.randomUUID?.()
+      ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 }

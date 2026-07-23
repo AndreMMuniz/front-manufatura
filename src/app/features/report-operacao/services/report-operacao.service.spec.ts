@@ -159,6 +159,34 @@ describe('ReportOperacaoService', () => {
     ]));
     await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([]);
   });
+
+  it('returns the same ERP report for retries with the same idempotency key', async () => {
+    const request = {
+      idempotencyKey: 'retry-1',
+      ordem: '450001',
+      op: 'OP-10458',
+      split: '01',
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+      dataInicio: new Date(2026, 6, 30, 8),
+      horaInicio: '08:00',
+      dataFim: new Date(2026, 6, 30, 9),
+      horaFim: '09:00',
+      operador: 'Ana Silva',
+      equipe: '',
+      tipoResponsavel: 'OPERADOR' as const,
+      codigoResponsavel: 'OP-001',
+      ct: 'CT-EXT-01',
+    };
+
+    const first = await firstValueFrom(service.reportarOperacao(request));
+    const retry = await firstValueFrom(service.reportarOperacao(request));
+
+    expect(retry.apontamentoId).toBe(first.apontamentoId);
+    expect(retry.reportadoEm).toEqual(first.reportadoEm);
+  });
 });
 
 function baseOperacao(overrides: Partial<ReportOperacao> = {}): ReportOperacao {

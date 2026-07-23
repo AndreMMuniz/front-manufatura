@@ -462,6 +462,7 @@ describe('ReportOperacaoPage', () => {
     workflow.setActiveOperation(baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' }), EstadoOperacao.OperacaoIniciada);
     workflow.addReporte({
       id: 'APT-RESTORED',
+      idempotencyKey: 'restored-1',
       registradoEm: new Date(2026, 6, 23, 9),
       dataInicio: new Date(2026, 6, 23, 8),
       horaInicio: '08:00',

@@ -73,6 +73,7 @@ export interface ReporteRefugoItem {
 
 export interface ReporteParcialOperacao {
   readonly id: string;
+  readonly idempotencyKey: string;
   readonly registradoEm: Date;
   readonly dataInicio: Date;
   readonly horaInicio: string;

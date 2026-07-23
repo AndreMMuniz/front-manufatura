@@ -43,6 +43,7 @@ describe('ReportOperacaoWorkflowState', () => {
     state.setResponsavel({ tipo: 'OPERADOR', codigo: '001', nome: 'Jose Ribeiro Neto' });
     state.addReporte({
       id: 'APT-1',
+      idempotencyKey: 'draft-1',
       registradoEm: new Date(2026, 6, 23, 10),
       dataInicio: new Date(2026, 6, 23, 9),
       horaInicio: '09:00',
@@ -71,8 +72,9 @@ describe('ReportOperacaoWorkflowState', () => {
     const state = queuedState();
     const registradoEm = new Date(2026, 6, 23, 10);
     state.setResponsavel({ tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem Zap' });
-    state.addReporte({
+    const reporte = {
       id: 'APT-1',
+      idempotencyKey: 'draft-1',
       registradoEm,
       dataInicio: new Date(2026, 6, 23, 9),
       horaInicio: '09:00',
@@ -82,7 +84,9 @@ describe('ReportOperacaoWorkflowState', () => {
       quantidadeRetrabalho: 1,
       quantidadeRefugo: 0,
       refugoItens: [],
-    });
+    };
+    state.addReporte(reporte);
+    state.addReporte({ ...reporte, id: 'APT-RETRY' });
 
     const first = state.snapshot();
     const second = state.snapshot();
@@ -91,6 +95,7 @@ describe('ReportOperacaoWorkflowState', () => {
     expect(first.responsavel).not.toBe(second.responsavel);
     expect(first.reportes[0]).not.toBe(second.reportes[0]);
     expect(first.reportes[0].registradoEm).not.toBe(registradoEm);
+    expect(first.reportes).toHaveLength(1);
   });
 
   it('preserves the complete workflow until an explicit change or logout', () => {

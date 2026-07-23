@@ -25,6 +25,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ReportOperacaoService {
   private readonly workCenterService = inject(WorkCenterService);
+  private readonly reportesPorIdempotencia = new Map<string, ReporteResultado>();
 
   private readonly areas: ReadonlyArray<AreaProducaoResponseDTO> = [
     { code: '4001', description: 'Produção' },
@@ -199,10 +200,17 @@ export class ReportOperacaoService {
   }
 
   reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteResultado> {
-    return of({
+    const existing = this.reportesPorIdempotencia.get(request.idempotencyKey);
+    if (existing) {
+      return of({ ...existing, reportadoEm: new Date(existing.reportadoEm) }).pipe(delay(300));
+    }
+
+    const result = {
       apontamentoId: `${request.op}-${Date.now()}`,
       reportadoEm: new Date(),
-    }).pipe(delay(300));
+    };
+    this.reportesPorIdempotencia.set(request.idempotencyKey, result);
+    return of({ ...result, reportadoEm: new Date(result.reportadoEm) }).pipe(delay(300));
   }
 
   encerrarOperacao(request: EncerrarOperacaoRequest): Observable<ReporteResultado> {

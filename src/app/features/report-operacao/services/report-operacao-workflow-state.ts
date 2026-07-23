@@ -138,7 +138,10 @@ export class ReportOperacaoWorkflowState {
   addReporte(reporte: ReporteParcialOperacao): void {
     this.value.update(current => ({
       ...current,
-      reportes: [...current.reportes, this.cloneReporte(reporte)],
+      reportes: current.reportes.some(item =>
+        item.id === reporte.id || item.idempotencyKey === reporte.idempotencyKey)
+        ? current.reportes
+        : [...current.reportes, this.cloneReporte(reporte)],
     }));
   }
 

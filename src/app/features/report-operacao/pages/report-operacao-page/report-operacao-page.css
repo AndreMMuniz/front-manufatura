@@ -26,3 +26,15 @@
   background: var(--app-color-background-soft);
   font-weight: 700;
 }
+
+.report-operacao__auxiliary-actions {
+  display: grid;
+  gap: var(--app-space-sm);
+}
+
+@media (min-width: 520px) {
+  .report-operacao__auxiliary-actions {
+    grid-template-columns: repeat(3, auto);
+    justify-content: start;
+  }
+}

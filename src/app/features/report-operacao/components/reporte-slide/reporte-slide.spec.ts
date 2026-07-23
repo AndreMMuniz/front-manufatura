@@ -33,6 +33,7 @@ describe('ReporteSlide', () => {
 
     component.confirmarReporte({
       id: 'APT-1',
+      idempotencyKey: 'draft-1',
       registradoEm: new Date(2026, 6, 23, 10),
       dataInicio: new Date(2026, 6, 23, 9),
       horaInicio: '09:00',
