@@ -212,7 +212,10 @@ export class ReportOperacaoService {
     const acumulado =
       operacao.quantidadeAprovada + operacao.quantidadeRetrabalho + operacao.quantidadeRefugo;
 
-    if ([quantidadeAprovada, quantidadeRetrabalho, quantidadeRefugo].some(quantidade => quantidade < 0)) {
+    if (
+      [quantidadeAprovada, quantidadeRetrabalho, quantidadeRefugo]
+        .some(quantidade => !Number.isFinite(quantidade) || quantidade < 0)
+    ) {
       return 'As quantidades não podem ser negativas.';
     }
 

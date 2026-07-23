@@ -13,7 +13,7 @@
       [p-options]="tipoOptions"
       [p-disabled]="responsavelDisabled"
       [ngModel]="tipoResponsavel"
-      (ngModelChange)="tipoResponsavelChange.emit($event)"
+      (ngModelChange)="changeTipoResponsavel($event)"
     ></po-select>
     <po-select
       name="responsavelOperacao"
@@ -21,7 +21,7 @@
       [p-options]="responsavelOptions"
       [p-disabled]="responsavelDisabled"
       [ngModel]="responsavelCodigo"
-      (ngModelChange)="responsavelChange.emit($event)"
+      (ngModelChange)="changeResponsavel($event)"
     ></po-select>
     <po-input name="turno" p-label="Turno" [p-readonly]="true" [ngModel]="operacao?.turno ?? ''"></po-input>
   </div>

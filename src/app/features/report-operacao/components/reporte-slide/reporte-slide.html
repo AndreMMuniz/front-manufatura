@@ -4,25 +4,28 @@
       <po-number
         name="reporteQuantidadeAprovada"
         p-label="Qtde Aprovada"
-        p-min="0"
+        [p-min]="0"
         [p-disabled]="salvando"
-        [(ngModel)]="quantidadeAprovada"
+        [ngModel]="quantidadeAprovada"
+        (ngModelChange)="atualizarQuantidade('quantidadeAprovada', $event)"
       ></po-number>
 
       <po-number
         name="reporteQuantidadeRetrabalho"
         p-label="Qtde Retrabalho"
-        p-min="0"
+        [p-min]="0"
         [p-disabled]="salvando"
-        [(ngModel)]="quantidadeRetrabalho"
+        [ngModel]="quantidadeRetrabalho"
+        (ngModelChange)="atualizarQuantidade('quantidadeRetrabalho', $event)"
       ></po-number>
 
       <po-number
         name="reporteQuantidadeRefugo"
         p-label="Qtde Refugo"
-        p-min="0"
+        [p-min]="0"
         [p-disabled]="salvando"
-        [(ngModel)]="quantidadeRefugo"
+        [ngModel]="quantidadeRefugo"
+        (ngModelChange)="atualizarQuantidade('quantidadeRefugo', $event)"
       ></po-number>
     </div>
 

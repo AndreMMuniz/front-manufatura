@@ -26,9 +26,12 @@ describe('ReportOperacaoPage', () => {
     pesquisarCentrosTrabalho: ReturnType<typeof vi.fn>;
     listarOrdensPorCentro: ReturnType<typeof vi.fn>;
     carregarOrdemSelecionada: ReturnType<typeof vi.fn>;
+    listarResponsaveis: ReturnType<typeof vi.fn>;
     iniciarOperacao: ReturnType<typeof vi.fn>;
     reportarOperacao: ReturnType<typeof vi.fn>;
+    encerrarOperacao: ReturnType<typeof vi.fn>;
     validarReporte: ReturnType<typeof vi.fn>;
+    validarReporteParcial: ReturnType<typeof vi.fn>;
   };
 
   const orders: OrdemCentroTrabalho[] = [
@@ -47,9 +50,15 @@ describe('ReportOperacaoPage', () => {
       listarOrdensPorCentro: vi.fn(() => of(orders)),
       carregarOrdemSelecionada: vi.fn((order: OrdemCentroTrabalho) =>
         of({ sucesso: true, operacao: baseOperacao({ ordem: order.ordem, op: order.itemOp.split(' / ')[1] }) })),
+      listarResponsaveis: vi.fn(() => of([
+        { tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' },
+        { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Equipe A' },
+      ])),
       iniciarOperacao: vi.fn(request => of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio })),
       reportarOperacao: vi.fn(() => of({ apontamentoId: 'APT-1', reportadoEm: new Date() })),
+      encerrarOperacao: vi.fn(() => of({ apontamentoId: 'ENC-1', reportadoEm: new Date() })),
       validarReporte: vi.fn(() => ''),
+      validarReporteParcial: vi.fn(() => ''),
     };
 
     await TestBed.configureTestingModule({
@@ -215,7 +224,7 @@ describe('ReportOperacaoPage', () => {
     expect(workflow.snapshot().activeOrder).toBeNull();
   });
 
-  it('advances after an individual report and does not aggregate or navigate away', () => {
+  it('keeps the operation active and accumulates multiple partial reports', () => {
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(orders.map(order => order.id)));
@@ -223,16 +232,20 @@ describe('ReportOperacaoPage', () => {
     component.estado = EstadoOperacao.OperacaoIniciada;
     component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
 
-    component.executePrimaryAction();
+    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+    component.salvarReporte({ quantidadeAprovada: 2, quantidadeRetrabalho: 1, quantidadeRefugo: 0 });
 
-    expect(service.reportarOperacao).toHaveBeenCalledTimes(1);
-    expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(2);
-    expect(workflow.snapshot().activeOrder?.id).toBe('second');
-    expect(component.operacao?.ordem).toBe('450002');
+    expect(service.reportarOperacao).toHaveBeenCalledTimes(2);
+    expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(1);
+    expect(workflow.snapshot().activeOrder?.id).toBe('first');
+    expect(component.operacao?.ordem).toBe('450001');
+    expect(component.operacao?.quantidadeAprovada).toBe(3);
+    expect(component.operacao?.quantidadeRetrabalho).toBe(1);
+    expect(component.reportes).toHaveLength(2);
     expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
   });
 
-  it('refreshes the Center list after the last report and remains on the page', () => {
+  it('refreshes the Center list after confirming the last operation ending', () => {
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -240,15 +253,17 @@ describe('ReportOperacaoPage', () => {
     component.estado = EstadoOperacao.OperacaoIniciada;
     component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
 
-    component.executePrimaryAction();
+    component.solicitarEncerramento();
+    vi.mocked(dialog.confirm).mock.calls[0][0].confirm();
 
+    expect(service.encerrarOperacao).toHaveBeenCalledTimes(1);
     expect(service.listarOrdensPorCentro).toHaveBeenCalledTimes(2);
     expect(component.operacao).toBeNull();
     expect(workflow.snapshot().activeOrder).toBeNull();
     expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
   });
 
-  it('preserves operation, queue and scrap when reporting fails', () => {
+  it('preserves operation, queue and history when a partial report fails', () => {
     vi.mocked(service.reportarOperacao).mockReturnValue(throwError(() => new Error('network')));
     fixture.detectChanges();
     selectContextAndConsult();
@@ -256,18 +271,12 @@ describe('ReportOperacaoPage', () => {
     component.openSelectedOrders();
     component.estado = EstadoOperacao.OperacaoIniciada;
     component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
-    component.registrarRefugo({
-      quantidade: 2,
-      motivo: '05 - Borra',
-      itens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
-    });
-
-    component.executePrimaryAction();
+    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 2 });
 
     expect(component.estado).toBe(EstadoOperacao.Erro);
-    expect(component.operacao?.quantidadeRefugo).toBe(2);
+    expect(component.operacao?.quantidadeRefugo).toBe(0);
     expect(workflow.snapshot().queue).toHaveLength(1);
-    expect(workflow.snapshot().scrapItems).toHaveLength(1);
+    expect(workflow.snapshot().reportes).toHaveLength(0);
   });
 
   it('asks before discarding an active workflow and preserves it until confirmation', () => {
@@ -304,11 +313,11 @@ describe('ReportOperacaoPage', () => {
     expect(card.consultDisabled).toBe(true);
   });
 
-  it('keeps Back and Exit actions available before an operation is loaded', () => {
+  it('renders exactly the three requested operation actions', () => {
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Voltar');
-    expect(fixture.nativeElement.textContent).toContain('Sair');
+    const actions = fixture.debugElement.queryAll(By.css('app-report-actions po-button'));
+    expect(actions.map(action => action.attributes['p-label'])).toEqual(['Iniciar', 'Reporte', 'Encerrar']);
   });
 
   it('preserves a restored queue and exposes recovery when its Center is unavailable', () => {
@@ -339,7 +348,7 @@ describe('ReportOperacaoPage', () => {
     expect(component.queueRemaining).toBe(2);
   });
 
-  it('stores scrap composition and includes it in the individual payload', () => {
+  it('sends only the incremental quantities in each report payload', () => {
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -352,24 +361,37 @@ describe('ReportOperacaoPage', () => {
       horaFim: '08:30',
       quantidadeAprovada: 1,
     });
-    component.registrarRefugo({
-      quantidade: 2.05,
-      motivo: '05 - Borra, 32 - Varredura',
-      itens: [
-        { codigo: '05', descricao: 'Borra', quantidade: 0.55 },
-        { codigo: '32', descricao: 'Varredura', quantidade: 1.5 },
-      ],
+    component.salvarReporte({
+      quantidadeAprovada: 2,
+      quantidadeRetrabalho: 0.5,
+      quantidadeRefugo: 1.5,
     });
 
-    component.executePrimaryAction();
-
     expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
-      quantidadeRefugo: 2.05,
-      refugoItens: [
-        { codigo: '05', descricao: 'Borra', quantidade: 0.55 },
-        { codigo: '32', descricao: 'Varredura', quantidade: 1.5 },
-      ],
+      quantidadeAprovada: 2,
+      quantidadeRetrabalho: 0.5,
+      quantidadeRefugo: 1.5,
     }));
+  });
+
+  it('requires a selected operator or team before starting and locks it after start', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('');
+
+    component.iniciarOperacao();
+
+    expect(service.iniciarOperacao).not.toHaveBeenCalled();
+
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+
+    expect(service.iniciarOperacao).toHaveBeenCalledTimes(1);
+    expect(component.operacao?.dataInicio).toBeInstanceOf(Date);
+    expect(component.iniciarDisabled).toBe(true);
+    expect(component.reporteDisabled).toBe(false);
   });
 
   function selectContextAndConsult(): void {

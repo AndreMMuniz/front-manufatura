@@ -52,6 +52,14 @@ export class ReporteSlide {
     return this.quantidadeAprovada + this.quantidadeRetrabalho + this.quantidadeRefugo;
   }
 
+  atualizarQuantidade(
+    campo: 'quantidadeAprovada' | 'quantidadeRetrabalho' | 'quantidadeRefugo',
+    valor: number | null | undefined,
+  ): void {
+    this[campo] = typeof valor === 'number' && Number.isFinite(valor) ? valor : 0;
+    this.validationMessage = '';
+  }
+
   abrir(reportes: ReadonlyArray<ReporteParcialOperacao>): void {
     this.historico = reportes.map(reporte => ({
       ...reporte,

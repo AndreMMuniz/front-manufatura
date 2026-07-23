@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { PoFieldModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoFieldModule, PoSelectOption, PoWidgetModule } from '@po-ui/ng-components';
 
 import {
   ReportOperacao,
@@ -26,17 +26,27 @@ export class OperacaoInfoCard {
   @Output() tipoResponsavelChange = new EventEmitter<TipoResponsavelOperacao>();
   @Output() responsavelChange = new EventEmitter<string>();
 
-  readonly tipoOptions = [
+  readonly tipoOptions: ReadonlyArray<PoSelectOption> = [
     { label: 'Operador', value: 'OPERADOR' },
     { label: 'Equipe', value: 'EQUIPE' },
   ];
 
-  get responsavelOptions(): ReadonlyArray<{ label: string; value: string }> {
+  get responsavelOptions(): ReadonlyArray<PoSelectOption> {
     return this.responsaveis
       .filter(responsavel => responsavel.tipo === this.tipoResponsavel)
       .map(responsavel => ({
         label: `${responsavel.codigo} - ${responsavel.nome}`,
         value: responsavel.codigo,
       }));
+  }
+
+  changeTipoResponsavel(value: string): void {
+    if (value === 'OPERADOR' || value === 'EQUIPE') {
+      this.tipoResponsavelChange.emit(value);
+    }
+  }
+
+  changeResponsavel(value: string): void {
+    this.responsavelChange.emit(value ?? '');
   }
 }

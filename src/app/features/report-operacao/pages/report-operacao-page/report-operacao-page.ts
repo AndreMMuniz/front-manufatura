@@ -606,8 +606,8 @@ export class ReportOperacaoPage implements OnInit {
           ...this.operacao,
           dataInicio: start.dataInicio,
           horaInicio: start.horaInicio,
-          dataFim: start.dataInicio,
-          horaFim: this.formatTime(start.dataInicio),
+          dataFim: undefined,
+          horaFim: '',
         };
         this.estado = EstadoOperacao.OperacaoIniciada;
         this.workflowState.setActiveOperation(this.operacao, this.estado);
@@ -632,7 +632,7 @@ export class ReportOperacaoPage implements OnInit {
 
   private reportOperation(draft: ReporteParcialDraft): void {
     if (!this.operacao) return;
-    const end = this.ensureEnd(this.operacao);
+    const end = this.ensureEnd();
     const validation = this.reportOperacaoService.validarReporteParcial(
       this.operacao,
       draft.quantidadeAprovada,
@@ -698,7 +698,7 @@ export class ReportOperacaoPage implements OnInit {
 
   private endOperation(): void {
     if (!this.operacao) return;
-    const end = this.ensureEnd(this.operacao);
+    const end = this.ensureEnd();
     this.encerrando = true;
     this.estado = EstadoOperacao.Reportando;
     this.workflowState.setOperationState(this.estado);
@@ -800,11 +800,11 @@ export class ReportOperacaoPage implements OnInit {
     this.operationRequest += 1;
   }
 
-  private ensureEnd(operation: ReportOperacao): Pick<ReportOperacao, 'dataFim' | 'horaFim'> {
+  private ensureEnd(): Pick<ReportOperacao, 'dataFim' | 'horaFim'> {
     const now = new Date();
     return {
-      dataFim: operation.dataFim ?? now,
-      horaFim: operation.horaFim || this.formatTime(now),
+      dataFim: now,
+      horaFim: this.formatTime(now),
     };
   }
 
