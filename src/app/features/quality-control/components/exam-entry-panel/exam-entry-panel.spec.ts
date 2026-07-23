@@ -124,6 +124,26 @@ describe('ExamEntryPanel', () => {
     expect(component.outOfRangeMessage).toBe('Valores fora da variação permitida');
   });
 
+  it('stays on a completed rejected exam instead of advancing to another exam', async () => {
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 0,
+      maximum: 5,
+      status: 'REJECTED',
+      savedAt: new Date(),
+    });
+    state.openPanel('a-20');
+    component.updateMinimum('1');
+    component.updateMaximum('5');
+
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(state.selectedComponentId()).toBe('a-20');
+    expect(component.exam?.id).toBe('exam-a');
+    expect(component.progressPercentage).toBe(100);
+    expect(component.showStopRoute).toBe(true);
+    expect(component.canCompleteExam).toBe(false);
+  });
+
   it('does not allow the operator to change or resend a confirmed rejected measurement', async () => {
     const saveSpy = vi.spyOn(service, 'saveMeasurement');
     state.applyMeasurement('exam-b', 'b-10', {
@@ -186,7 +206,7 @@ describe('ExamEntryPanel', () => {
     expect(state.completedCount()).toBe(0);
   });
 
-  it('allows completing an exam when all measurements are saved with mixed results', () => {
+  it('blocks completion and shows the stop action when a complete exam has mixed results', () => {
     state.openPanel('a-10');
     state.applyMeasurement('exam-a', 'a-10', {
       minimum: 0,
@@ -203,7 +223,102 @@ describe('ExamEntryPanel', () => {
 
     expect(component.completedCount).toBe(2);
     expect(component.progressPercentage).toBe(100);
-    expect(component.canCompleteExam).toBe(true);
+    expect(component.hasRejectedMeasurement).toBe(true);
+    expect(component.showStopRoute).toBe(true);
+    expect(component.canCompleteExam).toBe(false);
+
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Observação da parada');
+    expect(fixture.nativeElement.textContent).toContain('Parar roteiro');
+  });
+
+  it('requires a stop reason before calling the service', () => {
+    state.openPanel('a-10');
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 0, maximum: 5, status: 'REJECTED', savedAt: new Date(),
+    });
+    state.applyMeasurement('exam-a', 'a-20', {
+      minimum: 1, maximum: 5, status: 'APPROVED', savedAt: new Date(),
+    });
+    const stopSpy = vi.spyOn(service, 'stopInspectionRoute');
+
+    component.stopRoute();
+
+    expect(stopSpy).not.toHaveBeenCalled();
+    expect(component.stopValidationMessage).toBe('Informe o motivo da parada do roteiro.');
+    expect(state.route()).toEqual(route);
+  });
+
+  it('stops a rejected route only after the service confirms it', () => {
+    state.openPanel('a-10');
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 0, maximum: 5, status: 'REJECTED', savedAt: new Date(),
+    });
+    state.applyMeasurement('exam-a', 'a-20', {
+      minimum: 1, maximum: 5, status: 'APPROVED', savedAt: new Date(),
+    });
+    const stopSpy = vi.spyOn(service, 'stopInspectionRoute').mockReturnValue(of({
+      routeNumber: route.routeNumber,
+      examId: 'exam-a',
+      reason: 'Aguardar conferência do supervisor',
+      stoppedAt: new Date(),
+    }));
+    component.updateStopReason('  Aguardar conferência do supervisor  ');
+
+    component.stopRoute();
+
+    expect(stopSpy).toHaveBeenCalledWith({
+      routeNumber: route.routeNumber,
+      examId: 'exam-a',
+      reason: 'Aguardar conferência do supervisor',
+    });
+    expect(state.route()).toBeUndefined();
+    expect(state.exams()).toEqual([]);
+    expect(state.panelOpen()).toBe(false);
+    expect(state.routeFeedback()).toContain('Roteiro parado');
+  });
+
+  it('retains the route, measurements and stop reason when stopping fails', () => {
+    state.openPanel('a-10');
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 0, maximum: 5, status: 'REJECTED', savedAt: new Date(),
+    });
+    state.applyMeasurement('exam-a', 'a-20', {
+      minimum: 1, maximum: 5, status: 'APPROVED', savedAt: new Date(),
+    });
+    vi.spyOn(service, 'stopInspectionRoute').mockReturnValue(
+      throwError(() => new Error('offline')),
+    );
+    component.updateStopReason('Aguardar supervisor');
+
+    component.stopRoute();
+
+    expect(state.route()).toEqual(route);
+    expect(state.componentById('a-10')?.measurement?.status).toBe('REJECTED');
+    expect(state.panelOpen()).toBe(true);
+    expect(component.stopReason).toBe('Aguardar supervisor');
+    expect(state.isStopping()).toBe(false);
+    expect(state.examFeedback()).toBe('Nao foi possivel parar o roteiro. Tente novamente.');
+  });
+
+  it('blocks characteristic navigation while the route stop is pending', () => {
+    state.openPanel('a-10');
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 0, maximum: 5, status: 'REJECTED', savedAt: new Date(),
+    });
+    state.applyMeasurement('exam-a', 'a-20', {
+      minimum: 1, maximum: 5, status: 'APPROVED', savedAt: new Date(),
+    });
+
+    expect(component.canGoNext).toBe(true);
+    state.isStopping.set(true);
+    expect(component.canGoNext).toBe(false);
+
+    state.isStopping.set(false);
+    state.openPanel('a-20');
+    expect(component.canGoPrevious).toBe(true);
+    state.isStopping.set(true);
+    expect(component.canGoPrevious).toBe(false);
   });
 
   it('saves with the selected operator and updates the shared list immutably', async () => {

@@ -39,6 +39,8 @@ export class ExamEntryPanel implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
 
   validationMessage = '';
+  stopReason = '';
+  stopValidationMessage = '';
   private validationIsOutOfRange = false;
 
   ngAfterViewInit(): void {
@@ -62,9 +64,27 @@ export class ExamEntryPanel implements AfterViewInit {
   get progressText(): string { return this.characteristics.length ? `${this.currentIndex + 1} / ${this.characteristics.length}` : '0 / 0'; }
   get completedCount(): number { return this.characteristics.filter(item => Boolean(item.measurement)).length; }
   get progressPercentage(): number { return this.characteristics.length ? Math.round((this.completedCount / this.characteristics.length) * 100) : 0; }
-  get canGoPrevious(): boolean { return this.currentIndex > 0 && !this.workflow.isSaving(); }
-  get canGoNext(): boolean { return this.currentIndex >= 0 && this.currentIndex < this.characteristics.length - 1 && !this.workflow.isSaving(); }
-  get canCompleteExam(): boolean { return this.characteristics.length > 0 && this.completedCount === this.characteristics.length && !this.workflow.isBusy(); }
+  get canGoPrevious(): boolean { return this.currentIndex > 0 && !this.workflow.isBusy(); }
+  get canGoNext(): boolean {
+    return this.currentIndex >= 0
+      && this.currentIndex < this.characteristics.length - 1
+      && !this.workflow.isBusy();
+  }
+  get isExamComplete(): boolean {
+    return this.characteristics.length > 0 && this.completedCount === this.characteristics.length;
+  }
+  get hasRejectedMeasurement(): boolean {
+    return this.characteristics.some(item => item.measurement?.status === 'REJECTED');
+  }
+  get showStopRoute(): boolean {
+    return this.isExamComplete && this.hasRejectedMeasurement;
+  }
+  get canCompleteExam(): boolean {
+    return this.isExamComplete && !this.hasRejectedMeasurement && !this.workflow.isBusy();
+  }
+  get canStopRoute(): boolean {
+    return this.showStopRoute && !this.workflow.isBusy();
+  }
   get isCurrentMeasurementLocked(): boolean { return Boolean(this.currentCharacteristic?.measurement); }
   get hasOutOfRangeAlert(): boolean {
     return this.validationIsOutOfRange
@@ -142,7 +162,9 @@ export class ExamEntryPanel implements AfterViewInit {
         this.workflow.isSaving.set(false);
         this.workflow.examFeedback.set('Medição salva.');
         this.clearValidation();
-        this.workflow.moveToNextPending(characteristic.id);
+        if (!this.showStopRoute) {
+          this.workflow.moveToNextPending(characteristic.id);
+        }
       }),
       catchError(() => {
         this.workflow.isSaving.set(false);
@@ -159,6 +181,11 @@ export class ExamEntryPanel implements AfterViewInit {
 
   goNext(): void {
     if (this.canGoNext) { this.clearValidation(); this.workflow.moveWithinExam(1); }
+  }
+
+  updateStopReason(value: string): void {
+    this.stopReason = value;
+    if (value.trim()) this.stopValidationMessage = '';
   }
 
   closePanel(): void {
@@ -189,6 +216,38 @@ export class ExamEntryPanel implements AfterViewInit {
         error: () => {
           this.workflow.isFinishing.set(false);
           this.workflow.examFeedback.set('Nao foi possivel concluir o exame. Tente novamente.');
+        },
+      });
+  }
+
+  stopRoute(): void {
+    const route = this.workflow.route();
+    const exam = this.exam;
+    if (!route || !exam || !this.canStopRoute) return;
+
+    const reason = this.stopReason.trim();
+    if (!reason) {
+      this.stopValidationMessage = 'Informe o motivo da parada do roteiro.';
+      return;
+    }
+
+    this.stopValidationMessage = '';
+    this.workflow.isStopping.set(true);
+    this.workflow.examFeedback.set('Parando roteiro...');
+    this.qualityControlService.stopInspectionRoute({
+      routeNumber: route.routeNumber,
+      examId: exam.id,
+      reason,
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.workflow.completeRouteStop();
+          this.panelClosed.emit();
+        },
+        error: () => {
+          this.workflow.isStopping.set(false);
+          this.workflow.examFeedback.set('Nao foi possivel parar o roteiro. Tente novamente.');
         },
       });
   }

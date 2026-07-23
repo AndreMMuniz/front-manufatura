@@ -32,6 +32,7 @@ export class QualityControlWorkflowState {
   readonly isLoadingExams = signal(false);
   readonly isSaving = signal(false);
   readonly isFinishing = signal(false);
+  readonly isStopping = signal(false);
   readonly examLoadFailed = signal(false);
 
   private contextId = 0;
@@ -57,7 +58,12 @@ export class QualityControlWorkflowState {
       : 0,
   );
   readonly isBusy = computed(() =>
-    this.isSearching() || this.isGenerating() || this.isLoadingExams() || this.isSaving() || this.isFinishing(),
+    this.isSearching()
+      || this.isGenerating()
+      || this.isLoadingExams()
+      || this.isSaving()
+      || this.isFinishing()
+      || this.isStopping(),
   );
   readonly isDirty = computed(() =>
     Object.entries(this.drafts()).some(([componentId, draft]) => {
@@ -298,6 +304,12 @@ export class QualityControlWorkflowState {
     return next?.id;
   }
 
+  completeRouteStop(): void {
+    this.contextId += 1;
+    this.clearRouteContext();
+    this.routeFeedback.set('Roteiro parado. Gere um novo roteiro após a conferência do supervisor.');
+  }
+
   componentById(componentId: string | undefined): QualityExamComponent | undefined {
     return componentId
       ? this.exams().flatMap(exam => exam.components).find(component => component.id === componentId)
@@ -328,6 +340,7 @@ export class QualityControlWorkflowState {
     this.isLoadingExams.set(false);
     this.isSaving.set(false);
     this.isFinishing.set(false);
+    this.isStopping.set(false);
     this.examLoadFailed.set(false);
     this.examLoadSucceeded = false;
   }

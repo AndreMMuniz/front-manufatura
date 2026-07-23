@@ -45,8 +45,28 @@
     <po-progress [p-value]="progressPercentage" [p-text]="completedCount + ' de ' + characteristics.length + ' salvas'" p-aria-label="Progresso da digitação do exame"></po-progress>
   </po-widget>
 
-  <footer class="exam-entry__footer">
-    <po-button p-label="Fechar" p-kind="secondary" [p-disabled]="workflow.isSaving()" (p-click)="closePanel()"></po-button>
+  @if (showStopRoute) {
+    <div class="exam-entry__stop">
+      <po-textarea
+        name="stopReason"
+        p-label="Observação da parada"
+        p-placeholder="Informe o motivo da parada do roteiro"
+        p-required="true"
+        [p-disabled]="workflow.isStopping()"
+        [ngModel]="stopReason"
+        (ngModelChange)="updateStopReason($event)"
+      ></po-textarea>
+      @if (stopValidationMessage) {
+        <p class="exam-entry__validation" role="alert">{{ stopValidationMessage }}</p>
+      }
+    </div>
+  }
+
+  <footer class="exam-entry__footer" [class.exam-entry__footer--with-stop]="showStopRoute">
+    <po-button p-label="Fechar" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="closePanel()"></po-button>
     <po-button p-label="Concluir exame" p-kind="primary" [p-disabled]="!canCompleteExam" (p-click)="completeExam()"></po-button>
+    @if (showStopRoute) {
+      <po-button p-label="Parar roteiro" p-kind="secondary" [p-danger]="true" [p-disabled]="!canStopRoute" (p-click)="stopRoute()"></po-button>
+    }
   </footer>
 </section>

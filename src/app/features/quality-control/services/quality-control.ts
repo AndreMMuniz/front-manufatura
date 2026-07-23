@@ -21,6 +21,19 @@ import {
   SaveInspectionResult,
 } from '../models/inspection-record';
 
+export interface StopInspectionRouteRequest {
+  routeNumber: string;
+  examId: string;
+  reason: string;
+}
+
+export interface StopInspectionRouteResponse {
+  routeNumber: string;
+  examId: string;
+  reason: string;
+  stoppedAt: Date;
+}
+
 @Injectable({ providedIn: 'root' })
 export class QualityControlService {
   // API facade: keep the UI bound to these contracts while Datasul endpoints are unavailable.
@@ -188,6 +201,15 @@ export class QualityControlService {
       examId: request.examId,
       success: true,
       finishedAt: new Date(),
+    });
+  }
+
+  stopInspectionRoute(
+    request: StopInspectionRouteRequest,
+  ): Observable<StopInspectionRouteResponse> {
+    return of({
+      ...request,
+      stoppedAt: new Date(),
     });
   }
 

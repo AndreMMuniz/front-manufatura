@@ -184,4 +184,34 @@ describe('QualityControlWorkflowState', () => {
 
     expect(state.isComponentOutOfRange('a-10')).toBe(false);
   });
+
+  it('clears a stopped route while preserving the selected order and operation context', () => {
+    const state = new QualityControlWorkflowState();
+    const operation = {
+      operationCode: route.operationCode,
+      operationDescription: 'Cortar chapa',
+      split: route.split,
+      itemCode: route.itemCode,
+      itemDescription: route.itemDescription,
+      processDescription: route.processDescription,
+    };
+    const token = state.beginOrderLookup(route.currentOrder);
+    state.completeOrderLookup(token, route.currentOrder, [operation]);
+    state.selectOperation(operation);
+    state.setGeneratedRoute(route);
+    const examToken = state.beginExamLoad();
+    state.completeExamLoad(examToken!, exams());
+    state.isStopping.set(true);
+
+    state.completeRouteStop();
+
+    expect(state.orderNumber()).toBe(route.currentOrder);
+    expect(state.selectedOperation()).toEqual(operation);
+    expect(state.route()).toBeUndefined();
+    expect(state.exams()).toEqual([]);
+    expect(state.panelOpen()).toBe(false);
+    expect(state.isStopping()).toBe(false);
+    expect(state.isBusy()).toBe(false);
+    expect(state.routeFeedback()).toContain('Roteiro parado');
+  });
 });

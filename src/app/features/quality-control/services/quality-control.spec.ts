@@ -150,4 +150,19 @@ describe('QualityControlService', () => {
     });
     expect(result.measurement.savedAt).toBeInstanceOf(Date);
   });
+
+  it('stops an inspection route with an auditable reason', async () => {
+    const result = await firstValueFrom(service.stopInspectionRoute({
+      routeNumber: '475.956',
+      examId: '61035-10-500517',
+      reason: 'Aguardar conferência do supervisor',
+    }));
+
+    expect(result).toMatchObject({
+      routeNumber: '475.956',
+      examId: '61035-10-500517',
+      reason: 'Aguardar conferência do supervisor',
+    });
+    expect(result.stoppedAt).toBeInstanceOf(Date);
+  });
 });
