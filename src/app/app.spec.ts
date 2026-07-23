@@ -165,7 +165,7 @@ describe('App', () => {
 
       expect(component).toBeInstanceOf(ReportOperacaoPage);
       expect(component.pageTitle).toBe('Refugo / Retrabalho');
-      expect(component.feedback).toBe('Informe Ordem e OP. Ao iniciar a operação, o painel de Refugo será aberto.');
+      expect(component.feedback).toBe('Selecione a Área de Produção e o Centro de Trabalho para consultar as ordens.');
       expect(TestBed.inject(Router).url).toBe('/scrap-rework');
     });
 

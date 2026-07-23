@@ -74,6 +74,8 @@ describe('ReportOperacaoPage', () => {
 
     fixture = TestBed.createComponent(ReportOperacaoPage);
     component = fixture.componentInstance;
+    const actualDialog = (component as unknown as { dialog: PoDialogService }).dialog;
+    dialog = { confirm: vi.spyOn(actualDialog, 'confirm').mockImplementation(() => undefined) };
   });
 
   it('loads Areas on direct access and requests the missing local context', () => {
@@ -185,6 +187,7 @@ describe('ReportOperacaoPage', () => {
     component.updateSelection(new Set(['first']));
     component.openSelectedOrders();
 
+    expect(component.hasActiveWorkflow).toBe(true);
     component.onAreaChange('4002');
 
     expect(dialog.confirm).toHaveBeenCalled();

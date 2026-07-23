@@ -1,9 +1,3 @@
-export interface ConsultaOPRequest {
-  readonly ordem: string;
-  readonly op: string;
-  readonly split: string;
-}
-
 export interface AreaProducaoResponseDTO {
   readonly code: string;
   readonly description: string;

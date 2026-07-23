@@ -6,7 +6,6 @@ import { WorkCenter } from '../../shop-floor/models/work-center';
 import { WorkCenterService } from '../../shop-floor/services/work-center';
 import {
   AreaProducaoResponseDTO,
-  ConsultaOPRequest,
   IniciarOperacaoRequest,
   OrdemCentroTrabalhoResponseDTO,
   ReportOperacaoResponseDTO,
@@ -156,32 +155,6 @@ export class ReportOperacaoService {
         const found = this.ordens.find(item => item.id === selected.id && item.situacao === 'LIBERADA');
 
         if (!found) {
-          return {
-            sucesso: false,
-            mensagem: 'OP não encontrada ou não liberada para produção.',
-          };
-        }
-
-        return {
-          sucesso: true,
-          operacao: this.mapOperacao(found.operation),
-        };
-      }),
-    );
-  }
-
-  consultarOP(request: ConsultaOPRequest): Observable<ResultadoConsultaOP> {
-    return of(request).pipe(
-      delay(250),
-      map(({ ordem, op, split }) => {
-        const found = this.ordens.find(
-          item =>
-            this.normalize(item.ordem) === this.normalize(ordem) &&
-            this.normalize(item.operation.op) === this.normalize(op) &&
-            (!split.trim() || this.normalize(item.split) === this.normalize(split)),
-        );
-
-        if (!found || found.situacao !== 'LIBERADA') {
           return {
             sucesso: false,
             mensagem: 'OP não encontrada ou não liberada para produção.',

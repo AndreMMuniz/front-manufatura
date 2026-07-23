@@ -2,6 +2,7 @@
   display: grid;
   gap: var(--app-space-lg);
   max-width: 1180px;
+  min-width: 0;
 }
 
 .report-operacao__loading {
@@ -16,4 +17,12 @@
 
 .report-operacao__feedback--error {
   color: var(--app-color-error);
+}
+
+.report-operacao__queue {
+  margin: 0;
+  padding: var(--app-space-sm) var(--app-space-md);
+  border-left: 4px solid var(--app-color-primary);
+  background: var(--app-color-background-soft);
+  font-weight: 700;
 }

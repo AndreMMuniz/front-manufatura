@@ -1,25 +1,42 @@
 <po-page-default [p-title]="pageTitle">
   <section class="report-operacao">
-    <app-op-identificacao-card
-      [ordem]="ordem"
-      [op]="op"
-      [split]="split"
-      [disabled]="isBusy || estado === EstadoOperacao.OperacaoIniciada || estado === EstadoOperacao.Reportada"
-      [loading]="estado === EstadoOperacao.Carregando"
-      (ordemChange)="ordem = $event"
-      (opChange)="op = $event"
-      (splitChange)="split = $event"
-      (consulta)="consultarOP($event)"
-      (scanner)="scanner()"
-    ></app-op-identificacao-card>
+    <app-contexto-producao-card
+      [areas]="areas"
+      [centers]="centers"
+      [areaCode]="areaCode"
+      [workCenterCode]="workCenterCode"
+      [loadingAreas]="loadingAreas"
+      [loadingCenters]="loadingCenters"
+      [loadingOrders]="loadingOrders"
+      [disabled]="isBusy || hasActiveWorkflow"
+      [errorMessage]="contextError"
+      (areaChange)="onAreaChange($event)"
+      (workCenterChange)="onWorkCenterChange($event)"
+      (consult)="consultOrders()"
+      (retry)="retryContext()"
+    ></app-contexto-producao-card>
 
-    @if (estado === EstadoOperacao.Carregando) {
-      <div class="report-operacao__loading">
-        <po-loading p-text="Consultando OP..." p-size="md"></po-loading>
+    <app-ordens-centro-list
+      [orders]="orders"
+      [selectedIds]="selectedOrderIds"
+      [loading]="loadingOrders"
+      [disabled]="isBusy"
+      [showList]="showOrderList"
+      (selectionChange)="updateSelection($event)"
+      (open)="openSelectedOrders()"
+    ></app-ordens-centro-list>
+
+    @if (loadingOperation) {
+      <div class="report-operacao__loading" role="status">
+        <po-loading p-text="Carregando ordem selecionada..." p-size="md"></po-loading>
       </div>
     }
 
     @if (operacao) {
+      <p class="report-operacao__queue" aria-live="polite">
+        Ordem ativa {{ operacao.ordem }} · {{ queueRemaining }} ordem(ns) na fila
+      </p>
+
       <app-op-detalhes-card [operacao]="operacao"></app-op-detalhes-card>
 
       <app-producao-form
@@ -33,22 +50,22 @@
       ></app-producao-form>
 
       <app-operacao-info-card [operacao]="operacao"></app-operacao-info-card>
+
+      <app-report-actions
+        [primaryLabel]="primaryLabel"
+        [primaryDisabled]="primaryDisabled"
+        [primaryLoading]="estado === 'Reportando'"
+        [paradaDisabled]="!canOpenAuxiliaryFlows"
+        (primaryAction)="executePrimaryAction()"
+        (parada)="abrirParada()"
+        (voltar)="voltar()"
+        (sair)="sair()"
+      ></app-report-actions>
     }
 
-    <p class="report-operacao__feedback" [class.report-operacao__feedback--error]="estado === EstadoOperacao.Erro">
+    <p class="report-operacao__feedback" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">
       {{ feedback }}
     </p>
-
-    <app-report-actions
-      [primaryLabel]="primaryLabel"
-      [primaryDisabled]="primaryDisabled"
-      [primaryLoading]="estado === EstadoOperacao.Reportando"
-      [paradaDisabled]="!canOpenAuxiliaryFlows"
-      (primaryAction)="executarAcaoPrincipal()"
-      (parada)="abrirParada()"
-      (voltar)="voltar()"
-      (sair)="sair()"
-    ></app-report-actions>
 
     <app-refugo-slide
       (refugoRegistrado)="registrarRefugo($event)"
