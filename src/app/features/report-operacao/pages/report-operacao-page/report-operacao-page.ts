@@ -253,6 +253,14 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   iniciarOperacao(): void {
+    if (this.iniciarDisabled) {
+      if (this.operacao && !this.responsavelSelecionado) {
+        this.feedback = 'Selecione uma equipe ou um operador antes de iniciar.';
+        this.notification.warning(this.feedback);
+      }
+      return;
+    }
+
     this.startOperation();
   }
 

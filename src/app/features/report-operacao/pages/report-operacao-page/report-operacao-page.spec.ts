@@ -339,13 +339,23 @@ describe('ReportOperacaoPage', () => {
     workflow.setOrders(orders);
     workflow.setSelectedOrderIds(new Set(orders.map(order => order.id)));
     workflow.startQueue();
+    workflow.setResponsavel({ tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' });
     workflow.setActiveOperation(baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' }), EstadoOperacao.OperacaoIniciada);
+    workflow.addReporte({
+      id: 'APT-RESTORED',
+      registradoEm: new Date(2026, 6, 23, 9),
+      quantidadeAprovada: 2,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+    });
 
     fixture.detectChanges();
 
     expect(component.estado).toBe(EstadoOperacao.OperacaoIniciada);
     expect(component.operacao?.ordem).toBe('450001');
     expect(component.queueRemaining).toBe(2);
+    expect(component.responsavelCodigo).toBe('001');
+    expect(component.reportes.map(reporte => reporte.id)).toEqual(['APT-RESTORED']);
   });
 
   it('sends only the incremental quantities in each report payload', () => {
