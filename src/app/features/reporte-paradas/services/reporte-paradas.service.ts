@@ -3,7 +3,11 @@ import { Injectable } from '@angular/core';
 import { Observable, delay, of } from 'rxjs';
 
 import { ReportOperacao } from '../../report-operacao/models/report-operacao.model';
-import { BatchReportState } from '../../reporta-batelada/models/reporta-batelada.model';
+import {
+  OrdemLiberadaBatelada,
+  ResponsavelBatelada,
+} from '../../reporta-batelada/models/reporta-batelada.model';
+import { WorkCenter } from '../../shop-floor/models/work-center';
 import { CreateStopRequest } from '../interfaces/reporte-paradas.dto';
 import { ProductionContext, StopEntry, StopReason, StopSaveResult } from '../models/reporte-paradas.model';
 
@@ -33,14 +37,18 @@ export class ReporteParadasService {
     };
   }
 
-  setContextFromBatch(batelada: BatchReportState): void {
+  setContextFromStartedBatch(
+    workCenter: WorkCenter,
+    responsavel: ResponsavelBatelada,
+    composition: ReadonlyArray<OrdemLiberadaBatelada>,
+  ): void {
     this.activeContext = {
-      workCenter: batelada.productionInfo.ct,
-      machineGroup: batelada.productionInfo.gm,
-      operatorName: batelada.productionInfo.operatorName,
-      team: batelada.productionInfo.teamName ?? '',
-      shift: batelada.productionInfo.shift,
-      reportId: batelada.id,
+      workCenter: workCenter.code,
+      machineGroup: workCenter.machineGroup,
+      operatorName: responsavel.tipo === 'OPERADOR' ? responsavel.nome : '',
+      team: responsavel.tipo === 'EQUIPE' ? responsavel.nome : '',
+      shift: '',
+      reportId: `BAT-${composition.map(order => order.id).join('-')}`,
       sourceRoute: '/batch-reporting',
     };
   }

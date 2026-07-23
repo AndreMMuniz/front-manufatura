@@ -1,0 +1,34 @@
+<po-widget p-title="Informações da batelada">
+  <dl class="informacoes-batelada__context">
+    <div>
+      <dt>Centro de Trabalho</dt>
+      <dd>{{ workCenter?.code ?? 'Não informado' }}</dd>
+    </div>
+    <div>
+      <dt>Grupo de Máquina</dt>
+      <dd>{{ workCenter?.machineGroup ?? 'Não informado' }}</dd>
+    </div>
+    @if (startedAt) {
+      <div>
+        <dt>Início</dt>
+        <dd>{{ startedAt.toLocaleString('pt-BR') }}</dd>
+      </div>
+    }
+  </dl>
+
+  @if (responsaveis.length > 0) {
+    <po-select
+      name="responsavelBatelada"
+      p-label="Responsável"
+      p-placeholder="Selecione uma equipe ou operador"
+      [p-options]="options"
+      [p-disabled]="disabled"
+      [ngModel]="responsavelKey"
+      (ngModelChange)="changeResponsavel($event)"
+    ></po-select>
+  } @else {
+    <p class="informacoes-batelada__error" role="alert">
+      Nenhum responsável elegível para esta Área e Centro de Trabalho.
+    </p>
+  }
+</po-widget>

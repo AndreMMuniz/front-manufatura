@@ -1,0 +1,30 @@
+<po-widget p-title="Ordens da batelada">
+  <div class="ordens-selecionadas__scroll">
+    <table aria-label="Composição da batelada">
+      <thead>
+        <tr>
+          <th scope="col">Ordem</th>
+          <th scope="col">Item / OP</th>
+          <th scope="col">Operação</th>
+          <th scope="col">Split</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (order of orders; track order.id) {
+          <tr>
+            <td data-label="Ordem">{{ order.ordem }}</td>
+            <td data-label="Item / OP">{{ order.itemOp }}</td>
+            <td data-label="Operação">{{ order.operacao }}</td>
+            <td data-label="Split">{{ order.split }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (locked) {
+    <p class="ordens-selecionadas__status" role="status">
+      Composição bloqueada após o início conjunto.
+    </p>
+  }
+</po-widget>

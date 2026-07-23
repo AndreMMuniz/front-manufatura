@@ -1,54 +1,41 @@
 export enum EstadoBatelada {
-  Inicial = 'Inicial',
-  Carregando = 'Carregando',
-  Carregada = 'Carregada',
-  ProducaoIniciada = 'ProducaoIniciada',
-  EmParada = 'EmParada',
-  Reportando = 'Reportando',
-  Reportada = 'Reportada',
-  Erro = 'Erro',
+  ContextoPendente = 'ContextoPendente',
+  ConsultandoOrdens = 'ConsultandoOrdens',
+  OrdensDisponiveis = 'OrdensDisponiveis',
+  BateladaPreparada = 'BateladaPreparada',
+  Iniciando = 'Iniciando',
+  BateladaIniciada = 'BateladaIniciada',
 }
 
-export interface BateladaItem {
-  readonly opId: string;
-  readonly opNumber: string;
-  readonly orderNumber: string;
-  readonly productDescription: string;
-  readonly quantity: number;
-  readonly selected: boolean;
-}
+export type EstadoAssincronoBatelada = 'ocioso' | 'carregando' | 'sucesso' | 'vazio' | 'erro';
 
-export interface ProductionInformation {
-  readonly ct: string;
-  readonly gm: string;
-  readonly operatorId: string;
-  readonly operatorName: string;
-  readonly teamId?: string;
-  readonly teamName?: string;
-  readonly shift: string;
-}
-
-export interface BatchReportState {
-  readonly id: string;
+export interface AreaProducaoBatelada {
   readonly code: string;
   readonly description: string;
-  readonly estado: EstadoBatelada;
-  readonly dataInicio?: Date;
-  readonly horaInicio: string;
-  readonly dataFim?: Date;
-  readonly horaFim: string;
-  readonly quantidadeRefugo: number;
-  readonly quantidadeRetrabalho: number;
-  readonly productionInfo: ProductionInformation;
-  readonly itens: ReadonlyArray<BateladaItem>;
 }
 
-export interface BatchStartResult {
-  readonly dataInicio: Date;
-  readonly horaInicio: string;
+export interface OrdemLiberadaBatelada {
+  readonly id: string;
+  readonly ordem: string;
+  readonly itemOp: string;
+  readonly operacao: string;
+  readonly split: string;
 }
 
-export interface BatchReportResult {
-  readonly apontamentoId: string;
-  readonly reportadoEm: Date;
+export type TipoResponsavelBatelada = 'OPERADOR' | 'EQUIPE';
+
+export interface ResponsavelBatelada {
+  readonly tipo: TipoResponsavelBatelada;
+  readonly codigo: string;
+  readonly nome: string;
+}
+
+export interface ContextoBatelada {
+  readonly areaCode: string;
+  readonly workCenterCode: string;
+}
+
+export interface InicioBatelada {
+  readonly iniciadoEm: Date;
+  readonly ordensIniciadas: ReadonlyArray<string>;
 }

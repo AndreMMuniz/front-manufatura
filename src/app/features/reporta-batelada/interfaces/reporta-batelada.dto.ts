@@ -1,28 +1,30 @@
-export interface BatchReportItemRequest {
-  readonly opId: string;
-  readonly opNumber: string;
-  readonly orderNumber: string;
-  readonly quantity: number;
+import {
+  ContextoBatelada,
+  OrdemLiberadaBatelada,
+  ResponsavelBatelada,
+} from '../models/reporta-batelada.model';
+
+export interface ConsultaOrdensBateladaRequest {
+  readonly areaCode: string;
+  readonly workCenterCode: string;
 }
 
-export interface StartBatchRequest {
-  readonly batchId: string;
-  readonly itemIds: ReadonlyArray<string>;
-  readonly dataInicio: Date;
-  readonly horaInicio: string;
-  readonly operatorId: string;
-  readonly workCenter: string;
+export interface IniciarBateladaRequest {
+  readonly contexto: ContextoBatelada;
+  readonly responsavel: ResponsavelBatelada;
+  readonly ordens: ReadonlyArray<OrdemLiberadaBatelada>;
 }
 
-export interface ReportBatchRequest {
-  readonly batchId: string;
-  readonly items: ReadonlyArray<BatchReportItemRequest>;
-  readonly quantidadeRefugo: number;
-  readonly quantidadeRetrabalho: number;
-  readonly dataInicio: Date;
-  readonly horaInicio: string;
-  readonly dataFim: Date;
-  readonly horaFim: string;
-  readonly operatorId: string;
-  readonly workCenter: string;
+export interface ResultadoInicioOrdem {
+  readonly ordemId: string;
+  readonly sucesso: boolean;
+  readonly mensagem?: string;
+}
+
+export type StatusInicioBatelada = 'SUCESSO_INTEGRAL' | 'RESULTADO_PARCIAL' | 'FALHA';
+
+export interface IniciarBateladaResponse {
+  readonly status: StatusInicioBatelada;
+  readonly iniciadoEm?: Date;
+  readonly resultados: ReadonlyArray<ResultadoInicioOrdem>;
 }

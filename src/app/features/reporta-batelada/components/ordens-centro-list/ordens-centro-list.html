@@ -1,0 +1,40 @@
+@if (showList) {
+  <po-widget p-title="Ordens liberadas">
+    @if (loading) {
+      <div class="ordens-centro-list__loading" role="status" aria-live="polite">
+        <po-loading p-text="Carregando ordens..." p-size="md"></po-loading>
+      </div>
+    } @else if (orders.length > 0) {
+      <div class="ordens-centro-list__table" aria-label="Ordens liberadas para seleção">
+        <po-table
+          [p-columns]="columns"
+          [p-items]="items"
+          [p-height]="300"
+          [p-hide-columns-manager]="true"
+          [p-selectable]="!disabled"
+          [p-selectable-entire-line]="true"
+          [p-single-select]="false"
+          [p-striped]="true"
+          (p-selected)="selectRow($event)"
+          (p-unselected)="unselectRow($event)"
+          (p-all-selected)="selectAll()"
+          (p-all-unselected)="unselectAll()"
+        ></po-table>
+      </div>
+    } @else {
+      <p class="ordens-centro-list__empty" role="status">
+        Nenhuma ordem liberada para este Centro de Trabalho.
+      </p>
+    }
+
+    <div class="ordens-centro-list__footer">
+      <span aria-live="polite">{{ selectedIds.size }} ordem(ns) selecionada(s)</span>
+      <po-button
+        p-label="Abrir batelada"
+        p-kind="primary"
+        [p-disabled]="prepareDisabled"
+        (p-click)="prepare.emit()"
+      ></po-button>
+    </div>
+  </po-widget>
+}

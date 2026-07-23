@@ -1,0 +1,51 @@
+<po-widget p-title="Contexto de Produção">
+  <div class="contexto-producao">
+    <po-select
+      name="areaCode"
+      p-label="Área de Produção"
+      p-placeholder="Selecione a Área"
+      [p-options]="areaOptions"
+      [p-disabled]="disabled"
+      [p-loading]="loadingAreas"
+      [ngModel]="areaCode"
+      (ngModelChange)="areaChange.emit($event ?? '')"
+    ></po-select>
+
+    <po-select
+      name="workCenterCode"
+      p-label="Centro de Trabalho"
+      p-placeholder="Selecione o Centro de Trabalho"
+      [p-options]="centerOptions"
+      [p-disabled]="centerDisabled"
+      [p-loading]="loadingCenters"
+      [ngModel]="workCenterCode"
+      (ngModelChange)="workCenterChange.emit($event ?? '')"
+    ></po-select>
+
+    <po-button
+      class="contexto-producao__action"
+      p-label="Consultar ordens"
+      p-kind="primary"
+      [p-disabled]="consultDisabled"
+      [p-loading]="loadingOrders"
+      (p-click)="consult.emit()"
+    ></po-button>
+  </div>
+
+  @if (loadingOrders) {
+    <div class="contexto-producao__status" role="status" aria-live="polite">
+      <po-loading p-text="Consultando ordens..." p-size="sm"></po-loading>
+    </div>
+  }
+
+  @if (errorMessage) {
+    <div class="contexto-producao__error" role="alert">
+      <span>{{ errorMessage }}</span>
+      <po-button
+        p-label="Tentar novamente"
+        p-kind="secondary"
+        (p-click)="retry.emit()"
+      ></po-button>
+    </div>
+  }
+</po-widget>

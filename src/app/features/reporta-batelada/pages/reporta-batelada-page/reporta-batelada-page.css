@@ -1,11 +1,8 @@
 .reporta-batelada {
   display: grid;
   gap: var(--app-space-lg);
-  max-width: 1180px;
-}
-
-.reporta-batelada__loading {
-  min-height: 72px;
+  width: min(100%, 1180px);
+  min-width: 0;
 }
 
 .reporta-batelada__feedback {

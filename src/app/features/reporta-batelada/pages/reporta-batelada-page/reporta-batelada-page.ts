@@ -1,183 +1,217 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
-import { PoLoadingModule, PoNotificationService, PoPageModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoNotificationService, PoPageModule } from '@po-ui/ng-components';
 
-import { RefugoRegistrado, RefugoRegistradoItem, RefugoSlide } from '../../../report-operacao/components/refugo-slide/refugo-slide';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
-import { OperationalContext } from '../../../shop-floor/models/operational-context';
+import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
-import { BateladaList } from '../../components/batelada-list/batelada-list';
-import { DatasProducao } from '../../components/datas-producao/datas-producao';
+import { ContextoProducaoBatelada } from '../../components/contexto-producao/contexto-producao';
 import { FooterAcoesBatelada } from '../../components/footer-acoes-batelada/footer-acoes-batelada';
-import { InformacoesOperacaoBatelada } from '../../components/informacoes-operacao-batelada/informacoes-operacao-batelada';
-import { QuantidadesBatelada } from '../../components/quantidades-batelada/quantidades-batelada';
-import { BatchReportState, EstadoBatelada } from '../../models/reporta-batelada.model';
+import { InformacoesBatelada } from '../../components/informacoes-batelada/informacoes-batelada';
+import { OrdensCentroBateladaList } from '../../components/ordens-centro-list/ordens-centro-list';
+import { OrdensSelecionadasBatelada } from '../../components/ordens-selecionadas/ordens-selecionadas';
+import { AreaProducaoBatelada } from '../../models/reporta-batelada.model';
 import { ReportaBateladaService } from '../../services/reporta-batelada.service';
+import {
+  ReportaBateladaWorkflowSnapshot,
+  ReportaBateladaWorkflowState,
+} from '../../services/reporta-batelada-workflow-state';
 
 @Component({
   selector: 'app-reporta-batelada-page',
   imports: [
-    BateladaList,
-    DatasProducao,
+    ContextoProducaoBatelada,
     FooterAcoesBatelada,
-    InformacoesOperacaoBatelada,
-    QuantidadesBatelada,
-    RefugoSlide,
-    PoLoadingModule,
+    InformacoesBatelada,
+    OrdensCentroBateladaList,
+    OrdensSelecionadasBatelada,
+    PoButtonModule,
     PoPageModule,
   ],
+  providers: [ReportaBateladaWorkflowState],
   templateUrl: './reporta-batelada-page.html',
   styleUrls: ['./reporta-batelada-page.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportaBateladaPage implements OnInit {
-  @ViewChild(RefugoSlide) private refugoSlide?: RefugoSlide;
-
   private readonly router = inject(Router);
-  private readonly operationalContextService = inject(OperationalContextService);
+  private readonly operationalContext = inject(OperationalContextService);
+  private readonly stoppages = inject(ReporteParadasService);
   private readonly service = inject(ReportaBateladaService);
-  private readonly reporteParadasService = inject(ReporteParadasService);
+  private readonly workflow = inject(ReportaBateladaWorkflowState);
   private readonly notification = inject(PoNotificationService);
   private readonly changeDetector = inject(ChangeDetectorRef);
 
-  readonly EstadoBatelada = EstadoBatelada;
+  areas: ReadonlyArray<AreaProducaoBatelada> = [];
+  centers: ReadonlyArray<WorkCenter> = [];
+  view: ReportaBateladaWorkflowSnapshot = this.workflow.snapshot();
+  selectedIds: ReadonlySet<string> = new Set<string>();
+  loadingAreas = false;
+  loadingCenters = false;
 
-  estado = EstadoBatelada.Inicial;
-  batelada: BatchReportState | null = null;
-  feedback = '';
-  refugoItens: ReadonlyArray<RefugoRegistradoItem> = [];
+  private centersRequest = 0;
+  private ordersRequest = 0;
+  private preferredOperatorCode = '';
+
+  get canStart(): boolean {
+    return this.workflow.canStart();
+  }
+
+  get started(): boolean {
+    return this.view.estado === 'BateladaIniciada';
+  }
 
   ngOnInit(): void {
-    const context = this.operationalContextService.currentContext ?? this.menuFallbackContext();
+    const context = this.operationalContext.currentContext;
+    const batchContext = context?.reportType === 'BATCH' ? context : null;
+    this.preferredOperatorCode = batchContext?.operator.code ?? '';
+    this.loadingAreas = true;
 
-    if (!context || context.reportType !== 'BATCH') {
-      this.feedback = 'Abra Reporta Batelada a partir do Centro de Trabalho.';
-      this.notification.warning(this.feedback);
-      void this.router.navigate(['/work-center']);
-      return;
-    }
+    this.service.listarAreas().subscribe({
+      next: areas => {
+        this.areas = areas.map(area => ({ ...area }));
+        this.loadingAreas = false;
 
-    this.estado = EstadoBatelada.Carregando;
-    this.feedback = 'Carregando batelada...';
-    this.service.loadBatch(context).subscribe({
-      next: batelada => {
-        this.batelada = batelada;
-        this.estado = batelada.estado;
-        this.feedback = 'Batelada carregada. Selecione as OPs e inicie a produção.';
-        this.changeDetector.markForCheck();
+        if (batchContext) {
+          const area =
+            this.areas.find(item => item.code === batchContext.workCenter.areaCode) ??
+            {
+              code: batchContext.workCenter.areaCode,
+              description: batchContext.workCenter.area,
+            };
+          this.workflow.setArea(area);
+          this.syncView();
+          this.carregarCentros(area.code, batchContext.workCenter.code);
+        } else {
+          this.syncView();
+        }
       },
       error: () => {
-        this.estado = EstadoBatelada.Erro;
-        this.feedback = 'Não foi possível carregar a batelada.';
-        this.notification.error(this.feedback);
-        this.changeDetector.markForCheck();
+        this.loadingAreas = false;
+        this.notification.error('Não foi possível carregar as Áreas de Produção.');
+        this.syncView();
       },
     });
   }
 
-  get isBusy(): boolean {
-    return this.estado === EstadoBatelada.Carregando || this.estado === EstadoBatelada.Reportando;
+  selecionarArea(code: string): void {
+    const area = this.areas.find(item => item.code === code) ?? null;
+    this.ordersRequest += 1;
+    this.centers = [];
+    this.workflow.setArea(area);
+    this.syncView();
+
+    if (area) {
+      this.carregarCentros(area.code);
+    }
   }
 
-  get isLoading(): boolean {
-    return this.estado === EstadoBatelada.Carregando;
+  selecionarCentro(code: string): void {
+    this.ordersRequest += 1;
+    const center = this.centers.find(item => item.code === code) ?? null;
+    this.workflow.setWorkCenter(center);
+    this.syncView();
   }
 
-  get isReporting(): boolean {
-    return this.estado === EstadoBatelada.Reportando;
+  consultarOrdens(): void {
+    const snapshot = this.workflow.snapshot();
+    if (!snapshot.area || !snapshot.workCenter || !this.workflow.startOrdersQuery()) {
+      return;
+    }
+
+    const request = ++this.ordersRequest;
+    const areaCode = snapshot.area.code;
+    const workCenterCode = snapshot.workCenter.code;
+    this.syncView();
+
+    this.service.listarOrdensLiberadas(areaCode, workCenterCode).subscribe({
+      next: orders => {
+        if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
+          return;
+        }
+        this.workflow.setOrders(orders);
+        this.syncView();
+        this.carregarResponsaveis(request, areaCode, workCenterCode);
+      },
+      error: () => {
+        if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
+          return;
+        }
+        const message = 'Não foi possível consultar as ordens. Tente novamente.';
+        this.workflow.failOrdersQuery(message);
+        this.notification.error(message);
+        this.syncView();
+      },
+    });
   }
 
-  get hasError(): boolean {
-    return this.estado === EstadoBatelada.Erro;
+  atualizarSelecao(ids: ReadonlySet<string>): void {
+    this.workflow.setSelectedOrderIds(ids);
+    this.syncView();
   }
 
-  get canEditProduction(): boolean {
-    return (
-      this.estado === EstadoBatelada.ProducaoIniciada ||
-      this.estado === EstadoBatelada.EmParada ||
-      this.estado === EstadoBatelada.Erro
+  prepararBatelada(): void {
+    this.workflow.prepareBatch();
+    this.syncView();
+  }
+
+  selecionarResponsavel(key: string): void {
+    const [tipo, codigo] = key.split('|');
+    const responsavel =
+      this.view.responsaveis.find(item => item.tipo === tipo && item.codigo === codigo) ??
+      null;
+    this.workflow.setResponsavel(responsavel);
+    this.syncView();
+  }
+
+  iniciarBatelada(): void {
+    if (!this.workflow.beginStart()) {
+      return;
+    }
+
+    const snapshot = this.workflow.snapshot();
+    if (!snapshot.area || !snapshot.workCenter || !snapshot.responsavel) {
+      this.workflow.failStart('Selecione um responsável elegível antes de iniciar.');
+      this.syncView();
+      return;
+    }
+
+    const request = this.service.montarComandoInicio(
+      {
+        areaCode: snapshot.area.code,
+        workCenterCode: snapshot.workCenter.code,
+      },
+      snapshot.responsavel,
+      snapshot.composition,
     );
-  }
+    this.syncView();
 
-  get primaryLabel(): string {
-    return this.canEditProduction ? 'Reportar' : 'Iniciar';
-  }
-
-  get primaryDisabled(): boolean {
-    return this.isBusy || !this.batelada || this.selectedCount === 0 || this.estado === EstadoBatelada.Reportada;
-  }
-
-  get selectedCount(): number {
-    return this.batelada?.itens.filter(item => item.selected).length ?? 0;
-  }
-
-  atualizarItens(itens: BatchReportState['itens']): void {
-    if (!this.batelada) {
-      return;
-    }
-
-    this.batelada = { ...this.batelada, itens };
-  }
-
-  atualizarDatas(datas: Pick<BatchReportState, 'dataInicio' | 'horaInicio' | 'dataFim' | 'horaFim'>): void {
-    if (!this.batelada) {
-      return;
-    }
-
-    this.batelada = { ...this.batelada, ...datas };
-  }
-
-  executarAcaoPrincipal(): void {
-    if (!this.batelada) {
-      return;
-    }
-
-    if (this.estado === EstadoBatelada.Carregada || this.estado === EstadoBatelada.Erro) {
-      this.iniciarBatelada();
-      return;
-    }
-
-    if (this.estado === EstadoBatelada.ProducaoIniciada) {
-      this.reportarBatelada();
-    }
-  }
-
-  abrirRefugo(): void {
-    if (!this.batelada || !this.canEditProduction) {
-      return;
-    }
-
-    this.refugoSlide?.abrir(this.batelada.quantidadeRefugo, this.refugoItens);
-  }
-
-  registrarRefugo(refugo: RefugoRegistrado): void {
-    if (!this.batelada) {
-      return;
-    }
-
-    this.batelada = {
-      ...this.batelada,
-      quantidadeRefugo: refugo.quantidade,
-    };
-    this.refugoItens = refugo.itens.map(item => ({ ...item }));
-    this.feedback = 'Refugo registrado para a batelada.';
-    this.notification.success('Refugo registrado.');
-    this.changeDetector.markForCheck();
-  }
-
-  abrirRetrabalho(): void {
-    this.feedback = 'Fluxo de retrabalho preparado para implementação futura.';
-    this.notification.information(this.feedback);
+    this.service.iniciarBatelada(request).subscribe({
+      next: inicio => {
+        this.workflow.completeStart(inicio);
+        this.notification.success('Batelada iniciada com sucesso.');
+        this.syncView();
+      },
+      error: () => {
+        const message = 'Não foi possível iniciar todas as ordens. Os dados foram preservados para nova tentativa.';
+        this.workflow.failStart(message);
+        this.notification.error(message);
+        this.syncView();
+      },
+    });
   }
 
   abrirParada(): void {
-    if (!this.batelada || !this.canEditProduction) {
+    if (!this.started || !this.view.workCenter || !this.view.responsavel) {
       return;
     }
 
-    this.estado = EstadoBatelada.EmParada;
-    this.reporteParadasService.setContextFromBatch(this.batelada);
+    this.stoppages.setContextFromStartedBatch(
+      this.view.workCenter,
+      this.view.responsavel,
+      this.view.composition,
+    );
     void this.router.navigate(['/stoppages']);
   }
 
@@ -189,118 +223,74 @@ export class ReportaBateladaPage implements OnInit {
     void this.router.navigate(['/quality-control']);
   }
 
-  private iniciarBatelada(): void {
-    if (!this.batelada) {
-      return;
-    }
-
-    const erro = this.service.validarInicio(this.batelada);
-
-    if (erro) {
-      this.feedback = erro;
-      this.notification.warning(erro);
-      return;
-    }
-
-    this.service.startBatch(this.service.toStartRequest(this.batelada)).subscribe({
-      next: inicio => {
-        if (!this.batelada) {
+  private carregarCentros(areaCode: string, prefillCode = ''): void {
+    const request = ++this.centersRequest;
+    this.loadingCenters = true;
+    this.service.pesquisarCentros(areaCode, '').subscribe({
+      next: centers => {
+        if (request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
           return;
         }
 
-        this.batelada = {
-          ...this.batelada,
-          estado: EstadoBatelada.ProducaoIniciada,
-          dataInicio: inicio.dataInicio,
-          horaInicio: inicio.horaInicio,
-          dataFim: inicio.dataInicio,
-          horaFim: inicio.horaInicio,
-        };
-        this.estado = EstadoBatelada.ProducaoIniciada;
-        this.feedback = 'Batelada iniciada. Informe as quantidades para reportar.';
-        this.notification.success('Batelada iniciada.');
-        this.changeDetector.markForCheck();
+        this.centers = centers.map(center => ({ ...center }));
+        this.loadingCenters = false;
+        const selected = this.centers.find(center => center.code === prefillCode) ?? null;
+        if (selected) {
+          this.workflow.setWorkCenter(selected);
+        }
+        this.syncView();
       },
       error: () => {
-        this.estado = EstadoBatelada.Erro;
-        this.feedback = 'Não foi possível iniciar a batelada.';
-        this.notification.error(this.feedback);
-        this.changeDetector.markForCheck();
+        if (request !== this.centersRequest) {
+          return;
+        }
+        this.loadingCenters = false;
+        this.centers = [];
+        this.notification.error('Não foi possível carregar os Centros de Trabalho.');
+        this.syncView();
       },
     });
   }
 
-  private reportarBatelada(): void {
-    if (!this.batelada) {
-      return;
-    }
-
-    const finalState = this.ensureFim(this.batelada);
-    const erro = this.service.validarReporte(finalState);
-
-    if (erro) {
-      this.feedback = erro;
-      this.notification.warning(erro);
-      return;
-    }
-
-    this.batelada = finalState;
-    this.estado = EstadoBatelada.Reportando;
-    this.feedback = 'Enviando apontamento da batelada ao Datasul...';
-    this.service.reportBatch(this.service.toReportRequest(finalState)).subscribe({
-      next: resultado => {
-        this.estado = EstadoBatelada.Reportada;
-        this.feedback = `Batelada reportada com sucesso. Apontamento ${resultado.apontamentoId}.`;
-        this.notification.success('Batelada reportada com sucesso.');
-        this.changeDetector.markForCheck();
-        void this.router.navigate(['/work-center']);
+  private carregarResponsaveis(
+    request: number,
+    areaCode: string,
+    workCenterCode: string,
+  ): void {
+    this.service.listarResponsaveisElegiveis(areaCode, workCenterCode).subscribe({
+      next: responsaveis => {
+        if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
+          return;
+        }
+        this.workflow.setResponsaveis(responsaveis, this.preferredOperatorCode);
+        this.syncView();
       },
       error: () => {
-        this.estado = EstadoBatelada.Erro;
-        this.feedback = 'Não foi possível reportar a batelada. Os dados foram preservados.';
-        this.notification.error(this.feedback);
-        this.changeDetector.markForCheck();
+        if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
+          return;
+        }
+        this.workflow.setResponsaveis([]);
+        this.syncView();
       },
     });
   }
 
-  private ensureFim(state: BatchReportState): BatchReportState {
-    const now = new Date();
-
-    return {
-      ...state,
-      dataFim: state.dataFim ?? now,
-      horaFim: state.horaFim || this.formatTime(now),
-    };
+  private isCurrentOrdersRequest(
+    request: number,
+    areaCode: string,
+    workCenterCode: string,
+  ): boolean {
+    const snapshot = this.workflow.snapshot();
+    return (
+      request === this.ordersRequest &&
+      snapshot.area?.code === areaCode &&
+      snapshot.workCenter?.code === workCenterCode
+    );
   }
 
-  private formatTime(date: Date): string {
-    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-  }
-
-  private menuFallbackContext(): OperationalContext {
-    return {
-      workCenter: {
-        code: 'CT-EXT-01',
-        description: 'Extrusao Linha 01',
-        areaCode: '4001',
-        area: 'Producao',
-        machineGroup: 'Extrusoras',
-        establishment: '101',
-        active: true,
-      },
-      operator: {
-        code: 'OP-001',
-        name: 'Ana Silva',
-        role: 'Operador',
-        active: true,
-      },
-      reportType: 'BATCH',
-      validity: this.formatDate(new Date()),
-    };
-  }
-
-  private formatDate(date: Date): string {
-    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+  private syncView(): void {
+    this.view = this.workflow.snapshot();
+    this.selectedIds = new Set(this.view.selectedOrderIds);
+    this.changeDetector.markForCheck();
   }
 }

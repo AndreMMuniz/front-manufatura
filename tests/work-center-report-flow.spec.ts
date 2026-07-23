@@ -72,8 +72,8 @@ test.describe('fluxo de Reporte Ordem', () => {
 
     await page.getByRole('combobox', { name: 'Operador' }).selectOption('001');
     await page.getByRole('button', { name: 'Iniciar' }).click();
-    await expect(page.getByRole('button', { name: 'Reporte' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Reporte' }).click();
+    await expect(page.getByRole('button', { name: 'Reporte', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'Reporte', exact: true }).click();
 
     const drawer = page.locator('po-page-slide');
     const firstQuantity = drawer.getByRole('spinbutton', { name: 'Qtde Aprovada' });
@@ -84,7 +84,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await drawer.getByRole('button', { name: 'Voltar' }).click();
 
     await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
-    await page.getByRole('button', { name: 'Reporte' }).click();
+    await page.getByRole('button', { name: 'Reporte', exact: true }).click();
     await drawer.getByRole('spinbutton', { name: 'Qtde Aprovada' }).fill('2');
     await drawer.getByRole('button', { name: 'Salvar reporte' }).click();
     await expect(drawer.getByText('2,000')).toBeVisible();
@@ -141,5 +141,43 @@ test.describe('fluxo de Reporte Ordem', () => {
     await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' })).toHaveValue('CT-EXT-01 - Extrusao Linha 01');
     await page.getByRole('button', { name: 'Consultar ordens' }).click();
     await expect(page.getByRole('cell', { name: '450001' })).toBeVisible();
+  });
+});
+
+test.describe('fluxo de Reporte Batelada', () => {
+  test('consulta, compõe e inicia múltiplas ordens com uma única ação', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Batelada' }).click();
+
+    await expect(page).toHaveURL(/\/batch-reporting$/);
+    await expect(page.getByRole('heading', { name: 'Reporta Batelada' })).toBeVisible();
+    await selectProductionContext(page);
+    await selectOrderWithKeyboard(page, '450001');
+    await selectOrderWithKeyboard(page, '450002');
+    await expect(page.getByText('2 ordem(ns) selecionada(s)')).toBeVisible();
+    await page.getByRole('button', { name: 'Abrir batelada' }).click();
+
+    const composition = page.getByRole('table', { name: 'Composição da batelada' });
+    await expect(composition.getByRole('row').filter({ hasText: '450001' })).toBeVisible();
+    await expect(composition.getByRole('row').filter({ hasText: '450002' })).toBeVisible();
+
+    const responsible = page.getByRole('combobox', { name: 'Responsável' });
+    await responsible.selectOption('OPERADOR|OP-001');
+    const start = page.getByRole('button', { name: 'Iniciar' });
+    await expect(start).toBeEnabled();
+    await start.click();
+
+    await expect(
+      page.locator('app-reporta-batelada-page p[role="status"]')
+        .filter({ hasText: 'Batelada iniciada com sucesso.' }),
+    ).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Área de Produção' })).toBeDisabled();
+    await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' })).toBeDisabled();
+    await expect(responsible).toBeDisabled();
+    await expect(start).toBeDisabled();
+    await expect(composition.getByRole('row').filter({ hasText: '450001' })).toBeVisible();
+    await expect(composition.getByRole('row').filter({ hasText: '450002' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 });

@@ -1,59 +1,74 @@
 <po-page-default p-title="Reporta Batelada">
   <section class="reporta-batelada">
-    @if (isLoading) {
-      <div class="reporta-batelada__loading">
-        <po-loading p-text="Carregando batelada..." p-size="md"></po-loading>
-      </div>
+    <app-contexto-producao-batelada
+      [areas]="areas"
+      [centers]="centers"
+      [areaCode]="view.area?.code ?? ''"
+      [workCenterCode]="view.workCenter?.code ?? ''"
+      [loadingAreas]="loadingAreas"
+      [loadingCenters]="loadingCenters"
+      [loadingOrders]="view.asyncState === 'carregando'"
+      [disabled]="view.estado === 'Iniciando' || view.estado === 'BateladaIniciada'"
+      [errorMessage]="view.asyncState === 'erro' ? view.errorMessage : ''"
+      (areaChange)="selecionarArea($event)"
+      (workCenterChange)="selecionarCentro($event)"
+      (consult)="consultarOrdens()"
+      (retry)="consultarOrdens()"
+    ></app-contexto-producao-batelada>
+
+    <app-ordens-centro-batelada-list
+      [orders]="view.orders"
+      [selectedIds]="selectedIds"
+      [loading]="view.asyncState === 'carregando'"
+      [disabled]="view.estado === 'Iniciando' || view.estado === 'BateladaIniciada'"
+      [showList]="view.asyncState !== 'ocioso'"
+      (selectionChange)="atualizarSelecao($event)"
+      (prepare)="prepararBatelada()"
+    ></app-ordens-centro-batelada-list>
+
+    @if (view.composition.length > 0) {
+      <app-ordens-selecionadas-batelada
+        [orders]="view.composition"
+        [locked]="view.estado === 'BateladaIniciada'"
+      ></app-ordens-selecionadas-batelada>
+
+      <app-informacoes-batelada
+        [workCenter]="view.workCenter"
+        [responsaveis]="view.responsaveis"
+        [responsavel]="view.responsavel"
+        [disabled]="view.estado === 'Iniciando' || view.estado === 'BateladaIniciada'"
+        [startedAt]="view.inicio?.iniciadoEm ?? null"
+        (responsavelChange)="selecionarResponsavel($event)"
+      ></app-informacoes-batelada>
     }
 
-    @if (batelada) {
-      <app-batelada-list
-        [itens]="batelada.itens"
-        [disabled]="isBusy"
-        [loading]="isLoading"
-        (itensChange)="atualizarItens($event)"
-      ></app-batelada-list>
-
-      <app-datas-producao
-        [dataInicio]="batelada.dataInicio"
-        [horaInicio]="batelada.horaInicio"
-        [dataFim]="batelada.dataFim"
-        [horaFim]="batelada.horaFim"
-        [disabled]="!canEditProduction"
-        (datasChange)="atualizarDatas($event)"
-      ></app-datas-producao>
-
-      <app-quantidades-batelada
-        [quantidadeRefugo]="batelada.quantidadeRefugo"
-        [quantidadeRetrabalho]="batelada.quantidadeRetrabalho"
-        [disabled]="!canEditProduction"
-        (editarRefugo)="abrirRefugo()"
-        (editarRetrabalho)="abrirRetrabalho()"
-      ></app-quantidades-batelada>
-
-      <app-informacoes-operacao-batelada [info]="batelada.productionInfo"></app-informacoes-operacao-batelada>
-    }
-
-    @if (feedback) {
-      <p class="reporta-batelada__feedback" [class.reporta-batelada__feedback--error]="hasError">
-        {{ feedback }}
+    @if (view.errorMessage) {
+      <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">
+        {{ view.errorMessage }}
+      </p>
+    } @else if (view.estado === 'Iniciando') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Iniciando todas as ordens da batelada...
+      </p>
+    } @else if (view.estado === 'BateladaIniciada') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Batelada iniciada com sucesso.
+      </p>
+    } @else if (view.composition.length > 0 && !view.responsavel) {
+      <p class="reporta-batelada__feedback" role="status">
+        Selecione um responsável elegível para habilitar Iniciar.
       </p>
     }
 
     <app-footer-acoes-batelada
-      [primaryLabel]="primaryLabel"
-      [primaryDisabled]="primaryDisabled"
-      [primaryLoading]="isReporting"
-      [paradaDisabled]="!canEditProduction"
-      (primaryAction)="executarAcaoPrincipal()"
+      primaryLabel="Iniciar"
+      [primaryDisabled]="!canStart"
+      [primaryLoading]="view.estado === 'Iniciando'"
+      [paradaDisabled]="!started"
+      (primaryAction)="iniciarBatelada()"
       (parada)="abrirParada()"
       (voltar)="voltar()"
       (sair)="sair()"
     ></app-footer-acoes-batelada>
-
-    <app-refugo-slide
-      (refugoRegistrado)="registrarRefugo($event)"
-      (sairSolicitado)="sair()"
-    ></app-refugo-slide>
   </section>
 </po-page-default>

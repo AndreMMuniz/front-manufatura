@@ -1,0 +1,45 @@
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+
+import { PoFieldModule, PoSelectOption, PoWidgetModule } from '@po-ui/ng-components';
+
+import { WorkCenter } from '../../../shop-floor/models/work-center';
+import { ResponsavelBatelada } from '../../models/reporta-batelada.model';
+
+@Component({
+  selector: 'app-informacoes-batelada',
+  imports: [FormsModule, PoFieldModule, PoWidgetModule],
+  templateUrl: './informacoes-batelada.html',
+  styleUrls: ['./informacoes-batelada.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class InformacoesBatelada {
+  @Input() workCenter: WorkCenter | null = null;
+  @Input() responsaveis: ReadonlyArray<ResponsavelBatelada> = [];
+  @Input() responsavel: ResponsavelBatelada | null = null;
+  @Input() disabled = false;
+  @Input() startedAt: Date | null = null;
+
+  @Output() responsavelChange = new EventEmitter<string>();
+
+  get options(): ReadonlyArray<PoSelectOption> {
+    return this.responsaveis.map(item => ({
+      value: this.key(item),
+      label: `${item.tipo === 'OPERADOR' ? 'Operador' : 'Equipe'} — ${item.codigo} - ${item.nome}`,
+    }));
+  }
+
+  get responsavelKey(): string {
+    return this.responsavel ? this.key(this.responsavel) : '';
+  }
+
+  changeResponsavel(value: string): void {
+    if (!this.disabled) {
+      this.responsavelChange.emit(value ?? '');
+    }
+  }
+
+  private key(responsavel: ResponsavelBatelada): string {
+    return `${responsavel.tipo}|${responsavel.codigo}`;
+  }
+}

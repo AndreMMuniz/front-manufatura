@@ -1,8 +1,0 @@
-<po-widget p-title="Informações Operacionais">
-  <div class="informacoes-operacao-batelada">
-    <po-input name="ct" p-label="CT" [p-readonly]="true" [ngModel]="info?.ct ?? ''"></po-input>
-    <po-input name="gm" p-label="GM" [p-readonly]="true" [ngModel]="info?.gm ?? ''"></po-input>
-    <po-input name="operador" p-label="Operador / Equipe" [p-readonly]="true" [ngModel]="(info?.operatorName ?? '') + (info?.teamName ? ' / ' + info?.teamName : '')"></po-input>
-    <po-input name="turno" p-label="Turno" [p-readonly]="true" [ngModel]="info?.shift ?? ''"></po-input>
-  </div>
-</po-widget>
