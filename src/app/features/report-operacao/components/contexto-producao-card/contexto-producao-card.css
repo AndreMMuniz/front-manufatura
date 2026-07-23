@@ -6,6 +6,7 @@
 }
 
 .contexto-producao__action {
+  margin-bottom: var(--app-space-sm);
   min-width: 170px;
 }
 
@@ -30,6 +31,7 @@
 
   .contexto-producao__action {
     grid-column: 1 / -1;
+    margin-bottom: 0;
     width: 100%;
   }
 }
