@@ -65,6 +65,12 @@ export interface ResponsavelOperacao {
   readonly nome: string;
 }
 
+export interface ReporteRefugoItem {
+  readonly codigo: string;
+  readonly descricao: string;
+  readonly quantidade: number;
+}
+
 export interface ReporteParcialOperacao {
   readonly id: string;
   readonly registradoEm: Date;
@@ -75,6 +81,7 @@ export interface ReporteParcialOperacao {
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
+  readonly refugoItens: ReadonlyArray<ReporteRefugoItem>;
 }
 
 export interface ResultadoConsultaOP {
