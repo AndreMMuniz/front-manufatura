@@ -16,6 +16,7 @@ import { catchError, Observable, of, tap } from 'rxjs';
 import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
 
 import { SaveMeasurementResponse } from '../../models/inspection-record';
+import { QualityMeasurementStatus } from '../../models/quality-exam';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 import { OperatorService } from '../../../shop-floor/services/operator';
@@ -38,7 +39,7 @@ export class ExamEntryPanel implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
 
   validationMessage = '';
-  hasOutOfRangeAlert = false;
+  private validationIsOutOfRange = false;
 
   ngAfterViewInit(): void {
     this.panelTitle?.nativeElement.focus();
@@ -53,13 +54,27 @@ export class ExamEntryPanel implements AfterViewInit {
   get minimum(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).minimum : ''; }
   get maximum(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).maximum : ''; }
   get observation(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).observation : ''; }
-  set observation(value: string) { if (this.currentCharacteristic) this.workflow.updateDraft(this.currentCharacteristic.id, { observation: value }); }
+  set observation(value: string) {
+    if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
+      this.workflow.updateDraft(this.currentCharacteristic.id, { observation: value });
+    }
+  }
   get progressText(): string { return this.characteristics.length ? `${this.currentIndex + 1} / ${this.characteristics.length}` : '0 / 0'; }
-  get completedCount(): number { return this.characteristics.filter(item => item.measurement?.status === 'APPROVED').length; }
+  get completedCount(): number { return this.characteristics.filter(item => Boolean(item.measurement)).length; }
   get progressPercentage(): number { return this.characteristics.length ? Math.round((this.completedCount / this.characteristics.length) * 100) : 0; }
   get canGoPrevious(): boolean { return this.currentIndex > 0 && !this.workflow.isSaving(); }
   get canGoNext(): boolean { return this.currentIndex >= 0 && this.currentIndex < this.characteristics.length - 1 && !this.workflow.isSaving(); }
   get canCompleteExam(): boolean { return this.characteristics.length > 0 && this.completedCount === this.characteristics.length && !this.workflow.isBusy(); }
+  get isCurrentMeasurementLocked(): boolean { return Boolean(this.currentCharacteristic?.measurement); }
+  get hasOutOfRangeAlert(): boolean {
+    return this.validationIsOutOfRange
+      || this.currentCharacteristic?.measurement?.status === 'REJECTED';
+  }
+  get outOfRangeMessage(): string {
+    return this.currentCharacteristic?.measurement?.status === 'REJECTED'
+      ? 'Valores fora da variação permitida'
+      : this.validationMessage;
+  }
   get currentMeasurementReference(): string {
     return this.currentCharacteristic
       ? `${this.currentCharacteristic.reference} ${this.currentCharacteristic.unit}`.trim()
@@ -67,14 +82,14 @@ export class ExamEntryPanel implements AfterViewInit {
   }
 
   updateMinimum(value: string): void {
-    if (this.currentCharacteristic) {
+    if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
       this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
       this.workflow.updateDraft(this.currentCharacteristic.id, { minimum: this.sanitizeNumericInput(value) });
     }
   }
 
   updateMaximum(value: string): void {
-    if (this.currentCharacteristic) {
+    if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
       this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
       this.workflow.updateDraft(this.currentCharacteristic.id, { maximum: this.sanitizeNumericInput(value) });
     }
@@ -83,7 +98,9 @@ export class ExamEntryPanel implements AfterViewInit {
   saveCurrentMeasurement(): Observable<SaveMeasurementResponse | null> {
     const exam = this.exam;
     const characteristic = this.currentCharacteristic;
-    if (!exam || !characteristic || this.workflow.isSaving()) return of(null);
+    if (!exam || !characteristic || this.workflow.isSaving() || this.isCurrentMeasurementLocked) {
+      return of(null);
+    }
     this.clearValidation();
     const draft = this.workflow.draftFor(characteristic.id);
     const minimum = this.parseNumber(draft.minimum);
@@ -94,15 +111,17 @@ export class ExamEntryPanel implements AfterViewInit {
     }
 
     const validation = this.qualityControlService.validateMeasurementRange(characteristic, { minimum, maximum });
+    let status: QualityMeasurementStatus = 'APPROVED';
     if (validation.valid === false) {
       this.validationMessage = validation.message;
       if (validation.reason === 'OUT_OF_RANGE') {
-        this.hasOutOfRangeAlert = true;
+        this.validationIsOutOfRange = true;
         this.workflow.markComponentOutOfRange(characteristic.id);
+        status = 'REJECTED';
       } else {
         this.workflow.clearComponentOutOfRange(characteristic.id);
+        return of(null);
       }
-      return of(null);
     }
 
     this.workflow.isSaving.set(true);
@@ -114,7 +133,7 @@ export class ExamEntryPanel implements AfterViewInit {
         minimum,
         maximum,
         observation: draft.observation.trim() || undefined,
-        status: validation.status,
+        status,
       },
       operatorId: this.operatorService.selectedOperator?.code ?? '',
     }).pipe(
@@ -173,7 +192,10 @@ export class ExamEntryPanel implements AfterViewInit {
       });
   }
 
-  private clearValidation(): void { this.validationMessage = ''; this.hasOutOfRangeAlert = false; }
+  private clearValidation(): void {
+    this.validationMessage = '';
+    this.validationIsOutOfRange = false;
+  }
   private parseNumber(value: string): number | null {
     if (!value.trim()) return null;
     const parsed = Number(value.replace(',', '.'));

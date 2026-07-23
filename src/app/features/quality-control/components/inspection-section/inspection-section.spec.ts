@@ -112,6 +112,44 @@ describe('InspectionSection', () => {
     expect(statuses[1].textContent).toContain('Apontado em 22/07/2026 14:17');
   });
 
+  it('shows saved values and time for a rejected component and counts it as concluded', () => {
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: -1.5,
+      maximum: 2.75,
+      status: 'REJECTED',
+      savedAt: new Date(2026, 6, 23, 8, 58),
+    });
+    fixture.detectChanges();
+
+    const first = fixture.nativeElement.querySelectorAll('.inspection-process__component')[0] as HTMLElement;
+    expect(first.textContent).toContain('Valores fora da variação permitida');
+    expect(first.textContent).toContain('Mín: -1,5');
+    expect(first.textContent).toContain('Máx: 2,75');
+    expect(first.textContent).toContain('Apontado em 23/07/2026 08:58');
+    expect(first.textContent).toContain('☐');
+    expect(component.isCompleted(state.componentById('a-10')!)).toBe(true);
+    expect(component.isApproved(state.componentById('a-10')!)).toBe(false);
+    expect(state.completedCount()).toBe(1);
+    expect(state.pendingCount()).toBe(1);
+  });
+
+  it('allows opening a saved rejected component as read-only without blocking the sequence', () => {
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: -1,
+      maximum: 2,
+      status: 'REJECTED',
+      savedAt: new Date(),
+    });
+
+    component.selectComponent(state.componentById('a-20')!);
+    expect(state.selectedComponentId()).toBe('a-20');
+
+    component.selectComponent(state.componentById('a-10')!);
+    expect(component.canOpenExamEntry).toBe(true);
+    component.openExamEntry();
+    expect(state.panelOpen()).toBe(true);
+  });
+
   it('shows the saved minimum and maximum with Brazilian decimal separators', () => {
     state.applyMeasurement('exam-a', 'a-10', { minimum: 1.5, maximum: 2.75, status: 'APPROVED' });
     fixture.detectChanges();

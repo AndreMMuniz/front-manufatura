@@ -48,7 +48,7 @@ export class QualityControlWorkflowState {
       : undefined;
   });
   readonly completedCount = computed(() =>
-    this.components().filter(component => component.measurement?.status === 'APPROVED').length,
+    this.components().filter(component => this.isCompleted(component)).length,
   );
   readonly pendingCount = computed(() => this.components().length - this.completedCount());
   readonly progressPercentage = computed(() =>
@@ -225,7 +225,8 @@ export class QualityControlWorkflowState {
   }
 
   isComponentOutOfRange(componentId: string): boolean {
-    return Boolean(this.outOfRangeComponents()[componentId]);
+    return this.componentById(componentId)?.measurement?.status === 'REJECTED'
+      || Boolean(this.outOfRangeComponents()[componentId]);
   }
 
   markComponentOutOfRange(componentId: string): void {
@@ -326,7 +327,8 @@ export class QualityControlWorkflowState {
   }
 
   private isCompleted(component: QualityExamComponent): boolean {
-    return component.measurement?.status === 'APPROVED';
+    return component.measurement?.status === 'APPROVED'
+      || component.measurement?.status === 'REJECTED';
   }
 
   private draftFromMeasurement(measurement?: QualityMeasurement): MeasurementDraft {

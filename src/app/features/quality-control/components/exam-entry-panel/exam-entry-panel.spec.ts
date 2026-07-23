@@ -77,11 +77,10 @@ describe('ExamEntryPanel', () => {
     expect(state.isDirty()).toBe(true);
   });
 
-  it('preserves out-of-range values and shows an amber warning with an icon', async () => {
+  it('saves out-of-range values as rejected, shows the warning and locks the measurement', async () => {
     const saveSpy = vi.spyOn(service, 'saveMeasurement');
-    state.openPanel('a-10');
-    component.updateMinimum('0');
-    component.updateMaximum('5');
+    component.updateMinimum('9');
+    component.updateMaximum('20');
 
     await firstValueFrom(component.saveCurrentMeasurement());
 
@@ -92,21 +91,88 @@ describe('ExamEntryPanel', () => {
     expect(component.validationMessage).toBe('Valores fora da variação permitida');
     expect(alert.textContent?.trim()).toBe('Valores fora da variação permitida');
     expect(alert.querySelector('po-icon')?.getAttribute('p-icon')).toBe('an an-warning');
-    expect(component.minimum).toBe('0');
-    expect(state.isComponentOutOfRange('a-10')).toBe(true);
-    expect(state.selectedComponentId()).toBe('a-10');
+    expect(component.minimum).toBe('9');
+    expect(saveSpy).toHaveBeenCalledWith(expect.objectContaining({
+      componentId: 'b-10',
+      measurement: expect.objectContaining({ minimum: 9, maximum: 20, status: 'REJECTED' }),
+    }));
+    expect(state.componentById('b-10')?.measurement?.status).toBe('REJECTED');
+    expect(state.componentById('b-10')?.measurement?.savedAt).toBeInstanceOf(Date);
+    expect(state.isComponentOutOfRange('b-10')).toBe(true);
+    expect(state.completedCount()).toBe(1);
+    expect(component.isCurrentMeasurementLocked).toBe(true);
+    expect(state.isDirty()).toBe(false);
     expect(state.panelOpen()).toBe(true);
-    expect(saveSpy).not.toHaveBeenCalled();
   });
 
-  it('clears the shared out-of-range status when the measurement is corrected', async () => {
-    component.updateMinimum('9');
-    component.updateMaximum('20');
-    await firstValueFrom(component.saveCurrentMeasurement());
+  it('does not allow the operator to change or resend a confirmed rejected measurement', async () => {
+    const saveSpy = vi.spyOn(service, 'saveMeasurement');
+    state.applyMeasurement('exam-b', 'b-10', {
+      minimum: 9,
+      maximum: 20,
+      observation: 'aguarda supervisor',
+      status: 'REJECTED',
+      savedAt: new Date(),
+    });
 
     component.updateMinimum('10');
+    component.updateMaximum('19');
+    component.observation = 'alterada';
+    await firstValueFrom(component.saveCurrentMeasurement());
 
-    expect(state.isComponentOutOfRange('b-10')).toBe(false);
+    expect(component.minimum).toBe('9');
+    expect(component.maximum).toBe('20');
+    expect(component.observation).toBe('aguarda supervisor');
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(component.hasOutOfRangeAlert).toBe(true);
+  });
+
+  it('keeps structurally invalid values editable and does not call the API', async () => {
+    const saveSpy = vi.spyOn(service, 'saveMeasurement');
+    component.updateMinimum('20');
+    component.updateMaximum('10');
+
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(component.validationMessage).toBe('Min deve ser menor ou igual ao Max.');
+    expect(component.isCurrentMeasurementLocked).toBe(false);
+    expect(state.completedCount()).toBe(0);
+  });
+
+  it('retains an out-of-range draft and keeps it editable when the API fails', async () => {
+    vi.spyOn(service, 'saveMeasurement').mockReturnValue(throwError(() => new Error('offline')));
+    component.updateMinimum('9');
+    component.updateMaximum('20');
+
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(component.minimum).toBe('9');
+    expect(component.maximum).toBe('20');
+    expect(component.hasOutOfRangeAlert).toBe(true);
+    expect(component.isCurrentMeasurementLocked).toBe(false);
+    expect(state.componentById('b-10')?.measurement).toBeUndefined();
+    expect(state.completedCount()).toBe(0);
+  });
+
+  it('allows completing an exam when all measurements are saved with mixed results', () => {
+    state.openPanel('a-10');
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: 0,
+      maximum: 5,
+      status: 'REJECTED',
+      savedAt: new Date(),
+    });
+    state.applyMeasurement('exam-a', 'a-20', {
+      minimum: 1,
+      maximum: 5,
+      status: 'APPROVED',
+      savedAt: new Date(),
+    });
+
+    expect(component.completedCount).toBe(2);
+    expect(component.progressPercentage).toBe(100);
+    expect(component.canCompleteExam).toBe(true);
   });
 
   it('saves with the selected operator and updates the shared list immutably', async () => {

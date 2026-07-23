@@ -24,17 +24,17 @@
     @if (hasOutOfRangeAlert) {
       <div class="exam-entry__alert" role="alert">
         <po-icon class="exam-entry__alert-icon" p-icon="an an-warning" aria-hidden="true"></po-icon>
-        <span>{{ validationMessage }}</span>
+        <span>{{ outOfRangeMessage }}</span>
       </div>
     }
     <form class="exam-entry__form" (ngSubmit)="saveCurrentMeasurement().subscribe()">
-      <po-input name="minimum" p-label="Min" p-placeholder="Ex.: 485" p-required="true" [p-disabled]="workflow.isSaving()" [ngModel]="minimum" (ngModelChange)="updateMinimum($event)"></po-input>
-      <po-input name="maximum" p-label="Max" p-placeholder="Ex.: 491" p-required="true" [p-disabled]="workflow.isSaving()" [ngModel]="maximum" (ngModelChange)="updateMaximum($event)"></po-input>
-      <po-input name="observation" p-label="Observação" p-placeholder="Observação da medição" [p-disabled]="workflow.isSaving()" [(ngModel)]="observation"></po-input>
+      <po-input name="minimum" p-label="Min" p-placeholder="Ex.: 485" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="minimum" (ngModelChange)="updateMinimum($event)"></po-input>
+      <po-input name="maximum" p-label="Max" p-placeholder="Ex.: 491" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="maximum" (ngModelChange)="updateMaximum($event)"></po-input>
+      <po-input name="observation" p-label="Observação" p-placeholder="Observação da medição" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [(ngModel)]="observation"></po-input>
       @if (validationMessage && !hasOutOfRangeAlert) { <p class="exam-entry__validation" aria-live="polite">{{ validationMessage }}</p> }
       <div class="exam-entry__navigation">
         <po-button p-label="Anterior" p-kind="secondary" [p-disabled]="!canGoPrevious" (p-click)="goPrevious()"></po-button>
-        <po-button p-label="Salvar" p-kind="primary" p-type="submit" [p-disabled]="workflow.isSaving()"></po-button>
+        <po-button p-label="Salvar" p-kind="primary" p-type="submit" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked"></po-button>
         <po-button p-label="Próxima" p-kind="secondary" [p-disabled]="!canGoNext" (p-click)="goNext()"></po-button>
       </div>
     </form>

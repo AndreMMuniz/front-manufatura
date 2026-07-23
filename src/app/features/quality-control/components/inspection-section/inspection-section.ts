@@ -32,8 +32,8 @@ export class InspectionSection {
 
   selectComponent(component: QualityExamComponent): void {
     if (this.workflow.isBusy() || component.id === this.workflow.selectedComponentId()) return;
-    const nextOpen = this.workflow.components().find(item => item.measurement?.status !== 'APPROVED');
-    if (nextOpen && nextOpen.id !== component.id && component.measurement?.status !== 'APPROVED') {
+    const nextOpen = this.workflow.components().find(item => !this.isCompleted(item));
+    if (nextOpen && nextOpen.id !== component.id && !this.isCompleted(component)) {
       this.workflow.inspectionFeedback.set('Siga a sequência do roteiro definida pelo Datasul.');
       return;
     }
@@ -77,11 +77,15 @@ export class InspectionSection {
   }
 
   isCompleted(component: QualityExamComponent): boolean {
+    return Boolean(component.measurement);
+  }
+
+  isApproved(component: QualityExamComponent): boolean {
     return component.measurement?.status === 'APPROVED';
   }
 
   statusLabel(component: QualityExamComponent): string {
-    if (component.measurement?.status === 'APPROVED') return 'Aprovado';
+    if (this.isApproved(component)) return 'Aprovado';
     if (this.workflow.isComponentOutOfRange(component.id)) return 'Valores fora da variação permitida';
     return this.isSelected(component) ? 'Em inspeção' : 'Pendente';
   }

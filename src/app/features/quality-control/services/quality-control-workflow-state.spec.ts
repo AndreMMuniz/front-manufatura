@@ -112,6 +112,27 @@ describe('QualityControlWorkflowState', () => {
     expect(second.componentById('a-10')?.measurement).toBeUndefined();
   });
 
+  it('counts rejected API measurements as completed and continues with the next pending component', () => {
+    const state = loadedState();
+    state.applyMeasurement('exam-a', 'a-10', {
+      minimum: -1,
+      maximum: 2,
+      status: 'REJECTED',
+      operatorId: 'OP-001',
+      savedAt: new Date(),
+    });
+
+    expect(state.componentById('a-10')?.status).toBe('REJECTED');
+    expect(state.completedCount()).toBe(1);
+    expect(state.pendingCount()).toBe(2);
+    expect(state.progressPercentage()).toBe(33);
+    expect(state.isComponentOutOfRange('a-10')).toBe(true);
+
+    state.selectNextPendingAndClose();
+
+    expect(state.selectedComponentId()).toBe('a-20');
+  });
+
   it('synchronizes component and owning exam while navigating inside the panel', () => {
     const state = loadedState();
     state.openPanel('a-10');
