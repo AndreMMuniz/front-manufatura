@@ -31,9 +31,11 @@ export class ReportOperacaoService {
   ];
 
   private readonly responsaveis: ReadonlyArray<ResponsavelOperacao> = [
+    { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
     { tipo: 'OPERADOR', codigo: '001', nome: 'Jose Ribeiro Neto' },
     { tipo: 'OPERADOR', codigo: '002', nome: 'Almir Rogerio Bento' },
     { tipo: 'OPERADOR', codigo: '003', nome: 'Carlos Silva' },
+    { tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' },
     { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem Zap' },
     { tipo: 'EQUIPE', codigo: 'CORTE01', nome: 'Corte Industrial' },
     { tipo: 'EQUIPE', codigo: 'EMB02', nome: 'Embalagem' },
@@ -184,7 +186,14 @@ export class ReportOperacaoService {
     return of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio }).pipe(delay(200));
   }
 
-  listarResponsaveis(): Observable<ReadonlyArray<ResponsavelOperacao>> {
+  listarResponsaveis(
+    areaCode: string,
+    workCenterCode: string,
+  ): Observable<ReadonlyArray<ResponsavelOperacao>> {
+    if (this.normalize(areaCode) !== '4001' || this.normalize(workCenterCode) !== 'ct-ext-01') {
+      return of([]).pipe(delay(100));
+    }
+
     return of(this.responsaveis.map(responsavel => ({ ...responsavel }))).pipe(delay(100));
   }
 

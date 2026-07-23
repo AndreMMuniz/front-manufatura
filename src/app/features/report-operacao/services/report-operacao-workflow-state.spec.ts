@@ -44,6 +44,10 @@ describe('ReportOperacaoWorkflowState', () => {
     state.addReporte({
       id: 'APT-1',
       registradoEm: new Date(2026, 6, 23, 10),
+      dataInicio: new Date(2026, 6, 23, 9),
+      horaInicio: '09:00',
+      dataFim: new Date(2026, 6, 23, 10),
+      horaFim: '10:00',
       quantidadeAprovada: 1,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
@@ -69,6 +73,10 @@ describe('ReportOperacaoWorkflowState', () => {
     state.addReporte({
       id: 'APT-1',
       registradoEm,
+      dataInicio: new Date(2026, 6, 23, 9),
+      horaInicio: '09:00',
+      dataFim: new Date(2026, 6, 23, 10),
+      horaFim: '10:00',
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 1,
       quantidadeRefugo: 0,

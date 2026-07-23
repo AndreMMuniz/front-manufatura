@@ -125,7 +125,7 @@ describe('ReportOperacaoService', () => {
   });
 
   it('lists operators and teams as selectable operation responsibles', async () => {
-    const responsaveis = await firstValueFrom(service.listarResponsaveis());
+    const responsaveis = await firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01'));
 
     expect(responsaveis).toEqual(expect.arrayContaining([
       expect.objectContaining({ tipo: 'OPERADOR', codigo: '001' }),

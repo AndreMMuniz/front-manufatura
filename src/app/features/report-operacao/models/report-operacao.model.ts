@@ -68,6 +68,10 @@ export interface ResponsavelOperacao {
 export interface ReporteParcialOperacao {
   readonly id: string;
   readonly registradoEm: Date;
+  readonly dataInicio: Date;
+  readonly horaInicio: string;
+  readonly dataFim: Date;
+  readonly horaFim: string;
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;

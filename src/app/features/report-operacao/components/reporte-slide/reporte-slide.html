@@ -49,10 +49,10 @@
 
       @for (reporte of historico; track reporte.id) {
         <div class="reporte-slide__row">
-          <span>{{ formatDataHora(reporte.registradoEm) }}</span>
-          <span>{{ formatQuantidade(reporte.quantidadeAprovada) }}</span>
-          <span>{{ formatQuantidade(reporte.quantidadeRetrabalho) }}</span>
-          <span>{{ formatQuantidade(reporte.quantidadeRefugo) }}</span>
+          <span><small>Data/Hora</small>{{ formatDataHora(reporte.registradoEm) }}</span>
+          <span><small>Aprovada</small>{{ formatQuantidade(reporte.quantidadeAprovada) }}</span>
+          <span><small>Retrabalho</small>{{ formatQuantidade(reporte.quantidadeRetrabalho) }}</span>
+          <span><small>Refugo</small>{{ formatQuantidade(reporte.quantidadeRefugo) }}</span>
         </div>
       } @empty {
         <p class="reporte-slide__empty">Nenhum reporte realizado nesta operação.</p>
@@ -66,7 +66,7 @@
         p-label="Salvar reporte"
         p-kind="primary"
         [p-loading]="salvando"
-        [p-disabled]="salvando || totalInformado <= 0"
+        [p-disabled]="!canSave"
         (p-click)="salvar()"
       ></po-button>
       <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="salvando" (p-click)="voltar()"></po-button>

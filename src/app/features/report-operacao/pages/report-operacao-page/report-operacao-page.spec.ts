@@ -344,6 +344,10 @@ describe('ReportOperacaoPage', () => {
     workflow.addReporte({
       id: 'APT-RESTORED',
       registradoEm: new Date(2026, 6, 23, 9),
+      dataInicio: new Date(2026, 6, 23, 8),
+      horaInicio: '08:00',
+      dataFim: new Date(2026, 6, 23, 9),
+      horaFim: '09:00',
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,

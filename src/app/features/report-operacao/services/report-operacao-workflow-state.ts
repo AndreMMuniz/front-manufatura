@@ -242,6 +242,8 @@ export class ReportOperacaoWorkflowState {
     return {
       ...reporte,
       registradoEm: new Date(reporte.registradoEm),
+      dataInicio: new Date(reporte.dataInicio),
+      dataFim: new Date(reporte.dataFim),
     };
   }
 }

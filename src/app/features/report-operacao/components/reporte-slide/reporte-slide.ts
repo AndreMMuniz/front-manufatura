@@ -52,6 +52,13 @@ export class ReporteSlide {
     return this.quantidadeAprovada + this.quantidadeRetrabalho + this.quantidadeRefugo;
   }
 
+  get canSave(): boolean {
+    return !this.salvando
+      && [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
+        .every(quantidade => Number.isFinite(quantidade) && quantidade >= 0)
+      && this.totalInformado > 0;
+  }
+
   atualizarQuantidade(
     campo: 'quantidadeAprovada' | 'quantidadeRetrabalho' | 'quantidadeRefugo',
     valor: number | null | undefined,
@@ -75,8 +82,11 @@ export class ReporteSlide {
       return;
     }
 
-    if (this.totalInformado <= 0) {
-      this.validationMessage = 'Informe ao menos uma quantidade produzida.';
+    if (!this.canSave) {
+      this.validationMessage = [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
+        .some(quantidade => !Number.isFinite(quantidade) || quantidade < 0)
+        ? 'As quantidades não podem ser negativas.'
+        : 'Informe ao menos uma quantidade produzida.';
       return;
     }
 

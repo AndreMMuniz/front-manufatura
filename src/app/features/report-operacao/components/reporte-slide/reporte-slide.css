@@ -43,6 +43,11 @@
   font-weight: 700;
 }
 
+.reporte-slide__row small {
+  display: none;
+  font-weight: 700;
+}
+
 .reporte-slide__empty {
   margin: 0;
   padding: var(--app-space-md);
@@ -66,5 +71,14 @@
 
   .reporte-slide__row--header {
     display: none;
+  }
+
+  .reporte-slide__row span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .reporte-slide__row small {
+    display: inline;
   }
 }

@@ -1,3 +1,5 @@
+import { TipoResponsavelOperacao } from '../models/report-operacao.model';
+
 export interface AreaProducaoResponseDTO {
   readonly code: string;
   readonly description: string;
@@ -51,6 +53,8 @@ export interface IniciarOperacaoRequest {
   readonly split: string;
   readonly operador: string;
   readonly equipe: string;
+  readonly tipoResponsavel: TipoResponsavelOperacao;
+  readonly codigoResponsavel: string;
   readonly dataInicio: Date;
   readonly horaInicio: string;
 }
@@ -83,5 +87,7 @@ export interface ReportarOperacaoRequest {
   readonly horaFim: string;
   readonly operador: string;
   readonly equipe: string;
+  readonly tipoResponsavel: TipoResponsavelOperacao;
+  readonly codigoResponsavel: string;
   readonly ct: string;
 }

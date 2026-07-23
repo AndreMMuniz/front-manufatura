@@ -33,6 +33,10 @@ describe('ReporteSlide', () => {
     component.confirmarReporte({
       id: 'APT-1',
       registradoEm: new Date(2026, 6, 23, 10),
+      dataInicio: new Date(2026, 6, 23, 9),
+      horaInicio: '09:00',
+      dataFim: new Date(2026, 6, 23, 10),
+      horaFim: '10:00',
       quantidadeAprovada: 3,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
