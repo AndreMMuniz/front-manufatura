@@ -19,10 +19,23 @@
       name="responsavelOperacao"
       [p-label]="tipoResponsavel === 'OPERADOR' ? 'Operador' : 'Equipe'"
       [p-options]="responsavelOptions"
-      [p-disabled]="responsavelDisabled"
+      [p-disabled]="responsavelDisabled || loadingResponsaveis"
+      [p-loading]="loadingResponsaveis"
       [ngModel]="responsavelCodigo"
       (ngModelChange)="changeResponsavel($event)"
     ></po-select>
     <po-input name="turno" p-label="Turno" [p-readonly]="true" [ngModel]="operacao?.turno ?? ''"></po-input>
   </div>
+
+  @if (responsaveisError) {
+    <div class="operacao-info__responsaveis-error" role="alert">
+      <span>{{ responsaveisError }}</span>
+      <po-button
+        p-label="Tentar novamente"
+        p-kind="secondary"
+        [p-disabled]="loadingResponsaveis || responsavelDisabled"
+        (p-click)="retryResponsaveis.emit()"
+      ></po-button>
+    </div>
+  }
 </po-widget>

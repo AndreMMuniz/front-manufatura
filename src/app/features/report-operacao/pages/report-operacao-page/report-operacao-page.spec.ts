@@ -21,6 +21,7 @@ describe('ReportOperacaoPage', () => {
   let dialog: { confirm: ReturnType<typeof vi.fn> };
   let workflow: ReportOperacaoWorkflowState;
   let operationalContext: { currentContext: ReturnType<typeof context> | null; setContext: ReturnType<typeof vi.fn> };
+  let reportSequence: number;
   let service: {
     listarAreasProducao: ReturnType<typeof vi.fn>;
     pesquisarCentrosTrabalho: ReturnType<typeof vi.fn>;
@@ -43,6 +44,7 @@ describe('ReportOperacaoPage', () => {
     router = { navigate: vi.fn().mockResolvedValue(true) };
     dialog = { confirm: vi.fn() };
     workflow = new ReportOperacaoWorkflowState();
+    reportSequence = 0;
     operationalContext = { currentContext: null, setContext: vi.fn() };
     service = {
       listarAreasProducao: vi.fn(() => of([{ code: '4001', description: 'Produção' }, { code: '4002', description: 'Qualidade' }])),
@@ -55,7 +57,10 @@ describe('ReportOperacaoPage', () => {
         { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Equipe A' },
       ])),
       iniciarOperacao: vi.fn(request => of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio })),
-      reportarOperacao: vi.fn(() => of({ apontamentoId: 'APT-1', reportadoEm: new Date() })),
+      reportarOperacao: vi.fn(() => {
+        reportSequence += 1;
+        return of({ apontamentoId: `APT-${reportSequence}`, reportadoEm: new Date() });
+      }),
       encerrarOperacao: vi.fn(() => of({ apontamentoId: 'ENC-1', reportadoEm: new Date() })),
       validarReporte: vi.fn(() => ''),
       validarReporteParcial: vi.fn(() => ''),
@@ -229,8 +234,9 @@ describe('ReportOperacaoPage', () => {
     selectContextAndConsult();
     component.updateSelection(new Set(orders.map(order => order.id)));
     component.openSelectedOrders();
+    const startedAt = new Date(2026, 6, 23, 8);
     component.estado = EstadoOperacao.OperacaoIniciada;
-    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
+    component.operacao = baseOperacao({ dataInicio: startedAt, horaInicio: '08:00' });
 
     component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
     component.salvarReporte({ quantidadeAprovada: 2, quantidadeRetrabalho: 1, quantidadeRefugo: 0 });
@@ -242,6 +248,14 @@ describe('ReportOperacaoPage', () => {
     expect(component.operacao?.quantidadeAprovada).toBe(3);
     expect(component.operacao?.quantidadeRetrabalho).toBe(1);
     expect(component.reportes).toHaveLength(2);
+    const firstRequest = vi.mocked(service.reportarOperacao).mock.calls[0][0];
+    const secondRequest = vi.mocked(service.reportarOperacao).mock.calls[1][0];
+    expect(firstRequest.dataInicio).toEqual(startedAt);
+    expect(secondRequest.dataInicio).toEqual(firstRequest.dataFim);
+    expect(firstRequest).toMatchObject({
+      tipoResponsavel: 'OPERADOR',
+      codigoResponsavel: '001',
+    });
     expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
   });
 
@@ -263,6 +277,24 @@ describe('ReportOperacaoPage', () => {
     expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
   });
 
+  it('ignores a second ending confirmation while the first request is pending', () => {
+    const pending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+    vi.mocked(service.encerrarOperacao).mockReturnValue(pending.asObservable());
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
+
+    component.solicitarEncerramento();
+    component.solicitarEncerramento();
+    vi.mocked(dialog.confirm).mock.calls[0][0].confirm();
+    vi.mocked(dialog.confirm).mock.calls[1][0].confirm();
+
+    expect(service.encerrarOperacao).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves operation, queue and history when a partial report fails', () => {
     vi.mocked(service.reportarOperacao).mockReturnValue(throwError(() => new Error('network')));
     fixture.detectChanges();
@@ -277,6 +309,93 @@ describe('ReportOperacaoPage', () => {
     expect(component.operacao?.quantidadeRefugo).toBe(0);
     expect(workflow.snapshot().queue).toHaveLength(1);
     expect(workflow.snapshot().reportes).toHaveLength(0);
+  });
+
+  it('does not report an operation that has not been started', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+
+    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+
+    expect(service.reportarOperacao).not.toHaveBeenCalled();
+    expect(component.feedback).toContain('Inicie a operação');
+  });
+
+  it('keeps the drawer draft when partial validation rejects the balance', () => {
+    vi.mocked(service.validarReporteParcial).mockReturnValue(
+      'A quantidade acumulada não pode ultrapassar o saldo da OP.',
+    );
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(2026, 6, 23, 8), horaInicio: '08:00' });
+    const informarErro = vi.fn();
+    (component as unknown as { reporteSlide: { informarErro: typeof informarErro } }).reporteSlide = { informarErro };
+
+    component.salvarReporte({ quantidadeAprovada: 321, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+
+    expect(service.reportarOperacao).not.toHaveBeenCalled();
+    expect(informarErro).toHaveBeenCalledWith('A quantidade acumulada não pode ultrapassar o saldo da OP.');
+  });
+
+  it('does not apply a stale partial-report response to another operation', () => {
+    const pending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+    vi.mocked(service.reportarOperacao).mockReturnValue(pending.asObservable());
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    const firstOperation = baseOperacao({ dataInicio: new Date(2026, 6, 23, 8), horaInicio: '08:00' });
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = firstOperation;
+    workflow.setActiveOperation(firstOperation, EstadoOperacao.OperacaoIniciada);
+
+    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+    component.operacao = baseOperacao({ ordem: '450002', op: 'OP-10459' });
+    pending.next({ apontamentoId: 'STALE', reportadoEm: new Date(2026, 6, 23, 9) });
+
+    expect(component.operacao.ordem).toBe('450002');
+    expect(component.reportes).toEqual([]);
+    expect(workflow.snapshot().operationState).toBe(EstadoOperacao.OperacaoIniciada);
+  });
+
+  it('keeps the recoverable workflow state while a partial report is pending', () => {
+    const pending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+    vi.mocked(service.reportarOperacao).mockReturnValue(pending.asObservable());
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    const operation = baseOperacao({ dataInicio: new Date(2026, 6, 23, 8), horaInicio: '08:00' });
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = operation;
+    workflow.setActiveOperation(operation, EstadoOperacao.OperacaoIniciada);
+
+    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+
+    expect(component.estado).toBe(EstadoOperacao.Reportando);
+    expect(workflow.snapshot().operationState).toBe(EstadoOperacao.OperacaoIniciada);
+  });
+
+  it('does not mutate the loaded operation when starting fails', () => {
+    vi.mocked(service.iniciarOperacao).mockReturnValue(throwError(() => new Error('network')));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    const original = component.operacao;
+    component.alterarTipoResponsavel('EQUIPE');
+    component.alterarResponsavel('MONT03');
+
+    component.iniciarOperacao();
+
+    expect(component.operacao).toEqual(original);
+    expect(workflow.snapshot().operation).toEqual(original);
+    expect(component.estado).toBe(EstadoOperacao.Erro);
   });
 
   it('asks before discarding an active workflow and preserves it until confirmation', () => {
@@ -362,6 +481,42 @@ describe('ReportOperacaoPage', () => {
     expect(component.reportes.map(reporte => reporte.id)).toEqual(['APT-RESTORED']);
   });
 
+  it('recovers a legacy transient workflow state when recreating the page', () => {
+    workflow.setContext({ code: '4001', description: 'Produção' }, center());
+    workflow.setOrders(orders);
+    workflow.setSelectedOrderIds(new Set(['first']));
+    workflow.startQueue();
+    workflow.setResponsavel({ tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' });
+    workflow.setActiveOperation(
+      baseOperacao({ dataInicio: new Date(2026, 6, 23, 8), horaInicio: '08:00' }),
+      EstadoOperacao.Reportando,
+    );
+
+    fixture.detectChanges();
+
+    expect(component.estado).toBe(EstadoOperacao.OperacaoIniciada);
+    expect(workflow.snapshot().operationState).toBe(EstadoOperacao.OperacaoIniciada);
+    expect(component.reporteDisabled).toBe(false);
+  });
+
+  it('allows retrying an empty responsible list without reloading the page', () => {
+    vi.mocked(service.listarResponsaveis)
+      .mockReturnValueOnce(of([]))
+      .mockReturnValueOnce(of([{ tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' }]));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+
+    expect(component.responsaveisError).toContain('Tente novamente');
+
+    component.retryResponsaveis();
+
+    expect(service.listarResponsaveis).toHaveBeenCalledTimes(2);
+    expect(component.responsavelCodigo).toBe('001');
+    expect(component.responsaveisError).toBe('');
+  });
+
   it('sends only the incremental quantities in each report payload', () => {
     fixture.detectChanges();
     selectContextAndConsult();
@@ -395,6 +550,7 @@ describe('ReportOperacaoPage', () => {
     component.openSelectedOrders();
     component.alterarResponsavel('');
 
+    expect(service.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01');
     component.iniciarOperacao();
 
     expect(service.iniciarOperacao).not.toHaveBeenCalled();
@@ -403,6 +559,12 @@ describe('ReportOperacaoPage', () => {
     component.iniciarOperacao();
 
     expect(service.iniciarOperacao).toHaveBeenCalledTimes(1);
+    expect(service.iniciarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      tipoResponsavel: 'OPERADOR',
+      codigoResponsavel: '001',
+      operador: 'Ana Silva',
+      equipe: '',
+    }));
     expect(component.operacao?.dataInicio).toBeInstanceOf(Date);
     expect(component.iniciarDisabled).toBe(true);
     expect(component.reporteDisabled).toBe(false);

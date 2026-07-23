@@ -97,6 +97,8 @@ export class ReportOperacaoPage implements OnInit {
   responsavelCodigo = '';
   reportes: ReadonlyArray<ReporteParcialOperacao> = [];
   encerrando = false;
+  loadingResponsaveis = false;
+  responsaveisError = '';
 
   private areasRequest = 0;
   private centersRequest = 0;
@@ -299,7 +301,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   solicitarEncerramento(): void {
-    if (this.encerrarDisabled) {
+    if (this.encerrando || this.encerrarDisabled) {
       return;
     }
 
@@ -309,6 +311,12 @@ export class ReportOperacaoPage implements OnInit {
       confirm: () => this.endOperation(),
       literals: { cancel: 'Cancelar', confirm: 'Encerrar' },
     });
+  }
+
+  retryResponsaveis(): void {
+    if (!this.loadingResponsaveis && this.operacao && !this.operacao.dataInicio) {
+      this.loadResponsaveis();
+    }
   }
 
   abrirRefugo(): void {
@@ -671,6 +679,13 @@ export class ReportOperacaoPage implements OnInit {
 
     const end = this.ensureEnd();
     const ultimoReporte = this.reportes.at(-1);
+    if (ultimoReporte && Number.isNaN(ultimoReporte.dataFim.getTime())) {
+      const message = 'O histórico possui uma data inválida. Recarregue a operação antes de reportar.';
+      this.feedback = message;
+      this.notification.error(message);
+      this.reporteSlide?.informarErro(message);
+      return;
+    }
     const intervalStart = {
       dataInicio: ultimoReporte ? new Date(ultimoReporte.dataFim) : new Date(operation.dataInicio),
       horaInicio: ultimoReporte?.horaFim ?? operation.horaInicio,
@@ -724,9 +739,9 @@ export class ReportOperacaoPage implements OnInit {
           this.operacao = {
             ...operation,
             ...end,
-            quantidadeAprovada: operation.quantidadeAprovada + draft.quantidadeAprovada,
-            quantidadeRetrabalho: operation.quantidadeRetrabalho + draft.quantidadeRetrabalho,
-            quantidadeRefugo: operation.quantidadeRefugo + draft.quantidadeRefugo,
+            quantidadeAprovada: this.round3(operation.quantidadeAprovada + draft.quantidadeAprovada),
+            quantidadeRetrabalho: this.round3(operation.quantidadeRetrabalho + draft.quantidadeRetrabalho),
+            quantidadeRefugo: this.round3(operation.quantidadeRefugo + draft.quantidadeRefugo),
           };
           this.estado = EstadoOperacao.OperacaoIniciada;
           this.workflowState.setActiveOperation(this.operacao, this.estado);
@@ -755,7 +770,7 @@ export class ReportOperacaoPage implements OnInit {
 
   private endOperation(): void {
     const operation = this.operacao;
-    if (!operation?.dataInicio || !operation.horaInicio || !this.canEditProduction) return;
+    if (this.encerrando || !operation?.dataInicio || !operation.horaInicio || !this.canEditProduction) return;
     const end = this.ensureEnd();
     const activeOrderId = this.workflowState.snapshot().activeOrder?.id;
     const request = ++this.endRequest;
@@ -839,7 +854,7 @@ export class ReportOperacaoPage implements OnInit {
     this.selectedOrderIds = new Set(snapshot.selectedOrderIds);
     this.operacao = snapshot.operation ? { ...snapshot.operation } : null;
     this.estado = snapshot.operationState === EstadoOperacao.Reportando
-      ? snapshot.operation?.dataInicio ? EstadoOperacao.OperacaoIniciada : EstadoOperacao.OPEncontrada
+      ? (snapshot.operation?.dataInicio ? EstadoOperacao.OperacaoIniciada : EstadoOperacao.OPEncontrada)
       : snapshot.operationState;
     this.refugoItens = snapshot.scrapItems.map(item => ({ ...item }));
     this.ultimoMotivoRefugo = snapshot.lastScrapReason;
@@ -915,16 +930,26 @@ export class ReportOperacaoPage implements OnInit {
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   }
 
+  private round3(value: number): number {
+    return Math.round((value + Number.EPSILON) * 1000) / 1000;
+  }
+
   private loadResponsaveis(): void {
+    this.loadingResponsaveis = true;
+    this.responsaveisError = '';
     this.reportOperacaoService.listarResponsaveis(this.areaCode, this.workCenterCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: responsaveis => {
+          this.loadingResponsaveis = false;
           this.responsaveis = responsaveis.map(responsavel => ({ ...responsavel }));
-          if (responsaveis.length === 0) {
+          if (this.responsavelCodigo && !this.responsavelSelecionado) {
             this.responsavelCodigo = '';
             this.workflowState.setResponsavel(null);
-            this.feedback = 'Nenhuma equipe ou operador elegível para este Centro de Trabalho.';
+          }
+          if (responsaveis.length === 0) {
+            this.responsaveisError = 'Nenhuma equipe ou operador elegível. Tente novamente.';
+            this.feedback = this.responsaveisError;
           }
           if (this.operacao && !this.responsavelCodigo) {
             this.selectInitialResponsavel(this.operacao);
@@ -932,7 +957,9 @@ export class ReportOperacaoPage implements OnInit {
           this.changeDetector.markForCheck();
         },
         error: () => {
-          this.feedback = 'Não foi possível carregar equipes e operadores.';
+          this.loadingResponsaveis = false;
+          this.responsaveisError = 'Não foi possível carregar equipes e operadores. Tente novamente.';
+          this.feedback = this.responsaveisError;
           this.notification.error(this.feedback);
           this.changeDetector.markForCheck();
         },

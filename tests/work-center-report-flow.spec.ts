@@ -89,6 +89,9 @@ test.describe('fluxo de Reporte Operações', () => {
     await drawer.getByRole('button', { name: 'Salvar reporte' }).click();
     await expect(drawer.getByText('2,000')).toBeVisible();
     await drawer.getByRole('button', { name: 'Voltar' }).click();
+    await expect(
+      page.locator('app-producao-form').getByRole('spinbutton', { name: 'Qtde Aprovada' }),
+    ).toHaveValue('3');
 
     await page.getByRole('button', { name: 'Encerrar', exact: true }).click();
     await page.getByRole('button', { name: 'Encerrar', exact: true }).last().click();

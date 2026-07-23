@@ -3,6 +3,15 @@
   gap: var(--app-space-md);
 }
 
+.operacao-info__responsaveis-error {
+  align-items: center;
+  color: var(--app-color-error);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-sm);
+  margin-top: var(--app-space-md);
+}
+
 @media (min-width: 760px) {
   .operacao-info {
     grid-template-columns: repeat(5, minmax(0, 1fr));

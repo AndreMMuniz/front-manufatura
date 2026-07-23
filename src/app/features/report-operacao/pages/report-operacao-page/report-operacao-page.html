@@ -50,8 +50,11 @@
         [tipoResponsavel]="tipoResponsavel"
         [responsavelCodigo]="responsavelCodigo"
         [responsavelDisabled]="operacao.dataInicio !== undefined || isBusy"
+        [loadingResponsaveis]="loadingResponsaveis"
+        [responsaveisError]="responsaveisError"
         (tipoResponsavelChange)="alterarTipoResponsavel($event)"
         (responsavelChange)="alterarResponsavel($event)"
+        (retryResponsaveis)="retryResponsaveis()"
       ></app-operacao-info-card>
 
     }

@@ -45,4 +45,23 @@ describe('ReporteSlide', () => {
     expect(component.quantidadeAprovada).toBe(0);
     expect(component.historico).toHaveLength(1);
   });
+
+  it('disables saving when any quantity is negative or non-finite', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    component.quantidadeAprovada = 10;
+    component.quantidadeRefugo = -1;
+
+    expect(component.canSave).toBe(false);
+
+    component.quantidadeRefugo = 0;
+    component.quantidadeRetrabalho = Number.NaN;
+
+    expect(component.canSave).toBe(false);
+  });
+
+  it('renders a safe fallback for an invalid restored date', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+
+    expect(component.formatDataHora(new Date('invalid'))).toBe('Data inválida');
+  });
 });

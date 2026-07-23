@@ -1,4 +1,4 @@
-import { TipoResponsavelOperacao } from '../models/report-operacao.model';
+import type { TipoResponsavelOperacao } from '../models/report-operacao.model';
 
 export interface AreaProducaoResponseDTO {
   readonly code: string;

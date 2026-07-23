@@ -59,11 +59,16 @@ export class ReporteSlide {
       && this.totalInformado > 0;
   }
 
+  get hasDraft(): boolean {
+    return [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
+      .some(quantidade => quantidade !== 0);
+  }
+
   atualizarQuantidade(
     campo: 'quantidadeAprovada' | 'quantidadeRetrabalho' | 'quantidadeRefugo',
     valor: number | null | undefined,
   ): void {
-    this[campo] = typeof valor === 'number' && Number.isFinite(valor) ? valor : 0;
+    this[campo] = typeof valor === 'number' && Number.isFinite(valor) ? Math.max(0, valor) : 0;
     this.validationMessage = '';
   }
 
@@ -71,6 +76,8 @@ export class ReporteSlide {
     this.historico = reportes.map(reporte => ({
       ...reporte,
       registradoEm: new Date(reporte.registradoEm),
+      dataInicio: new Date(reporte.dataInicio),
+      dataFim: new Date(reporte.dataFim),
     }));
     this.resetDraft();
     this.pageSlide.open();
@@ -103,6 +110,8 @@ export class ReporteSlide {
     this.historico = [...this.historico, {
       ...reporte,
       registradoEm: new Date(reporte.registradoEm),
+      dataInicio: new Date(reporte.dataInicio),
+      dataFim: new Date(reporte.dataFim),
     }];
     this.salvando = false;
     this.resetDraft();
@@ -116,7 +125,7 @@ export class ReporteSlide {
   }
 
   voltar(): void {
-    if (this.totalInformado <= 0) {
+    if (!this.hasDraft) {
       this.pageSlide.close();
       return;
     }
@@ -140,6 +149,10 @@ export class ReporteSlide {
   }
 
   formatDataHora(data: Date): string {
+    if (!(data instanceof Date) || Number.isNaN(data.getTime())) {
+      return 'Data inválida';
+    }
+
     return new Intl.DateTimeFormat('pt-BR', {
       dateStyle: 'short',
       timeStyle: 'short',

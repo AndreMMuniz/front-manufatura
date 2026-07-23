@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { PoFieldModule, PoSelectOption, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoFieldModule, PoSelectOption, PoWidgetModule } from '@po-ui/ng-components';
 
 import {
   ReportOperacao,
@@ -11,7 +11,7 @@ import {
 
 @Component({
   selector: 'app-operacao-info-card',
-  imports: [FormsModule, PoFieldModule, PoWidgetModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, PoWidgetModule],
   templateUrl: './operacao-info-card.html',
   styleUrls: ['./operacao-info-card.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -22,9 +22,12 @@ export class OperacaoInfoCard {
   @Input() tipoResponsavel: TipoResponsavelOperacao = 'OPERADOR';
   @Input() responsavelCodigo = '';
   @Input() responsavelDisabled = true;
+  @Input() loadingResponsaveis = false;
+  @Input() responsaveisError = '';
 
   @Output() tipoResponsavelChange = new EventEmitter<TipoResponsavelOperacao>();
   @Output() responsavelChange = new EventEmitter<string>();
+  @Output() retryResponsaveis = new EventEmitter<void>();
 
   readonly tipoOptions: ReadonlyArray<PoSelectOption> = [
     { label: 'Operador', value: 'OPERADOR' },

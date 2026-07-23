@@ -3,19 +3,9 @@
   gap: var(--app-space-md);
 }
 
-.producao-form__with-action {
-  display: grid;
-  gap: var(--app-space-sm);
-}
-
 @media (min-width: 760px) {
   .producao-form {
     align-items: end;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .producao-form__with-action {
-    align-items: end;
-    grid-template-columns: minmax(0, 1fr) auto;
   }
 }

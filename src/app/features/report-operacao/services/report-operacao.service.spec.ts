@@ -122,15 +122,29 @@ describe('ReportOperacaoService', () => {
     expect(service.validarReporteParcial(operacao, 0, 0, 0)).toBe(
       'Informe ao menos uma quantidade produzida.',
     );
+    expect(service.validarReporteParcial(operacao, Number.NaN, 0, 0)).toBe(
+      'As quantidades não podem ser negativas.',
+    );
+  });
+
+  it('accepts decimal quantities that reach the balance after three-decimal rounding', () => {
+    const operacao = baseOperacaoIniciada({
+      quantidadeSaldo: 0.3,
+      quantidadeAprovada: 0.1,
+    });
+
+    expect(service.validarReporteParcial(operacao, 0.2, 0, 0)).toBe('');
   });
 
   it('lists operators and teams as selectable operation responsibles', async () => {
     const responsaveis = await firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01'));
 
     expect(responsaveis).toEqual(expect.arrayContaining([
-      expect.objectContaining({ tipo: 'OPERADOR', codigo: '001' }),
+      expect.objectContaining({ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }),
+      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' }),
       expect.objectContaining({ tipo: 'EQUIPE', codigo: 'MONT03' }),
     ]));
+    await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([]);
   });
 });
 

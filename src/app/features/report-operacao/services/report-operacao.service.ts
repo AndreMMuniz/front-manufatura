@@ -232,7 +232,7 @@ export class ReportOperacaoService {
       return 'Informe ao menos uma quantidade produzida.';
     }
 
-    if (acumulado + parcial > operacao.quantidadeSaldo) {
+    if (this.round3(acumulado + parcial) > this.round3(operacao.quantidadeSaldo)) {
       return 'A quantidade acumulada não pode ultrapassar o saldo da OP.';
     }
 
@@ -312,5 +312,9 @@ export class ReportOperacaoService {
 
   private dateOnly(date: Date): Date {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  private round3(value: number): number {
+    return Math.round((value + Number.EPSILON) * 1000) / 1000;
   }
 }
