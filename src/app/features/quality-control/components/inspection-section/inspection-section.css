@@ -10,6 +10,7 @@
 .inspection-process__component:focus-visible { outline: 3px solid #0c6b77; outline-offset: 2px; }
 .inspection-process__component--selected { background: #e7f3f4; border-color: #0c6b77; }
 .inspection-process__component--approved { border-left-color: var(--app-color-success, #2e7d32); }
+.inspection-process__component--rejected { background: var(--app-color-warning-soft, #fff8e1); border-color: var(--app-color-warning, #9a6a00); border-left-color: var(--app-color-warning, #9a6a00); }
 .inspection-process__component-text { display: grid; gap: 4px; min-width: 0; }
 .inspection-process__component-text strong { overflow-wrap: anywhere; }
 .inspection-process__component-status { align-items: baseline; display: flex; flex-wrap: wrap; gap: 4px 12px; }

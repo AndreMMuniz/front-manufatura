@@ -37,11 +37,12 @@
             class="inspection-process__component"
             [class.inspection-process__component--selected]="isSelected(component)"
             [class.inspection-process__component--approved]="isApproved(component)"
+            [class.inspection-process__component--rejected]="isRejected(component)"
             [attr.aria-current]="isSelected(component) ? 'step' : null"
             [disabled]="workflow.isBusy()"
             (click)="selectComponent(component)"
           >
-            <span aria-hidden="true">{{ isApproved(component) ? '☑' : '☐' }}</span>
+            <span aria-hidden="true">{{ isCompleted(component) ? '☑' : '☐' }}</span>
             <span class="inspection-process__component-text">
               <strong>{{ component.code }} - {{ component.description }}</strong>
               <small class="inspection-process__component-status">

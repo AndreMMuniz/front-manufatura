@@ -84,6 +84,10 @@ export class InspectionSection {
     return component.measurement?.status === 'APPROVED';
   }
 
+  isRejected(component: QualityExamComponent): boolean {
+    return component.measurement?.status === 'REJECTED';
+  }
+
   statusLabel(component: QualityExamComponent): string {
     if (this.isApproved(component)) return 'Aprovado';
     if (this.workflow.isComponentOutOfRange(component.id)) return 'Valores fora da variação permitida';

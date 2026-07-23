@@ -126,9 +126,12 @@ describe('InspectionSection', () => {
     expect(first.textContent).toContain('Mín: -1,5');
     expect(first.textContent).toContain('Máx: 2,75');
     expect(first.textContent).toContain('Apontado em 23/07/2026 08:58');
-    expect(first.textContent).toContain('☐');
+    expect(first.textContent).toContain('☑');
+    expect(first.classList).toContain('inspection-process__component--rejected');
+    expect(first.classList).not.toContain('inspection-process__component--approved');
     expect(component.isCompleted(state.componentById('a-10')!)).toBe(true);
     expect(component.isApproved(state.componentById('a-10')!)).toBe(false);
+    expect(component.isRejected(state.componentById('a-10')!)).toBe(true);
     expect(state.completedCount()).toBe(1);
     expect(state.pendingCount()).toBe(1);
   });
