@@ -88,7 +88,7 @@ describe('ExamEntryPanel', () => {
 
     const alert = fixture.nativeElement.querySelector('.exam-entry__alert') as HTMLElement;
     expect(component.hasOutOfRangeAlert).toBe(true);
-    expect(component.validationMessage).toBe('Valores fora da variação permitida');
+    expect(component.outOfRangeMessage).toBe('Valores fora da variação permitida');
     expect(alert.textContent?.trim()).toBe('Valores fora da variação permitida');
     expect(alert.querySelector('po-icon')?.getAttribute('p-icon')).toBe('an an-warning');
     expect(component.minimum).toBe('9');
@@ -103,6 +103,25 @@ describe('ExamEntryPanel', () => {
     expect(component.isCurrentMeasurementLocked).toBe(true);
     expect(state.isDirty()).toBe(false);
     expect(state.panelOpen()).toBe(true);
+  });
+
+  it('advances after a rejected save without leaking its warning to the next characteristic', async () => {
+    state.openPanel('a-10');
+    component.updateMinimum('0');
+    component.updateMaximum('5');
+
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(state.componentById('a-10')?.measurement?.status).toBe('REJECTED');
+    expect(state.selectedComponentId()).toBe('a-20');
+    expect(component.hasOutOfRangeAlert).toBe(false);
+    expect(component.validationMessage).toBe('');
+
+    component.goPrevious();
+
+    expect(state.selectedComponentId()).toBe('a-10');
+    expect(component.hasOutOfRangeAlert).toBe(true);
+    expect(component.outOfRangeMessage).toBe('Valores fora da variação permitida');
   });
 
   it('does not allow the operator to change or resend a confirmed rejected measurement', async () => {
