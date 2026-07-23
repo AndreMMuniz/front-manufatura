@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 import { ReporteSlide } from './reporte-slide';
 
 describe('ReporteSlide', () => {

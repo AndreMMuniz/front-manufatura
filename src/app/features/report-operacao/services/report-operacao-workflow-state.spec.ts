@@ -40,6 +40,14 @@ describe('ReportOperacaoWorkflowState', () => {
     const state = queuedState();
     state.setActiveOperation(operation(), EstadoOperacao.OperacaoIniciada);
     state.setScrap([{ codigo: '05', descricao: 'Borra', quantidade: 2 }], '05 - Borra');
+    state.setResponsavel({ tipo: 'OPERADOR', codigo: '001', nome: 'Jose Ribeiro Neto' });
+    state.addReporte({
+      id: 'APT-1',
+      registradoEm: new Date(2026, 6, 23, 10),
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+    });
 
     const next = state.completeActiveOrder();
     const snapshot = state.snapshot();
@@ -50,6 +58,29 @@ describe('ReportOperacaoWorkflowState', () => {
     expect(snapshot.operationState).toBe(EstadoOperacao.SemOP);
     expect(snapshot.scrapItems).toEqual([]);
     expect(snapshot.lastScrapReason).toBe('');
+    expect(snapshot.responsavel).toBeNull();
+    expect(snapshot.reportes).toEqual([]);
+  });
+
+  it('keeps defensive copies of the selected responsible and partial reports', () => {
+    const state = queuedState();
+    const registradoEm = new Date(2026, 6, 23, 10);
+    state.setResponsavel({ tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem Zap' });
+    state.addReporte({
+      id: 'APT-1',
+      registradoEm,
+      quantidadeAprovada: 2,
+      quantidadeRetrabalho: 1,
+      quantidadeRefugo: 0,
+    });
+
+    const first = state.snapshot();
+    const second = state.snapshot();
+
+    expect(first.responsavel).toEqual({ tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem Zap' });
+    expect(first.responsavel).not.toBe(second.responsavel);
+    expect(first.reportes[0]).not.toBe(second.reportes[0]);
+    expect(first.reportes[0].registradoEm).not.toBe(registradoEm);
   });
 
   it('preserves the complete workflow until an explicit change or logout', () => {

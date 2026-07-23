@@ -42,27 +42,30 @@
 
       <app-producao-form
         [operacao]="operacao"
-        [disabled]="!canEditProduction"
-        [refugoDisabled]="!canOpenAuxiliaryFlows"
-        [retrabalhoDisabled]="!canOpenAuxiliaryFlows"
-        (producaoChange)="atualizarProducao($event)"
-        (editarRefugo)="abrirRefugo()"
-        (editarRetrabalho)="abrirRetrabalho()"
       ></app-producao-form>
 
-      <app-operacao-info-card [operacao]="operacao"></app-operacao-info-card>
+      <app-operacao-info-card
+        [operacao]="operacao"
+        [responsaveis]="responsaveis"
+        [tipoResponsavel]="tipoResponsavel"
+        [responsavelCodigo]="responsavelCodigo"
+        [responsavelDisabled]="operacao.dataInicio !== undefined || isBusy"
+        (tipoResponsavelChange)="alterarTipoResponsavel($event)"
+        (responsavelChange)="alterarResponsavel($event)"
+      ></app-operacao-info-card>
 
     }
 
     <app-report-actions
-      [primaryLabel]="primaryLabel"
-      [primaryDisabled]="primaryDisabled"
-      [primaryLoading]="estado === 'Reportando'"
-      [paradaDisabled]="!canOpenAuxiliaryFlows"
-      (primaryAction)="executePrimaryAction()"
-      (parada)="abrirParada()"
-      (voltar)="voltar()"
-      (sair)="sair()"
+      [iniciarDisabled]="iniciarDisabled"
+      [iniciarLoading]="estado === 'Carregando' && !operacao?.dataInicio"
+      [reporteDisabled]="reporteDisabled"
+      [reporteLoading]="estado === 'Reportando' && !encerrando"
+      [encerrarDisabled]="encerrarDisabled"
+      [encerrarLoading]="encerrando"
+      (iniciar)="iniciarOperacao()"
+      (reporte)="abrirReporte()"
+      (encerrar)="solicitarEncerramento()"
     ></app-report-actions>
 
     <p class="report-operacao__feedback" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">
@@ -73,5 +76,7 @@
       (refugoRegistrado)="registrarRefugo($event)"
       (sairSolicitado)="sair()"
     ></app-refugo-slide>
+
+    <app-reporte-slide (reporteSolicitado)="salvarReporte($event)"></app-reporte-slide>
   </section>
 </po-page-default>

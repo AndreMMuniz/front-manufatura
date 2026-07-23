@@ -108,6 +108,30 @@ describe('ReportOperacaoService', () => {
   it('allows valid reporting payloads', () => {
     expect(service.validarReporte(baseOperacaoIniciada({ quantidadeAprovada: 10 }))).toBe('');
   });
+
+  it('validates partial quantities against the accumulated total and order balance', () => {
+    const operacao = baseOperacaoIniciada({
+      quantidadeAprovada: 300,
+      quantidadeRetrabalho: 10,
+    });
+
+    expect(service.validarReporteParcial(operacao, 5, 0, 0)).toBe('');
+    expect(service.validarReporteParcial(operacao, 11, 0, 0)).toBe(
+      'A quantidade acumulada não pode ultrapassar o saldo da OP.',
+    );
+    expect(service.validarReporteParcial(operacao, 0, 0, 0)).toBe(
+      'Informe ao menos uma quantidade produzida.',
+    );
+  });
+
+  it('lists operators and teams as selectable operation responsibles', async () => {
+    const responsaveis = await firstValueFrom(service.listarResponsaveis());
+
+    expect(responsaveis).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tipo: 'OPERADOR', codigo: '001' }),
+      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'MONT03' }),
+    ]));
+  });
 });
 
 function baseOperacao(overrides: Partial<ReportOperacao> = {}): ReportOperacao {
