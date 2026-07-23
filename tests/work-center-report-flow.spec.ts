@@ -35,12 +35,12 @@ async function selectOrderWithKeyboard(page: import('@playwright/test').Page, or
   await expect(checkbox).toHaveAttribute('aria-checked', 'true');
 }
 
-test.describe('fluxo de Reporte Operações', () => {
+test.describe('fluxo de Reporte Ordem', () => {
   test('navega para Reporta Operação pelo cartão da Home', async ({ page }) => {
     await login(page);
 
     await expect(page.locator('po-menu')).toHaveCount(0);
-    await page.getByRole('link', { name: 'Reporte Operações' }).click();
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
 
     await expect(page).toHaveURL(/\/operation-reporting$/);
     await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
@@ -50,7 +50,7 @@ test.describe('fluxo de Reporte Operações', () => {
   test('consulta ordens por Área/Centro, seleciona pelo teclado e não cria overflow na página', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await login(page);
-    await page.getByRole('link', { name: 'Reporte Operações' }).click();
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
 
     await selectProductionContext(page);
     await selectOrderWithKeyboard(page, '450001');
@@ -64,7 +64,7 @@ test.describe('fluxo de Reporte Operações', () => {
 
   test('registra reportes parciais e mantém a operação ativa sem ação de encerramento', async ({ page }) => {
     await login(page);
-    await page.getByRole('link', { name: 'Reporte Operações' }).click();
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
     await selectProductionContext(page);
     await selectOrderWithKeyboard(page, '450001');
     await selectOrderWithKeyboard(page, '450002');
@@ -98,7 +98,7 @@ test.describe('fluxo de Reporte Operações', () => {
 
   test('exibe somente Iniciar e Reporte nas ações e bloqueia responsável após iniciar', async ({ page }) => {
     await login(page);
-    await page.getByRole('link', { name: 'Reporte Operações' }).click();
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
     await selectProductionContext(page);
     await selectOrderWithKeyboard(page, '450001');
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();

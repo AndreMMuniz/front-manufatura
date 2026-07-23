@@ -16,7 +16,7 @@ const modules = [
   },
   {
     id: 'operation-reporting',
-    label: 'Reporte Operações',
+    label: 'Reporte Ordem',
     shortLabel: 'Reporte',
     icon: 'an an-factory',
     route: '/operation-reporting',

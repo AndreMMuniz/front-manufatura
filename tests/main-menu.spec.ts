@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const modules = [
   { label: 'Plano Controle CQ', route: '/quality-control' },
-  { label: 'Reporte Operações', route: '/operation-reporting' },
+  { label: 'Reporte Ordem', route: '/operation-reporting' },
   { label: 'Reporte Batelada', route: '/batch-reporting' },
   { label: 'Paradas', route: '/stoppages' },
   { label: 'Refugo / Retrabalho', route: '/scrap-rework' },
