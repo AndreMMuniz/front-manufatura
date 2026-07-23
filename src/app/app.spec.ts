@@ -1,10 +1,11 @@
+import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject } from 'rxjs';
 import { vi } from 'vitest';
 
-import { PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
+import { PoPageModule, PoToolbarComponent, PoToolbarModule } from '@po-ui/ng-components';
 
 import { App } from './app';
 import { routes } from './app.routes';
@@ -310,15 +311,18 @@ describe('App', () => {
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
   });
 
-  it('should render the authenticated Home toolbar without a side menu', async () => {
+  it('should render the app name in the authenticated Home toolbar without a side menu', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
     await TestBed.inject(Router).navigateByUrl('/menu');
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
+    const toolbar = fixture.debugElement.query(By.directive(PoToolbarComponent))
+      .componentInstance as PoToolbarComponent;
 
-    expect(app.toolbarTitle).toBe('Plano de Controle CQ - operador');
+    expect(app.toolbarTitle).toBe('Apontamento Manufatura - operador');
+    expect(toolbar.title).toBe('Apontamento Manufatura - operador');
     expect(fixture.nativeElement.querySelector('po-toolbar')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
   });

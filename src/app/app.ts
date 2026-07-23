@@ -14,6 +14,8 @@ import {
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 
+const APP_NAME = 'Apontamento Manufatura';
+
 const HOME_MENU: PoMenuItem = {
   label: 'Menu Principal',
   shortLabel: 'Home',
@@ -81,7 +83,7 @@ export class App {
 
   get toolbarTitle(): string {
     const user = this.authSession.currentUser;
-    return user ? `Plano de Controle CQ - ${user.login}` : 'Plano de Controle CQ';
+    return user ? `${APP_NAME} - ${user.login}` : APP_NAME;
   }
 
   get showSideMenu(): boolean {
