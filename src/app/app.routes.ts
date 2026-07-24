@@ -9,6 +9,7 @@ import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
+import { ReportaBateladaWorkflowState } from './features/reporta-batelada/services/reporta-batelada-workflow-state';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
 
 export const routes: Routes = [
@@ -30,6 +31,7 @@ export const routes: Routes = [
     path: 'batch-reporting',
     component: ReportaBateladaPage,
     canActivate: [authGuard],
+    providers: [ReportaBateladaWorkflowState],
   },
   {
     path: 'stoppages',

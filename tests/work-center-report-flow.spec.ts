@@ -62,11 +62,22 @@ async function selectSingleOrderWithPointer(page: import('@playwright/test').Pag
 async function createTeamFromContext(
   page: import('@playwright/test').Page,
   code: string,
+  activation: 'keyboard' | 'pointer' = 'keyboard',
 ) {
   const currentUrl = page.url();
   const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
-  await trigger.focus();
-  await trigger.press('Enter');
+  await expect(trigger).toBeEnabled();
+  if (activation === 'keyboard') {
+    await trigger.focus();
+    await trigger.press('Enter');
+  } else {
+    await trigger.click();
+    console.log('TEAM_DOM_DEBUG', await page.evaluate(() => ({
+      hosts: document.querySelectorAll('app-gerenciar-equipe-slide').length,
+      slides: document.querySelectorAll('po-page-slide').length,
+      text: document.body.innerText.includes('Criar/Gerenciar Equipe'),
+    })));
+  }
   await expect(page).toHaveURL(currentUrl);
 
   const drawer = page.locator('app-gerenciar-equipe-slide');
@@ -196,7 +207,8 @@ test.describe('fluxo de Reporte Ordem', () => {
 
     await createTeamFromContext(page, 'E2E-ORDEM');
 
-    const team = page.getByRole('combobox', { name: 'Equipe' });
+    const team = page.locator('app-operacao-info-card')
+      .getByRole('combobox', { name: 'Equipe' });
     await expect(team.getByRole('option', { name: 'E2E-ORDEM - Equipe E2E' })).toHaveCount(1);
     await expect(team).toHaveValue('E2E-ORDEM - Equipe E2E');
     await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
@@ -232,7 +244,6 @@ test.describe('fluxo de Reporte Ordem', () => {
 
 test.describe('fluxo de Reporte Batelada', () => {
   test('consulta, compõe e inicia múltiplas ordens com uma única ação', async ({ page }) => {
-    page.on('pageerror', error => console.error('BATCH_PAGE_ERROR', error.message));
     await page.setViewportSize({ width: 1024, height: 768 });
     await login(page);
     await page.getByRole('link', { name: 'Reporte Batelada' }).click();
@@ -364,7 +375,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithPointer(page, '450002');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
 
-    await createTeamFromContext(page, 'E2E-BATCH');
+    await createTeamFromContext(page, 'E2E-BATCH', 'pointer');
     const responsible = page.getByRole('combobox', { name: 'Responsável' });
     await expect(responsible.getByRole('option', { name: 'Equipe — E2E-BATCH - Equipe E2E' }))
       .toHaveCount(1);

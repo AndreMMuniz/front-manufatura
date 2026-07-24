@@ -525,8 +525,16 @@ export class GerenciarEquipeSlide {
   }
 
   private restoreTriggerFocus(): void {
-    this.triggerElement?.focus();
+    const triggerElement = this.triggerElement;
     this.triggerElement = null;
+    if (!triggerElement) {
+      return;
+    }
+    this.clearFocusTimer();
+    this.focusTimer = setTimeout(() => {
+      this.focusTimer = null;
+      triggerElement.focus();
+    }, 0);
   }
 
   private currentActiveElement(): HTMLElement | null {

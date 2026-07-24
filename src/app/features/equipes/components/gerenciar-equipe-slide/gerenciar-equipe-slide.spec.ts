@@ -391,6 +391,7 @@ describe('GerenciarEquipeSlide', () => {
     expect(firstControlFocus).toHaveBeenCalled();
 
     component.onVoltar();
+    vi.runAllTimers();
     expect(triggerFocus).toHaveBeenCalled();
     trigger.remove();
     vi.useRealTimers();

@@ -99,6 +99,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     await TestBed.configureTestingModule({
       imports: [ReportaBateladaPage],
       providers: [
+        ReportaBateladaWorkflowState,
         { provide: ReportaBateladaService, useValue: serviceMock },
         { provide: OperationalContextService, useValue: { get currentContext() { return currentContext; } } },
         { provide: AuthSessionService, useValue: { session$ } },

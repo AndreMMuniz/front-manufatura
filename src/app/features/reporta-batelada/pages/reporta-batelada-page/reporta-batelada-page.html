@@ -1,5 +1,10 @@
 <po-page-default p-title="Reporta Batelada">
   <section class="reporta-batelada">
+    <app-gerenciar-equipe-slide
+      #gerenciarEquipeSlide
+      (equipeSalva)="onEquipeSalva($event)"
+    ></app-gerenciar-equipe-slide>
+
     <app-contexto-producao-batelada
       [areas]="areas"
       [centers]="centers"
@@ -41,7 +46,7 @@
         [disabled]="!canManageTeam"
         [startedAt]="view.inicio?.iniciadoEm ?? null"
         (responsavelChange)="selecionarResponsavel($event)"
-        (gerenciarEquipe)="abrirGerenciarEquipe($event)"
+        (gerenciarEquipe)="abrirGerenciarEquipe($event, gerenciarEquipeSlide)"
       ></app-informacoes-batelada>
     }
 
@@ -85,14 +90,11 @@
       (report)="abrirReporte()"
       (sair)="sair()"
     ></app-footer-acoes-batelada>
+
+    <app-reporte-batelada-slide
+      (rascunhoAlterado)="atualizarRascunho($event)"
+      (reporteSolicitado)="salvarReporte($event)"
+    ></app-reporte-batelada-slide>
+
   </section>
 </po-page-default>
-
-<app-reporte-batelada-slide
-  (rascunhoAlterado)="atualizarRascunho($event)"
-  (reporteSolicitado)="salvarReporte($event)"
-></app-reporte-batelada-slide>
-
-<app-gerenciar-equipe-slide
-  (equipeSalva)="onEquipeSalva($event)"
-></app-gerenciar-equipe-slide>

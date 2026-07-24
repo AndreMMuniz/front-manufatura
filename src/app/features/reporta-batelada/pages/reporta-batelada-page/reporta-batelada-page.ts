@@ -58,14 +58,13 @@ import {
     PoButtonModule,
     PoPageModule,
   ],
-  providers: [ReportaBateladaWorkflowState],
   templateUrl: './reporta-batelada-page.html',
   styleUrls: ['./reporta-batelada-page.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportaBateladaPage implements OnInit {
   @ViewChild(ReporteBateladaSlide) private reportSlide!: ReporteBateladaSlide;
-  @ViewChild(GerenciarEquipeSlide) private gerenciarEquipeSlide?: GerenciarEquipeSlide;
+  @ViewChild('gerenciarEquipeSlide') private gerenciarEquipeSlide?: GerenciarEquipeSlide;
 
   private readonly router = inject(Router);
   private readonly operationalContext = inject(OperationalContextService);
@@ -328,7 +327,10 @@ export class ReportaBateladaPage implements OnInit {
     this.syncView();
   }
 
-  abrirGerenciarEquipe(acionador?: HTMLElement | null): void {
+  abrirGerenciarEquipe(
+    acionador?: HTMLElement | null,
+    slide: GerenciarEquipeSlide | undefined = this.gerenciarEquipeSlide,
+  ): void {
     if (!this.canManageTeam || !this.view.area || !this.view.workCenter) {
       return;
     }
@@ -343,9 +345,9 @@ export class ReportaBateladaPage implements OnInit {
       workCenterLabel: this.view.workCenter.description,
     };
     if (acionador) {
-      this.gerenciarEquipeSlide?.abrir(contexto, 'nova', acionador);
+      slide?.abrir(contexto, 'nova', acionador);
     } else {
-      this.gerenciarEquipeSlide?.abrir(contexto, 'nova');
+      slide?.abrir(contexto, 'nova');
     }
   }
 
