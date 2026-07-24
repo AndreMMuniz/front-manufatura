@@ -1,7 +1,6 @@
 <po-page-default p-title="Reporta Batelada">
   <section class="reporta-batelada">
     <app-gerenciar-equipe-slide
-      #gerenciarEquipeSlide
       (equipeSalva)="onEquipeSalva($event)"
     ></app-gerenciar-equipe-slide>
 
@@ -46,7 +45,7 @@
         [disabled]="!canManageTeam"
         [startedAt]="view.inicio?.iniciadoEm ?? null"
         (responsavelChange)="selecionarResponsavel($event)"
-        (gerenciarEquipe)="abrirGerenciarEquipe($event, gerenciarEquipeSlide)"
+        (gerenciarEquipe)="abrirGerenciarEquipe($event)"
       ></app-informacoes-batelada>
     }
 

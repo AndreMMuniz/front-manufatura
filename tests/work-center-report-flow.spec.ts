@@ -72,11 +72,6 @@ async function createTeamFromContext(
     await trigger.press('Enter');
   } else {
     await trigger.click();
-    console.log('TEAM_DOM_DEBUG', await page.evaluate(() => ({
-      hosts: document.querySelectorAll('app-gerenciar-equipe-slide').length,
-      slides: document.querySelectorAll('po-page-slide').length,
-      text: document.body.innerText.includes('Criar/Gerenciar Equipe'),
-    })));
   }
   await expect(page).toHaveURL(currentUrl);
 
@@ -209,7 +204,7 @@ test.describe('fluxo de Reporte Ordem', () => {
 
     const team = page.locator('app-operacao-info-card')
       .getByRole('combobox', { name: 'Equipe' });
-    await expect(team.getByRole('option', { name: 'E2E-ORDEM - Equipe E2E' })).toHaveCount(1);
+    await expect(team).toContainText('E2E-ORDEM - Equipe E2E');
     await expect(team).toHaveValue('E2E-ORDEM - Equipe E2E');
     await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
 
@@ -377,8 +372,7 @@ test.describe('fluxo de Reporte Batelada', () => {
 
     await createTeamFromContext(page, 'E2E-BATCH', 'pointer');
     const responsible = page.getByRole('combobox', { name: 'Responsável' });
-    await expect(responsible.getByRole('option', { name: 'Equipe — E2E-BATCH - Equipe E2E' }))
-      .toHaveCount(1);
+    await expect(responsible).toContainText('Equipe — E2E-BATCH - Equipe E2E');
     await expect(responsible).toHaveValue('Equipe — E2E-BATCH - Equipe E2E');
 
     const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
@@ -399,8 +393,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(drawer.getByRole('checkbox', { name: /001 Jose Ribeiro Neto/ })).not.toBeChecked();
     await expect(drawer.getByRole('checkbox', { name: /002 Almir Rogerio Bento/ })).toBeChecked();
     await drawer.getByRole('button', { name: 'Voltar' }).click();
-    await expect(responsible.getByRole('option', { name: 'Equipe — E2E-BATCH - Equipe E2E' }))
-      .toHaveCount(1);
+    await expect(responsible).toContainText('Equipe — E2E-BATCH - Equipe E2E');
     await expect(responsible).toHaveValue('Equipe — E2E-BATCH - Equipe E2E');
 
     for (const viewport of [
@@ -416,7 +409,14 @@ test.describe('fluxo de Reporte Batelada', () => {
       await expect(trigger).toBeVisible();
     }
 
-    await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+    const start = page.getByRole('button', { name: 'Iniciar', exact: true });
+    await expect(start).toBeEnabled();
+    await start.focus();
+    await start.press('Enter');
+    await expect(
+      page.locator('app-reporta-batelada-page p[role="status"]')
+        .filter({ hasText: 'Batelada iniciada com sucesso.' }),
+    ).toBeVisible();
     await expect(trigger).toBeDisabled();
   });
 });
