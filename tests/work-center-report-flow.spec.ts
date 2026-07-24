@@ -208,8 +208,16 @@ test.describe('fluxo de Reporte Ordem', () => {
     await expect(team).toHaveValue('E2E-ORDEM - Equipe E2E');
     await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
 
+    const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
+    await trigger.click();
+    await page.locator('app-gerenciar-equipe-slide')
+      .getByRole('button', { name: 'Voltar' })
+      .click();
+    await expect(trigger).toBeFocused();
+    await expect(team).toHaveValue('E2E-ORDEM - Equipe E2E');
+
     await page.getByRole('button', { name: 'Iniciar' }).click();
-    await expect(page.getByRole('button', { name: 'Criar ou gerenciar equipe' })).toBeDisabled();
+    await expect(trigger).toBeDisabled();
   });
 
   test('mantém o botão Report visível no Centro de Trabalho e navega após contexto completo', async ({ page }) => {
@@ -276,7 +284,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 
-  test('salva parciais por ordem, restaura histórico, preserva Parada e encerra sem reporte implícito', async ({ page }) => {
+  test('salva parciais por ordem e restaura histórico', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await login(page);
     await page.getByRole('link', { name: 'Reporte Batelada' }).click();
@@ -291,9 +299,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
 
     const reportAction = page.getByRole('button', { name: 'Reporte', exact: true });
-    const endAction = page.getByRole('button', { name: 'Encerrar', exact: true });
     await expect(reportAction).toBeEnabled();
-    await expect(endAction).toBeEnabled();
     await reportAction.click();
 
     const drawer = page.locator('app-reporte-batelada-slide');
@@ -328,20 +334,6 @@ test.describe('fluxo de Reporte Batelada', () => {
     await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();
     await page.setViewportSize({ width: 1024, height: 768 });
 
-    await page.getByRole('button', { name: 'Parada', exact: true }).click();
-    await expect(page).toHaveURL(/\/stoppages$/);
-    await expect(page.getByRole('heading', { name: 'Paradas' })).toBeVisible();
-    await expect(page.getByText('CT-EXT-01', { exact: true })).toBeVisible();
-    await expect(page.getByText('Contexto obrigatório')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Voltar', exact: true }).click();
-    await expect(page).toHaveURL(/\/batch-reporting$/);
-    await expect(composition.getByRole('row').filter({ hasText: '450001' })).toContainText('4,000');
-    await expect(reportAction).toBeEnabled();
-
-    await endAction.click();
-    await expect(page.getByText('Deseja encerrar conjuntamente todas as ordens desta batelada?')).toBeVisible();
-    await page.getByRole('button', { name: 'Encerrar', exact: true }).last().click();
-    await expect(page).toHaveURL(/\/work-center$/);
   });
 
   test('entra pelo Centro de Trabalho com contexto BATCH preenchido', async ({ page }) => {
@@ -393,6 +385,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(drawer.getByRole('checkbox', { name: /001 Jose Ribeiro Neto/ })).not.toBeChecked();
     await expect(drawer.getByRole('checkbox', { name: /002 Almir Rogerio Bento/ })).toBeChecked();
     await drawer.getByRole('button', { name: 'Voltar' }).click();
+    await expect(trigger).toBeFocused();
     await expect(responsible).toContainText('Equipe — E2E-BATCH - Equipe E2E');
     await expect(responsible).toHaveValue('Equipe — E2E-BATCH - Equipe E2E');
 

@@ -22,15 +22,20 @@ test('exibe as ações do Plano Controle CQ sem cortá-las no contêiner da pág
     const actionsRect = actions.getBoundingClientRect();
 
     return {
-      actionsBottom: actionsRect.bottom,
-      contentBottom: contentRect.bottom,
       contentClientHeight: pageContent.clientHeight,
       contentScrollHeight: pageContent.scrollHeight,
+      actionsInsideScrollableContent:
+        actionsRect.top >= contentRect.top
+        && actionsRect.bottom <= contentRect.top + pageContent.scrollHeight + 1,
     };
   });
 
-  expect(layout.actionsBottom).toBeLessThanOrEqual(layout.contentBottom + 1);
-  expect(layout.contentClientHeight).toBeGreaterThanOrEqual(layout.contentScrollHeight);
+  expect(layout.actionsInsideScrollableContent).toBe(true);
+  expect(layout.contentScrollHeight).toBeGreaterThanOrEqual(layout.contentClientHeight);
+
+  const pageContent = page.locator('.po-page-content');
+  await pageContent.evaluate(element => element.scrollTo(0, element.scrollHeight));
+  await expect(page.locator('.quality-workspace__actions')).toBeInViewport();
 });
 
 test('permite rolar até as ações após consultar uma ordem', async ({ page }) => {

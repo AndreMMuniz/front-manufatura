@@ -55,16 +55,16 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await maximum.fill('490');
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(
-      page.getByRole('alert').filter({ hasText: 'Valores fora da variação permitida' }),
+      page.getByRole('button', { name: /010.*Valores fora da variação permitida/ }),
     ).toBeVisible();
-    await expect(minimum).toHaveValue('484');
-    await expect(maximum).toHaveValue('490');
+    await expect(page.getByText('1 de 3 componentes concluídos')).toBeVisible();
+    await expect(page.getByText('Característica 2 / 3')).toBeVisible();
 
-    await minimum.fill('485');
-    await maximum.fill('491');
+    await minimum.fill('254,5');
+    await maximum.fill('255,5');
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByText('Medição salva.')).toBeVisible();
-    await expect(page.getByText('1 de 3 componentes concluídos')).toBeVisible();
+    await expect(page.getByText('2 de 3 componentes concluídos')).toBeVisible();
     await expect(page).toHaveURL(/\/quality-control$/);
   });
 
