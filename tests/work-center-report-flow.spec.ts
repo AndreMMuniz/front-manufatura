@@ -62,7 +62,7 @@ async function selectSingleOrderWithPointer(page: import('@playwright/test').Pag
 async function createTeamFromContext(
   page: import('@playwright/test').Page,
   code: string,
-  activation: 'keyboard' | 'pointer' = 'keyboard',
+  activation: 'keyboard' | 'touch' = 'keyboard',
 ) {
   const currentUrl = page.url();
   const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
@@ -71,7 +71,7 @@ async function createTeamFromContext(
     await trigger.focus();
     await trigger.press('Enter');
   } else {
-    await trigger.click();
+    await trigger.tap();
   }
   await expect(page).toHaveURL(currentUrl);
 
@@ -90,6 +90,8 @@ async function createTeamFromContext(
 }
 
 test.describe('fluxo de Reporte Ordem', () => {
+  test.use({ hasTouch: true });
+
   test('navega para Reporta Operação pelo cartão da Home', async ({ page }) => {
     await login(page);
 
@@ -209,14 +211,31 @@ test.describe('fluxo de Reporte Ordem', () => {
     await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
 
     const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
-    await trigger.click();
+    await trigger.tap();
     await page.locator('app-gerenciar-equipe-slide')
       .getByRole('button', { name: 'Voltar' })
       .click();
     await expect(trigger).toBeFocused();
     await expect(team).toHaveValue('E2E-ORDEM - Equipe E2E');
 
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 1024, height: 768 },
+      { width: 1366, height: 768 },
+      { width: 480, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport);
+      expect(await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      )).toBe(true);
+      await expect(trigger).toBeVisible();
+    }
+
     await page.getByRole('button', { name: 'Iniciar' }).click();
+    await expect(
+      page.locator('app-report-operacao-page .report-operacao__feedback')
+        .filter({ hasText: 'Operação iniciada.' }),
+    ).toBeVisible();
     await expect(trigger).toBeDisabled();
   });
 
@@ -246,6 +265,8 @@ test.describe('fluxo de Reporte Ordem', () => {
 });
 
 test.describe('fluxo de Reporte Batelada', () => {
+  test.use({ hasTouch: true });
+
   test('consulta, compõe e inicia múltiplas ordens com uma única ação', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await login(page);
@@ -362,7 +383,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithPointer(page, '450002');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
 
-    await createTeamFromContext(page, 'E2E-BATCH', 'pointer');
+    await createTeamFromContext(page, 'E2E-BATCH', 'touch');
     const responsible = page.getByRole('combobox', { name: 'Responsável' });
     await expect(responsible).toContainText('Equipe — E2E-BATCH - Equipe E2E');
     await expect(responsible).toHaveValue('Equipe — E2E-BATCH - Equipe E2E');
@@ -378,6 +399,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await secondMember.press('Space');
     await expect(secondMember).toBeChecked();
     await drawer.getByRole('button', { name: 'Salvar' }).click();
+    await expect(drawer.getByText('Criar/Gerenciar Equipe')).toBeHidden();
 
     await trigger.click();
     await drawer.getByRole('button', { name: 'Existente' }).click();

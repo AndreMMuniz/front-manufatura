@@ -243,7 +243,12 @@ export class ReportOperacaoWorkflowState {
       operationState: snapshot.operationState,
       scrapItems: snapshot.scrapItems.map(item => ({ ...item })),
       lastScrapReason: snapshot.lastScrapReason,
-      responsavel: snapshot.responsavel ? { ...snapshot.responsavel } : null,
+      responsavel: snapshot.responsavel
+        ? {
+            ...snapshot.responsavel,
+            codigo: this.normalizeCode(snapshot.responsavel.codigo),
+          }
+        : null,
       reportes: snapshot.reportes.map(reporte => this.cloneReporte(reporte)),
     };
   }

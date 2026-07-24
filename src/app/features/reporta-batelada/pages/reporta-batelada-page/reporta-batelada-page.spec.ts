@@ -396,6 +396,14 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       draft: component.view.draft,
       batchId: component.view.batchId,
       inicio: component.view.inicio,
+      estado: component.view.estado,
+      asyncState: component.view.asyncState,
+      lastOperationalState: component.view.lastOperationalState,
+      errorMessage: component.view.errorMessage,
+      reportAsyncState: component.view.reportAsyncState,
+      historyAsyncState: component.view.historyAsyncState,
+      endingAsyncState: component.view.endingAsyncState,
+      encerramento: component.view.encerramento,
     }).toEqual({
       selectedOrderIds: before.selectedOrderIds,
       composition: before.composition,
@@ -403,7 +411,29 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       draft: before.draft,
       batchId: before.batchId,
       inicio: before.inicio,
+      estado: before.estado,
+      asyncState: before.asyncState,
+      lastOperationalState: before.lastOperationalState,
+      errorMessage: before.errorMessage,
+      reportAsyncState: before.reportAsyncState,
+      historyAsyncState: before.historyAsyncState,
+      endingAsyncState: before.endingAsyncState,
+      encerramento: before.encerramento,
     });
+  });
+
+  it('preserva o workflow em cancelamento e erro da drawer', () => {
+    prepareForStart();
+    const before = component.view;
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+
+    drawer.cancelado.emit();
+    drawer.state.set('error');
+    drawer.errorKind.set('save');
+    drawer.feedback.set('Falha temporária');
+
+    expect(component.view).toEqual(before);
   });
 
   it('bloqueia gestão após início e ignora resultado tardio após logout', () => {

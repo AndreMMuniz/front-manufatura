@@ -155,6 +155,22 @@ describe('ReportOperacaoWorkflowState', () => {
     expect(state.snapshot().activeOrder?.id).toBe('second');
   });
 
+  it('canonicalizes the responsible code while restoring a snapshot', () => {
+    const source = queuedState().snapshot();
+    const state = new ReportOperacaoWorkflowState();
+
+    state.restore({
+      ...source,
+      responsavel: { tipo: 'EQUIPE', codigo: ' mont03 ', nome: 'Equipe A' },
+    });
+
+    expect(state.snapshot().responsavel).toEqual({
+      tipo: 'EQUIPE',
+      codigo: 'MONT03',
+      nome: 'Equipe A',
+    });
+  });
+
   it('clears dependent workflow while allowing a new production context', () => {
     const state = queuedState();
 

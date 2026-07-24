@@ -622,14 +622,35 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
   }
 
   private cloneSnapshot(snapshot: ReportaBateladaWorkflowSnapshot): ReportaBateladaWorkflowSnapshot {
+    const responsaveisByKey = new Map<string, ResponsavelBatelada>();
+    for (const responsavel of snapshot.responsaveis) {
+      const canonical = {
+        ...responsavel,
+        codigo: this.normalizeCode(responsavel.codigo),
+      };
+      responsaveisByKey.set(this.responsavelKey(canonical), canonical);
+    }
+    const selected = snapshot.responsavel
+      ? {
+          ...snapshot.responsavel,
+          codigo: this.normalizeCode(snapshot.responsavel.codigo),
+        }
+      : null;
+    if (selected) {
+      responsaveisByKey.set(this.responsavelKey(selected), selected);
+    }
+    const responsaveis = [...responsaveisByKey.values()].map(responsavel => ({ ...responsavel }));
+
     return {
       area: snapshot.area ? { ...snapshot.area } : null,
       workCenter: snapshot.workCenter ? { ...snapshot.workCenter } : null,
       orders: this.cloneOrders(snapshot.orders),
       selectedOrderIds: [...snapshot.selectedOrderIds],
       composition: this.cloneOrders(snapshot.composition),
-      responsaveis: snapshot.responsaveis.map(responsavel => ({ ...responsavel })),
-      responsavel: snapshot.responsavel ? { ...snapshot.responsavel } : null,
+      responsaveis,
+      responsavel: selected
+        ? { ...(responsaveis.find(item => this.responsavelKey(item) === this.responsavelKey(selected)) ?? selected) }
+        : null,
       estado: snapshot.estado,
       asyncState: snapshot.asyncState,
       lastOperationalState: snapshot.lastOperationalState,

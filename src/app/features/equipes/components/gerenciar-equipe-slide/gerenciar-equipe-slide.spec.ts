@@ -50,6 +50,37 @@ describe('GerenciarEquipeSlide', () => {
     expect(component.possuiAlteracoes()).toBe(false);
   });
 
+  it('confirma antes de trocar modo, equipe ou contexto com alterações não salvas', () => {
+    const { component, dialog } = createComponent();
+    component.abrir(contexto());
+    component.onCodigoChange('RASCUNHO');
+
+    component.onModoChange('existente');
+    expect(component.modo()).toBe('nova');
+    expect(component.codigo()).toBe('RASCUNHO');
+    const confirmMode = dialog.confirm.mock.calls[0][0].confirm as () => void;
+    confirmMode();
+    expect(component.modo()).toBe('existente');
+    expect(component.codigo()).toBe('');
+
+    component.onSelecionarEquipe('MONT03');
+    component.onSelecionarOperador({ codigo: '001', nome: 'Operador 1' }, false);
+    component.onSelecionarEquipe(undefined);
+    expect(component.equipeSelecionadaCodigo()).toBe('MONT03');
+    const confirmTeam = dialog.confirm.mock.calls[1][0].confirm as () => void;
+    confirmTeam();
+    expect(component.equipeSelecionadaCodigo()).toBe('');
+
+    component.onModoChange('nova');
+    component.onCodigoChange('OUTRO-RASCUNHO');
+    component.abrir({ areaCode: '4002', workCenterCode: 'CT-CQ-01' });
+    expect(component.contexto()).toEqual(contexto());
+    const confirmContext = dialog.confirm.mock.calls[2][0].confirm as () => void;
+    confirmContext();
+    expect(component.contexto()).toEqual({ areaCode: '4002', workCenterCode: 'CT-CQ-01' });
+    expect(component.codigo()).toBe('');
+  });
+
   it('aceita seleção limpa e normaliza labels contextuais vazios', () => {
     const { component } = createComponent();
     component.abrir(

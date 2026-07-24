@@ -199,7 +199,11 @@ export class ReportOperacaoPage implements OnInit {
     const podeIniciar =
       this.estado === EstadoOperacao.OPEncontrada
       || (this.estado === EstadoOperacao.Erro && !this.operacao?.dataInicio);
-    return this.isBusy || !this.operacao || !this.responsavelSelecionado || !podeIniciar;
+    return this.isBusy
+      || this.gerenciarEquipeSlide?.state() === 'saving'
+      || !this.operacao
+      || !this.responsavelSelecionado
+      || !podeIniciar;
   }
 
   get reporteDisabled(): boolean {
@@ -385,6 +389,8 @@ export class ReportOperacaoPage implements OnInit {
       || this.normalizeCode(this.areaCode) !== areaCode
       || this.normalizeCode(this.workCenterCode) !== workCenterCode
       || !this.authSession.isAuthenticated()
+      || this.isBusy
+      || Boolean(this.operacao?.dataInicio)
     ) {
       return;
     }
@@ -594,6 +600,9 @@ export class ReportOperacaoPage implements OnInit {
   private applyWorkCenterChange(code: string): void {
     const center = this.centers.find(item => item.code === code && item.areaCode === this.areaCode && item.active) ?? null;
     const area = this.areas.find(item => item.code === this.areaCode) ?? null;
+    this.invalidateTeamContext();
+    this.responsaveisRequest += 1;
+    this.loadingResponsaveis = false;
     this.ordersRequest += 1;
     this.operationRequest += 1;
     this.workCenterCode = center?.code ?? '';

@@ -673,6 +673,9 @@ describe('ReportOperacaoPage', () => {
       queue: after.queue,
       activeOrder: after.activeOrder,
       operation: after.operation,
+      operationState: after.operationState,
+      scrapItems: after.scrapItems,
+      lastScrapReason: after.lastScrapReason,
       reportes: after.reportes,
     }).toEqual({
       area: before.area,
@@ -682,8 +685,80 @@ describe('ReportOperacaoPage', () => {
       queue: before.queue,
       activeOrder: before.activeOrder,
       operation: before.operation,
+      operationState: before.operationState,
+      scrapItems: before.scrapItems,
+      lastScrapReason: before.lastScrapReason,
       reportes: before.reportes,
     });
+  });
+
+  it('preserva o workflow em cancelamento e erro da drawer', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarTipoResponsavel('EQUIPE');
+    const before = workflow.snapshot();
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+
+    drawer.cancelado.emit();
+    drawer.state.set('error');
+    drawer.errorKind.set('save');
+    drawer.feedback.set('Falha temporária');
+
+    expect(workflow.snapshot()).toEqual(before);
+    expect(component.areaCode).toBe('4001');
+    expect(component.workCenterCode).toBe('CT-EXT-01');
+    expect(component.responsaveis).toEqual([
+      { tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' },
+      { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Equipe A' },
+    ]);
+  });
+
+  it('invalida resultado da drawer após troca de CT e retorno ao contexto original', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarTipoResponsavel('EQUIPE');
+    component.centers = [
+      center(),
+      { ...center(), code: 'CT-EXT-02', description: 'Extrusora 02' },
+    ];
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
+    component.abrirGerenciarEquipe();
+
+    component.onWorkCenterChange('CT-EXT-02');
+    const confirm = dialog.confirm.mock.calls.at(-1)?.[0].confirm as () => void;
+    confirm();
+    component.onWorkCenterChange('CT-EXT-01');
+    component.onEquipeSalva(resultadoEquipe('NOVA01', 'nova'));
+
+    expect(component.responsaveis).not.toContainEqual(expect.objectContaining({ codigo: 'NOVA01' }));
+  });
+
+  it('bloqueia início e ignora resultado de equipe enquanto há save ou início pendente', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarTipoResponsavel('EQUIPE');
+    component.alterarResponsavel('MONT03');
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    drawer.state.set('saving');
+
+    expect(component.iniciarDisabled).toBe(true);
+    component.iniciarOperacao();
+    expect(service.iniciarOperacao).not.toHaveBeenCalled();
+
+    drawer.state.set('closed');
+    component.estado = EstadoOperacao.Carregando;
+    component.onEquipeSalva(resultadoEquipe('NOVA01', 'nova'));
+    expect(component.responsaveis).not.toContainEqual(expect.objectContaining({ codigo: 'NOVA01' }));
   });
 
   it('ignora resultado e consulta de responsáveis obsoletos após troca de contexto ou logout', () => {

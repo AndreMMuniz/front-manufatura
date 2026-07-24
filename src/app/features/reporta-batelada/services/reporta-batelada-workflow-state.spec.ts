@@ -318,6 +318,33 @@ describe('ReportaBateladaWorkflowState', () => {
     }));
   });
 
+  it('canonicalizes and deduplicates responsible identities restored after a stop', () => {
+    startBatch();
+    expect(state.enterStop()).toBe(true);
+    const stopped = state.snapshot();
+    const restored = new ReportaBateladaWorkflowState();
+
+    expect(restored.restoreAfterStop({
+      ...stopped,
+      responsaveis: [
+        { tipo: 'EQUIPE', codigo: ' mont03 ', nome: 'Equipe antiga' },
+        { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Equipe canônica' },
+        { tipo: 'OPERADOR', codigo: ' mont03 ', nome: 'Operador homônimo' },
+      ],
+      responsavel: { tipo: 'EQUIPE', codigo: ' mont03 ', nome: 'Equipe canônica' },
+    })).toBe(true);
+
+    expect(restored.snapshot().responsaveis).toEqual([
+      { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Equipe canônica' },
+      { tipo: 'OPERADOR', codigo: 'MONT03', nome: 'Operador homônimo' },
+    ]);
+    expect(restored.snapshot().responsavel).toEqual({
+      tipo: 'EQUIPE',
+      codigo: 'MONT03',
+      nome: 'Equipe canônica',
+    });
+  });
+
   it('ends only from the operational state and restores it on failure', () => {
     startBatch();
     state.setHistory([report()]);

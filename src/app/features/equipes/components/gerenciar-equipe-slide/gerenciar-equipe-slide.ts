@@ -127,18 +127,62 @@ export class GerenciarEquipeSlide {
       return;
     }
 
+    const areaLabel = this.normalizeLabel(contexto.areaLabel);
+    const workCenterLabel = this.normalizeLabel(contexto.workCenterLabel);
+    const abrirContexto = () => this.applyOpen(
+      {
+        areaCode,
+        workCenterCode,
+        ...(areaLabel ? { areaLabel } : {}),
+        ...(workCenterLabel ? { workCenterLabel } : {}),
+      },
+      modoInicial,
+      acionador,
+    );
+    if (this.state() !== 'closed' && this.possuiAlteracoes()) {
+      this.confirmDiscard(abrirContexto);
+      return;
+    }
+
+    abrirContexto();
+  }
+
+  onModoChange(modo: GerenciarEquipeModo): void {
+    if (this.state() === 'saving' || this.modo() === modo) {
+      return;
+    }
+
+    const apply = () => this.applyModeChange(modo);
+    if (this.possuiAlteracoes()) {
+      this.confirmDiscard(apply);
+      return;
+    }
+    apply();
+  }
+
+  onSelecionarEquipe(codigo: string | null | undefined): void {
+    if (this.state() === 'saving') {
+      return;
+    }
+
+    const apply = () => this.applyTeamSelection(codigo);
+    if (this.possuiAlteracoes()) {
+      this.confirmDiscard(apply);
+      return;
+    }
+    apply();
+  }
+
+  private applyOpen(
+    contexto: EquipeContexto,
+    modoInicial: GerenciarEquipeModo,
+    acionador?: HTMLElement,
+  ): void {
     this.requestVersion += 1;
     this.discardConfirmationPending = false;
     this.triggerElement = acionador ?? this.currentActiveElement();
     this.emittedForCurrentOpen = false;
-    const areaLabel = this.normalizeLabel(contexto.areaLabel);
-    const workCenterLabel = this.normalizeLabel(contexto.workCenterLabel);
-    this.contexto.set({
-      areaCode,
-      workCenterCode,
-      ...(areaLabel ? { areaLabel } : {}),
-      ...(workCenterLabel ? { workCenterLabel } : {}),
-    });
+    this.contexto.set({ ...contexto });
     this.modo.set(modoInicial);
     this.resetDraft();
     this.snapshotInicial.set(this.draftKey());
@@ -147,11 +191,7 @@ export class GerenciarEquipeSlide {
     this.focusFirstControl();
   }
 
-  onModoChange(modo: GerenciarEquipeModo): void {
-    if (this.state() === 'saving' || this.modo() === modo) {
-      return;
-    }
-
+  private applyModeChange(modo: GerenciarEquipeModo): void {
     this.modo.set(modo);
     this.equipeSelecionadaCodigo.set('');
     this.codigo.set('');
@@ -159,13 +199,10 @@ export class GerenciarEquipeSlide {
     this.turno.set('');
     this.codigosSelecionados.set(new Set<string>());
     this.feedback.set('');
+    this.snapshotInicial.set(this.draftKey());
   }
 
-  onSelecionarEquipe(codigo: string | null | undefined): void {
-    if (this.state() === 'saving') {
-      return;
-    }
-
+  private applyTeamSelection(codigo: string | null | undefined): void {
     const normalized = typeof codigo === 'string' ? this.normalizeCode(codigo) : '';
     const equipe = this.equipesElegiveis().find(
       (item) => this.normalizeCode(item.codigo) === normalized,
@@ -423,7 +460,7 @@ export class GerenciarEquipeSlide {
     this.close(true);
   }
 
-  private confirmDiscard(): void {
+  private confirmDiscard(onConfirm: () => void = () => this.close(true)): void {
     if (this.discardConfirmationPending) {
       return;
     }
@@ -446,7 +483,7 @@ export class GerenciarEquipeSlide {
           this.state() !== 'closed' &&
           this.state() !== 'saving'
         ) {
-          this.close(true);
+          onConfirm();
         }
       },
       cancel: clearPending,

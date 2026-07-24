@@ -124,7 +124,6 @@
   align-items: center;
   border: 1px solid var(--app-color-border);
   border-radius: var(--app-radius);
-  cursor: pointer;
   display: block;
   min-height: var(--app-touch-target);
   min-width: 0;
