@@ -2,9 +2,6 @@
   <div class="footer-acoes-batelada">
     <po-button p-label="Iniciar" p-kind="primary" [p-loading]="startLoading" [p-disabled]="startDisabled" (p-click)="start.emit()"></po-button>
     <po-button p-label="Reporte" p-kind="primary" [p-loading]="reportLoading" [p-disabled]="reportDisabled" (p-click)="report.emit()"></po-button>
-    <po-button p-label="Encerrar" p-kind="secondary" [p-loading]="endLoading" [p-disabled]="endDisabled" (p-click)="end.emit()"></po-button>
-    <po-button p-label="Parada" p-kind="secondary" [p-disabled]="stopDisabled" (p-click)="stop.emit()"></po-button>
-    <po-button p-label="Voltar" p-kind="secondary" (p-click)="voltar.emit()"></po-button>
     <po-button p-label="Sair" p-kind="secondary" (p-click)="sair.emit()"></po-button>
   </div>
 </po-widget>
