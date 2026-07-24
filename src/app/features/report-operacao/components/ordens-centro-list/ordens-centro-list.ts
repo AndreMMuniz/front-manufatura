@@ -35,10 +35,12 @@ export class OrdensCentroList {
   ];
 
   get openDisabled(): boolean {
-    return this.disabled || this.loading || this.selectedIds.size === 0;
+    return this.disabled || this.loading || this.selectedIds.size !== 1;
   }
 
   ngOnChanges(): void {
+    const selectedOrder = this.orders.find(order => this.selectedIds.has(order.id));
+    this.selectedIds = new Set(selectedOrder ? [selectedOrder.id] : []);
     this.items = this.orders.map(order => ({
       ...order,
       $selected: this.selectedIds.has(order.id),
@@ -46,21 +48,13 @@ export class OrdensCentroList {
   }
 
   selectRow(row: OrdemCentroTrabalhoTableItem): void {
-    this.setSelection(new Set([...this.selectedIds, row.id]));
+    this.setSelection(new Set([row.id]));
   }
 
   unselectRow(row: OrdemCentroTrabalhoTableItem): void {
-    const ids = new Set(this.selectedIds);
-    ids.delete(row.id);
-    this.setSelection(ids);
-  }
-
-  selectAll(): void {
-    this.setSelection(new Set(this.orders.map(order => order.id)));
-  }
-
-  unselectAll(): void {
-    this.setSelection(new Set<string>());
+    if (this.selectedIds.has(row.id)) {
+      this.setSelection(new Set<string>());
+    }
   }
 
   private setSelection(ids: ReadonlySet<string>): void {

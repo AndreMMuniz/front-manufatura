@@ -30,21 +30,18 @@ describe('OrdensCentroList', () => {
     expect('$selected' in orders[0]).toBe(false);
   });
 
-  it('selects and unselects one, many and all orders using stable IDs', () => {
+  it('keeps only the latest selected order and ignores stale unselect events', () => {
     const emissions: string[][] = [];
     component.selectionChange.subscribe(ids => emissions.push([...ids]));
 
     component.selectRow(component.items[0]);
     component.selectRow(component.items[1]);
     component.unselectRow(component.items[0]);
-    component.selectAll();
-    component.unselectAll();
+    component.unselectRow(component.items[1]);
 
     expect(emissions).toEqual([
       ['first'],
-      ['first', 'second'],
       ['second'],
-      ['first', 'second'],
       [],
     ]);
   });
@@ -55,6 +52,19 @@ describe('OrdensCentroList', () => {
     component.selectRow(component.items[0]);
 
     expect(component.openDisabled).toBe(false);
+
+    component.selectedIds = new Set(orders.map(order => order.id));
+
+    expect(component.openDisabled).toBe(true);
+  });
+
+  it('normalizes defensive input to one valid order in visual order', () => {
+    component.selectedIds = new Set(['missing', 'second', 'first']);
+
+    component.ngOnChanges();
+
+    expect([...component.selectedIds]).toEqual(['first']);
+    expect(component.items.map(item => item.$selected)).toEqual([true, false]);
   });
 
   it('renders the exact approved empty state', () => {

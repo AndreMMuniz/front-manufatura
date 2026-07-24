@@ -21,7 +21,7 @@ describe('ReportOperacaoWorkflowState', () => {
     { id: 'second', ordem: '450002', itemOp: 'ITEM-2 / OP-2', operacao: '20', split: '01' },
   ];
 
-  it('creates a queue snapshot in visual order and exposes defensive copies', () => {
+  it('normalizes multiple selected IDs to one order in visual order and exposes defensive copies', () => {
     const state = new ReportOperacaoWorkflowState();
     state.setContext(area, center);
     state.setOrders(orders);
@@ -31,12 +31,13 @@ describe('ReportOperacaoWorkflowState', () => {
     const snapshot = state.snapshot();
 
     expect(active?.id).toBe('first');
-    expect(snapshot.queue.map(order => order.id)).toEqual(['first', 'second']);
+    expect(snapshot.queue.map(order => order.id)).toEqual(['first']);
+    expect([...snapshot.selectedOrderIds]).toEqual(['first']);
     expect(snapshot.selectedOrderIds).not.toBe(state.snapshot().selectedOrderIds);
     expect(snapshot.orders[0]).not.toBe(orders[0]);
   });
 
-  it('advances one order at a time and clears order-specific data', () => {
+  it('completes the single selected order and clears order-specific data', () => {
     const state = queuedState();
     state.setActiveOperation(operation(), EstadoOperacao.OperacaoIniciada);
     state.setScrap([{ codigo: '05', descricao: 'Borra', quantidade: 2 }], '05 - Borra');
@@ -58,8 +59,9 @@ describe('ReportOperacaoWorkflowState', () => {
     const next = state.completeActiveOrder();
     const snapshot = state.snapshot();
 
-    expect(next?.id).toBe('second');
-    expect(snapshot.queue.map(order => order.id)).toEqual(['second']);
+    expect(next).toBeNull();
+    expect(snapshot.queue).toEqual([]);
+    expect(snapshot.selectedOrderIds.size).toBe(0);
     expect(snapshot.operation).toBeNull();
     expect(snapshot.operationState).toBe(EstadoOperacao.SemOP);
     expect(snapshot.scrapItems).toEqual([]);
@@ -125,6 +127,22 @@ describe('ReportOperacaoWorkflowState', () => {
     });
   });
 
+  it('normalizes a restored legacy snapshot to its single active order', () => {
+    const source = queuedState().snapshot();
+    const state = new ReportOperacaoWorkflowState();
+
+    state.restore({
+      ...source,
+      selectedOrderIds: new Set(orders.map(order => order.id)),
+      queue: orders,
+      activeOrder: orders[1],
+    });
+
+    expect([...state.snapshot().selectedOrderIds]).toEqual(['second']);
+    expect(state.snapshot().queue.map(order => order.id)).toEqual(['second']);
+    expect(state.snapshot().activeOrder?.id).toBe('second');
+  });
+
   it('clears dependent workflow while allowing a new production context', () => {
     const state = queuedState();
 
@@ -150,7 +168,7 @@ describe('ReportOperacaoWorkflowState', () => {
       area: refreshedArea,
       workCenter: refreshedCenter,
       activeOrder: { id: 'first' },
-      queue: [{ id: 'first' }, { id: 'second' }],
+      queue: [{ id: 'first' }],
     });
   });
 

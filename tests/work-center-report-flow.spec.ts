@@ -44,6 +44,21 @@ async function selectOrderWithPointer(page: import('@playwright/test').Page, ord
   await expect(checkbox).toHaveAttribute('aria-checked', 'true');
 }
 
+async function selectSingleOrderWithKeyboard(page: import('@playwright/test').Page, order: string) {
+  const checkbox = page.getByRole('row').filter({ hasText: order }).getByRole('checkbox');
+  await expect(checkbox).toBeVisible();
+  await checkbox.focus();
+  await checkbox.press('Space');
+  await expect(checkbox).toBeChecked();
+}
+
+async function selectSingleOrderWithPointer(page: import('@playwright/test').Page, order: string) {
+  const checkbox = page.getByRole('row').filter({ hasText: order }).getByRole('checkbox');
+  await checkbox.click();
+  await expect(checkbox).toBeFocused();
+  await expect(checkbox).toBeChecked();
+}
+
 test.describe('fluxo de Reporte Ordem', () => {
   test('navega para Reporta Operação pelo cartão da Home', async ({ page }) => {
     await login(page);
@@ -62,7 +77,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await page.getByRole('link', { name: 'Reporte Ordem' }).click();
 
     await selectProductionContext(page);
-    await selectOrderWithKeyboard(page, '450001');
+    await selectSingleOrderWithKeyboard(page, '450001');
     await expect(page.getByRole('button', { name: 'Abrir apontamento' })).toBeEnabled();
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
@@ -71,12 +86,31 @@ test.describe('fluxo de Reporte Ordem', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 
+  test('mantém somente uma ordem selecionada antes de abrir o apontamento', async ({ page }) => {
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
+    await selectProductionContext(page);
+
+    await selectSingleOrderWithKeyboard(page, '450001');
+    const firstCheckbox = page.getByRole('row').filter({ hasText: '450001' }).getByRole('checkbox');
+    await firstCheckbox.press('Space');
+    await expect(firstCheckbox).not.toBeChecked();
+    await expect(page.getByRole('button', { name: 'Abrir apontamento' })).toBeDisabled();
+
+    await selectSingleOrderWithKeyboard(page, '450001');
+    await selectSingleOrderWithPointer(page, '450002');
+
+    await expect(firstCheckbox).not.toBeChecked();
+    await expect(page.getByText('1 ordem selecionada')).toBeVisible();
+    await page.getByRole('button', { name: 'Abrir apontamento' }).click();
+    await expect(page.getByText(/Ordem ativa 450002/)).toBeVisible();
+  });
+
   test('registra reportes parciais e mantém a operação ativa sem ação de encerramento', async ({ page }) => {
     await login(page);
     await page.getByRole('link', { name: 'Reporte Ordem' }).click();
     await selectProductionContext(page);
-    await selectOrderWithKeyboard(page, '450001');
-    await selectOrderWithPointer(page, '450002');
+    await selectSingleOrderWithKeyboard(page, '450001');
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
     await page.getByRole('combobox', { name: 'Operador' }).selectOption('001');
@@ -109,7 +143,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await login(page);
     await page.getByRole('link', { name: 'Reporte Ordem' }).click();
     await selectProductionContext(page);
-    await selectOrderWithKeyboard(page, '450001');
+    await selectSingleOrderWithKeyboard(page, '450001');
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
     const actions = page.locator('app-report-actions');

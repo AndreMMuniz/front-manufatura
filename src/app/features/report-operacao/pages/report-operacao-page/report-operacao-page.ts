@@ -239,13 +239,14 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   updateSelection(ids: ReadonlySet<string>): void {
-    this.selectedOrderIds = new Set(ids);
+    const selectedOrder = this.orders.find(order => ids.has(order.id));
+    this.selectedOrderIds = new Set(selectedOrder ? [selectedOrder.id] : []);
     this.workflowState.setOrders(this.orders);
     this.workflowState.setSelectedOrderIds(this.selectedOrderIds);
   }
 
   openSelectedOrders(): void {
-    if (this.selectedOrderIds.size === 0) {
+    if (this.selectedOrderIds.size !== 1) {
       return;
     }
 
@@ -830,7 +831,10 @@ export class ReportOperacaoPage implements OnInit {
     this.areaCode = snapshot.area?.code ?? '';
     this.workCenterCode = snapshot.workCenter?.code ?? '';
     this.orders = snapshot.orders.map(order => ({ ...order }));
-    this.selectedOrderIds = new Set(snapshot.selectedOrderIds);
+    const selectedOrder = snapshot.activeOrder
+      ?? this.orders.find(order => snapshot.selectedOrderIds.has(order.id))
+      ?? null;
+    this.selectedOrderIds = new Set(selectedOrder ? [selectedOrder.id] : []);
     this.estado = snapshot.operationState === EstadoOperacao.Reportando
       ? (snapshot.operation?.dataInicio ? EstadoOperacao.OperacaoIniciada : EstadoOperacao.OPEncontrada)
       : snapshot.operationState;

@@ -11,14 +11,13 @@
           [p-items]="items"
           [p-height]="300"
           [p-hide-columns-manager]="true"
+          [p-hide-select-all]="true"
           [p-selectable]="!disabled"
           [p-selectable-entire-line]="true"
           [p-single-select]="false"
           [p-striped]="true"
           (p-selected)="selectRow($event)"
           (p-unselected)="unselectRow($event)"
-          (p-all-selected)="selectAll()"
-          (p-all-unselected)="unselectAll()"
         ></po-table>
       </div>
     } @else {
@@ -28,7 +27,9 @@
     }
 
     <div class="ordens-centro-list__footer">
-      <span aria-live="polite">{{ selectedIds.size }} ordem(ns) selecionada(s)</span>
+      <span aria-live="polite">
+        {{ selectedIds.size === 1 ? '1 ordem selecionada' : 'Nenhuma ordem selecionada' }}
+      </span>
       <po-button
         p-label="Abrir apontamento"
         p-kind="primary"

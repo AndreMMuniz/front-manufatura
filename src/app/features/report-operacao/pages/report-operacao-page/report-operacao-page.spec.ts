@@ -175,14 +175,15 @@ describe('ReportOperacaoPage', () => {
     expect(component.orders).toEqual([orders[1]]);
   });
 
-  it('consults, snapshots selected orders in table order and loads only the first', () => {
+  it('normalizes multiple selected IDs and loads only one order', () => {
     fixture.detectChanges();
     selectContextAndConsult();
 
     component.updateSelection(new Set(['second', 'first']));
     component.openSelectedOrders();
 
-    expect(workflow.snapshot().queue.map(order => order.id)).toEqual(['first', 'second']);
+    expect(workflow.snapshot().queue.map(order => order.id)).toEqual(['first']);
+    expect([...component.selectedOrderIds]).toEqual(['first']);
     expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(1);
     expect(component.operacao?.ordem).toBe('450001');
     expect(component.estado).toBe(EstadoOperacao.OPEncontrada);
@@ -478,7 +479,7 @@ describe('ReportOperacaoPage', () => {
 
     expect(component.estado).toBe(EstadoOperacao.OperacaoIniciada);
     expect(component.operacao?.ordem).toBe('450001');
-    expect(component.queueRemaining).toBe(2);
+    expect(component.queueRemaining).toBe(1);
     expect(component.responsavelCodigo).toBe('001');
     expect(component.reportes.map(reporte => reporte.id)).toEqual(['APT-RESTORED']);
     expect(component.operacao?.quantidadeAprovada).toBe(2);

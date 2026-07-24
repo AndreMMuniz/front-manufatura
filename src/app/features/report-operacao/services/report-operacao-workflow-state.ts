@@ -70,26 +70,30 @@ export class ReportOperacaoWorkflowState {
   }
 
   setOrders(orders: ReadonlyArray<OrdemCentroTrabalho>): void {
-    const validIds = new Set(orders.map(order => order.id));
-    this.value.update(current => ({
-      ...current,
-      orders: this.cloneOrders(orders),
-      selectedOrderIds: new Set([...current.selectedOrderIds].filter(id => validIds.has(id))),
-    }));
+    this.value.update(current => {
+      const selectedOrder = orders.find(order => current.selectedOrderIds.has(order.id));
+      return {
+        ...current,
+        orders: this.cloneOrders(orders),
+        selectedOrderIds: new Set(selectedOrder ? [selectedOrder.id] : []),
+      };
+    });
   }
 
   setSelectedOrderIds(ids: ReadonlySet<string>): void {
-    const availableIds = new Set(this.value().orders.map(order => order.id));
-    this.value.update(current => ({
-      ...current,
-      selectedOrderIds: new Set([...ids].filter(id => availableIds.has(id))),
-    }));
+    this.value.update(current => {
+      const selectedOrder = current.orders.find(order => ids.has(order.id));
+      return {
+        ...current,
+        selectedOrderIds: new Set(selectedOrder ? [selectedOrder.id] : []),
+      };
+    });
   }
 
   startQueue(): OrdemCentroTrabalho | null {
     const current = this.value();
-    const queue = current.orders.filter(order => current.selectedOrderIds.has(order.id));
-    const activeOrder = queue[0] ?? null;
+    const activeOrder = current.orders.find(order => current.selectedOrderIds.has(order.id)) ?? null;
+    const queue = activeOrder ? [activeOrder] : [];
     this.value.set({
       ...current,
       queue: this.cloneOrders(queue),
@@ -188,7 +192,20 @@ export class ReportOperacaoWorkflowState {
   }
 
   restore(snapshot: ReportOperacaoWorkflowSnapshot): void {
-    this.value.set(this.cloneSnapshot(snapshot));
+    const restored = this.cloneSnapshot(snapshot);
+    const activeOrder = restored.activeOrder
+      ? restored.orders.find(order => order.id === restored.activeOrder?.id) ?? restored.activeOrder
+      : null;
+    const selectedOrder = activeOrder
+      ?? restored.orders.find(order => restored.selectedOrderIds.has(order.id))
+      ?? null;
+
+    this.value.set({
+      ...restored,
+      selectedOrderIds: new Set(selectedOrder ? [selectedOrder.id] : []),
+      queue: activeOrder ? [{ ...activeOrder }] : [],
+      activeOrder: activeOrder ? { ...activeOrder } : null,
+    });
   }
 
   clear(): void {
