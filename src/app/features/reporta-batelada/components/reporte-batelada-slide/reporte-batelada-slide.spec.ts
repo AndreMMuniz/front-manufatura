@@ -10,6 +10,25 @@ import { OrdemLiberadaBatelada, ReporteParcialBatelada } from '../../models/repo
 import { ReporteBateladaSlide } from './reporte-batelada-slide';
 
 describe('ReporteBateladaSlide', () => {
+  it('sums only approved and scrap quantities in the displayed total', () => {
+    const { component } = createComponent();
+    component.abrir(orders(), [], null);
+    component.atualizarQuantidade('2', 'quantidadeAprovada', 100);
+    component.atualizarQuantidade('2', 'quantidadeRetrabalho', 2);
+    component.atualizarQuantidade('1', 'quantidadeRefugo', 10);
+
+    expect(component.totalInformado).toBe(110);
+  });
+
+  it('allows saving a batch report containing only rework', () => {
+    const { component } = createComponent();
+    component.abrir(orders(), [], null);
+    component.atualizarQuantidade('2', 'quantidadeRetrabalho', 2);
+
+    expect(component.totalInformado).toBe(0);
+    expect(component.canSave).toBe(true);
+  });
+
   it('renders unique accessible order labels and the ordered history columns in the DOM', () => {
     TestBed.configureTestingModule({
       imports: [ReporteBateladaSlide],

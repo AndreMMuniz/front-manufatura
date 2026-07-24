@@ -51,14 +51,18 @@ export class ReporteSlide {
   ) {}
 
   get totalInformado(): number {
-    return this.quantidadeAprovada + this.quantidadeRetrabalho + this.quantidadeRefugo;
+    return this.quantidadeAprovada + this.quantidadeRefugo;
   }
 
   get canSave(): boolean {
+    const quantidades = [
+      this.quantidadeAprovada,
+      this.quantidadeRetrabalho,
+      this.quantidadeRefugo,
+    ];
     return !this.salvando
-      && [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
-        .every(quantidade => Number.isFinite(quantidade) && quantidade >= 0)
-      && this.totalInformado > 0;
+      && quantidades.every(quantidade => Number.isFinite(quantidade) && quantidade >= 0)
+      && quantidades.some(quantidade => quantidade > 0);
   }
 
   get hasDraft(): boolean {

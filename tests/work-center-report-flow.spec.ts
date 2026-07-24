@@ -205,7 +205,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(composition.getByRole('row').filter({ hasText: '450001' })).toBeVisible();
     await expect(composition.getByRole('row').filter({ hasText: '450002' })).toBeVisible();
 
-    const responsible = page.getByRole('combobox', { name: 'Responsável' });
+    const responsible = page.getByRole('combobox', { name: 'Operador' });
     await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
       .toHaveCount(1);
     await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });
@@ -234,7 +234,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithKeyboard(page, '450001');
     await selectOrderWithKeyboard(page, '450002');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
-    const responsible = page.getByRole('combobox', { name: 'Responsável' });
+    const responsible = page.getByRole('combobox', { name: 'Operador' });
     await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
       .toHaveCount(1);
     await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });

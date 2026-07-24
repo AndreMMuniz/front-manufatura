@@ -3,6 +3,23 @@ import { vi } from 'vitest';
 import { ReporteSlide } from './reporte-slide';
 
 describe('ReporteSlide', () => {
+  it('sums only approved and scrap quantities in the displayed total', () => {
+    const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
+    component.quantidadeAprovada = 100;
+    component.quantidadeRetrabalho = 2;
+    component.quantidadeRefugo = 10;
+
+    expect(component.totalInformado).toBe(110);
+  });
+
+  it('allows saving a report containing only rework', () => {
+    const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
+    component.quantidadeRetrabalho = 2;
+
+    expect(component.totalInformado).toBe(0);
+    expect(component.canSave).toBe(true);
+  });
+
   it('emits one draft and blocks duplicate saves while waiting for the service', () => {
     const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
     const emitted = vi.fn();

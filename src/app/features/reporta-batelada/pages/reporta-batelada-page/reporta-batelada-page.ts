@@ -296,7 +296,7 @@ export class ReportaBateladaPage implements OnInit {
 
     const snapshot = this.workflow.snapshot();
     if (!snapshot.area || !snapshot.workCenter || !snapshot.responsavel) {
-      this.workflow.failStart('Selecione um responsável elegível antes de iniciar.');
+      this.workflow.failStart('Selecione um operador elegível antes de iniciar.');
       this.syncView();
       return;
     }

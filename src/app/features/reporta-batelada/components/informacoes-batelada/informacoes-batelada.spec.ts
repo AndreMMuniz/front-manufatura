@@ -34,7 +34,7 @@ describe('InformacoesBatelada', () => {
     fixture.detectChanges();
 
     expect(fixture.debugElement.query(By.css('[role="alert"]')).nativeElement.textContent)
-      .toContain('Nenhum responsável elegível');
+      .toContain('Nenhum operador elegível');
   });
 
   it('emits explicit selection and becomes read-only after success', () => {

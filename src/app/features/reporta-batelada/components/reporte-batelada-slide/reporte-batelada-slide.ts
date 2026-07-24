@@ -73,7 +73,6 @@ export class ReporteBateladaSlide implements OnDestroy {
       (sum, item) =>
         sum +
         item.quantidadeAprovada +
-        item.quantidadeRetrabalho +
         item.quantidadeRefugo,
       0,
     ));
@@ -303,10 +302,21 @@ export class ReporteBateladaSlide implements OnDestroy {
     if (quantities.some(value => !Number.isFinite(value) || value < 0)) {
       return 'As quantidades devem ser números finitos e não negativos.';
     }
-    if (!Number.isFinite(this.totalInformado)) {
+    const totalQuantidades = this.items.reduce(
+      (sum, item) =>
+        sum +
+        item.quantidadeAprovada +
+        item.quantidadeRetrabalho +
+        item.quantidadeRefugo,
+      0,
+    );
+    if (!Number.isFinite(totalQuantidades)) {
       return 'O total informado excede o limite permitido.';
     }
-    if (this.totalInformado <= 0) {
+    if (!this.items.some(item =>
+      item.quantidadeAprovada > 0 ||
+      item.quantidadeRetrabalho > 0 ||
+      item.quantidadeRefugo > 0)) {
       return 'Informe ao menos uma quantidade positiva para salvar o reporte.';
     }
     for (const item of this.items) {

@@ -19,7 +19,7 @@
   @if (responsaveis.length > 0) {
     <po-select
       name="responsavelBatelada"
-      p-label="Responsável"
+      p-label="Operador"
       p-placeholder="Selecione uma equipe ou operador"
       [p-options]="options"
       [p-disabled]="disabled"
@@ -28,7 +28,7 @@
     ></po-select>
   } @else {
     <p class="informacoes-batelada__error" role="alert">
-      Nenhum responsável elegível para esta Área e Centro de Trabalho.
+      Nenhum operador elegível para esta Área e Centro de Trabalho.
     </p>
   }
 </po-widget>
