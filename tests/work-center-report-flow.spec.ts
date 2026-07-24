@@ -234,7 +234,12 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(2);
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450002' })).toHaveCount(2);
 
+    const drawerContainer = drawer.locator('.po-page-slide-container');
+    await page.setViewportSize({ width: 800, height: 800 });
+    await expect(drawerContainer).toHaveCSS('width', '640px');
+
     await page.setViewportSize({ width: 480, height: 800 });
+    await expect(drawerContainer).toHaveCSS('width', '480px');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();
     await page.setViewportSize({ width: 1024, height: 768 });
