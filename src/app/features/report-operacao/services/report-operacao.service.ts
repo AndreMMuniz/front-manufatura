@@ -1,7 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 
-import { Observable, delay, map, of } from 'rxjs';
+import { Observable, delay, forkJoin, map, of } from 'rxjs';
 
+import { EquipesService } from '../../equipes/services/equipes.service';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { WorkCenterService } from '../../shop-floor/services/work-center';
 import {
@@ -24,22 +25,12 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ReportOperacaoService {
   private readonly workCenterService = inject(WorkCenterService);
+  private readonly equipesService = inject(EquipesService);
   private readonly reportesPorIdempotencia = new Map<string, ReporteResultado>();
 
   private readonly areas: ReadonlyArray<AreaProducaoResponseDTO> = [
     { code: '4001', description: 'Produção' },
     { code: '4002', description: 'Qualidade' },
-  ];
-
-  private readonly responsaveis: ReadonlyArray<ResponsavelOperacao> = [
-    { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
-    { tipo: 'OPERADOR', codigo: '001', nome: 'Jose Ribeiro Neto' },
-    { tipo: 'OPERADOR', codigo: '002', nome: 'Almir Rogerio Bento' },
-    { tipo: 'OPERADOR', codigo: '003', nome: 'Carlos Silva' },
-    { tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' },
-    { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem Zap' },
-    { tipo: 'EQUIPE', codigo: 'CORTE01', nome: 'Corte Industrial' },
-    { tipo: 'EQUIPE', codigo: 'EMB02', nome: 'Embalagem' },
   ];
 
   private readonly ordens: ReadonlyArray<OrdemCentroTrabalhoResponseDTO> = [
@@ -191,11 +182,46 @@ export class ReportOperacaoService {
     areaCode: string,
     workCenterCode: string,
   ): Observable<ReadonlyArray<ResponsavelOperacao>> {
-    if (this.normalize(areaCode) !== '4001' || this.normalize(workCenterCode) !== 'ct-ext-01') {
-      return of([]).pipe(delay(100));
+    const area = this.normalizeCode(areaCode);
+    const workCenter = this.normalizeCode(workCenterCode);
+    if (!area || !workCenter) {
+      return of([]);
     }
 
-    return of(this.responsaveis.map(responsavel => ({ ...responsavel }))).pipe(delay(100));
+    const eligibleOperatorCodes = area === '4001' && workCenter === 'CT-EXT-01'
+      ? new Set(['OP-001', '001', '002', '003'])
+      : new Set<string>();
+
+    return forkJoin({
+      operadores: this.equipesService.listarOperadores(),
+      equipes: this.equipesService.listarEquipesElegiveis(area, workCenter),
+    }).pipe(
+      map(({ operadores, equipes }) => {
+        const responsaveis: ReadonlyArray<ResponsavelOperacao> = [
+          ...operadores
+            .map(operador => ({
+              tipo: 'OPERADOR' as const,
+              codigo: this.normalizeCode(operador.codigo),
+              nome: operador.nome,
+            }))
+            .filter(operador => eligibleOperatorCodes.has(operador.codigo)),
+          ...equipes.map(equipe => ({
+            tipo: 'EQUIPE' as const,
+            codigo: this.normalizeCode(equipe.codigo),
+            nome: equipe.descricao,
+          })),
+        ];
+
+        const unique = new Map<string, ResponsavelOperacao>();
+        for (const responsavel of responsaveis) {
+          unique.set(
+            `${responsavel.tipo}|${this.normalizeCode(responsavel.codigo)}`,
+            { ...responsavel },
+          );
+        }
+        return [...unique.values()].map(responsavel => ({ ...responsavel }));
+      }),
+    );
   }
 
   reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteResultado> {
@@ -316,6 +342,10 @@ export class ReportOperacaoService {
 
   private normalize(value: string): string {
     return value.trim().toLowerCase();
+  }
+
+  private normalizeCode(value: string): string {
+    return value.trim().toUpperCase();
   }
 
   private dateOnly(date: Date): Date {

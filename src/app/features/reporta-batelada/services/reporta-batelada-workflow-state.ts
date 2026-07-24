@@ -234,11 +234,22 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       return;
     }
 
-    const cloned = responsaveis.map(responsavel => ({ ...responsavel }));
+    const unique = new Map<string, ResponsavelBatelada>();
+    for (const responsavel of responsaveis) {
+      const canonical = {
+        ...responsavel,
+        codigo: this.normalizeCode(responsavel.codigo),
+      };
+      unique.set(this.responsavelKey(canonical), canonical);
+    }
+    const cloned = [...unique.values()].map(responsavel => ({ ...responsavel }));
     const current = this.value().responsavel;
+    const currentKey = current ? this.responsavelKey(current) : '';
+    const preferredCode = this.normalizeCode(preferredOperatorCode);
     const selected =
-      cloned.find(item => current?.tipo === item.tipo && current.codigo === item.codigo) ??
-      cloned.find(item => item.tipo === 'OPERADOR' && item.codigo === preferredOperatorCode) ??
+      cloned.find(item => this.responsavelKey(item) === currentKey) ??
+      cloned.find(item =>
+        item.tipo === 'OPERADOR' && this.normalizeCode(item.codigo) === preferredCode) ??
       null;
 
     this.value.update(snapshot => ({
@@ -255,7 +266,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
 
     const eligible = responsavel
       ? this.value().responsaveis.find(item =>
-          item.tipo === responsavel.tipo && item.codigo === responsavel.codigo)
+          this.responsavelKey(item) === this.responsavelKey(responsavel))
       : null;
 
     this.value.update(snapshot => ({
@@ -600,6 +611,14 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       endingAsyncState: 'ocioso',
       encerramento: null,
     };
+  }
+
+  private responsavelKey(responsavel: ResponsavelBatelada): string {
+    return `${responsavel.tipo}|${this.normalizeCode(responsavel.codigo)}`;
+  }
+
+  private normalizeCode(value: string): string {
+    return value.trim().toUpperCase();
   }
 
   private cloneSnapshot(snapshot: ReportaBateladaWorkflowSnapshot): ReportaBateladaWorkflowSnapshot {

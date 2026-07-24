@@ -1,11 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of, Subject, throwError } from 'rxjs';
+import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
+import { AuthSession } from '../../../../core/auth/auth.models';
+import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import {
+  GerenciarEquipeResultado,
+  GerenciarEquipeSlide,
+} from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 import { ContextoProducaoCard } from '../../components/contexto-producao-card/contexto-producao-card';
@@ -22,6 +28,7 @@ describe('ReportOperacaoPage', () => {
   let workflow: ReportOperacaoWorkflowState;
   let operationalContext: { currentContext: ReturnType<typeof context> | null; setContext: ReturnType<typeof vi.fn> };
   let reportSequence: number;
+  let session$: BehaviorSubject<AuthSession | null>;
   let service: {
     listarAreasProducao: ReturnType<typeof vi.fn>;
     pesquisarCentrosTrabalho: ReturnType<typeof vi.fn>;
@@ -45,6 +52,11 @@ describe('ReportOperacaoPage', () => {
     dialog = { confirm: vi.fn() };
     workflow = new ReportOperacaoWorkflowState();
     reportSequence = 0;
+    session$ = new BehaviorSubject<AuthSession | null>({
+      user: { id: '1', nome: 'Andre', login: 'andre', permissoes: [] },
+      token: 'token',
+      authenticatedAt: new Date(),
+    });
     operationalContext = { currentContext: null, setContext: vi.fn() };
     service = {
       listarAreasProducao: vi.fn(() => of([{ code: '4001', description: 'Produção' }, { code: '4002', description: 'Qualidade' }])),
@@ -70,6 +82,10 @@ describe('ReportOperacaoPage', () => {
       imports: [ReportOperacaoPage],
       providers: [
         { provide: Router, useValue: router },
+        {
+          provide: AuthSessionService,
+          useValue: { session$, isAuthenticated: () => session$.value !== null },
+        },
         { provide: ActivatedRoute, useValue: { snapshot: { data: {} } } },
         { provide: ReportOperacaoService, useValue: service },
         { provide: ReportOperacaoWorkflowState, useValue: workflow },
@@ -614,12 +630,141 @@ describe('ReportOperacaoPage', () => {
     expect(component.reporteDisabled).toBe(false);
   });
 
+  it('abre a drawer contextual sem navegar e aplica criação por upsert com seleção automática', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarTipoResponsavel('EQUIPE');
+    const before = workflow.snapshot();
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    const abrir = vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
+
+    expect(component.canManageTeam).toBe(true);
+    component.abrirGerenciarEquipe();
+
+    expect(abrir).toHaveBeenCalledWith({
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      areaLabel: 'Produção',
+      workCenterLabel: 'Extrusao Linha 01',
+    }, 'nova');
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    component.onEquipeSalva(resultadoEquipe(' nova01 ', 'nova'));
+    component.onEquipeSalva(resultadoEquipe('NOVA01', 'nova'));
+
+    expect(component.responsaveis.filter(item =>
+      item.tipo === 'EQUIPE' && item.codigo === 'NOVA01')).toEqual([
+      { tipo: 'EQUIPE', codigo: 'NOVA01', nome: 'Equipe Nova' },
+    ]);
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'EQUIPE',
+      codigo: 'NOVA01',
+      nome: 'Equipe Nova',
+    });
+    const after = workflow.snapshot();
+    expect({
+      area: after.area,
+      workCenter: after.workCenter,
+      orders: after.orders,
+      selectedOrderIds: [...after.selectedOrderIds],
+      queue: after.queue,
+      activeOrder: after.activeOrder,
+      operation: after.operation,
+      reportes: after.reportes,
+    }).toEqual({
+      area: before.area,
+      workCenter: before.workCenter,
+      orders: before.orders,
+      selectedOrderIds: [...before.selectedOrderIds],
+      queue: before.queue,
+      activeOrder: before.activeOrder,
+      operation: before.operation,
+      reportes: before.reportes,
+    });
+  });
+
+  it('ignora resultado e consulta de responsáveis obsoletos após troca de contexto ou logout', () => {
+    const pending = new Subject<ReadonlyArray<{
+      tipo: 'OPERADOR' | 'EQUIPE';
+      codigo: string;
+      nome: string;
+    }>>();
+    vi.mocked(service.listarResponsaveis).mockReturnValue(pending.asObservable());
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarTipoResponsavel('EQUIPE');
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
+    component.abrirGerenciarEquipe();
+
+    component.onAreaChange('4002');
+    vi.mocked(dialog.confirm).mock.calls[0][0].confirm();
+    session$.next(null);
+    pending.next([{ tipo: 'EQUIPE', codigo: 'ANTIGA', nome: 'Antiga' }]);
+    component.onEquipeSalva(resultadoEquipe('NOVA01', 'nova'));
+
+    expect(component.responsaveis).not.toContainEqual(expect.objectContaining({ codigo: 'ANTIGA' }));
+    expect(component.responsaveis).not.toContainEqual(expect.objectContaining({ codigo: 'NOVA01' }));
+  });
+
+  it('re-upserta edição por chave normalizada sem trocar uma seleção diferente', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.alterarTipoResponsavel('EQUIPE');
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
+    component.abrirGerenciarEquipe();
+    component.alterarTipoResponsavel('OPERADOR');
+    component.alterarResponsavel(' 001 ');
+
+    component.onEquipeSalva(resultadoEquipe(' mont03 ', 'existente'));
+
+    expect(component.responsaveis.filter(item =>
+      item.tipo === 'EQUIPE' && item.codigo === 'MONT03')).toHaveLength(1);
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'OPERADOR',
+      codigo: '001',
+      nome: 'Ana Silva',
+    });
+  });
+
   function selectContextAndConsult(): void {
     component.onAreaChange('4001');
     component.onWorkCenterChange('CT-EXT-01');
     component.consultOrders();
   }
 });
+
+function resultadoEquipe(
+  codigo: string,
+  modo: GerenciarEquipeResultado['modo'],
+): GerenciarEquipeResultado {
+  return {
+    equipe: {
+      codigo,
+      descricao: 'Equipe Nova',
+      turno: 'T1',
+      operadores: [{ codigo: '001', nome: 'Ana Silva' }],
+    },
+    modo,
+    contexto: {
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      areaLabel: 'Produção',
+      workCenterLabel: 'Extrusao Linha 01',
+    },
+  };
+}
 
 function center() {
   return {

@@ -1,17 +1,31 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { BehaviorSubject, firstValueFrom, throwError } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSession } from '../../../core/auth/auth.models';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { EquipesService } from '../../equipes/services/equipes.service';
 import { ReportOperacao } from '../models/report-operacao.model';
 
 import { ReportOperacaoService } from './report-operacao.service';
 
 describe('ReportOperacaoService', () => {
   let service: ReportOperacaoService;
+  let equipesService: EquipesService;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    const session$ = new BehaviorSubject<AuthSession | null>({
+      user: { id: '1', nome: 'Andre', login: 'andre', permissoes: [] },
+      token: 'token',
+      authenticatedAt: new Date(),
+    });
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AuthSessionService, useValue: { session$ } },
+      ],
+    });
     service = TestBed.inject(ReportOperacaoService);
+    equipesService = TestBed.inject(EquipesService);
   });
 
   it('loads a valid operation from the mock Datasul boundary', async () => {
@@ -147,10 +161,43 @@ describe('ReportOperacaoService', () => {
 
     expect(responsaveis).toEqual(expect.arrayContaining([
       expect.objectContaining({ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }),
-      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' }),
+      expect.objectContaining({ tipo: 'OPERADOR', codigo: '001' }),
+      expect.objectContaining({ tipo: 'OPERADOR', codigo: '002' }),
+      expect.objectContaining({ tipo: 'OPERADOR', codigo: '003' }),
       expect.objectContaining({ tipo: 'EQUIPE', codigo: 'MONT03' }),
+      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'CORTE01' }),
     ]));
-    await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([]);
+    expect(responsaveis).toHaveLength(6);
+    await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([
+      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'EMB02' }),
+    ]);
+    await expect(firstValueFrom(service.listarResponsaveis('', 'CT-CQ-01'))).resolves.toEqual([]);
+  });
+
+  it('reflete equipes criadas na sessão e preserva colisão de código entre tipos', async () => {
+    await firstValueFrom(equipesService.criarEquipe({
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      codigo: ' op-001 ',
+      descricao: 'Equipe homônima',
+      turno: 'T1',
+      operadores: ['001'],
+    }));
+
+    const responsaveis = await firstValueFrom(service.listarResponsaveis(' 4001 ', ' ct-ext-01 '));
+
+    expect(responsaveis.filter(item => item.codigo === 'OP-001')).toEqual([
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+      { tipo: 'EQUIPE', codigo: 'OP-001', nome: 'Equipe homônima' },
+    ]);
+  });
+
+  it('não esconde falha do catálogo canônico', async () => {
+    vi.spyOn(equipesService, 'listarOperadores')
+      .mockReturnValue(throwError(() => new Error('catálogo indisponível')));
+
+    await expect(firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01')))
+      .rejects.toThrow('catálogo indisponível');
   });
 
   it('returns the same ERP report for retries with the same idempotency key', async () => {

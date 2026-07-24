@@ -12,6 +12,24 @@
   margin-top: var(--app-space-md);
 }
 
+.operacao-info__responsavel-group {
+  align-items: end;
+  display: grid;
+  gap: var(--app-space-sm);
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.operacao-info__responsavel-group po-select {
+  min-width: 0;
+}
+
+@media (max-width: 559px) {
+  .operacao-info__responsavel-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (min-width: 760px) {
   .operacao-info {
     grid-template-columns: repeat(5, minmax(0, 1fr));

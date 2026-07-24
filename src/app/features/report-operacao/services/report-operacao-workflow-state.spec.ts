@@ -100,6 +100,18 @@ describe('ReportOperacaoWorkflowState', () => {
     expect(first.reportes).toHaveLength(1);
   });
 
+  it('canonicaliza o código do responsável preservando a chave composta por tipo', () => {
+    const state = queuedState();
+
+    state.setResponsavel({ tipo: 'EQUIPE', codigo: ' mont03 ', nome: 'Montagem Zap' });
+
+    expect(state.snapshot().responsavel).toEqual({
+      tipo: 'EQUIPE',
+      codigo: 'MONT03',
+      nome: 'Montagem Zap',
+    });
+  });
+
   it('preserves the complete workflow until an explicit change or logout', () => {
     const sessionSubject = new BehaviorSubject<unknown>({ user: {}, token: 'token' });
     const state = new ReportOperacaoWorkflowState({

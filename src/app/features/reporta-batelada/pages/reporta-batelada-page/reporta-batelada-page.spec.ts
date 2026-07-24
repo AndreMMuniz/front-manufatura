@@ -7,6 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import {
+  GerenciarEquipeResultado,
+  GerenciarEquipeSlide,
+} from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { ContextoProducaoBatelada } from '../../components/contexto-producao/contexto-producao';
 import { OrdensCentroBateladaList } from '../../components/ordens-centro-list/ordens-centro-list';
@@ -354,6 +358,74 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.workCenter?.code).toBe('CT-EXT-01');
   });
 
+  it('abre gestão contextual e seleciona uma equipe criada sem alterar a composição', () => {
+    prepareForStart();
+    const before = component.view;
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    const abrir = vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
+
+    expect(component.canManageTeam).toBe(true);
+    component.abrirGerenciarEquipe();
+    expect(abrir).toHaveBeenCalledWith({
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      areaLabel: 'Produção',
+      workCenterLabel: 'Extrusão Linha 01',
+    }, 'nova');
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+
+    component.onEquipeSalva(resultadoEquipe(' nova01 ', 'nova'));
+    component.onEquipeSalva(resultadoEquipe('NOVA01', 'nova'));
+    component.abrirGerenciarEquipe();
+    component.onEquipeSalva(resultadoEquipe(' nova01 ', 'existente'));
+
+    expect(component.view.responsaveis.filter(item =>
+      item.tipo === 'EQUIPE' && item.codigo === 'NOVA01')).toEqual([
+      { tipo: 'EQUIPE', codigo: 'NOVA01', nome: 'Equipe Nova' },
+    ]);
+    expect(component.view.responsavel).toEqual({
+      tipo: 'EQUIPE',
+      codigo: 'NOVA01',
+      nome: 'Equipe Nova',
+    });
+    expect({
+      selectedOrderIds: component.view.selectedOrderIds,
+      composition: component.view.composition,
+      history: component.view.history,
+      draft: component.view.draft,
+      batchId: component.view.batchId,
+      inicio: component.view.inicio,
+    }).toEqual({
+      selectedOrderIds: before.selectedOrderIds,
+      composition: before.composition,
+      history: before.history,
+      draft: before.draft,
+      batchId: before.batchId,
+      inicio: before.inicio,
+    });
+  });
+
+  it('bloqueia gestão após início e ignora resultado tardio após logout', () => {
+    prepareForStart();
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
+    component.abrirGerenciarEquipe();
+
+    session$.next(null);
+    component.onEquipeSalva(resultadoEquipe('NOVA01', 'nova'));
+    expect(component.view.responsaveis).toEqual([]);
+
+    session$.next({ user: 'operador' });
+    fixture = TestBed.createComponent(ReportaBateladaPage);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    prepareForStart();
+    component.iniciarBatelada();
+    expect(component.canManageTeam).toBe(false);
+  });
+
   it('reflects workflow cleanup immediately after logout', () => {
     prepareForStart();
 
@@ -610,6 +682,27 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.prepararBatelada();
   }
 });
+
+function resultadoEquipe(
+  codigo: string,
+  modo: GerenciarEquipeResultado['modo'],
+): GerenciarEquipeResultado {
+  return {
+    equipe: {
+      codigo,
+      descricao: 'Equipe Nova',
+      turno: 'T1',
+      operadores: [{ codigo: 'OP-001', nome: 'Ana Silva' }],
+    },
+    modo,
+    contexto: {
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      areaLabel: 'Produção',
+      workCenterLabel: 'Extrusão Linha 01',
+    },
+  };
+}
 
 function context() {
   return {

@@ -19,6 +19,11 @@ import {
   PoWidgetModule,
 } from '@po-ui/ng-components';
 
+import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import {
+  GerenciarEquipeResultado,
+  GerenciarEquipeSlide,
+} from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
@@ -53,6 +58,7 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
     ProducaoForm,
     ReporteSlide,
     ReportActions,
+    GerenciarEquipeSlide,
     PoButtonModule,
     PoLoadingModule,
     PoPageModule,
@@ -64,12 +70,14 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
 })
 export class ReportOperacaoPage implements OnInit {
   @ViewChild(ReporteSlide) private reporteSlide?: ReporteSlide;
+  @ViewChild(GerenciarEquipeSlide) private gerenciarEquipeSlide?: GerenciarEquipeSlide;
 
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly reportOperacaoService = inject(ReportOperacaoService);
   private readonly workflowState = inject(ReportOperacaoWorkflowState);
   private readonly operationalContext = inject(OperationalContextService);
+  private readonly authSession = inject(AuthSessionService);
   private readonly reporteParadasService = inject(ReporteParadasService);
   private readonly notification = inject(PoNotificationService);
   private readonly dialog = inject(PoDialogService);
@@ -106,6 +114,13 @@ export class ReportOperacaoPage implements OnInit {
   private startRequest = 0;
   private reportRequest = 0;
   private endRequest = 0;
+  private responsaveisRequest = 0;
+  private teamGeneration = 0;
+  private activeTeamContext: {
+    readonly generation: number;
+    readonly areaCode: string;
+    readonly workCenterCode: string;
+  } | null = null;
   private retryTarget: 'areas' | 'centers' | 'orders' | 'active-order' | null = null;
 
   get loadingAreas(): boolean {
@@ -152,9 +167,32 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   get responsavelSelecionado(): ResponsavelOperacao | null {
+    const codigo = this.normalizeCode(this.responsavelCodigo);
     return this.responsaveis.find(
-      responsavel => responsavel.tipo === this.tipoResponsavel && responsavel.codigo === this.responsavelCodigo,
+      responsavel =>
+        responsavel.tipo === this.tipoResponsavel
+        && this.normalizeCode(responsavel.codigo) === codigo,
     ) ?? null;
+  }
+
+  get canManageTeam(): boolean {
+    const area = this.areas.find(item =>
+      this.normalizeCode(item.code) === this.normalizeCode(this.areaCode));
+    const center = this.centers.find(item =>
+      this.normalizeCode(item.code) === this.normalizeCode(this.workCenterCode));
+    return this.authSession.isAuthenticated()
+      && this.tipoResponsavel === 'EQUIPE'
+      && Boolean(area)
+      && Boolean(
+        center
+        && center.active
+        && this.normalizeCode(center.areaCode) === this.normalizeCode(area?.code ?? ''),
+      )
+      && !this.operacao?.dataInicio
+      && !this.isBusy
+      && !this.loadingCenters
+      && !this.loadingResponsaveis
+      && this.gerenciarEquipeSlide?.state() !== 'saving';
   }
 
   get iniciarDisabled(): boolean {
@@ -173,6 +211,14 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   ngOnInit(): void {
+    this.authSession.session$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(session => {
+        if (session === null) {
+          this.invalidateTeamContext();
+        }
+      });
+    this.destroyRef.onDestroy(() => this.invalidateTeamContext());
     const snapshot = this.workflowState.snapshot();
     this.hydrate(snapshot);
     this.loadAreas();
@@ -292,8 +338,87 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
 
-    this.responsavelCodigo = codigo ?? '';
+    this.responsavelCodigo = this.normalizeCode(codigo ?? '');
     this.workflowState.setResponsavel(this.responsavelSelecionado);
+  }
+
+  abrirGerenciarEquipe(acionador?: HTMLElement | null): void {
+    if (!this.canManageTeam) {
+      return;
+    }
+    const area = this.areas.find(item =>
+      this.normalizeCode(item.code) === this.normalizeCode(this.areaCode));
+    const center = this.centers.find(item =>
+      this.normalizeCode(item.code) === this.normalizeCode(this.workCenterCode));
+    if (!area || !center) {
+      return;
+    }
+
+    const generation = ++this.teamGeneration;
+    this.activeTeamContext = {
+      generation,
+      areaCode: this.normalizeCode(area.code),
+      workCenterCode: this.normalizeCode(center.code),
+    };
+    const contexto = {
+      areaCode: this.normalizeCode(area.code),
+      workCenterCode: this.normalizeCode(center.code),
+      areaLabel: area.description,
+      workCenterLabel: center.description,
+    };
+    if (acionador) {
+      this.gerenciarEquipeSlide?.abrir(contexto, 'nova', acionador);
+    } else {
+      this.gerenciarEquipeSlide?.abrir(contexto, 'nova');
+    }
+  }
+
+  onEquipeSalva(resultado: GerenciarEquipeResultado): void {
+    const active = this.activeTeamContext;
+    const areaCode = this.normalizeCode(resultado.contexto.areaCode);
+    const workCenterCode = this.normalizeCode(resultado.contexto.workCenterCode);
+    if (
+      !active
+      || active.generation !== this.teamGeneration
+      || active.areaCode !== areaCode
+      || active.workCenterCode !== workCenterCode
+      || this.normalizeCode(this.areaCode) !== areaCode
+      || this.normalizeCode(this.workCenterCode) !== workCenterCode
+      || !this.authSession.isAuthenticated()
+    ) {
+      return;
+    }
+
+    const equipe: ResponsavelOperacao = {
+      tipo: 'EQUIPE',
+      codigo: this.normalizeCode(resultado.equipe.codigo),
+      nome: resultado.equipe.descricao,
+    };
+    const key = this.responsavelKey(equipe);
+    const selectedBefore = this.responsavelSelecionado;
+    const merged = new Map<string, ResponsavelOperacao>();
+    for (const responsavel of this.responsaveis) {
+      const canonical = {
+        ...responsavel,
+        codigo: this.normalizeCode(responsavel.codigo),
+      };
+      merged.set(this.responsavelKey(canonical), canonical);
+    }
+    merged.set(key, equipe);
+    this.responsaveis = [...merged.values()].map(item => ({ ...item }));
+
+    if (
+      resultado.modo === 'nova'
+      || (resultado.modo === 'existente' && selectedBefore
+        && this.responsavelKey(selectedBefore) === key)
+    ) {
+      this.tipoResponsavel = 'EQUIPE';
+      this.responsavelCodigo = equipe.codigo;
+      this.workflowState.setResponsavel(equipe);
+    } else {
+      this.workflowState.setResponsavel(selectedBefore);
+    }
+    this.changeDetector.markForCheck();
   }
 
   salvarReporte(draft: ReporteParcialDraft): void {
@@ -884,6 +1009,9 @@ export class ReportOperacaoPage implements OnInit {
     this.startRequest += 1;
     this.reportRequest += 1;
     this.endRequest += 1;
+    this.responsaveisRequest += 1;
+    this.loadingResponsaveis = false;
+    this.invalidateTeamContext();
   }
 
   private ensureEnd(): Pick<ReportOperacao, 'dataFim' | 'horaFim'> {
@@ -948,12 +1076,20 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private loadResponsaveis(): void {
+    const request = ++this.responsaveisRequest;
+    const areaCode = this.normalizeCode(this.areaCode);
+    const workCenterCode = this.normalizeCode(this.workCenterCode);
     this.loadingResponsaveis = true;
     this.responsaveisError = '';
     this.reportOperacaoService.listarResponsaveis(this.areaCode, this.workCenterCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: responsaveis => {
+          if (
+            request !== this.responsaveisRequest
+            || areaCode !== this.normalizeCode(this.areaCode)
+            || workCenterCode !== this.normalizeCode(this.workCenterCode)
+          ) return;
           this.loadingResponsaveis = false;
           const frozenResponsavel = this.operacao?.dataInicio
             ? this.workflowState.snapshot().responsavel
@@ -982,6 +1118,11 @@ export class ReportOperacaoPage implements OnInit {
           this.changeDetector.markForCheck();
         },
         error: () => {
+          if (
+            request !== this.responsaveisRequest
+            || areaCode !== this.normalizeCode(this.areaCode)
+            || workCenterCode !== this.normalizeCode(this.workCenterCode)
+          ) return;
           this.loadingResponsaveis = false;
           const frozenResponsavel = this.operacao?.dataInicio
             ? this.workflowState.snapshot().responsavel
@@ -1019,5 +1160,18 @@ export class ReportOperacaoPage implements OnInit {
     this.tipoResponsavel = responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = responsavel?.codigo ?? '';
     this.workflowState.setResponsavel(responsavel);
+  }
+
+  private invalidateTeamContext(): void {
+    this.teamGeneration += 1;
+    this.activeTeamContext = null;
+  }
+
+  private responsavelKey(responsavel: ResponsavelOperacao): string {
+    return `${responsavel.tipo}|${this.normalizeCode(responsavel.codigo)}`;
+  }
+
+  private normalizeCode(value: string): string {
+    return value.trim().toUpperCase();
   }
 }

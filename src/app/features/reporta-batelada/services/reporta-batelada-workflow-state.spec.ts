@@ -88,6 +88,30 @@ describe('ReportaBateladaWorkflowState', () => {
     expect(state.snapshot().responsavel).toBeNull();
   });
 
+  it('normaliza e deduplica responsáveis pela chave composta sem colisão entre tipos', () => {
+    prepareContext();
+    state.setResponsaveis([
+      { tipo: 'OPERADOR', codigo: ' op-001 ', nome: 'Ana Silva' },
+      { tipo: 'EQUIPE', codigo: 'OP-001', nome: 'Equipe homônima' },
+      { tipo: 'EQUIPE', codigo: ' op-001 ', nome: 'Equipe atualizada' },
+    ]);
+
+    expect(state.snapshot().responsaveis).toEqual([
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+      { tipo: 'EQUIPE', codigo: 'OP-001', nome: 'Equipe atualizada' },
+    ]);
+    expect(state.setResponsavel({
+      tipo: 'EQUIPE',
+      codigo: ' op-001 ',
+      nome: 'ignorado na fronteira',
+    })).toBe(true);
+    expect(state.snapshot().responsavel).toEqual({
+      tipo: 'EQUIPE',
+      codigo: 'OP-001',
+      nome: 'Equipe atualizada',
+    });
+  });
+
   it('allows start only for prepared composition with a valid responsible party', () => {
     prepareBatch();
     expect(state.canStart()).toBe(false);

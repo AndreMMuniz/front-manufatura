@@ -34,7 +34,9 @@ describe('InformacoesBatelada', () => {
     fixture.detectChanges();
 
     expect(fixture.debugElement.query(By.css('[role="alert"]')).nativeElement.textContent)
-      .toContain('Nenhum operador elegível');
+      .toContain('Nenhuma equipe ou operador elegível');
+    expect(fixture.debugElement.query(By.css('.informacoes-batelada__responsavel po-button')))
+      .toBeTruthy();
   });
 
   it('emits explicit selection and becomes read-only after success', () => {
@@ -61,5 +63,25 @@ describe('InformacoesBatelada', () => {
     component.changeResponsavel(component.options[0].value as string);
 
     expect(selected).toEqual([{ tipo: 'OPERADOR', codigo: 'OP|001', nome: 'Ana Silva' }]);
+  });
+
+  it('emite a gestão pelo botão PO-UI real e bloqueia a ação após o início', () => {
+    const emitted: Array<HTMLElement | null> = [];
+    component.gerenciarEquipe.subscribe(acionador => emitted.push(acionador));
+    const host = fixture.debugElement.query(
+      By.css('.informacoes-batelada__responsavel po-button'),
+    );
+    const button = host.nativeElement.querySelector('button') as HTMLButtonElement;
+
+    expect(button.getAttribute('aria-label')).toBe('Criar ou gerenciar equipe');
+    button.focus();
+    button.click();
+    expect(emitted).toEqual([button]);
+
+    fixture.componentRef.setInput('disabled', true);
+    fixture.detectChanges();
+    expect(host.componentInstance.disabled).toBe(true);
+    button.click();
+    expect(emitted).toEqual([button]);
   });
 });

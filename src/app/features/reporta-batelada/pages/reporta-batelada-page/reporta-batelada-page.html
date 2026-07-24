@@ -38,9 +38,10 @@
         [workCenter]="view.workCenter"
         [responsaveis]="view.responsaveis"
         [responsavel]="view.responsavel"
-        [disabled]="contextLocked"
+        [disabled]="!canManageTeam"
         [startedAt]="view.inicio?.iniciadoEm ?? null"
         (responsavelChange)="selecionarResponsavel($event)"
+        (gerenciarEquipe)="abrirGerenciarEquipe($event)"
       ></app-informacoes-batelada>
     }
 
@@ -91,3 +92,7 @@
   (rascunhoAlterado)="atualizarRascunho($event)"
   (reporteSolicitado)="salvarReporte($event)"
 ></app-reporte-batelada-slide>
+
+<app-gerenciar-equipe-slide
+  (equipeSalva)="onEquipeSalva($event)"
+></app-gerenciar-equipe-slide>

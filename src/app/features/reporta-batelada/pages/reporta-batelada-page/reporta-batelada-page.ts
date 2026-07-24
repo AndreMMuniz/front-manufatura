@@ -18,6 +18,10 @@ import {
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import {
+  GerenciarEquipeResultado,
+  GerenciarEquipeSlide,
+} from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
@@ -50,6 +54,7 @@ import {
     OrdensCentroBateladaList,
     OrdensSelecionadasBatelada,
     ReporteBateladaSlide,
+    GerenciarEquipeSlide,
     PoButtonModule,
     PoPageModule,
   ],
@@ -60,6 +65,7 @@ import {
 })
 export class ReportaBateladaPage implements OnInit {
   @ViewChild(ReporteBateladaSlide) private reportSlide!: ReporteBateladaSlide;
+  @ViewChild(GerenciarEquipeSlide) private gerenciarEquipeSlide?: GerenciarEquipeSlide;
 
   private readonly router = inject(Router);
   private readonly operationalContext = inject(OperationalContextService);
@@ -78,6 +84,7 @@ export class ReportaBateladaPage implements OnInit {
   selectedIds: ReadonlySet<string> = new Set<string>();
   loadingAreas = false;
   loadingCenters = false;
+  loadingResponsaveis = false;
   responsaveisErrorMessage = '';
 
   private centersRequest = 0;
@@ -94,6 +101,12 @@ export class ReportaBateladaPage implements OnInit {
   private startRequest = 0;
   private responsaveisRequest = 0;
   private sessionActive = true;
+  private teamGeneration = 0;
+  private activeTeamContext: {
+    readonly generation: number;
+    readonly areaCode: string;
+    readonly workCenterCode: string;
+  } | null = null;
 
   get canStart(): boolean {
     return this.workflow.canStart();
@@ -136,12 +149,31 @@ export class ReportaBateladaPage implements OnInit {
     return this.workflow.batchTotals();
   }
 
+  get canManageTeam(): boolean {
+    const area = this.view.area;
+    const center = this.view.workCenter;
+    return this.sessionActive
+      && Boolean(area)
+      && Boolean(
+        center
+        && center.active
+        && this.normalizeCode(center.areaCode) === this.normalizeCode(area?.code ?? ''),
+      )
+      && this.view.composition.length > 0
+      && !this.contextLocked
+      && !this.loadingAreas
+      && !this.loadingCenters
+      && !this.loadingResponsaveis
+      && this.gerenciarEquipeSlide?.state() !== 'saving';
+  }
+
   ngOnInit(): void {
     this.authSession.session$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(session => {
         this.sessionActive = session !== null;
         if (session === null) {
+          this.invalidateTeamContext();
           this.centersRequest += 1;
           this.ordersRequest += 1;
           this.responsaveisRequest += 1;
@@ -154,9 +186,11 @@ export class ReportaBateladaPage implements OnInit {
           this.centers = [];
           this.loadingAreas = false;
           this.loadingCenters = false;
+          this.loadingResponsaveis = false;
           this.syncView();
         }
       });
+    this.destroyRef.onDestroy(() => this.invalidateTeamContext());
 
     const stopped = this.service.retomarFluxoParada();
     if (stopped && this.workflow.restoreAfterStop(stopped)) {
@@ -213,6 +247,7 @@ export class ReportaBateladaPage implements OnInit {
       return;
     }
 
+    this.invalidateTeamContext();
     this.ordersRequest += 1;
     this.centersRequest += 1;
     this.centers = [];
@@ -220,6 +255,7 @@ export class ReportaBateladaPage implements OnInit {
     this.responsaveisErrorMessage = '';
     this.responsaveisRetry = null;
     this.responsaveisRequest += 1;
+    this.loadingResponsaveis = false;
     this.syncView();
 
     if (area) {
@@ -233,10 +269,12 @@ export class ReportaBateladaPage implements OnInit {
       this.syncView();
       return;
     }
+    this.invalidateTeamContext();
     this.ordersRequest += 1;
     this.responsaveisErrorMessage = '';
     this.responsaveisRetry = null;
     this.responsaveisRequest += 1;
+    this.loadingResponsaveis = false;
     this.syncView();
   }
 
@@ -275,6 +313,7 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   atualizarSelecao(ids: ReadonlySet<string>): void {
+    this.invalidateTeamContext();
     this.workflow.setSelectedOrderIds(ids);
     this.syncView();
   }
@@ -286,6 +325,74 @@ export class ReportaBateladaPage implements OnInit {
 
   selecionarResponsavel(responsavel: ResponsavelBatelada | null): void {
     this.workflow.setResponsavel(responsavel);
+    this.syncView();
+  }
+
+  abrirGerenciarEquipe(acionador?: HTMLElement | null): void {
+    if (!this.canManageTeam || !this.view.area || !this.view.workCenter) {
+      return;
+    }
+    const generation = ++this.teamGeneration;
+    const areaCode = this.normalizeCode(this.view.area.code);
+    const workCenterCode = this.normalizeCode(this.view.workCenter.code);
+    this.activeTeamContext = { generation, areaCode, workCenterCode };
+    const contexto = {
+      areaCode,
+      workCenterCode,
+      areaLabel: this.view.area.description,
+      workCenterLabel: this.view.workCenter.description,
+    };
+    if (acionador) {
+      this.gerenciarEquipeSlide?.abrir(contexto, 'nova', acionador);
+    } else {
+      this.gerenciarEquipeSlide?.abrir(contexto, 'nova');
+    }
+  }
+
+  onEquipeSalva(resultado: GerenciarEquipeResultado): void {
+    const active = this.activeTeamContext;
+    const areaCode = this.normalizeCode(resultado.contexto.areaCode);
+    const workCenterCode = this.normalizeCode(resultado.contexto.workCenterCode);
+    if (
+      !active
+      || active.generation !== this.teamGeneration
+      || active.areaCode !== areaCode
+      || active.workCenterCode !== workCenterCode
+      || this.normalizeCode(this.view.area?.code ?? '') !== areaCode
+      || this.normalizeCode(this.view.workCenter?.code ?? '') !== workCenterCode
+      || !this.sessionActive
+      || this.view.composition.length === 0
+      || this.contextLocked
+    ) {
+      return;
+    }
+
+    const equipe: ResponsavelBatelada = {
+      tipo: 'EQUIPE',
+      codigo: this.normalizeCode(resultado.equipe.codigo),
+      nome: resultado.equipe.descricao,
+    };
+    const key = this.responsavelKey(equipe);
+    const selectedBefore = this.view.responsavel;
+    const merged = new Map<string, ResponsavelBatelada>();
+    for (const responsavel of this.view.responsaveis) {
+      const canonical = {
+        ...responsavel,
+        codigo: this.normalizeCode(responsavel.codigo),
+      };
+      merged.set(this.responsavelKey(canonical), canonical);
+    }
+    merged.set(key, equipe);
+    this.workflow.setResponsaveis([...merged.values()]);
+    if (
+      resultado.modo === 'nova'
+      || (resultado.modo === 'existente' && selectedBefore
+        && this.responsavelKey(selectedBefore) === key)
+    ) {
+      this.workflow.setResponsavel(equipe);
+    } else {
+      this.workflow.setResponsavel(selectedBefore);
+    }
     this.syncView();
   }
 
@@ -518,6 +625,7 @@ export class ReportaBateladaPage implements OnInit {
     workCenterCode: string,
   ): void {
     const responsaveisRequest = ++this.responsaveisRequest;
+    this.loadingResponsaveis = true;
     this.service.listarResponsaveisElegiveis(areaCode, workCenterCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -528,6 +636,7 @@ export class ReportaBateladaPage implements OnInit {
         ) {
           return;
         }
+        this.loadingResponsaveis = false;
         this.responsaveisErrorMessage = '';
         this.responsaveisRetry = null;
         this.workflow.setResponsaveis(responsaveis, this.preferredOperatorCode);
@@ -540,6 +649,7 @@ export class ReportaBateladaPage implements OnInit {
         ) {
           return;
         }
+        this.loadingResponsaveis = false;
         this.responsaveisErrorMessage =
           'Não foi possível carregar os responsáveis elegíveis. Tente novamente.';
         this.responsaveisRetry = { request, areaCode, workCenterCode };
@@ -600,6 +710,7 @@ export class ReportaBateladaPage implements OnInit {
 
   private navigateProtected(commands: ReadonlyArray<string>): void {
     if (!this.started && !this.workflow.hasUnsavedDraft()) {
+      this.invalidateTeamContext();
       void this.router.navigate([...commands]);
       return;
     }
@@ -607,6 +718,7 @@ export class ReportaBateladaPage implements OnInit {
       title: 'Sair da batelada?',
       message: 'A batelada está iniciada ou possui alterações não salvas. Deseja sair e descartar o fluxo atual?',
       confirm: () => {
+        this.invalidateTeamContext();
         this.historyRequest += 1;
         this.reportRequest += 1;
         this.endingRequest += 1;
@@ -636,5 +748,18 @@ export class ReportaBateladaPage implements OnInit {
     this.view = this.workflow.snapshot();
     this.selectedIds = new Set(this.view.selectedOrderIds);
     this.changeDetector.markForCheck();
+  }
+
+  private invalidateTeamContext(): void {
+    this.teamGeneration += 1;
+    this.activeTeamContext = null;
+  }
+
+  private responsavelKey(responsavel: ResponsavelBatelada): string {
+    return `${responsavel.tipo}|${this.normalizeCode(responsavel.codigo)}`;
+  }
+
+  private normalizeCode(value: string): string {
+    return value.trim().toUpperCase();
   }
 }

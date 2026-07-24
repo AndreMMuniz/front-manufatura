@@ -16,19 +16,30 @@
     }
   </dl>
 
-  @if (responsaveis.length > 0) {
-    <po-select
-      name="responsavelBatelada"
-      p-label="Operador"
-      p-placeholder="Selecione uma equipe ou operador"
-      [p-options]="options"
+  <div class="informacoes-batelada__responsavel">
+    <div>
+      @if (responsaveis.length > 0) {
+        <po-select
+          name="responsavelBatelada"
+          p-label="Responsável"
+          p-placeholder="Selecione uma equipe ou operador"
+          [p-options]="options"
+          [p-disabled]="disabled"
+          [ngModel]="responsavelKey"
+          (ngModelChange)="changeResponsavel($event)"
+        ></po-select>
+      } @else {
+        <p class="informacoes-batelada__error" role="alert">
+          Nenhuma equipe ou operador elegível para esta Área e Centro de Trabalho.
+        </p>
+      }
+    </div>
+    <po-button
+      p-label="Criar equipe"
+      p-aria-label="Criar ou gerenciar equipe"
+      p-kind="secondary"
       [p-disabled]="disabled"
-      [ngModel]="responsavelKey"
-      (ngModelChange)="changeResponsavel($event)"
-    ></po-select>
-  } @else {
-    <p class="informacoes-batelada__error" role="alert">
-      Nenhum operador elegível para esta Área e Centro de Trabalho.
-    </p>
-  }
+      (p-click)="onGerenciarEquipe()"
+    ></po-button>
+  </div>
 </po-widget>

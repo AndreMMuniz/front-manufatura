@@ -52,9 +52,11 @@
         [responsavelDisabled]="operacao.dataInicio !== undefined || isBusy"
         [loadingResponsaveis]="loadingResponsaveis"
         [responsaveisError]="responsaveisError"
+        [gerenciarEquipeDisabled]="!canManageTeam"
         (tipoResponsavelChange)="alterarTipoResponsavel($event)"
         (responsavelChange)="alterarResponsavel($event)"
         (retryResponsaveis)="retryResponsaveis()"
+        (gerenciarEquipe)="abrirGerenciarEquipe($event)"
       ></app-operacao-info-card>
 
     }
@@ -75,5 +77,9 @@
     <app-reporte-slide
       (reporteSolicitado)="salvarReporte($event)"
     ></app-reporte-slide>
+
+    <app-gerenciar-equipe-slide
+      (equipeSalva)="onEquipeSalva($event)"
+    ></app-gerenciar-equipe-slide>
   </section>
 </po-page-default>

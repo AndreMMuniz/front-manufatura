@@ -135,7 +135,9 @@ export class ReportOperacaoWorkflowState {
   setResponsavel(responsavel: ResponsavelOperacao | null): void {
     this.value.update(current => ({
       ...current,
-      responsavel: responsavel ? { ...responsavel } : null,
+      responsavel: responsavel
+        ? { ...responsavel, codigo: this.normalizeCode(responsavel.codigo) }
+        : null,
     }));
   }
 
@@ -266,5 +268,9 @@ export class ReportOperacaoWorkflowState {
       dataFim: new Date(reporte.dataFim),
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     };
+  }
+
+  private normalizeCode(value: string): string {
+    return value.trim().toUpperCase();
   }
 }

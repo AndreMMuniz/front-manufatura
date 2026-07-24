@@ -59,6 +59,30 @@ async function selectSingleOrderWithPointer(page: import('@playwright/test').Pag
   await expect(checkbox).toBeChecked();
 }
 
+async function createTeamFromContext(
+  page: import('@playwright/test').Page,
+  code: string,
+) {
+  const currentUrl = page.url();
+  const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
+  await trigger.focus();
+  await trigger.press('Enter');
+  await expect(page).toHaveURL(currentUrl);
+
+  const drawer = page.locator('app-gerenciar-equipe-slide');
+  await expect(drawer.getByText('Criar/Gerenciar Equipe')).toBeVisible();
+  await drawer.getByRole('textbox', { name: 'Código' }).fill(code);
+  await drawer.getByRole('textbox', { name: 'Descrição' }).fill('Equipe E2E');
+  await drawer.getByRole('textbox', { name: 'Turno' }).fill('Turno 1');
+  const firstMember = drawer.getByRole('checkbox', { name: /001 Jose Ribeiro Neto/ });
+  await firstMember.focus();
+  await firstMember.press('Space');
+  await expect(firstMember).toBeChecked();
+  await drawer.getByRole('button', { name: 'Salvar' }).click();
+  await expect(drawer.getByText('Criar/Gerenciar Equipe')).toBeHidden();
+  await expect(trigger).toBeFocused();
+}
+
 test.describe('fluxo de Reporte Ordem', () => {
   test('navega para Reporta Operação pelo cartão da Home', async ({ page }) => {
     await login(page);
@@ -162,6 +186,25 @@ test.describe('fluxo de Reporte Ordem', () => {
     await expect(actions.getByRole('button', { name: 'Encerrar' })).toHaveCount(0);
   });
 
+  test('cria equipe por teclado sem perder a ordem e bloqueia a gestão após iniciar', async ({ page }) => {
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
+    await selectProductionContext(page);
+    await selectSingleOrderWithKeyboard(page, '450001');
+    await page.getByRole('button', { name: 'Abrir apontamento' }).click();
+    await page.getByRole('combobox', { name: 'Reportar por' }).selectOption('EQUIPE');
+
+    await createTeamFromContext(page, 'E2E-ORDEM');
+
+    const team = page.getByRole('combobox', { name: 'Equipe' });
+    await expect(team.getByRole('option', { name: 'E2E-ORDEM - Equipe E2E' })).toHaveCount(1);
+    await expect(team).toHaveValue('E2E-ORDEM - Equipe E2E');
+    await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Iniciar' }).click();
+    await expect(page.getByRole('button', { name: 'Criar ou gerenciar equipe' })).toBeDisabled();
+  });
+
   test('mantém o botão Report visível no Centro de Trabalho e navega após contexto completo', async ({ page }) => {
     await login(page);
     await page.getByRole('link', { name: 'Centro de Trabalho' }).click();
@@ -189,6 +232,7 @@ test.describe('fluxo de Reporte Ordem', () => {
 
 test.describe('fluxo de Reporte Batelada', () => {
   test('consulta, compõe e inicia múltiplas ordens com uma única ação', async ({ page }) => {
+    page.on('pageerror', error => console.error('BATCH_PAGE_ERROR', error.message));
     await page.setViewportSize({ width: 1024, height: 768 });
     await login(page);
     await page.getByRole('link', { name: 'Reporte Batelada' }).click();
@@ -205,7 +249,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(composition.getByRole('row').filter({ hasText: '450001' })).toBeVisible();
     await expect(composition.getByRole('row').filter({ hasText: '450002' })).toBeVisible();
 
-    const responsible = page.getByRole('combobox', { name: 'Operador' });
+    const responsible = page.getByRole('combobox', { name: 'Responsável' });
     await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
       .toHaveCount(1);
     await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });
@@ -234,7 +278,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithKeyboard(page, '450001');
     await selectOrderWithKeyboard(page, '450002');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
-    const responsible = page.getByRole('combobox', { name: 'Operador' });
+    const responsible = page.getByRole('combobox', { name: 'Responsável' });
     await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
       .toHaveCount(1);
     await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });
@@ -310,5 +354,58 @@ test.describe('fluxo de Reporte Batelada', () => {
       .toHaveValue('4001 - Produção');
     await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' }))
       .toHaveValue('CT-EXT-01 - Extrusao Linha 01');
+  });
+
+  test('cria, edita e reabre equipe preservando composição em teclado, toque e viewports', async ({ page }) => {
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Batelada' }).click();
+    await selectProductionContext(page);
+    await selectOrderWithKeyboard(page, '450001');
+    await selectOrderWithPointer(page, '450002');
+    await page.getByRole('button', { name: 'Abrir batelada' }).click();
+
+    await createTeamFromContext(page, 'E2E-BATCH');
+    const responsible = page.getByRole('combobox', { name: 'Responsável' });
+    await expect(responsible.getByRole('option', { name: 'Equipe — E2E-BATCH - Equipe E2E' }))
+      .toHaveCount(1);
+    await expect(responsible).toHaveValue('Equipe — E2E-BATCH - Equipe E2E');
+
+    const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
+    await trigger.click();
+    const drawer = page.locator('app-gerenciar-equipe-slide');
+    await drawer.getByRole('button', { name: 'Existente' }).click();
+    await drawer.getByRole('combobox', { name: 'Equipe' }).selectOption('E2E-BATCH');
+    await drawer.getByRole('checkbox', { name: /001 Jose Ribeiro Neto/ }).uncheck();
+    const secondMember = drawer.getByRole('checkbox', { name: /002 Almir Rogerio Bento/ });
+    await secondMember.focus();
+    await secondMember.press('Space');
+    await expect(secondMember).toBeChecked();
+    await drawer.getByRole('button', { name: 'Salvar' }).click();
+
+    await trigger.click();
+    await drawer.getByRole('button', { name: 'Existente' }).click();
+    await drawer.getByRole('combobox', { name: 'Equipe' }).selectOption('E2E-BATCH');
+    await expect(drawer.getByRole('checkbox', { name: /001 Jose Ribeiro Neto/ })).not.toBeChecked();
+    await expect(drawer.getByRole('checkbox', { name: /002 Almir Rogerio Bento/ })).toBeChecked();
+    await drawer.getByRole('button', { name: 'Voltar' }).click();
+    await expect(responsible.getByRole('option', { name: 'Equipe — E2E-BATCH - Equipe E2E' }))
+      .toHaveCount(1);
+    await expect(responsible).toHaveValue('Equipe — E2E-BATCH - Equipe E2E');
+
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 1024, height: 768 },
+      { width: 1366, height: 768 },
+      { width: 480, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport);
+      expect(await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      )).toBe(true);
+      await expect(trigger).toBeVisible();
+    }
+
+    await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+    await expect(trigger).toBeDisabled();
   });
 });

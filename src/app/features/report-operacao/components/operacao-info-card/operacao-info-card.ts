@@ -24,10 +24,12 @@ export class OperacaoInfoCard {
   @Input() responsavelDisabled = true;
   @Input() loadingResponsaveis = false;
   @Input() responsaveisError = '';
+  @Input() gerenciarEquipeDisabled = true;
 
   @Output() tipoResponsavelChange = new EventEmitter<TipoResponsavelOperacao>();
   @Output() responsavelChange = new EventEmitter<string>();
   @Output() retryResponsaveis = new EventEmitter<void>();
+  @Output() gerenciarEquipe = new EventEmitter<HTMLElement | null>();
 
   readonly tipoOptions: ReadonlyArray<PoSelectOption> = [
     { label: 'Operador', value: 'OPERADOR' },
@@ -51,5 +53,11 @@ export class OperacaoInfoCard {
 
   changeResponsavel(value: string): void {
     this.responsavelChange.emit(value ?? '');
+  }
+
+  onGerenciarEquipe(): void {
+    this.gerenciarEquipe.emit(
+      typeof document === 'undefined' ? null : document.activeElement as HTMLElement | null,
+    );
   }
 }
