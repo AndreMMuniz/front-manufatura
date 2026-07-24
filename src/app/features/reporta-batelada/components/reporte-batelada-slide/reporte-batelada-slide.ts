@@ -3,10 +3,12 @@ import {
   ChangeDetectorRef,
   Component,
   EventEmitter,
+  OnDestroy,
   Output,
   ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -37,7 +39,7 @@ type QuantityField =
   styleUrls: ['./reporte-batelada-slide.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ReporteBateladaSlide {
+export class ReporteBateladaSlide implements OnDestroy {
   @Output() reporteSolicitado = new EventEmitter<RascunhoReporteBatelada>();
   @Output() rascunhoAlterado = new EventEmitter<RascunhoReporteBatelada>();
 
@@ -52,12 +54,19 @@ export class ReporteBateladaSlide {
   quantidadeMotivo = 0;
   motivoOptions: ReadonlyArray<{ readonly label: string; readonly value: string }> = [];
   private idempotencyKey: string | null = null;
+  private motivosRequest = 0;
+  private readonly destroyed$ = new Subject<void>();
 
   constructor(
     private readonly changeDetector: ChangeDetectorRef,
     private readonly dialog: PoDialogService,
     private readonly motivoService: MotivoRefugoService,
   ) {}
+
+  ngOnDestroy(): void {
+    this.destroyed$.next();
+    this.destroyed$.complete();
+  }
 
   get totalInformado(): number {
     return arredondarQuantidadeBatelada(this.items.reduce(
@@ -75,7 +84,9 @@ export class ReporteBateladaSlide {
       item.quantidadeAprovada !== 0 ||
       item.quantidadeRetrabalho !== 0 ||
       item.quantidadeRefugo !== 0 ||
-      item.refugoItens.length > 0);
+      item.refugoItens.length > 0) ||
+      this.motivoCodigo.trim().length > 0 ||
+      this.quantidadeMotivo !== 0;
   }
 
   get canSave(): boolean {
@@ -94,6 +105,11 @@ export class ReporteBateladaSlide {
     this.validationMessage = '';
     this.resetReasonEditor();
     this.pageSlide.open();
+    this.changeDetector.markForCheck();
+  }
+
+  atualizarHistorico(history: ReadonlyArray<ReporteParcialBatelada>): void {
+    this.historico = this.dedupeHistory([...this.historico, ...history]);
     this.changeDetector.markForCheck();
   }
 
@@ -116,8 +132,14 @@ export class ReporteBateladaSlide {
     this.editingOrderId = orderId;
     this.motivoCodigo = '';
     this.quantidadeMotivo = 0;
-    this.motivoService.buscarMotivos('').subscribe({
+    const request = ++this.motivosRequest;
+    this.motivoService.buscarMotivos('')
+      .pipe(takeUntil(this.destroyed$))
+      .subscribe({
       next: motivos => {
+        if (request !== this.motivosRequest || this.editingOrderId !== orderId) {
+          return;
+        }
         this.motivoOptions = motivos.map(motivo => ({
           label: `${motivo.codigo} - ${motivo.descricao}`,
           value: motivo.codigo,
@@ -125,10 +147,13 @@ export class ReporteBateladaSlide {
         this.changeDetector.markForCheck();
       },
       error: () => {
+        if (request !== this.motivosRequest || this.editingOrderId !== orderId) {
+          return;
+        }
         this.validationMessage = 'Não foi possível carregar os motivos de refugo.';
         this.changeDetector.markForCheck();
       },
-    });
+      });
   }
 
   atualizarMotivo(code: string): void {
@@ -243,6 +268,7 @@ export class ReporteBateladaSlide {
           refugoItens: [],
         }));
         this.idempotencyKey = null;
+        this.resetReasonEditor();
         this.rascunhoAlterado.emit(this.currentDraft());
         this.pageSlide.close();
       },
@@ -276,6 +302,9 @@ export class ReporteBateladaSlide {
     ]);
     if (quantities.some(value => !Number.isFinite(value) || value < 0)) {
       return 'As quantidades devem ser números finitos e não negativos.';
+    }
+    if (!Number.isFinite(this.totalInformado)) {
+      return 'O total informado excede o limite permitido.';
     }
     if (this.totalInformado <= 0) {
       return 'Informe ao menos uma quantidade positiva para salvar o reporte.';
@@ -358,6 +387,7 @@ export class ReporteBateladaSlide {
   }
 
   private resetReasonEditor(): void {
+    this.motivosRequest += 1;
     this.editingOrderId = '';
     this.motivoCodigo = '';
     this.quantidadeMotivo = 0;

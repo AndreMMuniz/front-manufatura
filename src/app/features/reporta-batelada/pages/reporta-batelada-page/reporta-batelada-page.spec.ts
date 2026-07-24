@@ -45,6 +45,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     encerrarBatelada: ReturnType<typeof vi.fn>;
     preservarFluxoParada: ReturnType<typeof vi.fn>;
     retomarFluxoParada: ReturnType<typeof vi.fn>;
+    descartarFluxoParada: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -88,6 +89,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       })),
       preservarFluxoParada: vi.fn(),
       retomarFluxoParada: vi.fn(() => null),
+      descartarFluxoParada: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -312,6 +314,34 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(reviewable.responsaveisErrorMessage).toBe('');
   });
 
+  it('ignores an obsolete responsible retry after a newer retry succeeds', () => {
+    const firstRetry = new Subject<ReadonlyArray<{
+      tipo: 'OPERADOR';
+      codigo: string;
+      nome: string;
+    }>>();
+    const secondRetry = new Subject<ReadonlyArray<{
+      tipo: 'OPERADOR';
+      codigo: string;
+      nome: string;
+    }>>();
+    serviceMock.listarResponsaveisElegiveis
+      .mockReturnValueOnce(throwError(() => new Error('offline')))
+      .mockReturnValueOnce(firstRetry)
+      .mockReturnValueOnce(secondRetry);
+    component.consultarOrdens();
+
+    component.tentarCarregarResponsaveisNovamente();
+    component.tentarCarregarResponsaveisNovamente();
+    secondRetry.next([{ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }]);
+    firstRetry.error(new Error('late failure'));
+
+    expect(component.responsaveisErrorMessage).toBe('');
+    expect(component.view.responsaveis).toEqual([
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+    ]);
+  });
+
   it('does not mutate visible context after the batch lock rejects an Area change', () => {
     prepareForStart();
     component.iniciarBatelada();
@@ -332,6 +362,21 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.area).toBeNull();
     expect(component.view.workCenter).toBeNull();
     expect(component.view.composition).toEqual([]);
+  });
+
+  it('does not repopulate Areas from a response that arrives after logout', () => {
+    const pending = new Subject<ReadonlyArray<{ code: string; description: string }>>();
+    serviceMock.listarAreas.mockReturnValueOnce(pending);
+    session$.next({ user: 'operador' });
+    fixture = TestBed.createComponent(ReportaBateladaPage);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    session$.next(null);
+    pending.next([{ code: '4002', description: 'Qualidade' }]);
+
+    expect(component.areas).toEqual([]);
+    expect(component.view.area).toBeNull();
   });
 
   it('keeps start unavailable without an eligible responsible party', () => {
@@ -356,6 +401,24 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(serviceMock.listarReportesBatelada).toHaveBeenCalledWith('batch-1');
     expect(slide.items.map(item => item.orderId)).toEqual(['2', '1']);
     expect(component.view.estado).toBe('BateladaIniciada');
+  });
+
+  it('applies a late history response without reopening or resetting the drawer', () => {
+    const pending = new Subject<ReadonlyArray<ReporteParcialBatelada>>();
+    serviceMock.listarReportesBatelada.mockReturnValueOnce(pending);
+    prepareForStart();
+    component.iniciarBatelada();
+    const slide = fixture.debugElement.query(By.directive(ReporteBateladaSlide))
+      .componentInstance as ReporteBateladaSlide;
+    const open = vi.spyOn(slide, 'abrir');
+    const update = vi.spyOn(slide, 'atualizarHistorico');
+
+    component.abrirReporte();
+    pending.next([confirmedReport('idem-history')]);
+
+    expect(open).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledOnce();
+    expect(component.view.history).toHaveLength(1);
   });
 
   it('sends one ordered partial command, updates history and keeps the batch started', () => {
@@ -395,6 +458,21 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       .toBe('idem-retry');
   });
 
+  it('finishes drawer loading when the same idempotency key is already confirmed', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    const draft = reportDraft('idem-confirmed');
+    component.salvarReporte(draft);
+    const slide = fixture.debugElement.query(By.directive(ReporteBateladaSlide))
+      .componentInstance as ReporteBateladaSlide;
+    const informarErro = vi.spyOn(slide, 'informarErro');
+
+    component.salvarReporte(draft);
+
+    expect(informarErro).toHaveBeenCalledWith('Este reporte já foi confirmado no histórico.');
+    expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledOnce();
+  });
+
   it('ends only after confirmation, without an implicit report, and returns to work center', () => {
     prepareForStart();
     component.iniciarBatelada();
@@ -421,6 +499,18 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.estado).toBe('BateladaIniciada');
   });
 
+  it('warns that an unsaved draft will be discarded before ending', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    component.atualizarRascunho(reportDraft('idem-unsaved'));
+
+    component.encerrarBatelada();
+
+    expect(dialogMock.confirm).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('quantidades não salvas'),
+    }));
+  });
+
   it('protects navigation while a batch is active and allows cancelling the discard', () => {
     prepareForStart();
     component.iniciarBatelada();
@@ -431,6 +521,19 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(dialogMock.confirm).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Sair da batelada?',
       confirm: expect.any(Function),
+    }));
+  });
+
+  it('protects navigation while the joint start is still pending', () => {
+    serviceMock.iniciarBatelada.mockReturnValueOnce(new Subject());
+    prepareForStart();
+    component.iniciarBatelada();
+
+    component.voltar();
+
+    expect(component.view.estado).toBe('Iniciando');
+    expect(dialogMock.confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Sair da batelada?',
     }));
   });
 
@@ -481,6 +584,20 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.history).toHaveLength(1);
     expect(component.view.composition.map(order => order.id)).toEqual(['2', '1']);
+  });
+
+  it('returns to the operational state when stoppage navigation is cancelled', async () => {
+    routerMock.navigate.mockResolvedValueOnce(false);
+    prepareForStart();
+    component.iniciarBatelada();
+
+    component.abrirParada();
+    await vi.waitFor(() => expect(component.view.estado).toBe('BateladaIniciada'));
+
+    expect(serviceMock.descartarFluxoParada).toHaveBeenCalledOnce();
+    expect(notificationMock.error).toHaveBeenCalledWith(
+      'Não foi possível abrir o reporte de Paradas.',
+    );
   });
 
   function prepareForStart(): void {

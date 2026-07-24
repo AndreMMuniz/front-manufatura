@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 
 import { Observable, delay, map, of } from 'rxjs';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import {
@@ -38,12 +39,21 @@ interface IdempotentReportRecord {
 @Injectable({ providedIn: 'root' })
 export class ReportaBateladaService {
   private readonly catalog = inject(ReportOperacaoService);
+  private readonly authSession = inject(AuthSessionService, { optional: true });
   private readonly batches = new Map<string, BatchMockRecord>();
   private readonly reportsByBatch = new Map<string, ReadonlyArray<ReporteParcialBatelada>>();
   private readonly reportsByIdempotency = new Map<string, IdempotentReportRecord>();
   private stoppedWorkflow: ReportaBateladaWorkflowSnapshot | null = null;
   private batchSequence = 0;
   private reportSequence = 0;
+
+  constructor() {
+    this.authSession?.session$.subscribe(session => {
+      if (session === null) {
+        this.clearSessionState();
+      }
+    });
+  }
 
   preservarFluxoParada(snapshot: ReportaBateladaWorkflowSnapshot): void {
     this.stoppedWorkflow = snapshot;
@@ -53,6 +63,10 @@ export class ReportaBateladaService {
     const snapshot = this.stoppedWorkflow;
     this.stoppedWorkflow = null;
     return snapshot;
+  }
+
+  descartarFluxoParada(): void {
+    this.stoppedWorkflow = null;
   }
 
   listarAreas(): Observable<ReadonlyArray<AreaProducaoBatelada>> {
@@ -167,6 +181,10 @@ export class ReportaBateladaService {
   }
 
   validarReporteParcial(request: ReporteParcialBateladaRequest): void {
+    if (!request.idempotencyKey.trim()) {
+      throw new Error('A chave de idempotência é obrigatória.');
+    }
+
     const quantities = request.items.flatMap(item => [
       item.quantidadeAprovada,
       item.quantidadeRetrabalho,
@@ -186,6 +204,9 @@ export class ReportaBateladaService {
         item.quantidadeRefugo,
       0,
     );
+    if (!Number.isFinite(total)) {
+      throw new Error('O total informado excede o limite permitido.');
+    }
     if (total <= 0) {
       throw new Error('Informe ao menos uma quantidade positiva para salvar o reporte.');
     }
@@ -213,10 +234,6 @@ export class ReportaBateladaService {
       delay(200),
       map(() => {
         this.validarReporteParcial(command);
-        this.assertActiveBatchComposition(
-          command.batchId,
-          command.items.map(item => item.orderId),
-        );
 
         const idempotencyIdentity = `${command.batchId}:${command.idempotencyKey}`;
         const fingerprint = this.reportFingerprint(command);
@@ -227,6 +244,11 @@ export class ReportaBateladaService {
           }
           return this.cloneReport(prior.report);
         }
+
+        this.assertActiveBatchComposition(
+          command.batchId,
+          command.items.map(item => item.orderId),
+        );
 
         const response: ReporteParcialBateladaResponse = {
           status: 'SUCESSO_INTEGRAL',
@@ -260,7 +282,8 @@ export class ReportaBateladaService {
       response.idempotencyKey === request.idempotencyKey &&
       typeof response.reporteId === 'string' &&
       response.reporteId.trim().length > 0 &&
-      response.confirmadoEm instanceof Date;
+      response.confirmadoEm instanceof Date &&
+      !Number.isNaN(response.confirmadoEm.getTime());
 
     if (!complete) {
       throw new Error('O reporte conjunto não foi confirmado para todas as ordens.');
@@ -315,7 +338,8 @@ export class ReportaBateladaService {
     const complete =
       this.hasCompleteResults(response.status, response.resultados, expectedOrderIds) &&
       response.batchId === batchId &&
-      response.encerradoEm instanceof Date;
+      response.encerradoEm instanceof Date &&
+      !Number.isNaN(response.encerradoEm.getTime());
 
     if (!complete) {
       throw new Error('O encerramento conjunto não foi confirmado para todas as ordens.');
@@ -365,6 +389,13 @@ export class ReportaBateladaService {
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
       })),
     });
+  }
+
+  private clearSessionState(): void {
+    this.stoppedWorkflow = null;
+    this.batches.clear();
+    this.reportsByBatch.clear();
+    this.reportsByIdempotency.clear();
   }
 
   private cloneReportRequest(

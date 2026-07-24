@@ -80,6 +80,25 @@ describe('ReporteParadasService', () => {
     }));
   });
 
+  it('does not invent a shift when batch context has none', () => {
+    service.setContextFromStartedBatch(
+      {
+        code: 'CT-EXT-01',
+        description: 'Extrusão',
+        areaCode: '4001',
+        area: 'Produção',
+        machineGroup: 'Extrusoras',
+        establishment: '101',
+        active: true,
+      },
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+      [{ id: '1', ordem: '450001', itemOp: 'ITEM-1 / OP-1', operacao: '10', split: '01' }],
+      'batch-42',
+    );
+
+    expect(service.getActiveContext()?.shift).toBe('');
+  });
+
   function stop(overrides: Partial<StopEntry> = {}): StopEntry {
     return {
       id: 1,

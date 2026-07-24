@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
 import {
   EncerrarBateladaResponse,
@@ -19,6 +20,7 @@ import { ReportaBateladaService } from './reporta-batelada.service';
 
 describe('ReportaBateladaService', () => {
   let service: ReportaBateladaService;
+  let session$: BehaviorSubject<unknown>;
   let catalogMock: {
     listarAreasProducao: ReturnType<typeof vi.fn>;
     pesquisarCentrosTrabalho: ReturnType<typeof vi.fn>;
@@ -27,6 +29,7 @@ describe('ReportaBateladaService', () => {
   };
 
   beforeEach(() => {
+    session$ = new BehaviorSubject<unknown>({ user: 'operador' });
     catalogMock = {
       listarAreasProducao: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentrosTrabalho: vi.fn(() => of([workCenter()])),
@@ -37,6 +40,7 @@ describe('ReportaBateladaService', () => {
     TestBed.configureTestingModule({
       providers: [
         ReportaBateladaService,
+        { provide: AuthSessionService, useValue: { session$ } },
         { provide: ReportOperacaoService, useValue: catalogMock },
       ],
     });
@@ -194,6 +198,24 @@ describe('ReportaBateladaService', () => {
       .toThrowError('Os motivos de refugo da ordem 450001 devem totalizar 2,000.');
   });
 
+  it('rejects an empty idempotency key and aggregate overflow', () => {
+    expect(() => service.validarReporteParcial({
+      ...reportRequest(),
+      idempotencyKey: ' ',
+    })).toThrowError('A chave de idempotência é obrigatória.');
+
+    const overflow = reportRequest({
+      first: {
+        quantidadeAprovada: Number.MAX_VALUE,
+        quantidadeRetrabalho: Number.MAX_VALUE,
+        quantidadeRefugo: 0,
+        refugoItens: [],
+      },
+    });
+    expect(() => service.validarReporteParcial(overflow))
+      .toThrowError('O total informado excede o limite permitido.');
+  });
+
   it('persists one ordered multi-order report and returns defensive history copies', async () => {
     const inicio = await startBatch();
     const request = reportRequest({ batchId: inicio.batchId });
@@ -219,6 +241,19 @@ describe('ReportaBateladaService', () => {
 
     expect(retry).toEqual(first);
     expect(history).toHaveLength(1);
+  });
+
+  it('returns an idempotent retry even after the batch has been closed', async () => {
+    const inicio = await startBatch();
+    const request = reportRequest({ batchId: inicio.batchId });
+    const first = await firstValueFrom(service.reportarBateladaParcial(request));
+    await firstValueFrom(service.encerrarBatelada({
+      batchId: inicio.batchId,
+      orderIds: ['1', '2'],
+    }));
+
+    await expect(firstValueFrom(service.reportarBateladaParcial(structuredClone(request))))
+      .resolves.toEqual(first);
   });
 
   it('creates a second partial report when the event has a new idempotency key', async () => {
@@ -295,6 +330,42 @@ describe('ReportaBateladaService', () => {
         .toThrowError('O reporte conjunto não foi confirmado para todas as ordens.');
     },
   );
+
+  it('rejects invalid report and ending timestamps', () => {
+    expect(() => service.validarRespostaReporte({
+      status: 'SUCESSO_INTEGRAL',
+      reporteId: 'report-1',
+      batchId: 'batch-1',
+      idempotencyKey: 'idem-1',
+      confirmadoEm: new Date(Number.NaN),
+      resultados: [
+        { ordemId: '1', sucesso: true },
+        { ordemId: '2', sucesso: true },
+      ],
+    }, reportRequest())).toThrowError(
+      'O reporte conjunto não foi confirmado para todas as ordens.',
+    );
+
+    expect(() => service.validarRespostaEncerramento({
+      status: 'SUCESSO_INTEGRAL',
+      batchId: 'batch-1',
+      encerradoEm: new Date(Number.NaN),
+      resultados: [
+        { ordemId: '1', sucesso: true },
+        { ordemId: '2', sucesso: true },
+      ],
+    }, 'batch-1', ['1', '2'])).toThrowError(
+      'O encerramento conjunto não foi confirmado para todas as ordens.',
+    );
+  });
+
+  it('clears the preserved stoppage workflow when the session ends', () => {
+    service.preservarFluxoParada({ batchId: 'batch-1' } as never);
+
+    session$.next(null);
+
+    expect(service.retomarFluxoParada()).toBeNull();
+  });
 
   it('ends the batch atomically without creating an implicit report', async () => {
     const inicio = await startBatch();

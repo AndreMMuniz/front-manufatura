@@ -91,6 +91,9 @@ export class ReportaBateladaPage implements OnInit {
   private historyRequest = 0;
   private reportRequest = 0;
   private endingRequest = 0;
+  private startRequest = 0;
+  private responsaveisRequest = 0;
+  private sessionActive = true;
 
   get canStart(): boolean {
     return this.workflow.canStart();
@@ -99,6 +102,7 @@ export class ReportaBateladaPage implements OnInit {
   get started(): boolean {
     return [
       EstadoBatelada.BateladaIniciada,
+      EstadoBatelada.Iniciando,
       EstadoBatelada.ReportandoParcial,
       EstadoBatelada.EmParada,
       EstadoBatelada.Encerrando,
@@ -136,7 +140,16 @@ export class ReportaBateladaPage implements OnInit {
     this.authSession.session$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(session => {
+        this.sessionActive = session !== null;
         if (session === null) {
+          this.centersRequest += 1;
+          this.ordersRequest += 1;
+          this.responsaveisRequest += 1;
+          this.historyRequest += 1;
+          this.reportRequest += 1;
+          this.endingRequest += 1;
+          this.startRequest += 1;
+          this.responsaveisRetry = null;
           this.areas = [];
           this.centers = [];
           this.loadingAreas = false;
@@ -158,8 +171,13 @@ export class ReportaBateladaPage implements OnInit {
     this.preferredOperatorCode = batchContext?.operator.code ?? '';
     this.loadingAreas = true;
 
-    this.service.listarAreas().subscribe({
+    this.service.listarAreas()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: areas => {
+        if (!this.sessionActive) {
+          return;
+        }
         this.areas = areas.map(area => ({ ...area }));
         this.loadingAreas = false;
 
@@ -178,11 +196,14 @@ export class ReportaBateladaPage implements OnInit {
         }
       },
       error: () => {
+        if (!this.sessionActive) {
+          return;
+        }
         this.loadingAreas = false;
         this.notification.error('Não foi possível carregar as Áreas de Produção.');
         this.syncView();
       },
-    });
+      });
   }
 
   selecionarArea(code: string): void {
@@ -198,6 +219,7 @@ export class ReportaBateladaPage implements OnInit {
     this.loadingCenters = false;
     this.responsaveisErrorMessage = '';
     this.responsaveisRetry = null;
+    this.responsaveisRequest += 1;
     this.syncView();
 
     if (area) {
@@ -214,6 +236,7 @@ export class ReportaBateladaPage implements OnInit {
     this.ordersRequest += 1;
     this.responsaveisErrorMessage = '';
     this.responsaveisRetry = null;
+    this.responsaveisRequest += 1;
     this.syncView();
   }
 
@@ -228,7 +251,9 @@ export class ReportaBateladaPage implements OnInit {
     const workCenterCode = snapshot.workCenter.code;
     this.syncView();
 
-    this.service.listarOrdensLiberadas(areaCode, workCenterCode).subscribe({
+    this.service.listarOrdensLiberadas(areaCode, workCenterCode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: orders => {
         if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
           return;
@@ -246,7 +271,7 @@ export class ReportaBateladaPage implements OnInit {
         this.notification.error(message);
         this.syncView();
       },
-    });
+      });
   }
 
   atualizarSelecao(ids: ReadonlySet<string>): void {
@@ -286,19 +311,28 @@ export class ReportaBateladaPage implements OnInit {
     );
     this.syncView();
 
-    this.service.iniciarBatelada(request).subscribe({
+    const startRequest = ++this.startRequest;
+    this.service.iniciarBatelada(request)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: inicio => {
+        if (startRequest !== this.startRequest || !this.sessionActive) {
+          return;
+        }
         this.workflow.completeStart(inicio);
         this.notification.success('Batelada iniciada com sucesso.');
         this.syncView();
       },
       error: () => {
+        if (startRequest !== this.startRequest || !this.sessionActive) {
+          return;
+        }
         const message = 'Não foi possível iniciar todas as ordens. Os dados foram preservados para nova tentativa.';
         this.workflow.failStart(message);
         this.notification.error(message);
         this.syncView();
       },
-    });
+      });
   }
 
   abrirParada(): void {
@@ -315,7 +349,13 @@ export class ReportaBateladaPage implements OnInit {
       this.view.composition,
       this.view.batchId ?? undefined,
     );
-    void this.router.navigate(['/stoppages']);
+    void this.router.navigate(['/stoppages'])
+      .then(navigated => {
+        if (!navigated) {
+          this.rollbackStopNavigation();
+        }
+      })
+      .catch(() => this.rollbackStopNavigation());
   }
 
   voltar(): void {
@@ -347,7 +387,7 @@ export class ReportaBateladaPage implements OnInit {
           }
           this.workflow.setHistory(history);
           this.syncView();
-          this.reportSlide.abrir(this.view.composition, this.view.history, this.view.draft);
+          this.reportSlide.atualizarHistorico(this.view.history);
         },
         error: () => {
           if (!this.isCurrentBatchRequest(request, this.historyRequest, batchId)) {
@@ -369,11 +409,11 @@ export class ReportaBateladaPage implements OnInit {
 
   salvarReporte(draft: RascunhoReporteBatelada): void {
     const snapshot = this.workflow.snapshot();
-    if (
-      !snapshot.batchId ||
-      !draft.idempotencyKey ||
-      snapshot.history.some(report => report.idempotencyKey === draft.idempotencyKey)
-    ) {
+    if (!snapshot.batchId || !draft.idempotencyKey) {
+      return;
+    }
+    if (snapshot.history.some(report => report.idempotencyKey === draft.idempotencyKey)) {
+      this.reportSlide.informarErro('Este reporte já foi confirmado no histórico.');
       return;
     }
 
@@ -425,7 +465,9 @@ export class ReportaBateladaPage implements OnInit {
     }
     this.dialog.confirm({
       title: 'Encerrar batelada?',
-      message: 'Deseja encerrar conjuntamente todas as ordens desta batelada?',
+      message: this.workflow.hasUnsavedDraft()
+        ? 'Existem quantidades não salvas. Deseja descartá-las e encerrar conjuntamente todas as ordens desta batelada?'
+        : 'Deseja encerrar conjuntamente todas as ordens desta batelada?',
       confirm: () => this.confirmEnding(),
       literals: { cancel: 'Cancelar', confirm: 'Encerrar' },
     });
@@ -442,9 +484,11 @@ export class ReportaBateladaPage implements OnInit {
   private carregarCentros(areaCode: string, prefillCode = ''): void {
     const request = ++this.centersRequest;
     this.loadingCenters = true;
-    this.service.pesquisarCentros(areaCode, '').subscribe({
+    this.service.pesquisarCentros(areaCode, '')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: centers => {
-        if (request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
+        if (!this.sessionActive || request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
           return;
         }
 
@@ -457,7 +501,7 @@ export class ReportaBateladaPage implements OnInit {
         this.syncView();
       },
       error: () => {
-        if (request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
+        if (!this.sessionActive || request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
           return;
         }
         this.loadingCenters = false;
@@ -465,7 +509,7 @@ export class ReportaBateladaPage implements OnInit {
         this.notification.error('Não foi possível carregar os Centros de Trabalho.');
         this.syncView();
       },
-    });
+      });
   }
 
   private carregarResponsaveis(
@@ -473,9 +517,15 @@ export class ReportaBateladaPage implements OnInit {
     areaCode: string,
     workCenterCode: string,
   ): void {
-    this.service.listarResponsaveisElegiveis(areaCode, workCenterCode).subscribe({
+    const responsaveisRequest = ++this.responsaveisRequest;
+    this.service.listarResponsaveisElegiveis(areaCode, workCenterCode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: responsaveis => {
-        if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
+        if (
+          responsaveisRequest !== this.responsaveisRequest ||
+          !this.isCurrentOrdersRequest(request, areaCode, workCenterCode)
+        ) {
           return;
         }
         this.responsaveisErrorMessage = '';
@@ -484,7 +534,10 @@ export class ReportaBateladaPage implements OnInit {
         this.syncView();
       },
       error: () => {
-        if (!this.isCurrentOrdersRequest(request, areaCode, workCenterCode)) {
+        if (
+          responsaveisRequest !== this.responsaveisRequest ||
+          !this.isCurrentOrdersRequest(request, areaCode, workCenterCode)
+        ) {
           return;
         }
         this.responsaveisErrorMessage =
@@ -494,7 +547,7 @@ export class ReportaBateladaPage implements OnInit {
         this.notification.error(this.responsaveisErrorMessage);
         this.syncView();
       },
-    });
+      });
   }
 
   private isCurrentOrdersRequest(
@@ -504,6 +557,7 @@ export class ReportaBateladaPage implements OnInit {
   ): boolean {
     const snapshot = this.workflow.snapshot();
     return (
+      this.sessionActive &&
       request === this.ordersRequest &&
       snapshot.area?.code === areaCode &&
       snapshot.workCenter?.code === workCenterCode
@@ -556,6 +610,7 @@ export class ReportaBateladaPage implements OnInit {
         this.historyRequest += 1;
         this.reportRequest += 1;
         this.endingRequest += 1;
+        this.startRequest += 1;
         this.workflow.clear();
         this.syncView();
         void this.router.navigate([...commands]);
@@ -565,7 +620,16 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   private isCurrentBatchRequest(request: number, currentRequest: number, batchId: string): boolean {
-    return request === currentRequest && this.workflow.snapshot().batchId === batchId;
+    return this.sessionActive &&
+      request === currentRequest &&
+      this.workflow.snapshot().batchId === batchId;
+  }
+
+  private rollbackStopNavigation(): void {
+    this.service.descartarFluxoParada();
+    this.workflow.returnFromStop();
+    this.notification.error('Não foi possível abrir o reporte de Paradas.');
+    this.syncView();
   }
 
   private syncView(): void {

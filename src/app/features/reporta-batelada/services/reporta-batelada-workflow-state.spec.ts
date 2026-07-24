@@ -217,6 +217,21 @@ describe('ReportaBateladaWorkflowState', () => {
     expect(state.snapshot().historyAsyncState).toBe('sucesso');
   });
 
+  it('does not erase a locally confirmed report when a stale history response arrives', () => {
+    startBatch();
+    const first = report();
+    const local = report('report-local', 'idem-local', new Date(2026, 6, 23, 11));
+    state.setHistory([first]);
+    state.setDraft({ idempotencyKey: 'idem-local', items: local.items });
+    state.beginReport();
+    state.completeReport(local);
+
+    state.setHistory([first]);
+
+    expect(state.snapshot().history.map(item => item.reporteId))
+      .toEqual(['report-1', 'report-local']);
+  });
+
   it('derives rounded order and consolidated totals exclusively from confirmed history', () => {
     startBatch();
     state.setDraft({

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { PoDialogService } from '@po-ui/ng-components';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MotivoRefugoService } from '../../../report-operacao/services/motivo-refugo.service';
@@ -31,6 +31,8 @@ describe('ReporteBateladaSlide', () => {
     expect(text).toContain('Data/Hora');
     expect(text).toContain('Retrabalho');
     expect(text).not.toContain('Nenhum reporte realizado nesta batelada.');
+    expect((fixture.nativeElement as HTMLElement).querySelector('table')).toBeTruthy();
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('th[scope="col"]')).toHaveLength(5);
   });
 
   it('keeps every order in composition order and emits one typed multi-order draft', () => {
@@ -91,6 +93,17 @@ describe('ReporteBateladaSlide', () => {
     expect(component.items[1].refugoItens).toEqual([]);
   });
 
+  it('rejects an aggregate overflow even when each quantity is finite', () => {
+    const { component } = createComponent();
+    component.abrir(orders(), [], null);
+    component.atualizarQuantidade('2', 'quantidadeAprovada', Number.MAX_VALUE);
+    component.atualizarQuantidade('2', 'quantidadeRetrabalho', Number.MAX_VALUE);
+
+    component.salvar();
+
+    expect(component.validationMessage).toBe('O total informado excede o limite permitido.');
+  });
+
   it('restores defensive history, renders invalid dates safely and stays open after success', () => {
     const { component, pageSlide } = createComponent();
     const confirmed = report();
@@ -124,18 +137,71 @@ describe('ReporteBateladaSlide', () => {
       confirm: expect.any(Function),
     }));
   });
+
+  it('treats an unfinished reason editor as unsaved work', () => {
+    const { component, dialog } = createComponent();
+    component.abrir(orders(), [], null);
+    component.editarRefugo('2');
+    component.atualizarMotivo('05');
+    component.atualizarQuantidadeMotivo(1);
+
+    component.voltar();
+
+    expect(component.hasDraft).toBe(true);
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+  });
+
+  it('ignores an obsolete scrap-reason response after another order is selected', () => {
+    const first = new Subject<ReadonlyArray<{ codigo: string; descricao: string }>>();
+    const second = new Subject<ReadonlyArray<{ codigo: string; descricao: string }>>();
+    const motivoService = {
+      buscarMotivos: vi.fn()
+        .mockReturnValueOnce(first)
+        .mockReturnValueOnce(second),
+    };
+    const { component } = createComponent(motivoService);
+    component.abrir(orders(), [], null);
+
+    component.editarRefugo('2');
+    component.editarRefugo('1');
+    first.next([{ codigo: 'OLD', descricao: 'Obsoleto' }]);
+    second.next([{ codigo: 'NEW', descricao: 'Atual' }]);
+
+    expect(component.motivoOptions).toEqual([{ label: 'NEW - Atual', value: 'NEW' }]);
+  });
+
+  it('updates loaded history without resetting an in-progress editor', () => {
+    const { component, pageSlide } = createComponent();
+    component.abrir(orders(), [], null);
+    component.editarRefugo('2');
+    component.atualizarMotivo('05');
+    component.atualizarQuantidadeMotivo(1);
+    component.salvando = true;
+
+    component.atualizarHistorico([report()]);
+
+    expect(component.historico).toHaveLength(1);
+    expect(component.salvando).toBe(true);
+    expect(component.editingOrderId).toBe('2');
+    expect(component.motivoCodigo).toBe('05');
+    expect(pageSlide.open).toHaveBeenCalledOnce();
+  });
 });
 
-function createComponent() {
+function createComponent(
+  motivoService: { buscarMotivos: ReturnType<typeof vi.fn> } = {
+    buscarMotivos: vi.fn(() => of([
+      { codigo: '05', descricao: 'Borra' },
+      { codigo: '18', descricao: 'Quebra' },
+    ])),
+  },
+) {
   const pageSlide = { open: vi.fn(), close: vi.fn() };
   const dialog = { confirm: vi.fn() };
   const component = new ReporteBateladaSlide(
     { markForCheck: vi.fn() } as never,
     dialog as never,
-    { buscarMotivos: vi.fn(() => of([
-      { codigo: '05', descricao: 'Borra' },
-      { codigo: '18', descricao: 'Quebra' },
-    ])) } as never,
+    motivoService as never,
   );
   Object.defineProperty(component, 'pageSlide', { value: pageSlide });
   return { component, dialog, pageSlide };

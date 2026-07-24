@@ -425,8 +425,8 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
     const valid = history.filter(report => report.batchId === batchId);
     this.value.update(snapshot => ({
       ...snapshot,
-      history: this.dedupeReports(valid),
-      historyAsyncState: valid.length > 0 ? 'sucesso' : 'vazio',
+      history: this.dedupeReports([...snapshot.history, ...valid]),
+      historyAsyncState: snapshot.history.length > 0 || valid.length > 0 ? 'sucesso' : 'vazio',
     }));
   }
 

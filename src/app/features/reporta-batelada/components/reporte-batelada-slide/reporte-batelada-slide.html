@@ -103,33 +103,42 @@
 
     <section class="batch-report__history" aria-label="Reportes anteriores">
       <h3>Reportes anteriores</h3>
-      <div class="batch-report__history-row batch-report__history-row--header">
-        <span>Ordem</span>
-        <span>Data/Hora</span>
-        <span>Aprovada</span>
-        <span>Retrabalho</span>
-        <span>Refugo</span>
-      </div>
-
-      @for (report of historico; track report.reporteId) {
-        @for (item of report.items; track item.orderId) {
-          <div class="batch-report__history-row">
-            <span><small>Ordem</small>{{ item.ordem }}</span>
-            <span><small>Data/Hora</small>{{ formatDataHora(report.confirmadoEm) }}</span>
-            <span><small>Aprovada</small>{{ formatQuantidade(item.quantidadeAprovada) }}</span>
-            <span><small>Retrabalho</small>{{ formatQuantidade(item.quantidadeRetrabalho) }}</span>
-            <span><small>Refugo</small>{{ formatQuantidade(item.quantidadeRefugo) }}</span>
-          </div>
-          @if (item.refugoItens.length > 0) {
-            <div class="batch-report__history-reasons">
-              <strong>Ordem {{ item.ordem }}:</strong>
-              @for (reason of item.refugoItens; track reason.motivoCode + $index) {
-                <span>{{ reason.motivoCode }} — {{ reason.descricao }}: {{ formatQuantidade(reason.quantidade) }}</span>
+      @if (historico.length > 0) {
+        <table class="batch-report__history-table">
+          <thead>
+            <tr class="batch-report__history-row batch-report__history-row--header">
+              <th scope="col">Ordem</th>
+              <th scope="col">Data/Hora</th>
+              <th scope="col">Aprovada</th>
+              <th scope="col">Retrabalho</th>
+              <th scope="col">Refugo</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (report of historico; track report.reporteId) {
+              @for (item of report.items; track item.orderId) {
+                <tr class="batch-report__history-row">
+                  <td data-label="Ordem">{{ item.ordem }}</td>
+                  <td data-label="Data/Hora">{{ formatDataHora(report.confirmadoEm) }}</td>
+                  <td data-label="Aprovada">{{ formatQuantidade(item.quantidadeAprovada) }}</td>
+                  <td data-label="Retrabalho">{{ formatQuantidade(item.quantidadeRetrabalho) }}</td>
+                  <td data-label="Refugo">{{ formatQuantidade(item.quantidadeRefugo) }}</td>
+                </tr>
+                @if (item.refugoItens.length > 0) {
+                  <tr class="batch-report__history-reasons">
+                    <td colspan="5">
+                      <strong>Ordem {{ item.ordem }}:</strong>
+                      @for (reason of item.refugoItens; track reason.motivoCode + $index) {
+                        <span>{{ reason.motivoCode }} — {{ reason.descricao }}: {{ formatQuantidade(reason.quantidade) }}</span>
+                      }
+                    </td>
+                  </tr>
+                }
               }
-            </div>
-          }
-        }
-      } @empty {
+            }
+          </tbody>
+        </table>
+      } @else {
         <p class="batch-report__empty">Nenhum reporte realizado nesta batelada.</p>
       }
     </section>

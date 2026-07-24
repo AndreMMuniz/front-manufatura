@@ -42,7 +42,7 @@ export class ReporteParadasService {
     responsavel: ResponsavelBatelada,
     composition: ReadonlyArray<OrdemLiberadaBatelada>,
     batchId = `BAT-${composition.map(order => `${order.id.length}:${order.id}`).join('|')}`,
-    shift = '1o Turno',
+    shift = '',
   ): void {
     this.activeContext = {
       workCenter: workCenter.code,
