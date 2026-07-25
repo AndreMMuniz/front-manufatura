@@ -231,7 +231,11 @@ test.describe('fluxo de Reporte Ordem', () => {
       await expect(trigger).toBeVisible();
     }
 
-    await page.getByRole('button', { name: 'Iniciar' }).click();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const start = page.getByRole('button', { name: 'Iniciar' });
+    await expect(start).toBeEnabled();
+    await start.focus();
+    await start.press('Enter');
     await expect(
       page.locator('app-report-operacao-page .report-operacao__feedback')
         .filter({ hasText: 'Operação iniciada.' }),
@@ -389,9 +393,11 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(responsible).toHaveValue('Equipe — E2E-BATCH - Equipe E2E');
 
     const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
-    await trigger.click();
+    await trigger.tap();
     const drawer = page.locator('app-gerenciar-equipe-slide');
-    await drawer.getByRole('button', { name: 'Existente' }).click();
+    const existingMode = drawer.getByRole('button', { name: 'Existente' });
+    await existingMode.focus();
+    await existingMode.press('Enter');
     await drawer.getByRole('combobox', { name: 'Equipe' }).selectOption('E2E-BATCH');
     await drawer.getByRole('checkbox', { name: /001 Jose Ribeiro Neto/ }).uncheck();
     const secondMember = drawer.getByRole('checkbox', { name: /002 Almir Rogerio Bento/ });
@@ -401,8 +407,9 @@ test.describe('fluxo de Reporte Batelada', () => {
     await drawer.getByRole('button', { name: 'Salvar' }).click();
     await expect(drawer.getByText('Criar/Gerenciar Equipe')).toBeHidden();
 
-    await trigger.click();
-    await drawer.getByRole('button', { name: 'Existente' }).click();
+    await trigger.tap();
+    await existingMode.focus();
+    await existingMode.press('Enter');
     await drawer.getByRole('combobox', { name: 'Equipe' }).selectOption('E2E-BATCH');
     await expect(drawer.getByRole('checkbox', { name: /001 Jose Ribeiro Neto/ })).not.toBeChecked();
     await expect(drawer.getByRole('checkbox', { name: /002 Almir Rogerio Bento/ })).toBeChecked();
