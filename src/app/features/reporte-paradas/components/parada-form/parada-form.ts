@@ -106,13 +106,13 @@ export class ParadaForm implements OnChanges {
     this.confirm.emit(this.form.getRawValue());
   }
 
-  private readonly endPairValidator = (control: AbstractControl): ValidationErrors | null => {
+  private endPairValidator(control: AbstractControl): ValidationErrors | null {
     const endDate = control.get('endDate')?.value;
     const endTime = String(control.get('endTime')?.value ?? '').trim();
     const hasEndDate = endDate instanceof Date
       || (typeof endDate === 'string' && endDate.trim().length > 0);
     return hasEndDate === Boolean(endTime) ? null : { endPair: true };
-  };
+  }
 
   private emptyDraft(): ParadaDraft {
     return {

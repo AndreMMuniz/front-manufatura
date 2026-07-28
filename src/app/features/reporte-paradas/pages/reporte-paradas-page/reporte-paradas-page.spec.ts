@@ -146,6 +146,8 @@ describe('ReporteParadasPage', () => {
       programmed: false,
     });
     const before = component.view();
+    expect(before.area?.code).toBe('4001');
+    expect(before.dirty).toBe(true);
 
     component.onAreaChange('');
 

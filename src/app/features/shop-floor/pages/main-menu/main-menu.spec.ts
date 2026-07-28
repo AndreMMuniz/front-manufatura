@@ -27,12 +27,12 @@ describe('MainMenuPage', () => {
     expect(component.modules).toBe(APP_MODULE_NAVIGATION);
   });
 
-  it('renders the heading and exactly eight semantic links in the approved order', () => {
+  it('renders the heading and exactly four semantic links in the approved order', () => {
     const native = fixture.nativeElement as HTMLElement;
     const links = Array.from(native.querySelectorAll<HTMLAnchorElement>('.main-menu__card'));
 
     expect(native.textContent).toContain('Menu Principal');
-    expect(links).toHaveLength(8);
+    expect(links).toHaveLength(4);
     expect(links.map(link => link.textContent?.trim())).toEqual(APP_MODULE_NAVIGATION.map(item => item.label));
     expect(links.map(link => link.getAttribute('href'))).toEqual(APP_MODULE_NAVIGATION.map(item => item.route));
     expect(links.some(link => link.textContent?.includes('Sair'))).toBe(false);

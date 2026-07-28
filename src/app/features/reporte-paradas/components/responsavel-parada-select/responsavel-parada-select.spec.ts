@@ -36,6 +36,8 @@ describe('ResponsavelParadaSelect', () => {
     const fixture = TestBed.createComponent(ResponsavelParadaSelect);
     fixture.componentRef.setInput('errorMessage', 'Catálogo indisponível.');
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[role="alert"]')?.textContent)
       .toContain('Catálogo indisponível.');

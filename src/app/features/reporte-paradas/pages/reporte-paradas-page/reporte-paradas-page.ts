@@ -1,27 +1,43 @@
-import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { forkJoin } from 'rxjs';
 
 import {
   PoButtonModule,
-  PoFieldModule,
+  PoDialogService,
   PoLoadingModule,
   PoNotificationService,
   PoPageModule,
-  PoWidgetModule,
 } from '@po-ui/ng-components';
 
-import { ProductionContext, StopEntry, StopReason } from '../../models/reporte-paradas.model';
-import { ReporteParadasWorkflowState } from '../../services/reporte-paradas-workflow-state';
+import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
+import { AreaProducao } from '../../../shop-floor/models/production-area';
+import { WorkCenter } from '../../../shop-floor/models/work-center';
+import { ParadaForm } from '../../components/parada-form/parada-form';
+import { ResponsavelParadaSelect } from '../../components/responsavel-parada-select/responsavel-parada-select';
+import {
+  ProductionContext,
+  ResponsavelParada,
+  TipoResponsavelParada,
+} from '../../models/reporte-paradas.model';
+import {
+  ParadaDraft,
+  ReporteParadasWorkflowSnapshot,
+  ReporteParadasWorkflowState,
+} from '../../services/reporte-paradas-workflow-state';
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
-
-type PageState = 'loading' | 'ready' | 'saving' | 'error';
 
 @Component({
   selector: 'app-reporte-paradas-page',
-  imports: [CommonModule, FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, PoPageModule, PoWidgetModule],
+  imports: [
+    ContextoProducaoSelector,
+    ParadaForm,
+    ResponsavelParadaSelect,
+    PoButtonModule,
+    PoLoadingModule,
+    PoPageModule,
+  ],
   providers: [ReporteParadasWorkflowState],
   templateUrl: './reporte-paradas-page.html',
   styleUrls: ['./reporte-paradas-page.css'],
@@ -29,139 +45,346 @@ type PageState = 'loading' | 'ready' | 'saving' | 'error';
 })
 export class ReporteParadasPage implements OnInit {
   private readonly service = inject(ReporteParadasService);
+  private readonly workflow = inject(ReporteParadasWorkflowState);
   private readonly notification = inject(PoNotificationService);
+  private readonly dialog = inject(PoDialogService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly state = signal<PageState>('loading');
-  readonly context = signal<ProductionContext | null>(null);
-  readonly reasons = signal<ReadonlyArray<StopReason>>([]);
-  readonly search = signal('');
-  readonly selectedReasonId = signal<number | null>(null);
-  readonly stops = signal<ReadonlyArray<StopEntry>>([]);
-  readonly selectedStopId = signal<number | null>(null);
+  readonly view = signal<ReporteParadasWorkflowSnapshot>(this.workflow.snapshot());
+  readonly areas = signal<ReadonlyArray<AreaProducao>>([]);
+  readonly centers = signal<ReadonlyArray<WorkCenter>>([]);
+  readonly loadingAreas = signal(false);
+  readonly loadingCenters = signal(false);
+  readonly pageError = signal('');
+  readonly registrationError = signal('');
+  readonly statusMessage = signal('');
 
-  readonly filteredReasons = computed(() => {
-    const term = this.search().trim().toLowerCase();
-
-    if (!term) {
-      return this.reasons();
-    }
-
-    return this.reasons().filter(reason =>
-      `${reason.code} ${reason.description}`.toLowerCase().includes(term),
-    );
-  });
-
-  readonly selectedStop = computed(() => this.stops().find(stop => stop.id === this.selectedStopId()) ?? null);
-
-  readonly totalDuration = computed(() => {
-    const minutes = this.stops().reduce((total, stop) => total + this.service.calculateDurationMinutes(stop), 0);
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-
-    return `${hours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}:00`;
-  });
+  private areasRequest = 0;
+  private centersRequest = 0;
+  private idempotencySequence = 0;
 
   ngOnInit(): void {
-    this.context.set(this.service.getActiveContext());
-    this.service
-      .listReasons()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: reasons => {
-          this.reasons.set(reasons);
-          this.state.set('ready');
-        },
-        error: () => {
-          this.state.set('error');
-          this.notification.error('Não foi possível carregar os motivos de parada.');
-        },
-      });
+    const prefill = this.service.getPrefillContext();
+    this.service.clearPrefillContext();
+    this.loadAreas(prefill);
+    this.destroyRef.onDestroy(() => this.workflow.resetTransient());
   }
 
-  selectReason(reason: StopReason): void {
-    this.selectedReasonId.set(reason.id);
-    this.search.set(`${reason.code} - ${reason.description}`);
+  onAreaChange(code: string): void {
+    if (this.view().saving || code === (this.view().area?.code ?? '')) {
+      return;
+    }
+    const area = this.areas().find(item => this.sameCode(item.code, code)) ?? null;
+    this.confirmDiscardIfNeeded(() => this.applyArea(area));
   }
 
-  addSelectedReason(): void {
-    const reason = this.reasons().find(item => item.id === this.selectedReasonId());
+  onWorkCenterChange(code: string): void {
+    if (this.view().saving || code === (this.view().workCenter?.code ?? '')) {
+      return;
+    }
+    const center = this.centers().find(item =>
+      item.active
+      && this.sameCode(item.code, code)
+      && this.sameCode(item.areaCode, this.view().area?.code ?? ''),
+    ) ?? null;
+    this.confirmDiscardIfNeeded(() => this.applyWorkCenter(center));
+  }
 
-    if (!reason) {
-      this.notification.warning('Selecione um motivo válido.');
+  onResponsibleTypeChange(type: TipoResponsavelParada): void {
+    if (this.view().saving) {
+      return;
+    }
+    this.workflow.setResponsibleType(type);
+    this.syncView();
+  }
+
+  onResponsibleCodeChange(code: string): void {
+    if (this.view().saving) {
+      return;
+    }
+    this.workflow.setResponsibleCode(code);
+    this.syncView();
+  }
+
+  onDraftChange(draft: ParadaDraft): void {
+    if (this.view().saving) {
+      return;
+    }
+    this.workflow.updateDraft(draft);
+    this.registrationError.set('');
+    this.syncView();
+  }
+
+  retryContext(): void {
+    const snapshot = this.view();
+    if (!snapshot.saving && snapshot.area && snapshot.workCenter) {
+      this.loadContextData(snapshot.area.code, snapshot.workCenter.code);
+    }
+  }
+
+  registrarParada(): void {
+    const snapshot = this.view();
+    if (snapshot.saving) {
+      return;
+    }
+    if (!snapshot.area || !snapshot.workCenter) {
+      this.notification.warning('Informe a Área de Produção e o Centro de Trabalho.');
+      return;
+    }
+    const responsible = this.findSelectedResponsible(snapshot);
+    if (!responsible) {
+      this.notification.warning('Selecione um responsável elegível para a Área e o Centro de Trabalho.');
+      return;
+    }
+    if (snapshot.draft.reasonId === null
+      || !snapshot.draft.startDate
+      || !snapshot.draft.startTime.trim()) {
+      this.notification.warning('Informe motivo, Data Inicial e Hora Inicial.');
       return;
     }
 
-    const stop = this.service.createStop(reason);
-    this.stops.set([...this.stops(), stop]);
-    this.selectedStopId.set(stop.id);
-    this.selectedReasonId.set(null);
-    this.search.set('');
-  }
-
-  selectStop(stop: StopEntry): void {
-    this.selectedStopId.set(stop.id);
-  }
-
-  updateSelectedStop(change: Partial<StopEntry>): void {
-    const selectedId = this.selectedStopId();
-
-    if (!selectedId) {
-      return;
-    }
-
-    this.stops.set(
-      this.stops().map(stop =>
-        stop.id === selectedId
-          ? {
-              ...stop,
-              ...change,
-            }
-          : stop,
-      ),
+    const idempotencyKey = this.workflow.ensureIdempotencyKey(
+      () => `stop-${Date.now()}-${++this.idempotencySequence}`,
     );
-  }
+    this.workflow.setSaving(true);
+    this.registrationError.set('');
+    this.statusMessage.set('');
+    this.syncView();
 
-  duration(stop: StopEntry): string {
-    return this.service.formatDuration(stop);
-  }
-
-  save(): void {
-    const context = this.context();
-    const validation = this.service.validateStops(this.stops(), context);
-
-    if (validation || !context) {
-      this.notification.warning(validation);
-      return;
-    }
-
-    this.state.set('saving');
-    this.service
-      .saveStops(context, this.stops())
+    this.service.registrarParada({
+      areaCode: snapshot.area.code,
+      workCenterCode: snapshot.workCenter.code,
+      reasonId: snapshot.draft.reasonId,
+      responsible,
+      startDate: snapshot.draft.startDate,
+      startTime: snapshot.draft.startTime,
+      endDate: snapshot.draft.endDate,
+      endTime: snapshot.draft.endTime,
+      programmed: snapshot.draft.programmed,
+      origin: snapshot.origin,
+      idempotencyKey,
+    })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: result => {
-          this.notification.success(`Paradas salvas. Protocolo ${result.protocol}.`);
-          void this.router.navigate([context.origin?.sourceRoute ?? '/menu']);
+        next: stop => {
+          this.workflow.completeRegistration();
+          this.syncView();
+          this.statusMessage.set(
+            `Parada ${stop.status === 'EM_ANDAMENTO' ? 'em andamento' : 'finalizada'} salva neste dispositivo e pendente de sincronização.`,
+          );
+          this.notification.success('Parada salva neste dispositivo e pendente de sincronização.');
         },
-        error: () => {
-          this.state.set('error');
-          this.notification.error('Não foi possível salvar as paradas. Os dados foram preservados.');
+        error: (error: unknown) => {
+          this.workflow.setSaving(false);
+          this.syncView();
+          const message = error instanceof Error
+            ? error.message
+            : 'Não foi possível registrar a parada. O rascunho foi preservado.';
+          this.registrationError.set(message);
+          this.notification.error(message);
         },
       });
   }
 
   voltar(): void {
-    void this.router.navigate([this.context()?.origin?.sourceRoute ?? '/menu']);
+    if (this.view().saving) {
+      return;
+    }
+    const route = this.view().origin?.sourceRoute;
+    void this.router.navigate([
+      route === '/operation-reporting' || route === '/batch-reporting' ? route : '/menu',
+    ]);
   }
 
-  sair(): void {
-    void this.router.navigate(['/quality-control']);
+  private loadAreas(prefill: ProductionContext | null): void {
+    const request = ++this.areasRequest;
+    this.loadingAreas.set(true);
+    this.pageError.set('');
+    this.service.listarAreas()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: areas => {
+          if (request !== this.areasRequest) {
+            return;
+          }
+          this.areas.set(areas.map(area => ({ ...area })));
+          this.loadingAreas.set(false);
+          if (prefill) {
+            this.loadPrefill(prefill, request);
+          }
+        },
+        error: () => {
+          if (request !== this.areasRequest) {
+            return;
+          }
+          this.loadingAreas.set(false);
+          this.pageError.set('Não foi possível carregar as Áreas de Produção.');
+        },
+      });
   }
 
-  onSearchChange(value: string): void {
-    this.search.set(value);
-    this.selectedReasonId.set(null);
+  private loadPrefill(prefill: ProductionContext, areasRequest: number): void {
+    const area = this.areas().find(item => this.sameCode(item.code, prefill.area.code));
+    if (!area || !prefill.workCenter.active
+      || !this.sameCode(prefill.workCenter.areaCode, area.code)) {
+      return;
+    }
+    const request = ++this.centersRequest;
+    this.loadingCenters.set(true);
+    this.service.pesquisarCentros(area.code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: centers => {
+          if (areasRequest !== this.areasRequest || request !== this.centersRequest) {
+            return;
+          }
+          this.loadingCenters.set(false);
+          this.centers.set(centers.map(center => ({ ...center })));
+          const center = centers.find(item =>
+            item.active
+            && this.sameCode(item.code, prefill.workCenter.code)
+            && this.sameCode(item.areaCode, area.code),
+          );
+          if (!center) {
+            return;
+          }
+          forkJoin({
+            responsibles: this.service.listarResponsaveis(area.code, center.code),
+            reasons: this.service.listarMotivos(area.code, center.code),
+          })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: ({ responsibles, reasons }) => {
+                if (areasRequest !== this.areasRequest || request !== this.centersRequest) {
+                  return;
+                }
+                if (!this.workflow.applyPrefill(prefill, this.areas(), centers, responsibles)) {
+                  return;
+                }
+                const token = this.workflow.beginContextRequest(area.code, center.code);
+                this.workflow.acceptContextData(token, responsibles, reasons);
+                this.syncView();
+              },
+              error: () => {
+                if (areasRequest === this.areasRequest && request === this.centersRequest) {
+                  this.pageError.set('Não foi possível revalidar o contexto recebido.');
+                }
+              },
+            });
+        },
+        error: () => {
+          if (areasRequest === this.areasRequest && request === this.centersRequest) {
+            this.loadingCenters.set(false);
+            this.pageError.set('Não foi possível revalidar o Centro de Trabalho recebido.');
+          }
+        },
+      });
+  }
+
+  private applyArea(area: AreaProducao | null): void {
+    this.centersRequest += 1;
+    this.centers.set([]);
+    this.loadingCenters.set(false);
+    this.pageError.set('');
+    this.registrationError.set('');
+    this.statusMessage.set('');
+    this.workflow.confirmAreaChange(area);
+    this.syncView();
+    if (area) {
+      this.loadCenters(area.code);
+    }
+  }
+
+  private loadCenters(areaCode: string): void {
+    const request = ++this.centersRequest;
+    this.loadingCenters.set(true);
+    this.service.pesquisarCentros(areaCode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: centers => {
+          if (request !== this.centersRequest
+            || !this.sameCode(this.view().area?.code ?? '', areaCode)) {
+            return;
+          }
+          this.centers.set(centers
+            .filter(center => center.active && this.sameCode(center.areaCode, areaCode))
+            .map(center => ({ ...center })));
+          this.loadingCenters.set(false);
+        },
+        error: () => {
+          if (request !== this.centersRequest) {
+            return;
+          }
+          this.loadingCenters.set(false);
+          this.pageError.set('Não foi possível carregar os Centros de Trabalho.');
+        },
+      });
+  }
+
+  private applyWorkCenter(center: WorkCenter | null): void {
+    this.registrationError.set('');
+    this.statusMessage.set('');
+    this.workflow.confirmWorkCenterChange(center);
+    this.syncView();
+    if (center && this.view().area) {
+      this.loadContextData(this.view().area!.code, center.code);
+    }
+  }
+
+  private loadContextData(areaCode: string, workCenterCode: string): void {
+    const token = this.workflow.beginContextRequest(areaCode, workCenterCode);
+    this.syncView();
+    forkJoin({
+      responsibles: this.service.listarResponsaveis(areaCode, workCenterCode),
+      reasons: this.service.listarMotivos(areaCode, workCenterCode),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ responsibles, reasons }) => {
+          if (this.workflow.acceptContextData(token, responsibles, reasons)) {
+            this.syncView();
+          }
+        },
+        error: () => {
+          if (this.workflow.acceptContextError(
+            token,
+            'Não foi possível carregar responsáveis e motivos. Tente novamente.',
+          )) {
+            this.syncView();
+          }
+        },
+      });
+  }
+
+  private confirmDiscardIfNeeded(action: () => void): void {
+    if (!this.view().dirty) {
+      action();
+      return;
+    }
+    this.dialog.confirm({
+      title: 'Descartar rascunho da parada?',
+      message: 'A troca do contexto descartará os dados ainda não registrados. Deseja continuar?',
+      literals: { cancel: 'Cancelar', confirm: 'Descartar e continuar' },
+      confirm: action,
+      cancel: () => this.workflow.cancelContextChange(),
+    });
+  }
+
+  private findSelectedResponsible(
+    snapshot: ReporteParadasWorkflowSnapshot,
+  ): ResponsavelParada | undefined {
+    return snapshot.responsibles.find(item =>
+      item.tipo === snapshot.responsibleType
+      && this.sameCode(item.codigo, snapshot.responsibleCode),
+    );
+  }
+
+  private syncView(): void {
+    this.view.set(this.workflow.snapshot());
+  }
+
+  private sameCode(left: string, right: string): boolean {
+    return left.trim().toUpperCase() === right.trim().toUpperCase();
   }
 }

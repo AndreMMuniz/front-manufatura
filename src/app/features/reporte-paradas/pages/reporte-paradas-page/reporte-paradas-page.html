@@ -1,168 +1,67 @@
 <po-page-default p-title="Paradas">
-  <section class="reporte-paradas">
-    @if (state() === 'loading') {
-      <div class="reporte-paradas__loading">
-        <po-loading p-text="Carregando motivos..." p-size="md"></po-loading>
+  <main class="reporte-paradas">
+    <app-contexto-producao-selector
+      [areas]="areas()"
+      [centers]="centers()"
+      [areaCode]="view().area?.code ?? ''"
+      [workCenterCode]="view().workCenter?.code ?? ''"
+      [loadingAreas]="loadingAreas()"
+      [loadingCenters]="loadingCenters()"
+      [disabled]="view().saving"
+      [showAction]="false"
+      [errorMessage]="pageError()"
+      (areaChange)="onAreaChange($event)"
+      (workCenterChange)="onWorkCenterChange($event)"
+      (retry)="ngOnInit()"
+    ></app-contexto-producao-selector>
+
+    @if (loadingAreas()) {
+      <div class="reporte-paradas__status" role="status" aria-live="polite">
+        <po-loading p-text="Carregando Áreas de Produção..." p-size="sm"></po-loading>
       </div>
     }
 
-    @if (!context()) {
-      <po-widget p-title="Contexto obrigatório">
-        <p class="reporte-paradas__empty">
-          Abra o reporte de paradas a partir de uma operação iniciada para preservar CT, máquina, operador, turno e reporte.
-        </p>
-      </po-widget>
+    @if (view().area && view().workCenter) {
+      <app-responsavel-parada-select
+        [responsibles]="view().responsibles"
+        [responsibleType]="view().responsibleType"
+        [responsibleCode]="view().responsibleCode"
+        [loading]="view().contextLoading"
+        [disabled]="view().saving"
+        [errorMessage]="view().contextError"
+        (responsibleTypeChange)="onResponsibleTypeChange($event)"
+        (responsibleCodeChange)="onResponsibleCodeChange($event)"
+        (retry)="retryContext()"
+      ></app-responsavel-parada-select>
+
+      <app-parada-form
+        [reasons]="view().reasons"
+        [draft]="view().draft"
+        [disabled]="view().saving || view().contextLoading || !!view().contextError"
+        [loading]="view().saving"
+        [externalError]="registrationError()"
+        (draftChange)="onDraftChange($event)"
+        (confirm)="registrarParada()"
+      ></app-parada-form>
+    } @else if (!loadingAreas() && !loadingCenters()) {
+      <p class="reporte-paradas__guidance" role="status">
+        Selecione Área de Produção e Centro de Trabalho para registrar uma parada.
+      </p>
     }
 
-    <po-widget p-title="Motivo da Parada">
-      <div class="reporte-paradas__lookup">
-        <po-input
-          name="motivoParada"
-          p-label="Buscar motivo"
-          p-placeholder="Código ou descrição"
-          [ngModel]="search()"
-          [p-disabled]="state() === 'saving' || !context()"
-          (ngModelChange)="onSearchChange($event)"
-        ></po-input>
-
-        <po-button
-          p-label="+"
-          p-kind="primary"
-          [p-disabled]="!selectedReasonId() || state() === 'saving' || !context()"
-          (p-click)="addSelectedReason()"
-        ></po-button>
-      </div>
-
-      <div class="reporte-paradas__reason-list" aria-label="Motivos disponíveis">
-        @for (reason of filteredReasons(); track reason.id) {
-          <button
-            class="reporte-paradas__reason"
-            type="button"
-            [class.reporte-paradas__reason--selected]="reason.id === selectedReasonId()"
-            [disabled]="state() === 'saving' || !context()"
-            (click)="selectReason(reason)"
-          >
-            <strong>{{ reason.code }}</strong>
-            <span>{{ reason.description }}</span>
-          </button>
-        }
-      </div>
-    </po-widget>
-
-    <po-widget p-title="Lista de Paradas">
-      @if (stops().length > 0) {
-        <div class="reporte-paradas__table" role="table" aria-label="Paradas registradas">
-          <div class="reporte-paradas__table-row reporte-paradas__table-row--header" role="row">
-            <span>Código</span>
-            <span>Descrição</span>
-            <span>Tempo</span>
-          </div>
-
-          @for (stop of stops(); track stop.id) {
-            <button
-              class="reporte-paradas__table-row"
-              type="button"
-              [class.reporte-paradas__table-row--selected]="stop.id === selectedStopId()"
-              (click)="selectStop(stop)"
-            >
-              <span>{{ stop.reason.code }}</span>
-              <span>{{ stop.reason.description }}</span>
-              <span>{{ duration(stop) }}</span>
-            </button>
-          }
-        </div>
-
-        <p class="reporte-paradas__total">Tempo total parado: {{ totalDuration() }}</p>
-      } @else {
-        <p class="reporte-paradas__empty">Nenhuma parada registrada para este reporte.</p>
-      }
-    </po-widget>
-
-    @if (selectedStop(); as stop) {
-      <po-widget p-title="Período da Parada">
-        <div class="reporte-paradas__period">
-          <po-datepicker
-            name="dataInicio"
-            p-label="Data Inicial"
-            [ngModel]="stop.startDate"
-            [p-disabled]="state() === 'saving'"
-            (ngModelChange)="updateSelectedStop({ startDate: $event })"
-          ></po-datepicker>
-
-          <po-input
-            name="horaInicio"
-            p-label="Hora Inicial"
-            p-placeholder="HH:mm"
-            [ngModel]="stop.startTime"
-            [p-disabled]="state() === 'saving'"
-            (ngModelChange)="updateSelectedStop({ startTime: $event })"
-          ></po-input>
-
-          <po-datepicker
-            name="dataFim"
-            p-label="Data Final"
-            [ngModel]="stop.endDate"
-            [p-disabled]="state() === 'saving'"
-            (ngModelChange)="updateSelectedStop({ endDate: $event })"
-          ></po-datepicker>
-
-          <po-input
-            name="horaFim"
-            p-label="Hora Final"
-            p-placeholder="HH:mm"
-            [ngModel]="stop.endTime"
-            [p-disabled]="state() === 'saving'"
-            (ngModelChange)="updateSelectedStop({ endTime: $event })"
-          ></po-input>
-
-          <label class="reporte-paradas__checkbox">
-            <input
-              type="checkbox"
-              [checked]="stop.programmed"
-              [disabled]="state() === 'saving'"
-              (change)="updateSelectedStop({ programmed: $any($event.target).checked })"
-            />
-            Parada Programada
-          </label>
-        </div>
-      </po-widget>
+    @if (statusMessage()) {
+      <p class="reporte-paradas__success" role="status" aria-live="polite">
+        {{ statusMessage() }}
+      </p>
     }
-
-    <po-widget p-title="Contexto da Produção">
-      <div class="reporte-paradas__context">
-        <div>
-          <span>CT</span>
-          <strong>{{ context()?.workCenter?.code ?? '-' }}</strong>
-        </div>
-        <div>
-          <span>Máquina</span>
-          <strong>{{ context()?.metadata?.machineGroup ?? '-' }}</strong>
-        </div>
-        <div>
-          <span>Operador</span>
-          <strong>{{ context()?.preferredResponsible?.tipo === 'OPERADOR' ? context()?.preferredResponsible?.nome : '-' }}</strong>
-        </div>
-        <div>
-          <span>Equipe</span>
-          <strong>{{ context()?.preferredResponsible?.tipo === 'EQUIPE' ? context()?.preferredResponsible?.nome : '-' }}</strong>
-        </div>
-        <div>
-          <span>Turno</span>
-          <strong>{{ context()?.metadata?.shift ?? '-' }}</strong>
-        </div>
-      </div>
-    </po-widget>
 
     <div class="reporte-paradas__actions" aria-label="Ações da tela">
-      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="state() === 'saving'" (p-click)="voltar()"></po-button>
       <po-button
-        p-label="Salvar"
-        p-kind="primary"
-        [p-loading]="state() === 'saving'"
-        [p-disabled]="state() === 'saving' || !context()"
-        (p-click)="save()"
+        p-label="Voltar"
+        p-kind="secondary"
+        [p-disabled]="view().saving"
+        (p-click)="voltar()"
       ></po-button>
-      <po-button p-label="Sair" p-kind="secondary" [p-disabled]="state() === 'saving'" (p-click)="sair()"></po-button>
     </div>
-  </section>
+  </main>
 </po-page-default>
