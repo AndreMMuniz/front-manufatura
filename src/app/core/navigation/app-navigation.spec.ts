@@ -32,7 +32,7 @@ describe('APP_MODULE_NAVIGATION', () => {
     },
   ];
 
-  it('defines exactly the four approved modules in display order', () => {
+  it('defines only the approved modules in display order', () => {
     expect(APP_MODULE_NAVIGATION).toEqual(expected);
   });
 
@@ -44,7 +44,7 @@ describe('APP_MODULE_NAVIGATION', () => {
     expect(new Set(routes).size).toBe(APP_MODULE_NAVIGATION.length);
   });
 
-  it('does not mix structural or session actions into module navigation', () => {
+  it('excludes structural, session, and removed module entries', () => {
     const labels = APP_MODULE_NAVIGATION.map(item => item.label);
 
     expect(labels).not.toContain('Menu Principal');

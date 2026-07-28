@@ -62,7 +62,7 @@ test.describe('menu lateral contextual', () => {
     await expectHomeFullWidth(page);
   });
 
-  test('mostra Menu Principal e os quatro módulos em ordem nas telas internas', async ({ page }) => {
+  test('mostra Menu Principal e somente os módulos aprovados em ordem nas telas internas', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page);
     await page.getByRole('link', { name: 'Plano Controle CQ' }).click();

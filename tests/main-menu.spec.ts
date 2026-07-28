@@ -22,13 +22,13 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Home de navegação', () => {
-  test('é o landing do login e expõe os quatro cartões sem navegação lateral', async ({ page }) => {
+  test('é o landing do login e expõe somente os cartões aprovados sem navegação lateral', async ({ page }) => {
     await login(page);
 
     await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
     const navigation = page.getByRole('navigation', { name: 'Módulos disponíveis' });
     const cards = navigation.getByRole('link');
-    await expect(cards).toHaveCount(4);
+    await expect(cards).toHaveCount(modules.length);
     await expect(cards).toHaveText(modules.map(module => module.label));
     expect(
       await cards.first().evaluate(element => getComputedStyle(element.closest('.po-page-content')!).opacity),

@@ -12,7 +12,7 @@
       [errorMessage]="pageError()"
       (areaChange)="onAreaChange($event)"
       (workCenterChange)="onWorkCenterChange($event)"
-      (retry)="ngOnInit()"
+      (retry)="retryAreas()"
     ></app-contexto-producao-selector>
 
     @if (loadingAreas()) {

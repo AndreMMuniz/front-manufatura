@@ -123,6 +123,12 @@ export class ReporteParadasPage implements OnInit {
     }
   }
 
+  retryAreas(): void {
+    if (!this.view().saving && !this.loadingAreas()) {
+      this.loadAreas(null);
+    }
+  }
+
   registrarParada(): void {
     const snapshot = this.view();
     if (snapshot.saving) {
