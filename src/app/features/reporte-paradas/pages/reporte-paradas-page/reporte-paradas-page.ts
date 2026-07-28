@@ -14,6 +14,7 @@ import {
 } from '@po-ui/ng-components';
 
 import { ProductionContext, StopEntry, StopReason } from '../../models/reporte-paradas.model';
+import { ReporteParadasWorkflowState } from '../../services/reporte-paradas-workflow-state';
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
 
 type PageState = 'loading' | 'ready' | 'saving' | 'error';
@@ -21,6 +22,7 @@ type PageState = 'loading' | 'ready' | 'saving' | 'error';
 @Component({
   selector: 'app-reporte-paradas-page',
   imports: [CommonModule, FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, PoPageModule, PoWidgetModule],
+  providers: [ReporteParadasWorkflowState],
   templateUrl: './reporte-paradas-page.html',
   styleUrls: ['./reporte-paradas-page.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
