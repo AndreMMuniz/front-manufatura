@@ -48,7 +48,7 @@
             <div class="batch-report__reason-editor">
               <po-select
                 [name]="'motivo-' + item.orderId"
-                [p-label]="'Motivo — Ordem ' + item.ordem"
+                p-label="Motivo do Retrabalho/Refugo"
                 [p-options]="motivoOptions"
                 [p-disabled]="salvando"
                 [ngModel]="motivoCodigo"

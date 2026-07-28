@@ -57,6 +57,26 @@ describe('ReporteBateladaSlide', () => {
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('th[scope="col"]')).toHaveLength(5);
   });
 
+  it('renders the rework/scrap reason label without the order number', () => {
+    TestBed.configureTestingModule({
+      imports: [ReporteBateladaSlide],
+      providers: [
+        provideNoopAnimations(),
+        { provide: PoDialogService, useValue: { confirm: vi.fn() } },
+        { provide: MotivoRefugoService, useValue: { buscarMotivos: () => of([]) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ReporteBateladaSlide);
+    fixture.componentInstance.abrir(orders(), [], null);
+    fixture.componentInstance.editarRefugo('2');
+    fixture.detectChanges();
+
+    const reasonEditor = (fixture.nativeElement as HTMLElement)
+      .querySelector('.batch-report__reason-editor');
+    expect(reasonEditor?.textContent).toContain('Motivo do Retrabalho/Refugo');
+    expect(reasonEditor?.textContent).not.toContain('Motivo — Ordem 450002');
+  });
+
   it('keeps every order in composition order and emits one typed multi-order draft', () => {
     const { component } = createComponent();
     const emitted = vi.fn();
