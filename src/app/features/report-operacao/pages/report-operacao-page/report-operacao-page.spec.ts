@@ -25,6 +25,16 @@ describe('ReportOperacaoPage', () => {
   let component: ReportOperacaoPage;
   let router: { navigate: ReturnType<typeof vi.fn> };
   let dialog: { confirm: ReturnType<typeof vi.fn> };
+  let stoppages: {
+    setPrefillContext: ReturnType<typeof vi.fn>;
+    clearPrefillContext: ReturnType<typeof vi.fn>;
+  };
+  let notification: {
+    success: ReturnType<typeof vi.fn>;
+    warning: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+    information: ReturnType<typeof vi.fn>;
+  };
   let workflow: ReportOperacaoWorkflowState;
   let operationalContext: { currentContext: ReturnType<typeof context> | null; setContext: ReturnType<typeof vi.fn> };
   let reportSequence: number;
@@ -58,6 +68,13 @@ describe('ReportOperacaoPage', () => {
       authenticatedAt: new Date(),
     });
     operationalContext = { currentContext: null, setContext: vi.fn() };
+    stoppages = { setPrefillContext: vi.fn(), clearPrefillContext: vi.fn() };
+    notification = {
+      success: vi.fn(),
+      warning: vi.fn(),
+      error: vi.fn(),
+      information: vi.fn(),
+    };
     service = {
       listarAreasProducao: vi.fn(() => of([{ code: '4001', description: 'Produção' }, { code: '4002', description: 'Qualidade' }])),
       pesquisarCentrosTrabalho: vi.fn((areaCode: string) => of(areaCode === '4001' ? [center()] : [])),
@@ -90,16 +107,11 @@ describe('ReportOperacaoPage', () => {
         { provide: ReportOperacaoService, useValue: service },
         { provide: ReportOperacaoWorkflowState, useValue: workflow },
         { provide: OperationalContextService, useValue: operationalContext },
-        { provide: ReporteParadasService, useValue: { setPrefillContext: vi.fn() } },
+        { provide: ReporteParadasService, useValue: stoppages },
         { provide: PoDialogService, useValue: dialog },
         {
           provide: PoNotificationService,
-          useValue: {
-            success: vi.fn(),
-            warning: vi.fn(),
-            error: vi.fn(),
-            information: vi.fn(),
-          },
+          useValue: notification,
         },
       ],
     }).compileComponents();
@@ -117,6 +129,52 @@ describe('ReportOperacaoPage', () => {
     expect(component.areaCode).toBe('');
     expect(component.workCenterCode).toBe('');
     expect(component.feedback).toContain('Selecione');
+  });
+
+  it('transfere contexto estruturado para Paradas sem descartar o workflow ativo', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+    const before = workflow.snapshot();
+
+    component.abrirParada();
+
+    expect(stoppages.setPrefillContext).toHaveBeenCalledWith(expect.objectContaining({
+      area: expect.objectContaining({ code: '4001' }),
+      workCenter: expect.objectContaining({ code: 'CT-EXT-01' }),
+      preferredResponsible: expect.objectContaining({
+        tipo: 'OPERADOR',
+        codigo: '001',
+      }),
+      origin: expect.objectContaining({
+        type: 'OPERATION_REPORT',
+        sourceRoute: '/operation-reporting',
+      }),
+    }));
+    expect(router.navigate).toHaveBeenCalledWith(['/stoppages']);
+    expect(workflow.snapshot()).toEqual(before);
+  });
+
+  it('preserva o workflow e remove somente o prefill quando a navegação para Paradas é recusada', async () => {
+    router.navigate.mockResolvedValueOnce(false);
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+    const before = workflow.snapshot();
+
+    component.abrirParada();
+    await vi.waitFor(() => expect(stoppages.clearPrefillContext).toHaveBeenCalledOnce());
+
+    expect(workflow.snapshot()).toEqual(before);
+    expect(notification.error).toHaveBeenCalledWith(
+      'Não foi possível abrir o reporte de Paradas.',
+    );
   });
 
   it('prefills Area and Center from operational context without mutating it', () => {

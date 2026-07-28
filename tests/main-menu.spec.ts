@@ -28,7 +28,7 @@ test.describe('Home de navegação', () => {
     await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
     const navigation = page.getByRole('navigation', { name: 'Módulos disponíveis' });
     const cards = navigation.getByRole('link');
-    await expect(cards).toHaveCount(8);
+    await expect(cards).toHaveCount(4);
     await expect(cards).toHaveText(modules.map(module => module.label));
     expect(
       await cards.first().evaluate(element => getComputedStyle(element.closest('.po-page-content')!).opacity),

@@ -39,7 +39,7 @@ describe('ResponsavelParadaSelect', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('[role="alert"]')?.textContent)
+    expect(fixture.nativeElement.querySelector('.responsavel-parada__error[role="alert"]')?.textContent)
       .toContain('Catálogo indisponível.');
 
     let retried = false;

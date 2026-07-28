@@ -495,7 +495,13 @@ export class ReportOperacaoPage implements OnInit {
         machineGroup: this.operacao.grupoMaquina,
       },
     });
-    void this.router.navigate(['/stoppages']);
+    void this.router.navigate(['/stoppages'])
+      .then(navigated => {
+        if (!navigated) {
+          this.rollbackStopNavigation();
+        }
+      })
+      .catch(() => this.rollbackStopNavigation());
   }
 
   voltar(): void {
@@ -504,6 +510,13 @@ export class ReportOperacaoPage implements OnInit {
 
   sair(): void {
     this.endFlowAndNavigate('/quality-control');
+  }
+
+  private rollbackStopNavigation(): void {
+    this.reporteParadasService.clearPrefillContext();
+    this.feedback = 'Não foi possível abrir o reporte de Paradas.';
+    this.notification.error(this.feedback);
+    this.changeDetector.markForCheck();
   }
 
   private loadAreas(): void {

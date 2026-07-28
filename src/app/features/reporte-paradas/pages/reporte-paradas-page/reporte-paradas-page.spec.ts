@@ -88,6 +88,8 @@ describe('ReporteParadasPage', () => {
         },
       ],
     }).compileComponents();
+    TestBed.overrideProvider(PoDialogService, { useValue: dialog });
+    TestBed.overrideProvider(PoNotificationService, { useValue: notification });
     fixture = TestBed.createComponent(ReporteParadasPage);
     component = fixture.componentInstance;
   });
