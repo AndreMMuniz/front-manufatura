@@ -168,7 +168,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await page.getByRole('button', { name: 'Reporte', exact: true }).click();
     await drawer.getByRole('spinbutton', { name: 'Qtde Refugo' }).fill('2');
     await drawer.getByRole('button', {
-      name: 'Editar Motivo da Ordem 450001',
+      name: 'Editar Motivo do Retrabalho/Ordem',
     }).click();
     await drawer.getByRole('combobox', { name: 'Motivo da Ordem 450001' }).selectOption('05');
     await drawer.getByRole('spinbutton', {
