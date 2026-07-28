@@ -1,0 +1,42 @@
+<po-widget p-title="Responsável pela Parada">
+  <div class="responsavel-parada">
+    <po-select
+      name="tipoResponsavelParada"
+      p-label="Tipo de responsável"
+      [p-options]="typeOptions"
+      [p-disabled]="disabled || loading"
+      [ngModel]="responsibleType"
+      (ngModelChange)="changeType($event)"
+    ></po-select>
+
+    <po-select
+      name="responsavelParada"
+      p-label="Responsável"
+      p-placeholder="Selecione o responsável"
+      [p-options]="responsibleOptions"
+      [p-disabled]="disabled || loading"
+      [p-loading]="loading"
+      [ngModel]="responsibleCode"
+      (ngModelChange)="changeResponsible($event)"
+    ></po-select>
+  </div>
+
+  @if (loading) {
+    <div class="responsavel-parada__status" role="status" aria-live="polite">
+      <po-loading p-text="Carregando responsáveis e motivos..." p-size="sm"></po-loading>
+    </div>
+  } @else if (errorMessage) {
+    <div class="responsavel-parada__error" role="alert">
+      <span>{{ errorMessage }}</span>
+      <po-button
+        class="responsavel-parada__retry"
+        p-label="Tentar novamente"
+        p-kind="secondary"
+        [p-disabled]="disabled"
+        (p-click)="retry.emit()"
+      ></po-button>
+    </div>
+  } @else if (responsibleOptions.length === 0) {
+    <p class="responsavel-parada__empty" role="status">{{ emptyMessage }}</p>
+  }
+</po-widget>

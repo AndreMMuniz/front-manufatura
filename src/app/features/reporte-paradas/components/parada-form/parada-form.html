@@ -1,0 +1,66 @@
+<po-widget p-title="Iniciar ou registrar parada">
+  <form class="parada-form" [formGroup]="form" (ngSubmit)="submit()">
+    <po-select
+      name="motivoParada"
+      p-label="Motivo"
+      p-placeholder="Selecione o motivo corporativo"
+      [p-options]="reasonOptions"
+      [p-required]="true"
+      formControlName="reasonId"
+    ></po-select>
+
+    <po-datepicker
+      name="dataInicio"
+      p-label="Data Inicial"
+      [p-required]="true"
+      formControlName="startDate"
+    ></po-datepicker>
+
+    <po-input
+      name="horaInicio"
+      p-label="Hora Inicial"
+      p-placeholder="HH:mm"
+      [p-required]="true"
+      formControlName="startTime"
+    ></po-input>
+
+    <po-datepicker
+      name="dataFim"
+      p-label="Data Final (opcional)"
+      formControlName="endDate"
+    ></po-datepicker>
+
+    <po-input
+      name="horaFim"
+      p-label="Hora Final (opcional)"
+      p-placeholder="HH:mm"
+      formControlName="endTime"
+    ></po-input>
+
+    <label class="parada-form__checkbox">
+      <input type="checkbox" formControlName="programmed" />
+      Parada Programada
+    </label>
+
+    @if (form.hasError('endPair') && (form.touched || form.dirty)) {
+      <p class="parada-form__error" role="alert">
+        Data Final e Hora Final devem ser informadas juntas ou deixadas vazias.
+      </p>
+    }
+
+    @if (externalError) {
+      <p class="parada-form__error" role="alert">{{ externalError }}</p>
+    }
+
+    <div class="parada-form__actions">
+      <button
+        class="parada-form__submit"
+        type="submit"
+        [disabled]="form.disabled || loading"
+        [attr.aria-busy]="loading"
+      >
+        {{ loading ? 'Registrando...' : 'Registrar parada' }}
+      </button>
+    </div>
+  </form>
+</po-widget>

@@ -1,0 +1,62 @@
+.parada-form {
+  align-items: start;
+  display: grid;
+  gap: var(--app-space-md);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.parada-form__checkbox {
+  align-items: center;
+  display: flex;
+  font-weight: 600;
+  gap: var(--app-space-sm);
+  min-height: var(--app-touch-target);
+}
+
+.parada-form__checkbox input {
+  height: 20px;
+  width: 20px;
+}
+
+.parada-form__error,
+.parada-form__actions {
+  grid-column: 1 / -1;
+}
+
+.parada-form__error {
+  color: var(--app-color-danger, #b00020);
+  margin: 0;
+}
+
+.parada-form__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.parada-form__submit {
+  background: var(--app-color-primary);
+  border: 1px solid var(--app-color-primary);
+  border-radius: var(--app-radius);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: var(--app-touch-target);
+  padding: 0 var(--app-space-lg);
+}
+
+.parada-form__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.parada-form__submit:focus-visible {
+  outline: 3px solid var(--app-color-focus, #1a73e8);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .parada-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
