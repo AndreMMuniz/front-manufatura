@@ -4,14 +4,19 @@ import { Observable, defer, delay, finalize, forkJoin, map, of } from 'rxjs';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
-import { CreateStopRequest } from '../interfaces/reporte-paradas.dto';
+import { CreateStopRequest, FinishStopRequest } from '../interfaces/reporte-paradas.dto';
 import {
   ProductionContext,
   ResponsavelParada,
   StopEntry,
   StopReason,
-  StopSaveResult,
 } from '../models/reporte-paradas.model';
+import {
+  combineLocalDateTime,
+  durationMinutes,
+  parseLocalDate,
+  validateStopInterval,
+} from '../models/reporte-paradas-time';
 
 @Injectable({ providedIn: 'root' })
 export class ReporteParadasService {
@@ -23,7 +28,13 @@ export class ReporteParadasService {
     string,
     { readonly fingerprint: string; readonly stop: StopEntry }
   >();
-  private commandInFlight = false;
+  private readonly finishesByIdempotency = new Map<
+    string,
+    { readonly fingerprint: string; readonly stop: StopEntry }
+  >();
+  private registrationInFlight = false;
+  private finishInFlight = false;
+  private activeStopContext: { readonly areaCode: string; readonly workCenterCode: string } | null = null;
 
   private readonly reasons: ReadonlyArray<StopReason> = Object.freeze([
     { id: 1, code: '01', description: 'Setup' },
@@ -76,10 +87,10 @@ export class ReporteParadasService {
 
   registrarParada(request: CreateStopRequest): Observable<StopEntry> {
     return defer(() => {
-      if (this.commandInFlight) {
+      if (this.registrationInFlight) {
         throw new Error('Já existe um registro de parada em andamento.');
       }
-      this.commandInFlight = true;
+      this.registrationInFlight = true;
 
       const command = this.cloneRequest(request);
       const validated = this.validateCommand(command);
@@ -116,8 +127,8 @@ export class ReporteParadasService {
             throw new Error('Selecione um responsável elegível para a Área e o Centro de Trabalho.');
           }
 
-          const durationMinutes = validated.end
-            ? Math.round((validated.end.getTime() - validated.start.getTime()) / 60000)
+          const derivedDuration = validated.end
+            ? durationMinutes(validated.start, validated.end)
             : undefined;
           const stop: StopEntry = {
             id: this.nextStopId++,
@@ -133,10 +144,10 @@ export class ReporteParadasService {
             startDate: this.dateOnly(validated.start),
             startTime: command.startTime.trim(),
             endDate: validated.end ? this.dateOnly(validated.end) : undefined,
-            endTime: validated.end ? command.endTime!.trim() : '',
+            endTime: validated.end ? command.endTime!.trim() : undefined,
             programmed: command.programmed,
             status: validated.end ? 'FINALIZADA' : 'EM_ANDAMENTO',
-            durationMinutes,
+            durationMinutes: derivedDuration,
             idempotencyKey: command.idempotencyKey,
             syncStatus: 'PENDING',
           };
@@ -148,67 +159,95 @@ export class ReporteParadasService {
       );
     }).pipe(
       finalize(() => {
-        this.commandInFlight = false;
+        this.registrationInFlight = false;
       }),
     );
   }
 
-  // Compatibilidade transitória da UI legada; removida na composição da nova página.
-  getActiveContext(): ProductionContext | null {
-    return this.getPrefillContext();
+  listarParadasEmAndamento(
+    areaCode: string,
+    workCenterCode: string,
+  ): Observable<ReadonlyArray<StopEntry>> {
+    return defer(() => {
+      const area = this.normalizeCode(areaCode);
+      const workCenter = this.normalizeCode(workCenterCode);
+      this.activeStopContext = { areaCode: area, workCenterCode: workCenter };
+      return of(this.confirmedStops
+        .filter(stop =>
+          stop.status === 'EM_ANDAMENTO'
+          && this.sameCode(stop.context.area.code, area)
+          && this.sameCode(stop.context.workCenter.code, workCenter),
+        )
+        .map(stop => this.cloneStop(stop)));
+    }).pipe(delay(150));
   }
 
-  listReasons(): Observable<ReadonlyArray<StopReason>> {
-    const context = this.prefillContext;
-    return this.listarMotivos(context?.area.code ?? '', context?.workCenter.code ?? '');
-  }
+  finalizarParada(stopId: number, request: FinishStopRequest): Observable<StopEntry> {
+    return defer(() => {
+      if (this.finishInFlight) {
+        throw new Error('Já existe uma finalização de parada em andamento.');
+      }
+      this.finishInFlight = true;
+      const command = this.cloneFinishRequest(request);
+      if (!command.idempotencyKey.trim()) {
+        throw new Error('A chave de idempotência da finalização é obrigatória.');
+      }
+      const end = combineLocalDateTime(command.endDate, command.endTime);
+      if (!end) {
+        throw new Error('Informe Data da Finalização e Hora da Finalização válidas.');
+      }
+      const fingerprint = JSON.stringify({ stopId, end: end.toISOString() });
+      const prior = this.finishesByIdempotency.get(command.idempotencyKey);
+      if (prior) {
+        if (prior.fingerprint !== fingerprint) {
+          throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
+        }
+        return of(this.cloneStop(prior.stop));
+      }
 
-  createStop(reason: StopReason, now = new Date()): StopEntry {
-    const context = this.prefillContext;
-    const responsible = context?.preferredResponsible;
-    if (!context || !responsible) {
-      throw new Error('Informe contexto e responsável antes de registrar a parada.');
-    }
+      const index = this.confirmedStops.findIndex(stop => stop.id === stopId);
+      const current = index >= 0 ? this.confirmedStops[index] : undefined;
+      if (!current) {
+        throw new Error('A parada não existe ou não está mais disponível.');
+      }
+      if (current.status !== 'EM_ANDAMENTO') {
+        throw new Error('A parada já foi finalizada e não pode receber um novo comando.');
+      }
+      if (!this.activeStopContext
+        || !this.sameCode(current.context.area.code, this.activeStopContext.areaCode)
+        || !this.sameCode(current.context.workCenter.code, this.activeStopContext.workCenterCode)) {
+        throw new Error('A parada não pertence ao contexto corrente.');
+      }
+      const interval = validateStopInterval(
+        current.startDate,
+        current.startTime,
+        command.endDate,
+        command.endTime,
+      );
+      if (!interval) {
+        throw new Error('A finalização não pode ser anterior ao início da parada.');
+      }
 
-    return {
-      id: this.nextStopId++,
-      context: this.cloneContext(context),
-      reason: { ...reason },
-      responsible: { ...responsible },
-      startDate: new Date(now),
-      startTime: this.formatTime(now),
-      endTime: '',
-      programmed: false,
-      status: 'EM_ANDAMENTO',
-      idempotencyKey: `stop-draft-${this.nextStopId}`,
-      syncStatus: 'PENDING',
-    };
-  }
-
-  calculateDurationMinutes(stop: StopEntry): number {
-    const start = this.combineDateAndTime(stop.startDate, stop.startTime);
-    const end = stop.endDate ? this.combineDateAndTime(stop.endDate, stop.endTime) : null;
-    return start && end ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000)) : 0;
-  }
-
-  formatDuration(stop: StopEntry): string {
-    const minutes = this.calculateDurationMinutes(stop);
-    return `${Math.floor(minutes / 60).toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:00`;
-  }
-
-  validateStops(stops: ReadonlyArray<StopEntry>, context: ProductionContext | null): string {
-    if (!context) {
-      return 'Informe a Área de Produção e o Centro de Trabalho.';
-    }
-    return stops.length === 0 ? 'Adicione ao menos um motivo de parada.' : '';
-  }
-
-  saveStops(_context: ProductionContext, stops: ReadonlyArray<StopEntry>): Observable<StopSaveResult> {
-    this.confirmedStops.push(...stops.map(stop => this.cloneStop(stop)));
-    return of({
-      protocol: `PAR-${Date.now()}`,
-      savedAt: new Date(),
-    }).pipe(delay(300));
+      const finished: StopEntry = {
+        ...this.cloneStop(current),
+        endDate: new Date(interval.end.getFullYear(), interval.end.getMonth(), interval.end.getDate()),
+        endTime: command.endTime.trim(),
+        status: 'FINALIZADA',
+        durationMinutes: durationMinutes(interval.start, interval.end),
+        syncStatus: 'PENDING',
+      };
+      const stored = this.cloneStop(finished);
+      this.confirmedStops[index] = stored;
+      this.finishesByIdempotency.set(command.idempotencyKey, {
+        fingerprint,
+        stop: this.cloneStop(stored),
+      });
+      return of(this.cloneStop(stored));
+    }).pipe(
+      finalize(() => {
+        this.finishInFlight = false;
+      }),
+    );
   }
 
   private cloneContext(context: ProductionContext): ProductionContext {
@@ -249,6 +288,13 @@ export class ReporteParadasService {
     };
   }
 
+  private cloneFinishRequest(request: FinishStopRequest): FinishStopRequest {
+    return {
+      ...request,
+      endDate: request.endDate instanceof Date ? new Date(request.endDate) : request.endDate,
+    };
+  }
+
   private validateCommand(command: CreateStopRequest): {
     readonly reason: StopReason;
     readonly start: Date;
@@ -269,7 +315,7 @@ export class ReporteParadasService {
       throw new Error('Selecione um motivo corporativo válido.');
     }
 
-    const startDate = this.normalizeDate(command.startDate);
+    const startDate = parseLocalDate(command.startDate);
     if (!startDate) {
       throw new Error('Informe uma Data Inicial válida.');
     }
@@ -284,17 +330,17 @@ export class ReporteParadasService {
       throw new Error('Data Final e Hora Final devem ser informadas juntas ou deixadas vazias.');
     }
 
-    const start = this.combineDateAndTime(startDate, command.startTime)!;
+    const start = combineLocalDateTime(startDate, command.startTime)!;
     let end: Date | null = null;
     if (hasEndDate && hasEndTime) {
-      const endDate = this.normalizeDate(command.endDate!);
+      const endDate = parseLocalDate(command.endDate!);
       if (!endDate) {
         throw new Error('Informe uma Data Final válida.');
       }
       if (!this.isValidTime(command.endTime!)) {
         throw new Error('Informe uma Hora Final válida no formato HH:mm.');
       }
-      end = this.combineDateAndTime(endDate, command.endTime!)!;
+      end = combineLocalDateTime(endDate, command.endTime!)!;
       if (end.getTime() < start.getTime()) {
         throw new Error('O fim da parada não pode ser anterior ao início.');
       }
@@ -319,25 +365,6 @@ export class ReporteParadasService {
     });
   }
 
-  private normalizeDate(value: Date | string): Date | null {
-    if (value instanceof Date) {
-      return Number.isNaN(value.getTime()) ? null : this.dateOnly(value);
-    }
-    const text = value.trim();
-    const localMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-    if (localMatch) {
-      const year = Number(localMatch[1]);
-      const month = Number(localMatch[2]);
-      const day = Number(localMatch[3]);
-      const date = new Date(year, month - 1, day);
-      return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
-        ? date
-        : null;
-    }
-    const parsed = new Date(text);
-    return Number.isNaN(parsed.getTime()) ? null : this.dateOnly(parsed);
-  }
-
   private isValidTime(value: string): boolean {
     const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
     return Boolean(match && Number(match[1]) <= 23 && Number(match[2]) <= 59);
@@ -355,20 +382,4 @@ export class ReporteParadasService {
     return value.trim().toUpperCase();
   }
 
-  private combineDateAndTime(date: Date, time: string): Date | null {
-    const match = /^(\d{2}):(\d{2})$/.exec(time);
-    if (!match || !Number.isFinite(date.getTime())) {
-      return null;
-    }
-    const hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    if (hours > 23 || minutes > 59) {
-      return null;
-    }
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes);
-  }
-
-  private formatTime(date: Date): string {
-    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-  }
 }

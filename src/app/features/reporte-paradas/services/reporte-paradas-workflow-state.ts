@@ -8,9 +8,11 @@ import {
   ProductionContext,
   ProductionContextOrigin,
   ResponsavelParada,
+  StopEntry,
   StopReason,
   TipoResponsavelParada,
 } from '../models/reporte-paradas.model';
+import { formatLocalDate, formatLocalTime } from '../models/reporte-paradas-time';
 
 export interface ParadaDraft {
   readonly reasonId: number | null;
@@ -24,6 +26,11 @@ export interface ParadaDraft {
 export interface ContextRequestToken {
   readonly generation: number;
   readonly identity: string;
+}
+
+export interface FinalizacaoDraft {
+  readonly endDate: Date | string | null;
+  readonly endTime: string;
 }
 
 export interface ReporteParadasWorkflowSnapshot {
@@ -40,7 +47,14 @@ export interface ReporteParadasWorkflowSnapshot {
   readonly contextLoading: boolean;
   readonly contextError: string;
   readonly saving: boolean;
-  readonly querySelectionIds: ReadonlyArray<string>;
+  readonly openStops: ReadonlyArray<StopEntry>;
+  readonly selectedStopId: number | null;
+  readonly finishDraft: FinalizacaoDraft;
+  readonly finishIdempotencyKey: string | null;
+  readonly queryLoading: boolean;
+  readonly queryError: string;
+  readonly finishing: boolean;
+  readonly finishError: string;
 }
 
 @Injectable()
@@ -49,6 +63,8 @@ export class ReporteParadasWorkflowState {
   private readonly destroyRef = inject(DestroyRef);
   private generation = 0;
   private currentRequest: ContextRequestToken | null = null;
+  private currentQuery: ContextRequestToken | null = null;
+  private currentFinish: ContextRequestToken | null = null;
   private view = this.initialState();
 
   constructor() {
@@ -227,8 +243,134 @@ export class ReporteParadasWorkflowState {
     this.view = { ...this.view, saving };
   }
 
-  setQuerySelection(ids: ReadonlyArray<string>): void {
-    this.view = { ...this.view, querySelectionIds: [...ids] };
+  beginOpenStopsQuery(areaCode: string, workCenterCode: string): ContextRequestToken {
+    const token = this.newToken(areaCode, workCenterCode);
+    this.currentQuery = token;
+    this.view = { ...this.view, queryLoading: true, queryError: '' };
+    return token;
+  }
+
+  acceptOpenStops(token: ContextRequestToken, stops: ReadonlyArray<StopEntry>): boolean {
+    if (!this.isCurrentFor(this.currentQuery, token)) {
+      return false;
+    }
+    const openStops = stops
+      .filter(stop => stop.status === 'EM_ANDAMENTO')
+      .map(stop => this.cloneStop(stop));
+    const selectedStopId = openStops.some(stop => stop.id === this.view.selectedStopId)
+      ? this.view.selectedStopId
+      : null;
+    this.view = {
+      ...this.view,
+      openStops,
+      selectedStopId,
+      finishDraft: selectedStopId ? this.view.finishDraft : this.emptyFinishDraft(),
+      finishIdempotencyKey: selectedStopId ? this.view.finishIdempotencyKey : null,
+      queryLoading: false,
+      queryError: '',
+    };
+    return true;
+  }
+
+  acceptOpenStopsError(token: ContextRequestToken, message: string): boolean {
+    if (!this.isCurrentFor(this.currentQuery, token)) {
+      return false;
+    }
+    this.view = { ...this.view, queryLoading: false, queryError: message };
+    return true;
+  }
+
+  selectOpenStop(stopId: number, now: Date): boolean {
+    if (!this.view.openStops.some(stop => stop.id === stopId)) {
+      return false;
+    }
+    if (this.view.selectedStopId === stopId) {
+      return true;
+    }
+    this.view = {
+      ...this.view,
+      selectedStopId: stopId,
+      finishDraft: {
+        endDate: formatLocalDate(now),
+        endTime: formatLocalTime(now),
+      },
+      finishIdempotencyKey: null,
+      finishError: '',
+    };
+    return true;
+  }
+
+  clearOpenStopSelection(): void {
+    this.view = {
+      ...this.view,
+      selectedStopId: null,
+      finishDraft: this.emptyFinishDraft(),
+      finishIdempotencyKey: null,
+      finishError: '',
+    };
+  }
+
+  updateFinishDraft(change: Partial<FinalizacaoDraft>): void {
+    const next = { ...this.view.finishDraft, ...change };
+    const changed = this.materialDate(this.view.finishDraft.endDate) !== this.materialDate(next.endDate)
+      || this.view.finishDraft.endTime.trim() !== next.endTime.trim();
+    this.view = {
+      ...this.view,
+      finishDraft: next,
+      finishIdempotencyKey: changed ? null : this.view.finishIdempotencyKey,
+      finishError: changed ? '' : this.view.finishError,
+    };
+  }
+
+  ensureFinishIdempotencyKey(factory: () => string): string {
+    if (this.view.finishIdempotencyKey) {
+      return this.view.finishIdempotencyKey;
+    }
+    const key = factory();
+    this.view = { ...this.view, finishIdempotencyKey: key };
+    return key;
+  }
+
+  setFinishing(finishing: boolean): void {
+    this.view = { ...this.view, finishing };
+  }
+
+  beginFinishCommand(
+    stopId: number,
+    areaCode: string,
+    workCenterCode: string,
+  ): ContextRequestToken {
+    const token = this.newToken(areaCode, workCenterCode, stopId);
+    this.currentFinish = token;
+    this.view = { ...this.view, finishing: true, finishError: '' };
+    return token;
+  }
+
+  acceptFinishError(token: ContextRequestToken, message: string): boolean {
+    if (!this.isCurrentFor(this.currentFinish, token)) {
+      return false;
+    }
+    this.view = { ...this.view, finishing: false, finishError: message };
+    return true;
+  }
+
+  acceptFinishSuccess(token: ContextRequestToken, stopId: number): boolean {
+    if (!this.isCurrentFor(this.currentFinish, token)
+      || this.view.selectedStopId !== stopId) {
+      return false;
+    }
+    this.view = {
+      ...this.view,
+      openStops: this.view.openStops
+        .filter(stop => stop.id !== stopId)
+        .map(stop => this.cloneStop(stop)),
+      selectedStopId: null,
+      finishDraft: this.emptyFinishDraft(),
+      finishIdempotencyKey: null,
+      finishing: false,
+      finishError: '',
+    };
+    return true;
   }
 
   completeRegistration(): void {
@@ -260,21 +402,48 @@ export class ReporteParadasWorkflowState {
       contextLoading: false,
       contextError: '',
       saving: false,
-      querySelectionIds: [],
+      openStops: [],
+      selectedStopId: null,
+      finishDraft: this.emptyFinishDraft(),
+      finishIdempotencyKey: null,
+      queryLoading: false,
+      queryError: '',
+      finishing: false,
+      finishError: '',
     };
   }
 
   private invalidateRequests(): void {
     this.generation += 1;
     this.currentRequest = null;
+    this.currentQuery = null;
+    this.currentFinish = null;
   }
 
   private isCurrent(token: ContextRequestToken): boolean {
-    return this.currentRequest?.generation === token.generation
-      && this.currentRequest.identity === token.identity
+    return this.isCurrentFor(this.currentRequest, token);
+  }
+
+  private isCurrentFor(
+    current: ContextRequestToken | null,
+    token: ContextRequestToken,
+  ): boolean {
+    return current?.generation === token.generation
+      && current.identity === token.identity
       && this.view.area !== null
       && this.view.workCenter !== null
       && token.identity === this.contextIdentity(this.view.area.code, this.view.workCenter.code);
+  }
+
+  private newToken(
+    areaCode: string,
+    workCenterCode: string,
+    _stopId?: number,
+  ): ContextRequestToken {
+    return {
+      generation: ++this.generation,
+      identity: this.contextIdentity(areaCode, workCenterCode),
+    };
   }
 
   private uniqueResponsibles(
@@ -319,7 +488,48 @@ export class ReporteParadasWorkflowState {
           : snapshot.draft.endDate,
       },
       origin: snapshot.origin ? { ...snapshot.origin } : undefined,
-      querySelectionIds: [...snapshot.querySelectionIds],
+      openStops: snapshot.openStops.map(stop => this.cloneStop(stop)),
+      finishDraft: {
+        ...snapshot.finishDraft,
+        endDate: snapshot.finishDraft.endDate instanceof Date
+          ? new Date(snapshot.finishDraft.endDate)
+          : snapshot.finishDraft.endDate,
+      },
+    };
+  }
+
+  private emptyFinishDraft(): FinalizacaoDraft {
+    return { endDate: null, endTime: '' };
+  }
+
+  private materialDate(value: Date | string | null): string {
+    return value instanceof Date ? formatLocalDate(value) : String(value ?? '').trim();
+  }
+
+  private cloneStop(stop: StopEntry): StopEntry {
+    return {
+      ...stop,
+      context: {
+        ...stop.context,
+        area: { ...stop.context.area },
+        workCenter: { ...stop.context.workCenter },
+        origin: stop.context.origin ? { ...stop.context.origin } : undefined,
+        preferredResponsible: stop.context.preferredResponsible
+          ? { ...stop.context.preferredResponsible }
+          : undefined,
+        metadata: stop.context.metadata
+          ? {
+              ...stop.context.metadata,
+              orderIds: stop.context.metadata.orderIds
+                ? [...stop.context.metadata.orderIds]
+                : undefined,
+            }
+          : undefined,
+      },
+      reason: { ...stop.reason },
+      responsible: { ...stop.responsible },
+      startDate: new Date(stop.startDate),
+      endDate: stop.endDate ? new Date(stop.endDate) : undefined,
     };
   }
 }

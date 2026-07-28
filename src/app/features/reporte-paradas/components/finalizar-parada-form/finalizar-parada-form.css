@@ -1,0 +1,43 @@
+.finish-stop__summary {
+  background: var(--app-color-surface-muted);
+  border-radius: var(--app-radius);
+  display: grid;
+  gap: var(--app-space-xs);
+  margin-bottom: var(--app-space-md);
+  padding: var(--app-space-md);
+}
+
+.finish-stop__summary p {
+  margin: 0;
+}
+
+.finish-stop__form {
+  display: grid;
+  gap: var(--app-space-md);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.finish-stop__error,
+.finish-stop__submit {
+  grid-column: 1 / -1;
+}
+
+.finish-stop__error {
+  color: var(--app-color-danger);
+  margin: 0;
+}
+
+.finish-stop__submit {
+  min-height: var(--app-touch-target);
+}
+
+.finish-stop__submit:focus-visible {
+  outline: 3px solid var(--app-color-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .finish-stop__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

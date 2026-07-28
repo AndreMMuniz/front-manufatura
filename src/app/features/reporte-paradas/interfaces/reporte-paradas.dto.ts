@@ -24,3 +24,9 @@ export interface StopResponse {
   readonly syncStatus: 'PENDING' | 'SYNCED' | 'ERROR';
   readonly durationMinutes?: number;
 }
+
+export interface FinishStopRequest {
+  readonly endDate: Date | string;
+  readonly endTime: string;
+  readonly idempotencyKey: string;
+}

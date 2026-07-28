@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
-import { ProductionContext } from '../../models/reporte-paradas.model';
+import { ProductionContext, StopEntry } from '../../models/reporte-paradas.model';
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
 import { ReporteParadasPage } from './reporte-paradas-page';
 
@@ -20,6 +20,8 @@ describe('ReporteParadasPage', () => {
     listarResponsaveis: ReturnType<typeof vi.fn>;
     listarMotivos: ReturnType<typeof vi.fn>;
     registrarParada: ReturnType<typeof vi.fn>;
+    listarParadasEmAndamento: ReturnType<typeof vi.fn>;
+    finalizarParada: ReturnType<typeof vi.fn>;
     getPrefillContext: ReturnType<typeof vi.fn>;
     clearPrefillContext: ReturnType<typeof vi.fn>;
   };
@@ -71,6 +73,14 @@ describe('ReporteParadasPage', () => {
         status: 'EM_ANDAMENTO',
         idempotencyKey: request.idempotencyKey,
         syncStatus: 'PENDING',
+      })),
+      listarParadasEmAndamento: vi.fn(() => of([])),
+      finalizarParada: vi.fn((_stopId, request) => of({
+        ...openStop(),
+        status: 'FINALIZADA',
+        endDate: new Date(2026, 6, 28),
+        endTime: request.endTime,
+        durationMinutes: 90,
       })),
       getPrefillContext: vi.fn(() => null),
       clearPrefillContext: vi.fn(),
@@ -248,6 +258,67 @@ describe('ReporteParadasPage', () => {
     expect(router.navigate).toHaveBeenLastCalledWith(['/operation-reporting']);
   });
 
+  it('consulta abertas após contexto válido e distingue o relógio page-scoped', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 28, 9));
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+
+    expect(service.listarParadasEmAndamento).toHaveBeenCalledWith('4001', 'CT-EXT-01');
+    expect(component.view().openStops).toHaveLength(1);
+    expect(component.now()).toEqual(new Date(2026, 6, 28, 9));
+
+    vi.advanceTimersByTime(60_000);
+    expect(component.now()).toEqual(new Date(2026, 6, 28, 9, 1));
+  });
+
+  it('preserva seleção, fim e chave após falha e reutiliza no retry', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 28, 9, 30));
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
+    service.finalizarParada.mockReturnValueOnce(
+      throwError(() => new Error('HTTP 503 com detalhes internos')),
+    );
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.selecionarParada(42);
+
+    component.finalizarParada();
+    const first = service.finalizarParada.mock.calls[0][1];
+
+    expect(component.view()).toEqual(expect.objectContaining({
+      selectedStopId: 42,
+      finishDraft: { endDate: '2026-07-28', endTime: '09:30' },
+      finishIdempotencyKey: first.idempotencyKey,
+    }));
+    expect(component.view().finishError).not.toContain('HTTP');
+
+    component.finalizarParada();
+    expect(service.finalizarParada.mock.calls[1][1].idempotencyKey).toBe(first.idempotencyKey);
+  });
+
+  it.each([
+    ['OPERATION_REPORT', '/operation-reporting'],
+    ['BATCH_REPORT', '/batch-reporting'],
+  ] as const)('remove somente a finalizada e retorna à origem %s após sucesso', (type, sourceRoute) => {
+    service.getPrefillContext.mockReturnValue({
+      ...prefill,
+      origin: { type, sourceRoute },
+    });
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop(), openStop(43)]));
+    fixture.detectChanges();
+    component.selecionarParada(42);
+
+    component.finalizarParada();
+
+    expect(component.view().openStops.map(stop => stop.id)).toEqual([43]);
+    expect(component.view().selectedStopId).toBeNull();
+    expect(router.navigate).toHaveBeenCalledWith([sourceRoute]);
+  });
+
   function prepareValidDraft(): void {
     component.onAreaChange('4001');
     component.onWorkCenterChange('CT-EXT-01');
@@ -261,5 +332,20 @@ describe('ReporteParadasPage', () => {
       endTime: '',
       programmed: false,
     });
+  }
+
+  function openStop(id = 42): StopEntry {
+    return {
+      id,
+      context: prefill,
+      reason: { id: 1, code: '01', description: 'Setup' },
+      responsible,
+      startDate: new Date(2026, 6, 28),
+      startTime: '08:00',
+      programmed: false,
+      status: 'EM_ANDAMENTO',
+      idempotencyKey: `start-${id}`,
+      syncStatus: 'PENDING',
+    };
   }
 });

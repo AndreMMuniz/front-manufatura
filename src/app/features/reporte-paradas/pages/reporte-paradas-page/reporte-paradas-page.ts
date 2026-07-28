@@ -1,7 +1,15 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  ViewChild,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, timer } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -15,6 +23,8 @@ import { ContextoProducaoSelector } from '../../../shop-floor/components/context
 import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { ParadaForm } from '../../components/parada-form/parada-form';
+import { FinalizarParadaForm } from '../../components/finalizar-parada-form/finalizar-parada-form';
+import { ParadasEmAndamentoList } from '../../components/paradas-em-andamento-list/paradas-em-andamento-list';
 import { ResponsavelParadaSelect } from '../../components/responsavel-parada-select/responsavel-parada-select';
 import {
   ProductionContext,
@@ -23,6 +33,7 @@ import {
 } from '../../models/reporte-paradas.model';
 import {
   ParadaDraft,
+  FinalizacaoDraft,
   ReporteParadasWorkflowSnapshot,
   ReporteParadasWorkflowState,
 } from '../../services/reporte-paradas-workflow-state';
@@ -33,6 +44,8 @@ import { ReporteParadasService } from '../../services/reporte-paradas.service';
   imports: [
     ContextoProducaoSelector,
     ParadaForm,
+    FinalizarParadaForm,
+    ParadasEmAndamentoList,
     ResponsavelParadaSelect,
     PoButtonModule,
     PoLoadingModule,
@@ -59,20 +72,29 @@ export class ReporteParadasPage implements OnInit {
   readonly pageError = signal('');
   readonly registrationError = signal('');
   readonly statusMessage = signal('');
+  readonly now = signal(new Date());
+
+  @ViewChild(FinalizarParadaForm) private finishForm?: FinalizarParadaForm;
+  @ViewChild(ParadasEmAndamentoList) private openStopsList?: ParadasEmAndamentoList;
 
   private areasRequest = 0;
   private centersRequest = 0;
   private idempotencySequence = 0;
+  private finishIdempotencySequence = 0;
 
   ngOnInit(): void {
     const prefill = this.service.getPrefillContext();
     this.service.clearPrefillContext();
     this.loadAreas(prefill);
+    this.now.set(new Date());
+    timer(30_000, 30_000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.now.set(new Date()));
     this.destroyRef.onDestroy(() => this.workflow.resetTransient());
   }
 
   onAreaChange(code: string): void {
-    if (this.view().saving || code === (this.view().area?.code ?? '')) {
+    if (this.commandsBlocked() || code === (this.view().area?.code ?? '')) {
       return;
     }
     const area = this.areas().find(item => this.sameCode(item.code, code)) ?? null;
@@ -80,7 +102,7 @@ export class ReporteParadasPage implements OnInit {
   }
 
   onWorkCenterChange(code: string): void {
-    if (this.view().saving || code === (this.view().workCenter?.code ?? '')) {
+    if (this.commandsBlocked() || code === (this.view().workCenter?.code ?? '')) {
       return;
     }
     const center = this.centers().find(item =>
@@ -116,6 +138,14 @@ export class ReporteParadasPage implements OnInit {
     this.syncView();
   }
 
+  onFinishDraftChange(draft: FinalizacaoDraft): void {
+    if (this.view().finishing) {
+      return;
+    }
+    this.workflow.updateFinishDraft(draft);
+    this.syncView();
+  }
+
   retryContext(): void {
     const snapshot = this.view();
     if (!snapshot.saving && snapshot.area && snapshot.workCenter) {
@@ -127,6 +157,75 @@ export class ReporteParadasPage implements OnInit {
     if (!this.view().saving && !this.loadingAreas()) {
       this.loadAreas(null);
     }
+  }
+
+  retryOpenStops(): void {
+    const snapshot = this.view();
+    if (!this.commandsBlocked() && snapshot.area && snapshot.workCenter) {
+      this.loadOpenStops(snapshot.area.code, snapshot.workCenter.code);
+    }
+  }
+
+  selecionarParada(stopId: number): void {
+    if (this.commandsBlocked() || !this.workflow.selectOpenStop(stopId, new Date())) {
+      return;
+    }
+    this.syncView();
+    Promise.resolve().then(() => this.finishForm?.focusFirstField());
+  }
+
+  finalizarParada(): void {
+    const snapshot = this.view();
+    if (snapshot.finishing || snapshot.saving
+      || !snapshot.area || !snapshot.workCenter || snapshot.selectedStopId === null
+      || !snapshot.finishDraft.endDate || !snapshot.finishDraft.endTime.trim()) {
+      return;
+    }
+    const key = this.workflow.ensureFinishIdempotencyKey(
+      () => `finish-stop-${Date.now()}-${++this.finishIdempotencySequence}`,
+    );
+    const token = this.workflow.beginFinishCommand(
+      snapshot.selectedStopId,
+      snapshot.area.code,
+      snapshot.workCenter.code,
+    );
+    this.statusMessage.set('');
+    this.syncView();
+
+    this.service.finalizarParada(snapshot.selectedStopId, {
+      endDate: snapshot.finishDraft.endDate,
+      endTime: snapshot.finishDraft.endTime,
+      idempotencyKey: key,
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: stop => {
+          if (!this.workflow.acceptFinishSuccess(token, stop.id)) {
+            return;
+          }
+          this.syncView();
+          this.statusMessage.set(
+            'Finalização salva neste dispositivo e pendente de sincronização.',
+          );
+          this.notification.success(
+            'Finalização salva neste dispositivo e pendente de sincronização.',
+          );
+          const route = this.view().origin?.sourceRoute;
+          if (route === '/operation-reporting' || route === '/batch-reporting') {
+            void this.router.navigate([route]);
+          } else {
+            Promise.resolve().then(() => this.openStopsList?.focusFirst());
+          }
+        },
+        error: () => {
+          if (this.workflow.acceptFinishError(
+            token,
+            'Não foi possível finalizar a parada. Os dados informados foram preservados.',
+          )) {
+            this.syncView();
+          }
+        },
+      });
   }
 
   registrarParada(): void {
@@ -180,6 +279,9 @@ export class ReporteParadasPage implements OnInit {
             `Parada ${stop.status === 'EM_ANDAMENTO' ? 'em andamento' : 'finalizada'} salva neste dispositivo e pendente de sincronização.`,
           );
           this.notification.success('Parada salva neste dispositivo e pendente de sincronização.');
+          if (stop.status === 'EM_ANDAMENTO' && snapshot.area && snapshot.workCenter) {
+            this.loadOpenStops(snapshot.area.code, snapshot.workCenter.code);
+          }
         },
         error: (error: unknown) => {
           this.workflow.setSaving(false);
@@ -194,7 +296,7 @@ export class ReporteParadasPage implements OnInit {
   }
 
   voltar(): void {
-    if (this.view().saving) {
+    if (this.commandsBlocked()) {
       return;
     }
     const route = this.view().origin?.sourceRoute;
@@ -271,6 +373,7 @@ export class ReporteParadasPage implements OnInit {
                 const token = this.workflow.beginContextRequest(area.code, center.code);
                 this.workflow.acceptContextData(token, responsibles, reasons);
                 this.syncView();
+                this.loadOpenStops(area.code, center.code);
               },
               error: () => {
                 if (areasRequest === this.areasRequest && request === this.centersRequest) {
@@ -350,12 +453,35 @@ export class ReporteParadasPage implements OnInit {
         next: ({ responsibles, reasons }) => {
           if (this.workflow.acceptContextData(token, responsibles, reasons)) {
             this.syncView();
+            this.loadOpenStops(areaCode, workCenterCode);
           }
         },
         error: () => {
           if (this.workflow.acceptContextError(
             token,
             'Não foi possível carregar responsáveis e motivos. Tente novamente.',
+          )) {
+            this.syncView();
+          }
+        },
+      });
+  }
+
+  private loadOpenStops(areaCode: string, workCenterCode: string): void {
+    const token = this.workflow.beginOpenStopsQuery(areaCode, workCenterCode);
+    this.syncView();
+    this.service.listarParadasEmAndamento(areaCode, workCenterCode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: stops => {
+          if (this.workflow.acceptOpenStops(token, stops)) {
+            this.syncView();
+          }
+        },
+        error: () => {
+          if (this.workflow.acceptOpenStopsError(
+            token,
+            'Não foi possível consultar as paradas em andamento. Tente novamente.',
           )) {
             this.syncView();
           }
@@ -392,5 +518,9 @@ export class ReporteParadasPage implements OnInit {
 
   private sameCode(left: string, right: string): boolean {
     return left.trim().toUpperCase() === right.trim().toUpperCase();
+  }
+
+  private commandsBlocked(): boolean {
+    return this.view().saving || this.view().finishing;
   }
 }

@@ -3,7 +3,7 @@ import { firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
-import { CreateStopRequest } from '../interfaces/reporte-paradas.dto';
+import { CreateStopRequest, FinishStopRequest } from '../interfaces/reporte-paradas.dto';
 import { ProductionContext, StopReason } from '../models/reporte-paradas.model';
 import { ReporteParadasService } from './reporte-paradas.service';
 
@@ -121,7 +121,7 @@ describe('ReporteParadasService', () => {
 
     expect(parada.status).toBe('EM_ANDAMENTO');
     expect(parada.endDate).toBeUndefined();
-    expect(parada.endTime).toBe('');
+    expect(parada.endTime).toBeUndefined();
     expect(parada.durationMinutes).toBeUndefined();
     expect(parada.syncStatus).toBe('PENDING');
     expect(parada.programmed).toBe(true);
@@ -219,6 +219,102 @@ describe('ReporteParadasService', () => {
     );
   });
 
+  it('consulta somente paradas em andamento do contexto e devolve cópias', async () => {
+    const { service } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-aberta',
+      endDate: null,
+      endTime: null,
+    })));
+    await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-finalizada',
+    })));
+
+    const first = await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    );
+    const second = await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    );
+
+    expect(first).toEqual([aberta]);
+    expect(first[0]).not.toBe(aberta);
+    expect(second[0]).not.toBe(first[0]);
+    expect(await firstValueFrom(
+      service.listarParadasEmAndamento('4002', 'CT-EXT-01'),
+    )).toEqual([]);
+  });
+
+  it('finaliza por cópia e remove a parada da consulta de abertas', async () => {
+    const { service } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-aberta',
+      endDate: null,
+      endTime: null,
+    })));
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+
+    const finalizada = await firstValueFrom(service.finalizarParada(
+      aberta.id,
+      finishRequest(),
+    ));
+
+    expect(finalizada).toEqual(expect.objectContaining({
+      id: aberta.id,
+      status: 'FINALIZADA',
+      endDate: new Date(2026, 6, 28),
+      endTime: '09:30',
+      durationMinutes: 90,
+      syncStatus: 'PENDING',
+    }));
+    expect(finalizada).not.toBe(aberta);
+    expect(await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).toEqual([]);
+  });
+
+  it('consulta idempotência do fim antes do status e detecta conflito de conteúdo', async () => {
+    const { service } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-aberta',
+      endDate: null,
+      endTime: null,
+    })));
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+    const command = finishRequest();
+
+    const first = await firstValueFrom(service.finalizarParada(aberta.id, command));
+    const retry = await firstValueFrom(service.finalizarParada(aberta.id, command));
+
+    expect(retry).toEqual(first);
+    expect(retry).not.toBe(first);
+    await expect(firstValueFrom(service.finalizarParada(aberta.id, {
+      ...command,
+      endTime: '09:31',
+    }))).rejects.toThrow('outro conteúdo');
+  });
+
+  it('revalida contexto, estado e intervalo para comandos de fim ainda não registrados', async () => {
+    const { service } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-aberta',
+      endDate: null,
+      endTime: null,
+    })));
+
+    await firstValueFrom(service.listarParadasEmAndamento('4002', 'CT-EXT-01'));
+    await expect(firstValueFrom(service.finalizarParada(
+      aberta.id,
+      finishRequest(),
+    ))).rejects.toThrow('contexto');
+
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+    await expect(firstValueFrom(service.finalizarParada(
+      aberta.id,
+      finishRequest({ endTime: '07:59', idempotencyKey: 'fim-anterior' }),
+    ))).rejects.toThrow('anterior');
+  });
+
   function request(overrides: Partial<CreateStopRequest> = {}): CreateStopRequest {
     return {
       areaCode: '4001',
@@ -232,6 +328,15 @@ describe('ReporteParadasService', () => {
       programmed: true,
       origin: context.origin,
       idempotencyKey: 'idem-1',
+      ...overrides,
+    };
+  }
+
+  function finishRequest(overrides: Partial<FinishStopRequest> = {}): FinishStopRequest {
+    return {
+      endDate: '2026-07-28',
+      endTime: '09:30',
+      idempotencyKey: 'fim-1',
       ...overrides,
     };
   }

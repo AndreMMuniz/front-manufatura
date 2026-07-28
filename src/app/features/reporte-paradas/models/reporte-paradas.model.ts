@@ -33,7 +33,7 @@ export interface ProductionContext {
 }
 
 export type ParadaStatus = 'EM_ANDAMENTO' | 'FINALIZADA';
-export type ParadaSyncStatus = 'PENDING' | 'SYNCED' | 'ERROR';
+export type ParadaSyncStatus = 'PENDING' | 'SYNCING' | 'SYNCED' | 'ERROR';
 
 export interface StopEntry {
   readonly id: number;
@@ -43,7 +43,7 @@ export interface StopEntry {
   readonly startDate: Date;
   readonly startTime: string;
   readonly endDate?: Date;
-  readonly endTime: string;
+  readonly endTime?: string;
   readonly programmed: boolean;
   readonly status: ParadaStatus;
   readonly durationMinutes?: number;

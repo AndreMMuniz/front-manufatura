@@ -7,7 +7,7 @@
       [workCenterCode]="view().workCenter?.code ?? ''"
       [loadingAreas]="loadingAreas()"
       [loadingCenters]="loadingCenters()"
-      [disabled]="view().saving"
+      [disabled]="view().saving || view().finishing"
       [showAction]="false"
       [errorMessage]="pageError()"
       (areaChange)="onAreaChange($event)"
@@ -27,7 +27,7 @@
         [responsibleType]="view().responsibleType"
         [responsibleCode]="view().responsibleCode"
         [loading]="view().contextLoading"
-        [disabled]="view().saving"
+        [disabled]="view().saving || view().finishing"
         [errorMessage]="view().contextError"
         (responsibleTypeChange)="onResponsibleTypeChange($event)"
         (responsibleCodeChange)="onResponsibleCodeChange($event)"
@@ -37,12 +37,39 @@
       <app-parada-form
         [reasons]="view().reasons"
         [draft]="view().draft"
-        [disabled]="view().saving || view().contextLoading || !!view().contextError"
+        [disabled]="view().saving || view().finishing || view().contextLoading || !!view().contextError"
         [loading]="view().saving"
         [externalError]="registrationError()"
         (draftChange)="onDraftChange($event)"
         (confirm)="registrarParada()"
       ></app-parada-form>
+
+      <app-paradas-em-andamento-list
+        [stops]="view().openStops"
+        [selectedStopId]="view().selectedStopId"
+        [now]="now()"
+        [loading]="view().queryLoading"
+        [disabled]="view().saving || view().finishing"
+        [errorMessage]="view().queryError"
+        (selectStop)="selecionarParada($event)"
+        (retry)="retryOpenStops()"
+      ></app-paradas-em-andamento-list>
+
+      @if (view().selectedStopId !== null) {
+        @for (stop of view().openStops; track stop.id) {
+          @if (stop.id === view().selectedStopId) {
+            <app-finalizar-parada-form
+              [stop]="stop"
+              [draft]="view().finishDraft"
+              [loading]="view().finishing"
+              [disabled]="view().saving"
+              [externalError]="view().finishError"
+              (draftChange)="onFinishDraftChange($event)"
+              (confirm)="finalizarParada()"
+            ></app-finalizar-parada-form>
+          }
+        }
+      }
     } @else if (!loadingAreas() && !loadingCenters()) {
       <p class="reporte-paradas__guidance" role="status">
         Selecione Área de Produção e Centro de Trabalho para registrar uma parada.
@@ -59,7 +86,7 @@
       <po-button
         p-label="Voltar"
         p-kind="secondary"
-        [p-disabled]="view().saving"
+        [p-disabled]="view().saving || view().finishing"
         (p-click)="voltar()"
       ></po-button>
     </div>

@@ -3,7 +3,7 @@ import { BehaviorSubject } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { ProductionContext } from '../models/reporte-paradas.model';
+import { ProductionContext, StopEntry } from '../models/reporte-paradas.model';
 import {
   ContextRequestToken,
   ReporteParadasWorkflowState,
@@ -84,7 +84,7 @@ describe('ReporteParadasWorkflowState', () => {
     expect(view.draft).toEqual(state.emptyDraft());
     expect(view.dirty).toBe(false);
     expect(view.idempotencyKey).toBeNull();
-    expect(view.querySelectionIds).toEqual([]);
+    expect(view.openStops).toEqual([]);
   });
 
   it('limpa dependências ao trocar CT e preserva Área', () => {
@@ -156,6 +156,80 @@ describe('ReporteParadasWorkflowState', () => {
     }));
   });
 
+  it('aceita somente consulta de abertas da geração e contexto correntes', () => {
+    prepareDirtyState();
+    const oldToken = state.beginOpenStopsQuery('4001', 'CT-EXT-01');
+    const currentToken = state.beginOpenStopsQuery('4001', 'CT-EXT-01');
+
+    expect(state.acceptOpenStops(oldToken, [openStop()])).toBe(false);
+    expect(state.acceptOpenStopsError(oldToken, 'erro antigo')).toBe(false);
+    expect(state.acceptOpenStops(currentToken, [openStop()])).toBe(true);
+    expect(state.snapshot().openStops).toHaveLength(1);
+    expect(state.snapshot().openStops[0]).not.toBe(openStop());
+  });
+
+  it('seleciona por id estável, sugere agora uma vez e mantém chave no retry idêntico', () => {
+    prepareDirtyState();
+    const query = state.beginOpenStopsQuery('4001', 'CT-EXT-01');
+    state.acceptOpenStops(query, [openStop()]);
+    state.selectOpenStop(10, new Date(2026, 6, 28, 9, 45));
+
+    expect(state.snapshot()).toEqual(expect.objectContaining({
+      selectedStopId: 10,
+      finishDraft: { endDate: '2026-07-28', endTime: '09:45' },
+    }));
+    const first = state.ensureFinishIdempotencyKey(() => 'finish-1');
+    state.setFinishing(false);
+    const retry = state.ensureFinishIdempotencyKey(() => 'finish-2');
+    state.updateFinishDraft({ endTime: '09:45' });
+    expect(state.ensureFinishIdempotencyKey(() => 'finish-3')).toBe('finish-1');
+    state.updateFinishDraft({ endTime: '09:46' });
+
+    expect(first).toBe('finish-1');
+    expect(retry).toBe('finish-1');
+    expect(state.ensureFinishIdempotencyKey(() => 'finish-3')).toBe('finish-3');
+  });
+
+  it('preserva seleção/rascunho após falha e remove somente a finalizada após sucesso', () => {
+    prepareDirtyState();
+    const query = state.beginOpenStopsQuery('4001', 'CT-EXT-01');
+    state.acceptOpenStops(query, [openStop(), openStop(11)]);
+    state.selectOpenStop(10, new Date(2026, 6, 28, 9, 45));
+    state.ensureFinishIdempotencyKey(() => 'finish-1');
+
+    const failed = state.beginFinishCommand(10, '4001', 'CT-EXT-01');
+    expect(state.acceptFinishError(failed, 'Falha operacional')).toBe(true);
+    expect(state.snapshot()).toEqual(expect.objectContaining({
+      selectedStopId: 10,
+      finishError: 'Falha operacional',
+      finishIdempotencyKey: 'finish-1',
+    }));
+
+    const success = state.beginFinishCommand(10, '4001', 'CT-EXT-01');
+    expect(state.acceptFinishSuccess(success, 10)).toBe(true);
+    expect(state.snapshot().openStops.map(stop => stop.id)).toEqual([11]);
+    expect(state.snapshot().selectedStopId).toBeNull();
+    expect(state.snapshot().finishDraft).toEqual({ endDate: null, endTime: '' });
+  });
+
+  it('troca de contexto invalida consulta/comando e limpa lista, seleção e fim', () => {
+    prepareDirtyState();
+    const query = state.beginOpenStopsQuery('4001', 'CT-EXT-01');
+    state.acceptOpenStops(query, [openStop()]);
+    state.selectOpenStop(10, new Date(2026, 6, 28, 9, 45));
+    const finish = state.beginFinishCommand(10, '4001', 'CT-EXT-01');
+
+    state.confirmWorkCenterChange({ ...center, code: 'CT-EXT-02' });
+
+    expect(state.acceptFinishError(finish, 'erro tardio')).toBe(false);
+    expect(state.snapshot()).toEqual(expect.objectContaining({
+      openStops: [],
+      selectedStopId: null,
+      queryLoading: false,
+      finishError: '',
+    }));
+  });
+
   function prepareDirtyState(): ContextRequestToken {
     state.applyPrefill(
       context,
@@ -171,7 +245,21 @@ describe('ReporteParadasWorkflowState', () => {
     );
     state.updateDraft({ reasonId: 1, startDate: '2026-07-28', startTime: '08:00' });
     state.ensureIdempotencyKey(() => 'idem-current');
-    state.setQuerySelection(['future-stop']);
     return token;
+  }
+
+  function openStop(id = 10): StopEntry {
+    return {
+      id,
+      context,
+      reason: { id: 1, code: '01', description: 'Setup' },
+      responsible: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+      startDate: new Date(2026, 6, 28),
+      startTime: '08:00',
+      programmed: false,
+      status: 'EM_ANDAMENTO',
+      idempotencyKey: `start-${id}`,
+      syncStatus: 'PENDING',
+    };
   }
 });
