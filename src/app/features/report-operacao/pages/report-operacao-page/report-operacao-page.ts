@@ -779,7 +779,14 @@ export class ReportOperacaoPage implements OnInit {
   private reportOperation(draft: ReporteParcialDraft): void {
     const operation = this.operacao;
     const responsavel = this.responsavelSelecionado;
-    const refugoItens: NonNullable<ReportarOperacaoRequest['refugoItens']> = [];
+    const refugoItens: NonNullable<ReportarOperacaoRequest['refugoItens']> =
+      (draft.refugoItens ?? []).map(item => ({
+        ...item,
+        quantidade: this.round3(item.quantidade),
+      }));
+    const quantidadeAprovada = this.round3(draft.quantidadeAprovada);
+    const quantidadeRetrabalho = this.round3(draft.quantidadeRetrabalho);
+    const quantidadeRefugo = this.round3(draft.quantidadeRefugo);
     const idempotencyKey = draft.idempotencyKey
       ?? `${operation?.op ?? 'sem-op'}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     if (!operation?.dataInicio || !operation.horaInicio || !responsavel || !this.canEditProduction) {
@@ -805,15 +812,27 @@ export class ReportOperacaoPage implements OnInit {
     };
     const validation = this.reportOperacaoService.validarReporteParcial(
       operation,
-      draft.quantidadeAprovada,
-      draft.quantidadeRetrabalho,
-      draft.quantidadeRefugo,
+      quantidadeAprovada,
+      quantidadeRetrabalho,
+      quantidadeRefugo,
     );
+    const invalidReason = refugoItens.some(item =>
+      !Number.isFinite(item.quantidade) || item.quantidade <= 0);
+    const reasonTotal = this.round3(
+      refugoItens.reduce((total, item) => total + item.quantidade, 0),
+    );
+    const expectedScrap = quantidadeRefugo;
+    const reasonValidation = invalidReason
+      ? 'Os motivos de refugo devem possuir quantidades válidas e maiores que zero.'
+      : reasonTotal !== expectedScrap
+        ? `Os motivos de refugo da Ordem ${operation.ordem} devem totalizar ${this.formatQuantity(expectedScrap)}.`
+        : '';
 
-    if (validation) {
-      this.feedback = validation;
-      this.notification.warning(validation);
-      this.reporteSlide?.informarErro(validation);
+    if (validation || reasonValidation) {
+      const message = validation || reasonValidation;
+      this.feedback = message;
+      this.notification.warning(message);
+      this.reporteSlide?.informarErro(message);
       return;
     }
 
@@ -826,9 +845,9 @@ export class ReportOperacaoPage implements OnInit {
       ...operation,
       ...intervalStart,
       ...end,
-      quantidadeAprovada: draft.quantidadeAprovada,
-      quantidadeRetrabalho: draft.quantidadeRetrabalho,
-      quantidadeRefugo: draft.quantidadeRefugo,
+      quantidadeAprovada,
+      quantidadeRetrabalho,
+      quantidadeRefugo,
     };
 
     this.reportOperacaoService.reportarOperacao(
@@ -849,7 +868,9 @@ export class ReportOperacaoPage implements OnInit {
             ...intervalStart,
             dataFim: end.dataFim ?? result.reportadoEm,
             horaFim: end.horaFim,
-            ...draft,
+            quantidadeAprovada,
+            quantidadeRetrabalho,
+            quantidadeRefugo,
             refugoItens: refugoItens.map(item => ({ ...item })),
           };
           this.reportes = [...this.reportes, reporte];
@@ -1064,6 +1085,13 @@ export class ReportOperacaoPage implements OnInit {
 
   private round3(value: number): number {
     return Math.round((value + Number.EPSILON) * 1000) / 1000;
+  }
+
+  private formatQuantity(value: number): string {
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    }).format(value);
   }
 
   private withDerivedTotals(

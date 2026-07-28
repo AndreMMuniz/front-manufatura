@@ -75,6 +75,7 @@
     </p>
 
     <app-reporte-slide
+      [ordem]="operacao?.ordem ?? ''"
       (reporteSolicitado)="salvarReporte($event)"
     ></app-reporte-slide>
 

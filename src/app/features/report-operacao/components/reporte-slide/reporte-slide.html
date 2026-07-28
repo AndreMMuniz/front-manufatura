@@ -1,4 +1,4 @@
-<po-page-slide #pageSlide p-title="Reporte da Operação" p-size="sm" [p-click-out]="false" [p-hide-close]="true">
+<po-page-slide #pageSlide p-title="Reporte da Ordem" p-size="sm" [p-click-out]="false" [p-hide-close]="true">
   <section class="reporte-slide">
     <div class="reporte-slide__entry">
       <po-number
@@ -28,6 +28,59 @@
         (ngModelChange)="atualizarQuantidade('quantidadeRefugo', $event)"
       ></po-number>
     </div>
+
+    <po-button
+      [p-label]="'Editar motivos de refugo' + ordemLabel"
+      p-kind="secondary"
+      [p-disabled]="salvando || carregandoMotivos"
+      (p-click)="editarRefugo()"
+    ></po-button>
+
+    @if (editingRefugo) {
+      <div class="reporte-slide__reason-editor">
+        <po-select
+          name="reporteMotivoRefugo"
+          [p-label]="'Motivo' + ordemLabel"
+          [p-options]="motivoOptions"
+          [p-disabled]="salvando || carregandoMotivos"
+          [ngModel]="motivoCodigo"
+          (ngModelChange)="atualizarMotivo($event)"
+        ></po-select>
+        <po-number
+          name="reporteQuantidadeMotivo"
+          [p-label]="'Quantidade do motivo' + ordemLabel"
+          [p-min]="0"
+          [p-disabled]="salvando || carregandoMotivos"
+          [ngModel]="quantidadeMotivo"
+          (ngModelChange)="atualizarQuantidadeMotivo($event)"
+        ></po-number>
+        <po-button
+          p-label="Adicionar motivo"
+          p-kind="tertiary"
+          [p-disabled]="salvando || carregandoMotivos"
+          (p-click)="adicionarMotivo()"
+        ></po-button>
+      </div>
+    }
+
+    @if (refugoItens.length > 0) {
+      <ul class="reporte-slide__draft-reasons" [attr.aria-label]="'Motivos de refugo' + ordemLabel">
+        @for (item of refugoItens; track item.codigo + $index) {
+          <li>
+            <span>
+              {{ item.codigo }} — {{ item.descricao }}:
+              {{ formatQuantidade(item.quantidade) }}
+            </span>
+            <po-button
+              [p-label]="'Remover motivo ' + item.codigo + ordemLabel"
+              p-kind="tertiary"
+              [p-disabled]="salvando"
+              (p-click)="removerMotivo($index)"
+            ></po-button>
+          </li>
+        }
+      </ul>
+    }
 
     @if (validationMessage) {
       <p class="reporte-slide__feedback" role="alert">{{ validationMessage }}</p>

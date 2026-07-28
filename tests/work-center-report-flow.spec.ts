@@ -164,9 +164,30 @@ test.describe('fluxo de Reporte Ordem', () => {
     await drawer.getByRole('button', { name: 'Salvar reporte' }).click();
     await expect(drawer.getByText('2,000')).toBeVisible();
     await drawer.getByRole('button', { name: 'Voltar' }).click();
+
+    await page.getByRole('button', { name: 'Reporte', exact: true }).click();
+    await drawer.getByRole('spinbutton', { name: 'Qtde Refugo' }).fill('2');
+    await drawer.getByRole('button', {
+      name: 'Editar motivos de refugo da Ordem 450001',
+    }).click();
+    await drawer.getByRole('combobox', { name: 'Motivo da Ordem 450001' }).selectOption('05');
+    await drawer.getByRole('spinbutton', {
+      name: 'Quantidade do motivo da Ordem 450001',
+    }).fill('2');
+    await drawer.getByRole('button', { name: 'Adicionar motivo' }).click();
+    await expect(drawer.getByRole('list', {
+      name: 'Motivos de refugo da Ordem 450001',
+    })).toContainText('05 — Borra: 2,000');
+    await drawer.getByRole('button', { name: 'Salvar reporte' }).click();
+    await expect(drawer.locator('.reporte-slide__reasons')).toContainText('05 - Borra: 2,000');
+    await drawer.getByRole('button', { name: 'Voltar' }).click();
+
     await expect(
       page.locator('app-producao-form').getByRole('spinbutton', { name: 'Qtde Aprovada' }),
     ).toHaveValue('3');
+    await expect(
+      page.locator('app-producao-form').getByRole('spinbutton', { name: 'Qtde Refugo' }),
+    ).toHaveValue('2');
     await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Encerrar', exact: true })).toHaveCount(0);
   });

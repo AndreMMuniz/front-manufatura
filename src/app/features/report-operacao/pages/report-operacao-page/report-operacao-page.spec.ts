@@ -320,7 +320,12 @@ describe('ReportOperacaoPage', () => {
     component.openSelectedOrders();
     component.estado = EstadoOperacao.OperacaoIniciada;
     component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00', quantidadeAprovada: 1 });
-    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 2 });
+    component.salvarReporte({
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 2,
+      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
+    });
 
     expect(component.estado).toBe(EstadoOperacao.Erro);
     expect(component.operacao?.quantidadeRefugo).toBe(0);
@@ -561,23 +566,51 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0.5,
       quantidadeRefugo: 1.5,
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 1.5 },
+      ],
     });
 
     expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0.5,
       quantidadeRefugo: 1.5,
-      refugoItens: [],
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 1.5 },
+      ],
     }));
     expect(component.reportes[0]).toEqual(expect.objectContaining({
       quantidadeRefugo: 1.5,
-      refugoItens: [],
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 1.5 },
+      ],
     }));
     expect(component.operacao).toEqual(expect.objectContaining({
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 0.5,
       quantidadeRefugo: 1.5,
     }));
+  });
+
+  it('rejects a report whose scrap reasons do not match the scrap quantity', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
+
+    component.salvarReporte({
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 2,
+      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1 }],
+    });
+
+    expect(service.reportarOperacao).not.toHaveBeenCalled();
+    expect(component.feedback).toBe(
+      'Os motivos de refugo da Ordem 450001 devem totalizar 2,000.',
+    );
   });
 
   it('opens the unified report for scrap without mounting the scrap-only drawer', () => {
