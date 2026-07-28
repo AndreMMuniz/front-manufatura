@@ -3,7 +3,7 @@ import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
@@ -48,6 +48,10 @@ describe('ReporteParadasPage', () => {
     origin: { type: 'OPERATION_REPORT', sourceRoute: '/operation-reporting', reportId: 'OP-1' },
     preferredResponsible: responsible,
   };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   beforeEach(async () => {
     service = {
@@ -195,6 +199,8 @@ describe('ReporteParadasPage', () => {
   });
 
   it('bloqueia duplo clique, preserva rascunho no erro e reutiliza a chave', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 28, 8));
     const pending = new Subject<never>();
     service.registrarParada.mockReturnValueOnce(pending.asObservable());
     fixture.detectChanges();
@@ -202,6 +208,7 @@ describe('ReporteParadasPage', () => {
 
     component.registrarParada();
     const firstRequest = service.registrarParada.mock.calls[0][0];
+    expect(firstRequest.idempotencyKey).toBe(`stop-${new Date(2026, 6, 28, 8).getTime()}-1`);
     component.registrarParada();
 
     expect(service.registrarParada).toHaveBeenCalledOnce();

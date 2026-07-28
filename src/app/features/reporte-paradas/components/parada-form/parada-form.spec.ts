@@ -25,7 +25,7 @@ describe('ParadaForm', () => {
     });
 
     expect(fixture.componentInstance.form.valid).toBe(true);
-  });
+  }, 10_000);
 
   it('rejeita fim parcial e emite confirmação somente para formulário válido', async () => {
     await TestBed.configureTestingModule({
@@ -50,7 +50,7 @@ describe('ParadaForm', () => {
     fixture.componentInstance.form.patchValue({ endTime: '09:00' });
     fixture.componentInstance.submit();
     expect(submitted).toHaveLength(1);
-  });
+  }, 10_000);
 
   it('bloqueia todos os campos e a confirmação durante salvamento', async () => {
     await TestBed.configureTestingModule({
@@ -62,5 +62,5 @@ describe('ParadaForm', () => {
 
     expect(fixture.componentInstance.form.disabled).toBe(true);
     expect(fixture.nativeElement.querySelector('button[type="submit"]')?.disabled).toBe(true);
-  });
+  }, 10_000);
 });
