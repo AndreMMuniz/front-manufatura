@@ -9,10 +9,7 @@ export enum EstadoOperacao {
   Erro = 'Erro',
 }
 
-export interface AreaProducao {
-  readonly code: string;
-  readonly description: string;
-}
+export type { AreaProducao } from '../../shop-floor/models/production-area';
 
 export interface OrdemCentroTrabalho {
   readonly id: string;

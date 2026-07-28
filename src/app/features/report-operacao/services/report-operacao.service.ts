@@ -1,12 +1,11 @@
 import { inject, Injectable } from '@angular/core';
 
-import { Observable, delay, forkJoin, map, of } from 'rxjs';
+import { Observable, delay, map, of } from 'rxjs';
 
-import { EquipesService } from '../../equipes/services/equipes.service';
+import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
-import { WorkCenterService } from '../../shop-floor/services/work-center';
+import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
-  AreaProducaoResponseDTO,
   EncerrarOperacaoRequest,
   IniciarOperacaoRequest,
   OrdemCentroTrabalhoResponseDTO,
@@ -14,7 +13,6 @@ import {
   ReportarOperacaoRequest,
 } from '../interfaces/report-operacao.dto';
 import {
-  AreaProducao,
   OrdemCentroTrabalho,
   ReportOperacao,
   ReporteResultado,
@@ -24,14 +22,8 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class ReportOperacaoService {
-  private readonly workCenterService = inject(WorkCenterService);
-  private readonly equipesService = inject(EquipesService);
+  private readonly productionCatalog = inject(ProductionContextCatalogService);
   private readonly reportesPorIdempotencia = new Map<string, ReporteResultado>();
-
-  private readonly areas: ReadonlyArray<AreaProducaoResponseDTO> = [
-    { code: '4001', description: 'Produção' },
-    { code: '4002', description: 'Qualidade' },
-  ];
 
   private readonly ordens: ReadonlyArray<OrdemCentroTrabalhoResponseDTO> = [
     {
@@ -118,22 +110,18 @@ export class ReportOperacaoService {
   ];
 
   listarAreasProducao(): Observable<ReadonlyArray<AreaProducao>> {
-    return of(this.areas.map(area => this.mapArea(area))).pipe(delay(100));
+    return this.productionCatalog.listarAreas().pipe(delay(100));
   }
 
   pesquisarCentrosTrabalho(areaCode: string, termo: string): Observable<ReadonlyArray<WorkCenter>> {
-    if (!this.areas.some(area => area.code === areaCode.trim())) {
-      return of([]);
-    }
-
-    return this.workCenterService.searchActiveWorkCenters(areaCode, termo);
+    return this.productionCatalog.pesquisarCentros(areaCode, termo);
   }
 
   listarOrdensPorCentro(
     areaCode: string,
     workCenterCode: string,
   ): Observable<ReadonlyArray<OrdemCentroTrabalho>> {
-    return this.workCenterService.searchActiveWorkCenters(areaCode, '').pipe(
+    return this.productionCatalog.pesquisarCentros(areaCode, '').pipe(
       delay(150),
       map(centers => {
         const validCenter = centers.some(center => this.normalize(center.code) === this.normalize(workCenterCode));
@@ -182,45 +170,8 @@ export class ReportOperacaoService {
     areaCode: string,
     workCenterCode: string,
   ): Observable<ReadonlyArray<ResponsavelOperacao>> {
-    const area = this.normalizeCode(areaCode);
-    const workCenter = this.normalizeCode(workCenterCode);
-    if (!area || !workCenter) {
-      return of([]);
-    }
-
-    const eligibleOperatorCodes = area === '4001' && workCenter === 'CT-EXT-01'
-      ? new Set(['OP-001', '001', '002', '003'])
-      : new Set<string>();
-
-    return forkJoin({
-      operadores: this.equipesService.listarOperadores(),
-      equipes: this.equipesService.listarEquipesElegiveis(area, workCenter),
-    }).pipe(
-      map(({ operadores, equipes }) => {
-        const responsaveis: ReadonlyArray<ResponsavelOperacao> = [
-          ...operadores
-            .map(operador => ({
-              tipo: 'OPERADOR' as const,
-              codigo: this.normalizeCode(operador.codigo),
-              nome: operador.nome,
-            }))
-            .filter(operador => eligibleOperatorCodes.has(operador.codigo)),
-          ...equipes.map(equipe => ({
-            tipo: 'EQUIPE' as const,
-            codigo: this.normalizeCode(equipe.codigo),
-            nome: equipe.descricao,
-          })),
-        ];
-
-        const unique = new Map<string, ResponsavelOperacao>();
-        for (const responsavel of responsaveis) {
-          unique.set(
-            `${responsavel.tipo}|${this.normalizeCode(responsavel.codigo)}`,
-            { ...responsavel },
-          );
-        }
-        return [...unique.values()].map(responsavel => ({ ...responsavel }));
-      }),
+    return this.productionCatalog.listarResponsaveis(areaCode, workCenterCode).pipe(
+      map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))),
     );
   }
 
@@ -324,10 +275,6 @@ export class ReportOperacaoService {
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
     };
-  }
-
-  private mapArea(dto: AreaProducaoResponseDTO): AreaProducao {
-    return { code: dto.code, description: dto.description };
   }
 
   private mapOrdem(dto: OrdemCentroTrabalhoResponseDTO): OrdemCentroTrabalho {

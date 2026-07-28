@@ -1,21 +1,21 @@
 <po-page-default [p-title]="pageTitle">
   <section class="report-operacao">
-    <app-contexto-producao-card
+    <app-contexto-producao-selector
       [areas]="areas"
       [centers]="centers"
       [areaCode]="areaCode"
       [workCenterCode]="workCenterCode"
       [loadingAreas]="loadingAreas"
       [loadingCenters]="loadingCenters"
-      [loadingOrders]="loadingOrders"
+      [loadingAction]="loadingOrders"
       [disabled]="isBusy"
       [consultBlocked]="hasActiveWorkflow"
       [errorMessage]="contextError"
       (areaChange)="onAreaChange($event)"
       (workCenterChange)="onWorkCenterChange($event)"
-      (consult)="consultOrders()"
+      (action)="consultOrders()"
       (retry)="retryContext()"
-    ></app-contexto-producao-card>
+    ></app-contexto-producao-selector>
 
     <app-ordens-centro-list
       [orders]="orders"

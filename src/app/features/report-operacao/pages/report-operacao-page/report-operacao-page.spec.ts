@@ -14,7 +14,7 @@ import {
 } from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
-import { ContextoProducaoCard } from '../../components/contexto-producao-card/contexto-producao-card';
+import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { EstadoOperacao, OrdemCentroTrabalho, ReportOperacao } from '../../models/report-operacao.model';
 import { ReportOperacaoWorkflowState } from '../../services/report-operacao-workflow-state';
 import { ReportOperacaoService } from '../../services/report-operacao.service';
@@ -446,12 +446,12 @@ describe('ReportOperacaoPage', () => {
     component.openSelectedOrders();
     fixture.detectChanges();
 
-    const card = fixture.debugElement.query(By.directive(ContextoProducaoCard)).componentInstance as ContextoProducaoCard;
+    const card = fixture.debugElement.query(By.directive(ContextoProducaoSelector)).componentInstance as ContextoProducaoSelector;
 
     expect(card.disabled).toBe(false);
     expect(card.consultBlocked).toBe(true);
     expect(card.centerDisabled).toBe(false);
-    expect(card.consultDisabled).toBe(true);
+    expect(card.actionDisabled).toBe(true);
   });
 
   it('renders only the start and report operation actions', () => {

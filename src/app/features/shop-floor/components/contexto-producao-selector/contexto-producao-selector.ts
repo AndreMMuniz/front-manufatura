@@ -9,30 +9,34 @@ import {
   PoWidgetModule,
 } from '@po-ui/ng-components';
 
-import { WorkCenter } from '../../../shop-floor/models/work-center';
-import { AreaProducaoBatelada } from '../../models/reporta-batelada.model';
+import { AreaProducao } from '../../models/production-area';
+import { WorkCenter } from '../../models/work-center';
 
 @Component({
-  selector: 'app-contexto-producao-batelada',
+  selector: 'app-contexto-producao-selector',
   imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, PoWidgetModule],
-  templateUrl: './contexto-producao.html',
-  styleUrls: ['./contexto-producao.css'],
+  templateUrl: './contexto-producao-selector.html',
+  styleUrls: ['./contexto-producao-selector.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ContextoProducaoBatelada {
-  @Input() areas: ReadonlyArray<AreaProducaoBatelada> = [];
+export class ContextoProducaoSelector {
+  @Input() areas: ReadonlyArray<AreaProducao> = [];
   @Input() centers: ReadonlyArray<WorkCenter> = [];
   @Input() areaCode = '';
   @Input() workCenterCode = '';
   @Input() loadingAreas = false;
   @Input() loadingCenters = false;
-  @Input() loadingOrders = false;
+  @Input() loadingAction = false;
   @Input() disabled = false;
+  @Input() consultBlocked = false;
+  @Input() showAction = true;
+  @Input() actionLabel = 'Consultar ordens';
+  @Input() loadingText = 'Consultando ordens...';
   @Input() errorMessage = '';
 
   @Output() areaChange = new EventEmitter<string>();
   @Output() workCenterChange = new EventEmitter<string>();
-  @Output() consult = new EventEmitter<void>();
+  @Output() action = new EventEmitter<void>();
   @Output() retry = new EventEmitter<void>();
 
   get areaOptions(): ReadonlyArray<PoSelectOption> {
@@ -53,14 +57,21 @@ export class ContextoProducaoBatelada {
     return this.disabled || this.loadingAreas || this.loadingCenters || !this.areaCode;
   }
 
-  get consultDisabled(): boolean {
-    return (
-      this.disabled ||
-      this.loadingAreas ||
-      this.loadingCenters ||
-      this.loadingOrders ||
-      !this.areaCode ||
-      !this.workCenterCode
-    );
+  get actionDisabled(): boolean {
+    return this.disabled
+      || this.consultBlocked
+      || this.loadingAreas
+      || this.loadingCenters
+      || this.loadingAction
+      || !this.areaCode
+      || !this.workCenterCode;
+  }
+
+  changeArea(value: string | null | undefined): void {
+    this.areaChange.emit(value ?? '');
+  }
+
+  changeWorkCenter(value: string | null | undefined): void {
+    this.workCenterChange.emit(value ?? '');
   }
 }

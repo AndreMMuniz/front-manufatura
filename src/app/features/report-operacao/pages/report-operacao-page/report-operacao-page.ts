@@ -25,9 +25,10 @@ import {
   GerenciarEquipeSlide,
 } from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
+import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
+import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
-import { ContextoProducaoCard } from '../../components/contexto-producao-card/contexto-producao-card';
 import { OpDetalhesCard } from '../../components/op-detalhes-card/op-detalhes-card';
 import { OperacaoInfoCard } from '../../components/operacao-info-card/operacao-info-card';
 import { OrdensCentroList } from '../../components/ordens-centro-list/ordens-centro-list';
@@ -36,7 +37,6 @@ import { ReporteParcialDraft, ReporteSlide } from '../../components/reporte-slid
 import { ReportActions } from '../../components/report-actions/report-actions';
 import { ReportarOperacaoRequest } from '../../interfaces/report-operacao.dto';
 import {
-  AreaProducao,
   EstadoConsultaOrdens,
   EstadoOperacao,
   OrdemCentroTrabalho,
@@ -51,7 +51,7 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
 @Component({
   selector: 'app-report-operacao-page',
   imports: [
-    ContextoProducaoCard,
+    ContextoProducaoSelector,
     OpDetalhesCard,
     OperacaoInfoCard,
     OrdensCentroList,

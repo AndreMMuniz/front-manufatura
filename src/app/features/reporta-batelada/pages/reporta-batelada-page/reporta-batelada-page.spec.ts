@@ -12,7 +12,7 @@ import {
   GerenciarEquipeSlide,
 } from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
-import { ContextoProducaoBatelada } from '../../components/contexto-producao/contexto-producao';
+import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { OrdensCentroBateladaList } from '../../components/ordens-centro-list/ordens-centro-list';
 import { ReporteBateladaSlide } from '../../components/reporte-batelada-slide/reporte-batelada-slide';
 import {
@@ -265,11 +265,11 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.iniciarBatelada();
     fixture.detectChanges();
 
-    const contextCard = fixture.debugElement.query(By.directive(ContextoProducaoBatelada))
-      .componentInstance as ContextoProducaoBatelada;
+    const contextCard = fixture.debugElement.query(By.directive(ContextoProducaoSelector))
+      .componentInstance as ContextoProducaoSelector;
     const ordersList = fixture.debugElement.query(By.directive(OrdensCentroBateladaList))
       .componentInstance as OrdensCentroBateladaList;
-    expect(contextCard.loadingOrders).toBe(false);
+    expect(contextCard.loadingAction).toBe(false);
     expect(ordersList.loading).toBe(false);
     expect(fixture.nativeElement.textContent).not.toContain('Consultando ordens...');
     expect(fixture.nativeElement.textContent).toContain('Iniciando todas as ordens');
@@ -288,8 +288,8 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.responsavel?.codigo).toBe('OP-001');
     expect(component.view.errorMessage).toContain('Não foi possível iniciar');
     fixture.detectChanges();
-    const contextCard = fixture.debugElement.query(By.directive(ContextoProducaoBatelada))
-      .componentInstance as ContextoProducaoBatelada;
+    const contextCard = fixture.debugElement.query(By.directive(ContextoProducaoSelector))
+      .componentInstance as ContextoProducaoSelector;
     expect(contextCard.errorMessage).toBe('');
 
     component.iniciarBatelada();

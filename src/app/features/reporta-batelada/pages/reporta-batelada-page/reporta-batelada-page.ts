@@ -23,16 +23,16 @@ import {
   GerenciarEquipeSlide,
 } from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
+import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
+import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
-import { ContextoProducaoBatelada } from '../../components/contexto-producao/contexto-producao';
 import { FooterAcoesBatelada } from '../../components/footer-acoes-batelada/footer-acoes-batelada';
 import { InformacoesBatelada } from '../../components/informacoes-batelada/informacoes-batelada';
 import { OrdensCentroBateladaList } from '../../components/ordens-centro-list/ordens-centro-list';
 import { OrdensSelecionadasBatelada } from '../../components/ordens-selecionadas/ordens-selecionadas';
 import { ReporteBateladaSlide } from '../../components/reporte-batelada-slide/reporte-batelada-slide';
 import {
-  AreaProducaoBatelada,
   EstadoBatelada,
   RascunhoReporteBatelada,
   ResponsavelBatelada,
@@ -48,7 +48,7 @@ import {
 @Component({
   selector: 'app-reporta-batelada-page',
   imports: [
-    ContextoProducaoBatelada,
+    ContextoProducaoSelector,
     FooterAcoesBatelada,
     InformacoesBatelada,
     OrdensCentroBateladaList,
@@ -78,7 +78,7 @@ export class ReportaBateladaPage implements OnInit {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
 
-  areas: ReadonlyArray<AreaProducaoBatelada> = [];
+  areas: ReadonlyArray<AreaProducao> = [];
   centers: ReadonlyArray<WorkCenter> = [];
   view: ReportaBateladaWorkflowSnapshot = this.workflow.snapshot();
   selectedIds: ReadonlySet<string> = new Set<string>();

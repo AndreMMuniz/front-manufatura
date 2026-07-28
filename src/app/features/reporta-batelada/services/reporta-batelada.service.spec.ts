@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
+import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
   EncerrarBateladaResponse,
   IniciarBateladaResponse,
@@ -22,8 +23,8 @@ describe('ReportaBateladaService', () => {
   let service: ReportaBateladaService;
   let session$: BehaviorSubject<unknown>;
   let catalogMock: {
-    listarAreasProducao: ReturnType<typeof vi.fn>;
-    pesquisarCentrosTrabalho: ReturnType<typeof vi.fn>;
+    listarAreas: ReturnType<typeof vi.fn>;
+    pesquisarCentros: ReturnType<typeof vi.fn>;
     listarOrdensPorCentro: ReturnType<typeof vi.fn>;
     listarResponsaveis: ReturnType<typeof vi.fn>;
   };
@@ -31,8 +32,8 @@ describe('ReportaBateladaService', () => {
   beforeEach(() => {
     session$ = new BehaviorSubject<unknown>({ user: 'operador' });
     catalogMock = {
-      listarAreasProducao: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
-      pesquisarCentrosTrabalho: vi.fn(() => of([workCenter()])),
+      listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
+      pesquisarCentros: vi.fn(() => of([workCenter()])),
       listarOrdensPorCentro: vi.fn(() => of([order('1'), order('2')])),
       listarResponsaveis: vi.fn(() => of([responsavel()])),
     };
@@ -42,6 +43,7 @@ describe('ReportaBateladaService', () => {
         ReportaBateladaService,
         { provide: AuthSessionService, useValue: { session$ } },
         { provide: ReportOperacaoService, useValue: catalogMock },
+        { provide: ProductionContextCatalogService, useValue: catalogMock },
       ],
     });
     service = TestBed.inject(ReportaBateladaService);
@@ -51,8 +53,8 @@ describe('ReportaBateladaService', () => {
     const areas = await firstValueFrom(service.listarAreas());
     const centers = await firstValueFrom(service.pesquisarCentros('4001', 'ext'));
 
-    expect(catalogMock.listarAreasProducao).toHaveBeenCalledOnce();
-    expect(catalogMock.pesquisarCentrosTrabalho).toHaveBeenCalledWith('4001', 'ext');
+    expect(catalogMock.listarAreas).toHaveBeenCalledOnce();
+    expect(catalogMock.pesquisarCentros).toHaveBeenCalledWith('4001', 'ext');
     expect(areas).toEqual([{ code: '4001', description: 'Produção' }]);
     expect(centers).toEqual([workCenter()]);
     expect(areas).not.toBe(await firstValueFrom(service.listarAreas()));

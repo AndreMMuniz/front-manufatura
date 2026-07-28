@@ -13,10 +13,7 @@ export enum EstadoBatelada {
 
 export type EstadoAssincronoBatelada = 'ocioso' | 'carregando' | 'sucesso' | 'vazio' | 'erro';
 
-export interface AreaProducaoBatelada {
-  readonly code: string;
-  readonly description: string;
-}
+export type { AreaProducao as AreaProducaoBatelada } from '../../shop-floor/models/production-area';
 
 export interface OrdemLiberadaBatelada {
   readonly id: string;

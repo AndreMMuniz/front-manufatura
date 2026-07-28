@@ -4,21 +4,21 @@
       (equipeSalva)="onEquipeSalva($event)"
     ></app-gerenciar-equipe-slide>
 
-    <app-contexto-producao-batelada
+    <app-contexto-producao-selector
       [areas]="areas"
       [centers]="centers"
       [areaCode]="view.area?.code ?? ''"
       [workCenterCode]="view.workCenter?.code ?? ''"
       [loadingAreas]="loadingAreas"
       [loadingCenters]="loadingCenters"
-      [loadingOrders]="view.estado === 'ConsultandoOrdens'"
+      [loadingAction]="view.estado === 'ConsultandoOrdens'"
       [disabled]="contextLocked"
       [errorMessage]="view.asyncState === 'erro' && view.estado === 'OrdensDisponiveis' ? view.errorMessage : ''"
       (areaChange)="selecionarArea($event)"
       (workCenterChange)="selecionarCentro($event)"
-      (consult)="consultarOrdens()"
+      (action)="consultarOrdens()"
       (retry)="consultarOrdens()"
-    ></app-contexto-producao-batelada>
+    ></app-contexto-producao-selector>
 
     <app-ordens-centro-batelada-list
       [orders]="view.orders"

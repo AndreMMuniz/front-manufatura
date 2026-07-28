@@ -8,7 +8,7 @@
       [p-disabled]="disabled"
       [p-loading]="loadingAreas"
       [ngModel]="areaCode"
-      (ngModelChange)="areaChange.emit($event ?? '')"
+      (ngModelChange)="changeArea($event)"
     ></po-select>
 
     <po-select
@@ -19,22 +19,24 @@
       [p-disabled]="centerDisabled"
       [p-loading]="loadingCenters"
       [ngModel]="workCenterCode"
-      (ngModelChange)="workCenterChange.emit($event ?? '')"
+      (ngModelChange)="changeWorkCenter($event)"
     ></po-select>
 
-    <po-button
-      class="contexto-producao__action"
-      p-label="Consultar ordens"
-      p-kind="primary"
-      [p-disabled]="consultDisabled"
-      [p-loading]="loadingOrders"
-      (p-click)="consult.emit()"
-    ></po-button>
+    @if (showAction) {
+      <po-button
+        class="contexto-producao__action"
+        [p-label]="actionLabel"
+        p-kind="primary"
+        [p-disabled]="actionDisabled"
+        [p-loading]="loadingAction"
+        (p-click)="action.emit()"
+      ></po-button>
+    }
   </div>
 
-  @if (loadingOrders) {
+  @if (loadingAction) {
     <div class="contexto-producao__status" role="status" aria-live="polite">
-      <po-loading p-text="Consultando ordens..." p-size="sm"></po-loading>
+      <po-loading [p-text]="loadingText" p-size="sm"></po-loading>
     </div>
   }
 

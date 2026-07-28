@@ -4,7 +4,9 @@ import { Observable, delay, map, of } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
+import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
+import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
   EncerrarBateladaRequest,
   EncerrarBateladaResponse,
@@ -14,7 +16,6 @@ import {
   ReporteParcialBateladaResponse,
 } from '../interfaces/reporta-batelada.dto';
 import {
-  AreaProducaoBatelada,
   arredondarQuantidadeBatelada,
   ContextoBatelada,
   EncerramentoBatelada,
@@ -38,7 +39,8 @@ interface IdempotentReportRecord {
 
 @Injectable({ providedIn: 'root' })
 export class ReportaBateladaService {
-  private readonly catalog = inject(ReportOperacaoService);
+  private readonly reportCatalog = inject(ReportOperacaoService);
+  private readonly productionCatalog = inject(ProductionContextCatalogService);
   private readonly authSession = inject(AuthSessionService, { optional: true });
   private readonly batches = new Map<string, BatchMockRecord>();
   private readonly reportsByBatch = new Map<string, ReadonlyArray<ReporteParcialBatelada>>();
@@ -69,9 +71,9 @@ export class ReportaBateladaService {
     this.stoppedWorkflow = null;
   }
 
-  listarAreas(): Observable<ReadonlyArray<AreaProducaoBatelada>> {
-    return this.catalog.listarAreasProducao().pipe(
-      map(areas => areas.map(area => ({ code: area.code, description: area.description }))),
+  listarAreas(): Observable<ReadonlyArray<AreaProducao>> {
+    return this.productionCatalog.listarAreas().pipe(
+      map(areas => areas.map(area => ({ ...area }))),
     );
   }
 
@@ -80,7 +82,7 @@ export class ReportaBateladaService {
       return of([]);
     }
 
-    return this.catalog.pesquisarCentrosTrabalho(areaCode, termo).pipe(
+    return this.productionCatalog.pesquisarCentros(areaCode, termo).pipe(
       map(centers => centers.map(center => ({ ...center }))),
     );
   }
@@ -93,7 +95,7 @@ export class ReportaBateladaService {
       return of([]);
     }
 
-    return this.catalog.listarOrdensPorCentro(areaCode, workCenterCode).pipe(
+    return this.reportCatalog.listarOrdensPorCentro(areaCode, workCenterCode).pipe(
       map(orders => orders.map(order => ({ ...order }))),
     );
   }
@@ -106,7 +108,7 @@ export class ReportaBateladaService {
       return of([]);
     }
 
-    return this.catalog.listarResponsaveis(areaCode, workCenterCode).pipe(
+    return this.productionCatalog.listarResponsaveis(areaCode, workCenterCode).pipe(
       map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))),
     );
   }
