@@ -29,7 +29,7 @@ describe('ReporteBateladaSlide', () => {
     expect(component.canSave).toBe(true);
   });
 
-  it('renders unique accessible order labels and the ordered history columns in the DOM', () => {
+  it('renders the same quantity labels as the order report and the ordered history columns in the DOM', () => {
     TestBed.configureTestingModule({
       imports: [ReporteBateladaSlide],
       providers: [
@@ -44,8 +44,11 @@ describe('ReporteBateladaSlide', () => {
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Aprovada — Ordem 450002');
-    expect(text).toContain('Aprovada — Ordem 450001');
+    expect(text).toContain('Qtde Aprovada');
+    expect(text).toContain('Qtde Retrabalho');
+    expect(text).toContain('Qtde Refugo');
+    expect(text).not.toContain('Aprovada — Ordem 450002');
+    expect(text).not.toContain('Aprovada — Ordem 450001');
     expect(text).toContain('Ordem');
     expect(text).toContain('Data/Hora');
     expect(text).toContain('Retrabalho');

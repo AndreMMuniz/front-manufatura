@@ -349,14 +349,17 @@ test.describe('fluxo de Reporte Batelada', () => {
     await reportAction.click();
 
     const drawer = page.locator('app-reporte-batelada-slide');
-    await drawer.getByRole('spinbutton', { name: 'Aprovada — Ordem 450001', exact: true }).fill('1');
-    await drawer.getByRole('spinbutton', { name: 'Aprovada — Ordem 450002', exact: true }).fill('2');
+    await drawer.locator('article').filter({ hasText: 'Ordem 450001' })
+      .getByRole('spinbutton', { name: 'Qtde Aprovada', exact: true }).fill('1');
+    await drawer.locator('article').filter({ hasText: 'Ordem 450002' })
+      .getByRole('spinbutton', { name: 'Qtde Aprovada', exact: true }).fill('2');
     await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
     await expect(drawer.getByText('Reportes anteriores')).toBeVisible();
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(1);
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450002' })).toHaveCount(1);
 
-    await drawer.getByRole('spinbutton', { name: 'Retrabalho — Ordem 450001', exact: true }).fill('3');
+    await drawer.locator('article').filter({ hasText: 'Ordem 450001' })
+      .getByRole('spinbutton', { name: 'Qtde Retrabalho', exact: true }).fill('3');
     await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(2);
     await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();

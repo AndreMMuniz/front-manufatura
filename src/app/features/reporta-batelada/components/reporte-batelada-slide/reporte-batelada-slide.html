@@ -13,7 +13,7 @@
           <div class="batch-report__fields">
             <po-number
               [name]="'aprovada-' + item.orderId"
-              [p-label]="'Aprovada — Ordem ' + item.ordem"
+              p-label="Qtde Aprovada"
               [p-min]="0"
               [p-disabled]="salvando"
               [ngModel]="item.quantidadeAprovada"
@@ -21,7 +21,7 @@
             ></po-number>
             <po-number
               [name]="'retrabalho-' + item.orderId"
-              [p-label]="'Retrabalho — Ordem ' + item.ordem"
+              p-label="Qtde Retrabalho"
               [p-min]="0"
               [p-disabled]="salvando"
               [ngModel]="item.quantidadeRetrabalho"
@@ -29,7 +29,7 @@
             ></po-number>
             <po-number
               [name]="'refugo-' + item.orderId"
-              [p-label]="'Refugo — Ordem ' + item.ordem"
+              p-label="Qtde Refugo"
               [p-min]="0"
               [p-disabled]="salvando"
               [ngModel]="item.quantidadeRefugo"
