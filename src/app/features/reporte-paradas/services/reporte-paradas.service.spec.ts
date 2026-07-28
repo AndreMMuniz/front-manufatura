@@ -1,114 +1,109 @@
-import { firstValueFrom } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { firstValueFrom, of, throwError } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
-import { ProductionContext, StopEntry, StopReason } from '../models/reporte-paradas.model';
-
+import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
+import { ProductionContext, StopReason } from '../models/reporte-paradas.model';
 import { ReporteParadasService } from './reporte-paradas.service';
 
 describe('ReporteParadasService', () => {
-  const service = new ReporteParadasService();
+  const center = {
+    code: 'CT-EXT-01',
+    description: 'Extrusão',
+    areaCode: '4001',
+    area: 'Produção',
+    machineGroup: 'Extrusoras',
+    establishment: '101',
+    active: true,
+  };
   const reason: StopReason = { id: 2, code: '02', description: 'Almoço' };
   const context: ProductionContext = {
-    workCenter: 'CT-ESTAMP-01',
-    machineGroup: 'Prensas Hidraulicas',
-    operatorName: 'Joao Pereira',
-    team: 'Equipe A',
-    shift: '1o Turno',
-    reportId: '450001-OP-10458-01',
-    sourceRoute: '/operation-reporting',
+    area: { code: '4001', description: 'Produção' },
+    workCenter: center,
+    origin: {
+      type: 'OPERATION_REPORT',
+      sourceRoute: '/operation-reporting',
+      reportId: '450001-OP-10458-01',
+    },
+    preferredResponsible: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+    metadata: { shift: '1º Turno', machineGroup: 'Extrusoras' },
   };
 
-  it('loads stop reasons from the mock Datasul boundary', async () => {
-    const reasons = await firstValueFrom(service.listReasons());
-
-    expect(reasons.length).toBeGreaterThan(0);
-    expect(reasons.some(item => item.description === 'Almoço')).toBe(true);
-  });
-
-  it('calculates stop duration from start and end timestamps', () => {
-    expect(service.formatDuration(stop({ startTime: '12:00', endTime: '13:15' }))).toBe('01:15:00');
-  });
-
-  it('blocks save without a production context', () => {
-    expect(service.validateStops([stop()], null)).toBe('Abra o reporte de paradas a partir de uma operação iniciada.');
-  });
-
-  it('blocks save without stops', () => {
-    expect(service.validateStops([], context)).toBe('Adicione ao menos um motivo de parada.');
-  });
-
-  it('blocks inverted intervals', () => {
-    expect(service.validateStops([stop({ startTime: '14:00', endTime: '13:00' })], context)).toContain(
-      'não pode ser anterior',
-    );
-  });
-
-  it('allows a valid stop entry', () => {
-    expect(service.validateStops([stop()], context)).toBe('');
-  });
-
-  it('uses the batch identifier and preserves shift in a started batch context', () => {
-    const setContext = service.setContextFromStartedBatch.bind(service) as (
-      workCenter: Parameters<ReporteParadasService['setContextFromStartedBatch']>[0],
-      responsavel: Parameters<ReporteParadasService['setContextFromStartedBatch']>[1],
-      composition: Parameters<ReporteParadasService['setContextFromStartedBatch']>[2],
-      batchId: string,
-      shift: string,
-    ) => void;
-    setContext(
-      {
-        code: 'CT-EXT-01',
-        description: 'Extrusão',
-        areaCode: '4001',
-        area: 'Produção',
-        machineGroup: 'Extrusoras',
-        establishment: '101',
-        active: true,
-      },
-      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
-      [
-        { id: '1-2', ordem: '450001', itemOp: 'ITEM-1 / OP-1', operacao: '10', split: '01' },
-        { id: '3', ordem: '450002', itemOp: 'ITEM-2 / OP-2', operacao: '20', split: '01' },
-      ],
-      'batch-42',
-      '1o Turno',
-    );
-
-    expect(service.getActiveContext()).toEqual(expect.objectContaining({
-      reportId: 'batch-42',
-      shift: '1o Turno',
-    }));
-  });
-
-  it('does not invent a shift when batch context has none', () => {
-    service.setContextFromStartedBatch(
-      {
-        code: 'CT-EXT-01',
-        description: 'Extrusão',
-        areaCode: '4001',
-        area: 'Produção',
-        machineGroup: 'Extrusoras',
-        establishment: '101',
-        active: true,
-      },
-      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
-      [{ id: '1', ordem: '450001', itemOp: 'ITEM-1 / OP-1', operacao: '10', split: '01' }],
-      'batch-42',
-    );
-
-    expect(service.getActiveContext()?.shift).toBe('');
-  });
-
-  function stop(overrides: Partial<StopEntry> = {}): StopEntry {
-    return {
-      id: 1,
-      reason,
-      startDate: new Date(2026, 5, 30),
-      startTime: '12:00',
-      endDate: new Date(2026, 5, 30),
-      endTime: '13:00',
-      programmed: true,
-      ...overrides,
+  function setup() {
+    const catalog = {
+      listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
+      pesquisarCentros: vi.fn(() => of([center])),
+      listarResponsaveis: vi.fn(() => of([
+        { tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' },
+      ])),
     };
+    TestBed.configureTestingModule({
+      providers: [
+        ReporteParadasService,
+        { provide: ProductionContextCatalogService, useValue: catalog },
+      ],
+    });
+    return { service: TestBed.inject(ReporteParadasService), catalog };
   }
+
+  it('delega Área, CT e responsáveis à fronteira operacional compartilhada', async () => {
+    const { service, catalog } = setup();
+
+    const areas = await firstValueFrom(service.listarAreas());
+    const centers = await firstValueFrom(service.pesquisarCentros('4001'));
+    const responsaveis = await firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01'));
+
+    expect(catalog.listarAreas).toHaveBeenCalledOnce();
+    expect(catalog.pesquisarCentros).toHaveBeenCalledWith('4001', '');
+    expect(catalog.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01');
+    expect(areas).toEqual([{ code: '4001', description: 'Produção' }]);
+    expect(centers).toEqual([center]);
+    expect(responsaveis).toEqual([
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+    ]);
+  });
+
+  it('mantém motivos mockados exclusivamente no service e devolve cópias defensivas', async () => {
+    const { service } = setup();
+
+    const first = await firstValueFrom(service.listarMotivos('4001', 'CT-EXT-01'));
+    const second = await firstValueFrom(service.listarMotivos('4001', 'CT-EXT-01'));
+
+    expect(first).toContainEqual(reason);
+    expect(first).not.toBe(second);
+    expect(first[0]).not.toBe(second[0]);
+  });
+
+  it('propaga falha do catálogo e não a converte em lista vazia', async () => {
+    const { service, catalog } = setup();
+    catalog.listarResponsaveis.mockReturnValueOnce(
+      throwError(() => new Error('Catálogo indisponível')),
+    );
+
+    await expect(firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01')))
+      .rejects.toThrow('Catálogo indisponível');
+  });
+
+  it('preserva e devolve prefill tipado por cópia profunda', () => {
+    const { service } = setup();
+    service.setPrefillContext(context);
+
+    const first = service.getPrefillContext();
+    const second = service.getPrefillContext();
+
+    expect(first).toEqual(context);
+    expect(first).not.toBe(context);
+    expect(first?.area).not.toBe(context.area);
+    expect(first?.workCenter).not.toBe(context.workCenter);
+    expect(first).not.toBe(second);
+  });
+
+  it('limpa o prefill sem apagar registros confirmados', () => {
+    const { service } = setup();
+    service.setPrefillContext(context);
+
+    service.clearPrefillContext();
+
+    expect(service.getPrefillContext()).toBeNull();
+  });
 });

@@ -132,23 +132,23 @@
       <div class="reporte-paradas__context">
         <div>
           <span>CT</span>
-          <strong>{{ context()?.workCenter ?? '-' }}</strong>
+          <strong>{{ context()?.workCenter?.code ?? '-' }}</strong>
         </div>
         <div>
           <span>Máquina</span>
-          <strong>{{ context()?.machineGroup ?? '-' }}</strong>
+          <strong>{{ context()?.metadata?.machineGroup ?? '-' }}</strong>
         </div>
         <div>
           <span>Operador</span>
-          <strong>{{ context()?.operatorName ?? '-' }}</strong>
+          <strong>{{ context()?.preferredResponsible?.tipo === 'OPERADOR' ? context()?.preferredResponsible?.nome : '-' }}</strong>
         </div>
         <div>
           <span>Equipe</span>
-          <strong>{{ context()?.team ?? '-' }}</strong>
+          <strong>{{ context()?.preferredResponsible?.tipo === 'EQUIPE' ? context()?.preferredResponsible?.nome : '-' }}</strong>
         </div>
         <div>
           <span>Turno</span>
-          <strong>{{ context()?.shift ?? '-' }}</strong>
+          <strong>{{ context()?.metadata?.shift ?? '-' }}</strong>
         </div>
       </div>
     </po-widget>

@@ -90,7 +90,7 @@ describe('ReportOperacaoPage', () => {
         { provide: ReportOperacaoService, useValue: service },
         { provide: ReportOperacaoWorkflowState, useValue: workflow },
         { provide: OperationalContextService, useValue: operationalContext },
-        { provide: ReporteParadasService, useValue: { setContextFromOperation: vi.fn() } },
+        { provide: ReporteParadasService, useValue: { setPrefillContext: vi.fn() } },
         { provide: PoDialogService, useValue: dialog },
         {
           provide: PoNotificationService,

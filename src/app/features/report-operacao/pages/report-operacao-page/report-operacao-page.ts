@@ -473,7 +473,28 @@ export class ReportOperacaoPage implements OnInit {
 
     this.workflowState.setActiveOperation(this.operacao, this.estado);
     this.feedback = 'Abrindo reporte de paradas com o contexto da operação.';
-    this.reporteParadasService.setContextFromOperation(this.operacao);
+    const area = this.areas.find(item => item.code === this.areaCode);
+    const workCenter = this.centers.find(item => item.code === this.workCenterCode);
+    const responsible = this.responsaveis.find(item =>
+      item.tipo === this.tipoResponsavel && item.codigo === this.responsavelCodigo,
+    );
+    if (!area || !workCenter || !responsible) {
+      return;
+    }
+    this.reporteParadasService.setPrefillContext({
+      area,
+      workCenter,
+      origin: {
+        type: 'OPERATION_REPORT',
+        sourceRoute: '/operation-reporting',
+        reportId: `${this.operacao.ordem}-${this.operacao.op}-${this.operacao.split}`,
+      },
+      preferredResponsible: responsible,
+      metadata: {
+        shift: this.operacao.turno,
+        machineGroup: this.operacao.grupoMaquina,
+      },
+    });
     void this.router.navigate(['/stoppages']);
   }
 

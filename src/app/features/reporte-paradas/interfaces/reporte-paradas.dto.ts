@@ -1,15 +1,26 @@
+import {
+  ProductionContextOrigin,
+  ResponsavelParada,
+} from '../models/reporte-paradas.model';
+
 export interface CreateStopRequest {
-  readonly reportId: string;
+  readonly areaCode: string;
+  readonly workCenterCode: string;
   readonly reasonId: number;
-  readonly startDate: Date;
+  readonly responsible: ResponsavelParada;
+  readonly startDate: Date | string;
   readonly startTime: string;
-  readonly endDate?: Date;
-  readonly endTime: string;
+  readonly endDate?: Date | string | null;
+  readonly endTime?: string | null;
   readonly programmed: boolean;
+  readonly origin?: ProductionContextOrigin;
+  readonly idempotencyKey: string;
 }
 
 export interface StopResponse {
   readonly id: number;
-  readonly durationMinutes: number;
-  readonly status: string;
+  readonly idempotencyKey: string;
+  readonly status: 'EM_ANDAMENTO' | 'FINALIZADA';
+  readonly syncStatus: 'PENDING' | 'SYNCED' | 'ERROR';
+  readonly durationMinutes?: number;
 }

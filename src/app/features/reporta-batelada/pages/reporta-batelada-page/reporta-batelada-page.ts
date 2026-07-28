@@ -443,19 +443,27 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   abrirParada(): void {
-    if (!this.canReport || !this.view.workCenter || !this.view.responsavel) {
+    if (!this.canReport || !this.view.area || !this.view.workCenter || !this.view.responsavel) {
       return;
     }
 
     this.workflow.enterStop();
     this.syncView();
     this.service.preservarFluxoParada(this.view);
-    this.stoppages.setContextFromStartedBatch(
-      this.view.workCenter,
-      this.view.responsavel,
-      this.view.composition,
-      this.view.batchId ?? undefined,
-    );
+    this.stoppages.setPrefillContext({
+      area: this.view.area,
+      workCenter: this.view.workCenter,
+      origin: {
+        type: 'BATCH_REPORT',
+        sourceRoute: '/batch-reporting',
+        batchId: this.view.batchId ?? undefined,
+      },
+      preferredResponsible: this.view.responsavel,
+      metadata: {
+        machineGroup: this.view.workCenter.machineGroup,
+        orderIds: this.view.composition.map(order => order.id),
+      },
+    });
     void this.router.navigate(['/stoppages'])
       .then(navigated => {
         if (!navigated) {

@@ -141,7 +141,7 @@ export class ReporteParadasPage implements OnInit {
       .subscribe({
         next: result => {
           this.notification.success(`Paradas salvas. Protocolo ${result.protocol}.`);
-          void this.router.navigate([context.sourceRoute]);
+          void this.router.navigate([context.origin?.sourceRoute ?? '/menu']);
         },
         error: () => {
           this.state.set('error');
@@ -151,7 +151,7 @@ export class ReporteParadasPage implements OnInit {
   }
 
   voltar(): void {
-    void this.router.navigate([this.context()?.sourceRoute ?? '/operation-reporting']);
+    void this.router.navigate([this.context()?.origin?.sourceRoute ?? '/menu']);
   }
 
   sair(): void {

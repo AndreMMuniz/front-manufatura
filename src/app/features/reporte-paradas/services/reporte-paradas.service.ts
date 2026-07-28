@@ -1,173 +1,174 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { Observable, delay, map, of, throwError } from 'rxjs';
 
-import { Observable, delay, of } from 'rxjs';
-
-import { ReportOperacao } from '../../report-operacao/models/report-operacao.model';
-import {
-  OrdemLiberadaBatelada,
-  ResponsavelBatelada,
-} from '../../reporta-batelada/models/reporta-batelada.model';
+import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
+import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import { CreateStopRequest } from '../interfaces/reporte-paradas.dto';
-import { ProductionContext, StopEntry, StopReason, StopSaveResult } from '../models/reporte-paradas.model';
+import {
+  ProductionContext,
+  ResponsavelParada,
+  StopEntry,
+  StopReason,
+  StopSaveResult,
+} from '../models/reporte-paradas.model';
 
 @Injectable({ providedIn: 'root' })
 export class ReporteParadasService {
-  private activeContext: ProductionContext | null = null;
+  private readonly catalog = inject(ProductionContextCatalogService);
+  private prefillContext: ProductionContext | null = null;
   private nextStopId = 1;
+  private readonly confirmedStops: StopEntry[] = [];
 
-  private readonly reasons: ReadonlyArray<StopReason> = [
+  private readonly reasons: ReadonlyArray<StopReason> = Object.freeze([
     { id: 1, code: '01', description: 'Setup' },
     { id: 2, code: '02', description: 'Almoço' },
     { id: 5, code: '05', description: 'Reunião' },
     { id: 8, code: '08', description: 'Manutenção' },
     { id: 12, code: '12', description: 'Falta de material' },
     { id: 15, code: '15', description: 'Troca Turno' },
-  ];
+  ]);
 
-  setContextFromOperation(operacao: ReportOperacao): void {
-    this.activeContext = {
-      workCenter: operacao.ct,
-      machineGroup: operacao.grupoMaquina,
-      operatorName: operacao.operador,
-      team: operacao.equipe,
-      shift: operacao.turno,
-      reportId: `${operacao.ordem}-${operacao.op}-${operacao.split}`,
-      sourceRoute: '/operation-reporting',
-    };
+  listarAreas(): Observable<ReadonlyArray<AreaProducao>> {
+    return this.catalog.listarAreas().pipe(
+      map(areas => areas.map(area => ({ ...area }))),
+    );
   }
 
-  setContextFromStartedBatch(
-    workCenter: WorkCenter,
-    responsavel: ResponsavelBatelada,
-    composition: ReadonlyArray<OrdemLiberadaBatelada>,
-    batchId = `BAT-${composition.map(order => `${order.id.length}:${order.id}`).join('|')}`,
-    shift = '',
-  ): void {
-    this.activeContext = {
-      workCenter: workCenter.code,
-      machineGroup: workCenter.machineGroup,
-      operatorName: responsavel.tipo === 'OPERADOR' ? responsavel.nome : '',
-      team: responsavel.tipo === 'EQUIPE' ? responsavel.nome : '',
-      shift,
-      reportId: batchId,
-      sourceRoute: '/batch-reporting',
-    };
+  pesquisarCentros(areaCode: string, termo = ''): Observable<ReadonlyArray<WorkCenter>> {
+    return this.catalog.pesquisarCentros(areaCode, termo).pipe(
+      map(centers => centers.map(center => ({ ...center }))),
+    );
   }
 
+  listarResponsaveis(
+    areaCode: string,
+    workCenterCode: string,
+  ): Observable<ReadonlyArray<ResponsavelParada>> {
+    return this.catalog.listarResponsaveis(areaCode, workCenterCode).pipe(
+      map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))),
+    );
+  }
+
+  listarMotivos(
+    _areaCode: string,
+    _workCenterCode: string,
+  ): Observable<ReadonlyArray<StopReason>> {
+    return of(this.reasons.map(reason => ({ ...reason }))).pipe(delay(150));
+  }
+
+  setPrefillContext(context: ProductionContext): void {
+    this.prefillContext = this.cloneContext(context);
+  }
+
+  getPrefillContext(): ProductionContext | null {
+    return this.prefillContext ? this.cloneContext(this.prefillContext) : null;
+  }
+
+  clearPrefillContext(): void {
+    this.prefillContext = null;
+  }
+
+  registrarParada(_request: CreateStopRequest): Observable<StopEntry> {
+    return throwError(() => new Error('O comando de registro ainda não foi validado.'));
+  }
+
+  // Compatibilidade transitória da UI legada; removida na composição da nova página.
   getActiveContext(): ProductionContext | null {
-    return this.activeContext;
+    return this.getPrefillContext();
   }
 
   listReasons(): Observable<ReadonlyArray<StopReason>> {
-    return of(this.reasons).pipe(delay(150));
+    const context = this.prefillContext;
+    return this.listarMotivos(context?.area.code ?? '', context?.workCenter.code ?? '');
   }
 
   createStop(reason: StopReason, now = new Date()): StopEntry {
-    const end = new Date(now.getTime() + 15 * 60 * 1000);
+    const context = this.prefillContext;
+    const responsible = context?.preferredResponsible;
+    if (!context || !responsible) {
+      throw new Error('Informe contexto e responsável antes de registrar a parada.');
+    }
 
     return {
       id: this.nextStopId++,
-      reason,
-      startDate: now,
+      context: this.cloneContext(context),
+      reason: { ...reason },
+      responsible: { ...responsible },
+      startDate: new Date(now),
       startTime: this.formatTime(now),
-      endDate: end,
-      endTime: this.formatTime(end),
+      endTime: '',
       programmed: false,
+      status: 'EM_ANDAMENTO',
+      idempotencyKey: `stop-draft-${this.nextStopId}`,
+      syncStatus: 'PENDING',
     };
   }
 
   calculateDurationMinutes(stop: StopEntry): number {
     const start = this.combineDateAndTime(stop.startDate, stop.startTime);
     const end = stop.endDate ? this.combineDateAndTime(stop.endDate, stop.endTime) : null;
-
-    if (!start || !end) {
-      return 0;
-    }
-
-    return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+    return start && end ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000)) : 0;
   }
 
   formatDuration(stop: StopEntry): string {
     const minutes = this.calculateDurationMinutes(stop);
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-
-    return `${hours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}:00`;
+    return `${Math.floor(minutes / 60).toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:00`;
   }
 
   validateStops(stops: ReadonlyArray<StopEntry>, context: ProductionContext | null): string {
     if (!context) {
-      return 'Abra o reporte de paradas a partir de uma operação iniciada.';
+      return 'Informe a Área de Produção e o Centro de Trabalho.';
     }
-
-    if (stops.length === 0) {
-      return 'Adicione ao menos um motivo de parada.';
-    }
-
-    for (const stop of stops) {
-      if (!stop.reason) {
-        return 'Informe o motivo da parada.';
-      }
-
-      if (!stop.startDate || !stop.startTime) {
-        return `Informe início para ${stop.reason.description}.`;
-      }
-
-      if (!stop.endDate || !stop.endTime) {
-        return `Informe fim para ${stop.reason.description}.`;
-      }
-
-      const start = this.combineDateAndTime(stop.startDate, stop.startTime);
-      const end = this.combineDateAndTime(stop.endDate, stop.endTime);
-
-      if (!start || !end) {
-        return `Informe datas e horários válidos para ${stop.reason.description}.`;
-      }
-
-      if (end.getTime() < start.getTime()) {
-        return `O fim da parada ${stop.reason.description} não pode ser anterior ao início.`;
-      }
-
-      if (start.getTime() > Date.now() || end.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
-        return 'A parada não pode ser registrada em data futura fora do período operacional.';
-      }
-    }
-
-    return '';
+    return stops.length === 0 ? 'Adicione ao menos um motivo de parada.' : '';
   }
 
-  saveStops(context: ProductionContext, stops: ReadonlyArray<StopEntry>): Observable<StopSaveResult> {
-    const _payload: ReadonlyArray<CreateStopRequest> = stops.map(stop => ({
-      reportId: context.reportId,
-      reasonId: stop.reason.id,
-      startDate: stop.startDate,
-      startTime: stop.startTime,
-      endDate: stop.endDate,
-      endTime: stop.endTime,
-      programmed: stop.programmed,
-    }));
-
+  saveStops(_context: ProductionContext, stops: ReadonlyArray<StopEntry>): Observable<StopSaveResult> {
+    this.confirmedStops.push(...stops.map(stop => this.cloneStop(stop)));
     return of({
       protocol: `PAR-${Date.now()}`,
       savedAt: new Date(),
     }).pipe(delay(300));
   }
 
+  private cloneContext(context: ProductionContext): ProductionContext {
+    return {
+      area: { ...context.area },
+      workCenter: { ...context.workCenter },
+      origin: context.origin ? { ...context.origin } : undefined,
+      preferredResponsible: context.preferredResponsible
+        ? { ...context.preferredResponsible }
+        : undefined,
+      metadata: context.metadata
+        ? {
+            ...context.metadata,
+            orderIds: context.metadata.orderIds ? [...context.metadata.orderIds] : undefined,
+          }
+        : undefined,
+    };
+  }
+
+  private cloneStop(stop: StopEntry): StopEntry {
+    return {
+      ...stop,
+      context: this.cloneContext(stop.context),
+      reason: { ...stop.reason },
+      responsible: { ...stop.responsible },
+      startDate: new Date(stop.startDate),
+      endDate: stop.endDate ? new Date(stop.endDate) : undefined,
+    };
+  }
+
   private combineDateAndTime(date: Date, time: string): Date | null {
     const match = /^(\d{2}):(\d{2})$/.exec(time);
-
-    if (!match) {
+    if (!match || !Number.isFinite(date.getTime())) {
       return null;
     }
-
     const hours = Number(match[1]);
     const minutes = Number(match[2]);
-
     if (hours > 23 || minutes > 59) {
       return null;
     }
-
     return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes);
   }
 
