@@ -50,6 +50,7 @@
   opacity: 0.65;
 }
 
+.parada-form__submit:focus,
 .parada-form__submit:focus-visible {
   outline: 3px solid var(--app-color-focus, #1a73e8);
   outline-offset: 2px;

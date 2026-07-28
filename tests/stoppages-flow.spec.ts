@@ -46,7 +46,8 @@ test.describe('registro de Paradas', () => {
 
     const responsible = page.getByRole('combobox', { name: 'Responsável', exact: true });
     await expect(responsible).toBeEnabled();
-    await responsible.selectOption({ index: 1 });
+    await responsible.selectOption('001');
+    await expect(responsible).toContainText('001');
     await page.getByRole('combobox', { name: 'Motivo' }).selectOption('1');
     await page.getByRole('textbox', { name: 'Data Inicial' }).fill('28/07/2026');
     await page.getByRole('textbox', { name: 'Hora Inicial' }).fill('08:00');
@@ -58,7 +59,7 @@ test.describe('registro de Paradas', () => {
       .not.toBe('none');
     await register.press('Enter');
 
-    await expect(page.getByRole('status')).toContainText(
+    await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
       /salva neste dispositivo e pendente de sincronização/i,
     );
     await expect(page.getByRole('combobox', { name: 'Área de Produção' }))

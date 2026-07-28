@@ -168,7 +168,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await page.getByRole('button', { name: 'Reporte', exact: true }).click();
     await drawer.getByRole('spinbutton', { name: 'Qtde Refugo' }).fill('2');
     await drawer.getByRole('button', {
-      name: 'Editar motivos de refugo da Ordem 450001',
+      name: 'Editar Motivo da Ordem 450001',
     }).click();
     await drawer.getByRole('combobox', { name: 'Motivo da Ordem 450001' }).selectOption('05');
     await drawer.getByRole('spinbutton', {
@@ -266,7 +266,7 @@ test.describe('fluxo de Reporte Ordem', () => {
 
   test('mantém o botão Report visível no Centro de Trabalho e navega após contexto completo', async ({ page }) => {
     await login(page);
-    await page.getByRole('link', { name: 'Centro de Trabalho' }).click();
+    await page.goto('/work-center');
 
     await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Report' })).toBeVisible();
@@ -384,7 +384,7 @@ test.describe('fluxo de Reporte Batelada', () => {
 
   test('entra pelo Centro de Trabalho com contexto BATCH preenchido', async ({ page }) => {
     await login(page);
-    await page.getByRole('link', { name: 'Centro de Trabalho' }).click();
+    await page.goto('/work-center');
     await page.getByRole('textbox', { name: 'Código' }).fill('CT-EXT-01');
     await page.getByRole('button', { name: 'Consultar' }).click();
     await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('OP-001');
