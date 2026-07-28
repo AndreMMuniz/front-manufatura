@@ -38,6 +38,10 @@ dd {
   min-width: 0;
 }
 
+.informacoes-batelada__responsavel > po-button {
+  transform: translateY(calc(-1 * var(--app-space-sm)));
+}
+
 @media (max-width: 640px) {
   .informacoes-batelada__context {
     grid-template-columns: 1fr;
@@ -45,5 +49,9 @@ dd {
 
   .informacoes-batelada__responsavel {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .informacoes-batelada__responsavel > po-button {
+    transform: none;
   }
 }
