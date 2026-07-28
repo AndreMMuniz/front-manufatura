@@ -35,34 +35,6 @@ const modules = [
     icon: 'an an-warning',
     route: '/stoppages',
   },
-  {
-    id: 'scrap-rework',
-    label: 'Refugo / Retrabalho',
-    shortLabel: 'Refugo',
-    icon: 'an an-arrows-clockwise',
-    route: '/scrap-rework',
-  },
-  {
-    id: 'work-center',
-    label: 'Centro de Trabalho',
-    shortLabel: 'Centro',
-    icon: 'an an-monitor',
-    route: '/work-center',
-  },
-  {
-    id: 'operators',
-    label: 'Operador',
-    shortLabel: 'Operador',
-    icon: 'an an-user',
-    route: '/operators',
-  },
-  {
-    id: 'teams',
-    label: 'Equipes',
-    shortLabel: 'Equipes',
-    icon: 'an an-users',
-    route: '/teams',
-  },
 ] satisfies ReadonlyArray<AppNavigationItem>;
 
 export const APP_MODULE_NAVIGATION: ReadonlyArray<AppNavigationItem> = Object.freeze(

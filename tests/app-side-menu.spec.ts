@@ -10,10 +10,6 @@ const modules = [
   { label: 'Reporte Ordem', route: '/operation-reporting' },
   { label: 'Reporte Batelada', route: '/batch-reporting' },
   { label: 'Paradas', route: '/stoppages' },
-  { label: 'Refugo / Retrabalho', route: '/scrap-rework' },
-  { label: 'Centro de Trabalho', route: '/work-center' },
-  { label: 'Operador', route: '/operators' },
-  { label: 'Equipes', route: '/teams' },
 ] as const;
 
 async function login(page: Page): Promise<void> {
@@ -66,7 +62,7 @@ test.describe('menu lateral contextual', () => {
     await expectHomeFullWidth(page);
   });
 
-  test('mostra Menu Principal e os oito módulos em ordem nas telas internas', async ({ page }) => {
+  test('mostra Menu Principal e os quatro módulos em ordem nas telas internas', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page);
     await page.getByRole('link', { name: 'Plano Controle CQ' }).click();

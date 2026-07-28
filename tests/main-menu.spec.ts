@@ -5,10 +5,6 @@ const modules = [
   { label: 'Reporte Ordem', route: '/operation-reporting' },
   { label: 'Reporte Batelada', route: '/batch-reporting' },
   { label: 'Paradas', route: '/stoppages' },
-  { label: 'Refugo / Retrabalho', route: '/scrap-rework' },
-  { label: 'Centro de Trabalho', route: '/work-center' },
-  { label: 'Operador', route: '/operators' },
-  { label: 'Equipes', route: '/teams' },
 ] as const;
 
 async function login(page: Page): Promise<void> {
@@ -26,7 +22,7 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Home de navegação', () => {
-  test('é o landing do login e expõe os oito cartões sem navegação lateral', async ({ page }) => {
+  test('é o landing do login e expõe os quatro cartões sem navegação lateral', async ({ page }) => {
     await login(page);
 
     await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
@@ -101,10 +97,6 @@ test.describe('Home de navegação', () => {
       expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(2);
       expect(box.width).toBeGreaterThanOrEqual(48);
     }
-    expect(
-      await page.getByRole('link', { name: 'Refugo / Retrabalho' }).locator('.main-menu__label').evaluate(element =>
-        getComputedStyle(element).overflowWrap !== 'normal'),
-    ).toBe(true);
     await expectNoHorizontalOverflow(page);
   });
 

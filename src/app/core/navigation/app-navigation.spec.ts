@@ -30,37 +30,9 @@ describe('APP_MODULE_NAVIGATION', () => {
       icon: 'an an-warning',
       route: '/stoppages',
     },
-    {
-      id: 'scrap-rework',
-      label: 'Refugo / Retrabalho',
-      shortLabel: 'Refugo',
-      icon: 'an an-arrows-clockwise',
-      route: '/scrap-rework',
-    },
-    {
-      id: 'work-center',
-      label: 'Centro de Trabalho',
-      shortLabel: 'Centro',
-      icon: 'an an-monitor',
-      route: '/work-center',
-    },
-    {
-      id: 'operators',
-      label: 'Operador',
-      shortLabel: 'Operador',
-      icon: 'an an-user',
-      route: '/operators',
-    },
-    {
-      id: 'teams',
-      label: 'Equipes',
-      shortLabel: 'Equipes',
-      icon: 'an an-users',
-      route: '/teams',
-    },
   ];
 
-  it('defines exactly the eight approved modules in display order', () => {
+  it('defines exactly the four approved modules in display order', () => {
     expect(APP_MODULE_NAVIGATION).toEqual(expected);
   });
 
@@ -78,6 +50,10 @@ describe('APP_MODULE_NAVIGATION', () => {
     expect(labels).not.toContain('Menu Principal');
     expect(labels).not.toContain('Sair');
     expect(labels).not.toContain('Consulta Item');
+    expect(labels).not.toContain('Refugo / Retrabalho');
+    expect(labels).not.toContain('Centro de Trabalho');
+    expect(labels).not.toContain('Operador');
+    expect(labels).not.toContain('Equipes');
   });
 
   it('is immutable at runtime down to every item', () => {
