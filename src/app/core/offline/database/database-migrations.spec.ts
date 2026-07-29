@@ -58,7 +58,13 @@ describe('database migrations', () => {
     );
 
     expect(upgraded.version).toBe(DATABASE_VERSION);
-    expect(recovered).toEqual(fixtures);
+    expect(recovered).toEqual(
+      fixtures.map((fixture) =>
+        fixture.status === 'SYNCING'
+          ? { ...fixture, leaseExpiresAt: '1970-01-01T00:00:00.000Z' }
+          : fixture,
+      ),
+    );
     expect([
       ...upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).indexNames,
     ]).toEqual(

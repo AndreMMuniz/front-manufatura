@@ -75,6 +75,51 @@ describe('sync transport contract', () => {
     await expect(pending).rejects.toMatchObject({ name: 'SyncTimeoutError' });
   });
 
+  it('cancela o timer quando o transporte lança sincronicamente', async () => {
+    const cancel = vi.fn();
+    const scheduler: TimeoutScheduler = {
+      schedule: () => cancel,
+    };
+    const transport: SyncTransport = {
+      send: () => {
+        throw new TypeError('falha síncrona');
+      },
+    };
+
+    await expect(
+      sendCommandWithTimeout(
+        transport,
+        toSyncCommandRequest(entry()),
+        30_000,
+        scheduler,
+      ),
+    ).rejects.toBeInstanceOf(TypeError);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it('propaga cancelamento externo e limpa o timeout', async () => {
+    const cancel = vi.fn();
+    const controller = new AbortController();
+    const transport: SyncTransport = {
+      send: (_request, signal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        }),
+    };
+    const pending = sendCommandWithTimeout(
+      transport,
+      toSyncCommandRequest(entry()),
+      30_000,
+      { schedule: () => cancel },
+      controller.signal,
+    );
+
+    controller.abort(new Error('sessão alterada'));
+
+    await expect(pending).rejects.toThrow('sessão alterada');
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it('falha permanentemente quando não existe adapter para o comando', async () => {
     await expect(
       new MissingSyncTransport().send(toSyncCommandRequest(entry()), new AbortController().signal),

@@ -1,5 +1,5 @@
-import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { IDBFactory, IDBKeyRange as FakeIDBKeyRange } from 'fake-indexeddb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OFFLINE_DATABASE_CONFIG, OfflineDatabase } from '../database/offline-database';
 import { OUTBOX_STORE } from '../database/database-schema';
@@ -18,8 +18,13 @@ describe('OutboxRepository processing', () => {
   let repository: OutboxRepository;
 
   beforeEach(() => {
+    vi.stubGlobal('IDBKeyRange', FakeIDBKeyRange);
     database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
     repository = new OutboxRepository(database);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('seleciona cabeças elegíveis, faz claim CAS e só devolve após o commit', async () => {
@@ -240,8 +245,65 @@ describe('OutboxRepository processing', () => {
     expect(await repository.resumeBlockedAuth(OWNER, NOW)).toBe(1);
 
     expect(await repository.getById(OWNER, 'error')).toMatchObject({ status: 'PENDING' });
+    expect(await repository.getById(OWNER, 'error')).toMatchObject({
+      manualRetryCount: 1,
+      lastManualRetryAt: NOW,
+      lastManualRetryBy: OWNER,
+    });
     expect(identity((await repository.getById(OWNER, 'error'))!)).toEqual(errorIdentity);
     expect(await repository.getById(OWNER, 'auth')).toMatchObject({ status: 'PENDING' });
+  });
+
+  it('libera claim com fencing quando a sessão muda antes do envio', async () => {
+    await seed(database, [entry('command')]);
+    await repository.claim(claim('command', 'lease-a'));
+
+    expect(await repository.releaseClaim(OWNER, 'command', 'stale', NOW)).toBe(false);
+    expect(await repository.releaseClaim(OWNER, 'command', 'lease-a', NOW)).toBe(true);
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({
+      status: 'PENDING',
+      attemptCount: 1,
+    });
+    expect(await repository.getById(OWNER, 'command')).not.toHaveProperty('leaseToken');
+  });
+
+  it('marca ciclos e dependência futura no mesmo agregado como bloqueios permanentes', async () => {
+    await seed(database, [
+      entry('same-head', {
+        aggregateId: 'SAME',
+        dependencyIds: ['same-later'],
+        createdAt: '2026-07-29T12:00:00.000Z',
+      }),
+      entry('same-later', {
+        aggregateId: 'SAME',
+        createdAt: '2026-07-29T12:01:00.000Z',
+      }),
+      entry('cycle-a', {
+        aggregateId: 'A',
+        dependencyIds: ['cycle-b'],
+      }),
+      entry('cycle-b', {
+        aggregateId: 'B',
+        dependencyIds: ['cycle-a'],
+      }),
+    ]);
+
+    expect(await repository.claim(claim('same-head', 'lease-same'))).toBeNull();
+    expect(await repository.claim(claim('cycle-a', 'lease-a'))).toBeNull();
+    expect(await repository.claim(claim('cycle-b', 'lease-b'))).toBeNull();
+
+    for (const localId of ['same-head', 'cycle-a', 'cycle-b']) {
+      expect(await repository.getById(OWNER, localId)).toMatchObject({
+        status: 'BLOCKED_DEPENDENCY',
+        lastError: {
+          code: 'DEPENDENCY_MISSING',
+          category: 'CONFIGURATION',
+        },
+      });
+    }
+    expect(
+      (await repository.listCandidates(OWNER, NOW, 10)).map((candidate) => candidate.localId),
+    ).not.toEqual(expect.arrayContaining(['same-head', 'cycle-a', 'cycle-b']));
   });
 });
 

@@ -108,7 +108,7 @@ export class OutboxRepository {
       requestResult<OutboxEntry<JsonValue>[]>(
         store
           .index('ownerStatusDue')
-          .getAll(IDBKeyRange.bound([owner, 'RETRY_WAIT', ''], [owner, 'RETRY_WAIT', normalizedNow])),
+          .getAll(dueRange(owner, normalizedNow)),
         'Não foi possível consultar os agendamentos da Outbox.',
       ),
     ]);
@@ -446,8 +446,15 @@ function isPermanentDependencyBlock(entry: OutboxEntry<JsonValue>): boolean {
   );
 }
 
-function ownerRange(owner: string): IDBKeyRange {
-  return IDBKeyRange.bound([owner], [owner, []]);
+function ownerRange(owner: string): IDBKeyRange | undefined {
+  return globalThis.IDBKeyRange?.bound([owner], [owner, []]);
+}
+
+function dueRange(owner: string, now: string): IDBKeyRange | undefined {
+  return globalThis.IDBKeyRange?.bound(
+    [owner, 'RETRY_WAIT', ''],
+    [owner, 'RETRY_WAIT', now],
+  );
 }
 
 function blocked(

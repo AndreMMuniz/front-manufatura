@@ -74,6 +74,43 @@ describe('LocalCommandRepository', () => {
     expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
   });
 
+  it('reutiliza occurredAt persistido quando a repetição idempotente omite a data', async () => {
+    let current = new Date(NOW);
+    const isolated = new LocalCommandRepository(
+      database,
+      new IdempotencyService(() => ({
+        randomUUID: () =>
+          COMMAND_ID as `${string}-${string}-${string}-${string}-${string}`,
+      })),
+      new PayloadIntegrityService(() => globalThis.crypto.subtle),
+      () => current,
+    );
+    const first = await isolated.persistConfirmedCommand(
+      request({ quantity: 5 }, { occurredAt: undefined }),
+    );
+    current = new Date('2026-07-28T17:00:00.000Z');
+    const repeated = await isolated.persistConfirmedCommand(
+      request(
+        { quantity: 5 },
+        { idempotencyKey: COMMAND_ID, occurredAt: undefined },
+      ),
+    );
+
+    expect(repeated).toEqual(first);
+    expect(repeated.localRecord.occurredAt).toBe(NOW);
+  });
+
+  it('normaliza UUIDs de dependência para a identidade canônica minúscula', async () => {
+    const result = await commands.persistConfirmedCommand(
+      request(
+        { quantity: 5 },
+        { dependencyIds: [OTHER_COMMAND_ID.toUpperCase()] },
+      ),
+    );
+
+    expect(result.outboxEntry.dependencyIds).toEqual([OTHER_COMMAND_ID]);
+  });
+
   it('rejeita chave igual com hash divergente sem mutar os stores', async () => {
     await commands.persistConfirmedCommand(request({ quantity: 5 }));
 

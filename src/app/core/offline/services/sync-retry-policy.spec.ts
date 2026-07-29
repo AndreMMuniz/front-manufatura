@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SYNC_SCHEDULER_CONFIG,
   SyncTimeoutError,
+  assertValidSyncSchedulerConfig,
   calculateRetryDelay,
   normalizeCommandError,
 } from '../models/sync-error';
@@ -15,6 +16,7 @@ describe('sync retry policy', () => {
     expect(calculateRetryDelay(2, 0.5, config)).toBe(1_000);
     expect(calculateRetryDelay(10, 0.5, config)).toBe(2_500);
     expect(calculateRetryDelay(10, 1, config)).toBe(5_000);
+    expect(calculateRetryDelay(1, 0, config)).toBe(1);
   });
 
   it('usa Retry-After válido como piso sem alterar a identidade do comando', () => {
@@ -23,6 +25,12 @@ describe('sync retry policy', () => {
     expect(calculateRetryDelay(2, 0.25, config, 10)).toBe(10_000);
     expect(calculateRetryDelay(2, 0.25, config, -1)).toBe(500);
     expect(calculateRetryDelay(2, 0.25, config, Number.NaN)).toBe(500);
+    expect(
+      normalizeCommandError({
+        status: 429,
+        retryAfterSeconds: Number.MAX_VALUE,
+      }),
+    ).not.toHaveProperty('retryAfterSeconds');
   });
 
   it.each([
@@ -74,6 +82,27 @@ describe('sync retry policy', () => {
     });
     expect(JSON.stringify(unknown)).not.toContain('privado');
     expect(JSON.stringify(unknown)).not.toContain('payload secreto');
+  });
+
+  it.each(['apiKey=abc', 'access_key=abc', 'private-key=abc', 'jwt=abc', 'supervisorPin=1234'])(
+    'não persiste mensagem contendo segredo alternativo: %s',
+    (userMessage) => {
+      expect(
+        normalizeCommandError({ status: 422, category: 'VALIDATION', userMessage }),
+      ).toMatchObject({
+        userMessage: 'O comando foi rejeitado e precisa de correção.',
+      });
+    },
+  );
+
+  it('rejeita configuração cujo lease não cobre o timeout remoto', () => {
+    expect(() =>
+      assertValidSyncSchedulerConfig({
+        ...DEFAULT_SYNC_SCHEDULER_CONFIG,
+        requestTimeoutMs: 60_000,
+        leaseDurationMs: 60_000,
+      }),
+    ).toThrowError(/scheduler/i);
   });
 
   it('expõe baseline operacional readonly da story', () => {

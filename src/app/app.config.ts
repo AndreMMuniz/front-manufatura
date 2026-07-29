@@ -24,11 +24,11 @@ import { SyncCoordinatorService } from './core/offline/services/sync-coordinator
 export type AfterRenderScheduler = (callback: () => void) => void;
 
 export function initializeSyncRuntime(
-  platformId: object,
+  platformId: unknown,
   coordinator: Pick<SyncCoordinatorService, 'start'>,
   scheduleAfterRender: AfterRenderScheduler = afterNextRender,
 ): void {
-  if (isPlatformBrowser(platformId)) {
+  if (isPlatformBrowser(platformId as object)) {
     scheduleAfterRender(() => coordinator.start());
   }
 }
