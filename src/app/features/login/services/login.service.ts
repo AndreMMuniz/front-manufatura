@@ -32,7 +32,13 @@ export class LoginService {
 
     return this.http.post<LoginResponseDTO>('/api/auth/login', request).pipe(
       map(response => mapLoginResponse(response)),
-      tap(result => this.authSession.startSession(result.usuario, result.token)),
+      tap(result => this.authSession.startSession(
+        result.usuario,
+        result.token,
+        result.offlineSessionExpiresAt
+          ? { expiresAt: result.offlineSessionExpiresAt }
+          : undefined,
+      )),
       catchError(error => throwError(() => new LoginError(this.mapLoginError(error)))),
     );
   }

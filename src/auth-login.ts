@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 export interface AuthenticatedLogin {
   token: string;
+  offlineSessionExpiresAt?: string;
   usuario: {
     id: string;
     nome: string;
@@ -18,10 +19,14 @@ export interface LoginInput {
 }
 
 function readConfig(env: LoginEnvironment) {
+  const offlineSessionTtlMs = Number(env['APP_OFFLINE_SESSION_TTL_MS']);
   return {
     user: env['APP_LOGIN_USER']?.trim() || 'operador',
     password: env['APP_LOGIN_PASSWORD']?.trim() || 'mock123',
     name: env['APP_LOGIN_NAME']?.trim() || 'Operador Cortag',
+    offlineSessionTtlMs: Number.isFinite(offlineSessionTtlMs) && offlineSessionTtlMs > 0
+      ? offlineSessionTtlMs
+      : null,
   };
 }
 
@@ -41,8 +46,13 @@ export function authenticateExternalLogin(
     return null;
   }
 
+  const offlineSessionExpiresAt = config.offlineSessionTtlMs
+    ? new Date(Date.now() + config.offlineSessionTtlMs).toISOString()
+    : undefined;
+
   return {
     token: createSessionToken(),
+    ...(offlineSessionExpiresAt ? { offlineSessionExpiresAt } : {}),
     usuario: {
       id: 'USR-EXTERNAL',
       nome: config.name,

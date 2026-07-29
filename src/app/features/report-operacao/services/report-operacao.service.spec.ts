@@ -16,8 +16,10 @@ describe('ReportOperacaoService', () => {
   beforeEach(() => {
     const session$ = new BehaviorSubject<AuthSession | null>({
       user: { id: '1', nome: 'Andre', login: 'andre', permissoes: [] },
+      mode: 'ONLINE',
       token: 'token',
       authenticatedAt: new Date(),
+      lastValidatedAt: new Date(),
     });
     TestBed.configureTestingModule({
       providers: [

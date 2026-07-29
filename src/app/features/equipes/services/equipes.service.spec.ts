@@ -12,8 +12,10 @@ describe('EquipesService', () => {
   beforeEach(() => {
     session$ = new BehaviorSubject<AuthSession | null>({
       user: { id: '1', nome: 'Andre', login: 'andre', permissoes: [] },
+      mode: 'ONLINE',
       token: 'token',
       authenticatedAt: new Date(),
+      lastValidatedAt: new Date(),
     });
     TestBed.configureTestingModule({
       providers: [EquipesService, { provide: AuthSessionService, useValue: { session$ } }],
@@ -398,7 +400,9 @@ describe('EquipesService', () => {
 function authSession(userId: string): AuthSession {
   return {
     user: { id: userId, nome: `Usuário ${userId}`, login: `usuario${userId}`, permissoes: [] },
+    mode: 'ONLINE',
     token: `token-${userId}`,
     authenticatedAt: new Date(),
+    lastValidatedAt: new Date(),
   };
 }

@@ -46,6 +46,7 @@ describe('LoginService', () => {
 
     request.flush({
       token: 'external-session-token',
+      offlineSessionExpiresAt: '2026-07-29T20:00:00.000Z',
       usuario: {
         id: 'USR-EXTERNAL',
         nome: 'Operador Cortag',
@@ -58,6 +59,7 @@ describe('LoginService', () => {
 
     expect(result).toEqual({
       token: 'external-session-token',
+      offlineSessionExpiresAt: '2026-07-29T20:00:00.000Z',
       usuario: {
         id: 'USR-EXTERNAL',
         nome: 'Operador Cortag',
@@ -65,7 +67,9 @@ describe('LoginService', () => {
         permissoes: ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ'],
       },
     });
-    expect(authSession.startSession).toHaveBeenCalledWith(result.usuario, result.token);
+    expect(authSession.startSession).toHaveBeenCalledWith(result.usuario, result.token, {
+      expiresAt: result.offlineSessionExpiresAt,
+    });
   });
 
   it('rejects invalid credentials without starting a session', async () => {

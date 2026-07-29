@@ -5,19 +5,23 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { SfcPlaceholderPage } from './sfc-placeholder';
+import { ConnectivityService } from '../../../../core/offline/services/connectivity.service';
 
 describe('SfcPlaceholderPage', () => {
   let fixture: ComponentFixture<SfcPlaceholderPage>;
   let component: SfcPlaceholderPage;
   let routerMock: Router;
+  let connectivityMock: { onlineHint: boolean };
 
   beforeEach(async () => {
     routerMock = { navigate: vi.fn().mockResolvedValue(true) } as unknown as Router;
+    connectivityMock = { onlineHint: true };
 
     await TestBed.configureTestingModule({
       imports: [SfcPlaceholderPage],
       providers: [
         { provide: Router, useValue: routerMock },
+        { provide: ConnectivityService, useValue: connectivityMock },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -29,6 +33,7 @@ describe('SfcPlaceholderPage', () => {
               data: {
                 title: 'Reporte de Operações',
                 description: 'Fluxos de reporte de produção serão implementados em uma etapa futura.',
+                requiresOnlineData: true,
               },
             },
           },
@@ -71,5 +76,16 @@ describe('SfcPlaceholderPage', () => {
     const backButton = buttons.find(button => button.textContent?.includes('Voltar ao Plano Controle CQ'));
 
     expect(backButton?.getAttribute('p-type') ?? backButton?.getAttribute('ng-reflect-p-type')).toBe('button');
+  });
+
+  it('não inventa consulta ausente quando o indicativo está offline', () => {
+    fixture.destroy();
+    connectivityMock.onlineHint = false;
+    fixture = TestBed.createComponent(SfcPlaceholderPage);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Dados não disponíveis neste dispositivo. Conecte-se para consultar o Datasul.',
+    );
   });
 });

@@ -22,16 +22,19 @@ import { QualityControlWorkspacePage } from './features/quality-control/pages/qu
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
+import { ConnectivityService } from './core/offline/services/connectivity.service';
 
 describe('App', () => {
   let authSessionMock: AuthSessionService;
   let currentUserValue: User | null;
   let sessionSubject: BehaviorSubject<unknown>;
+  let connectivitySubject: BehaviorSubject<boolean>;
 
   beforeEach(async () => {
     currentUserValue = null;
 
     sessionSubject = new BehaviorSubject<unknown>(null);
+    connectivitySubject = new BehaviorSubject<boolean>(true);
 
     authSessionMock = {
       logout: vi.fn(() => sessionSubject.next(null)),
@@ -46,7 +49,18 @@ describe('App', () => {
 
     await TestBed.configureTestingModule({
       imports: [PoToolbarModule, PoPageModule, App],
-      providers: [provideRouter(routes), { provide: AuthSessionService, useValue: authSessionMock }],
+      providers: [
+        provideRouter(routes),
+        { provide: AuthSessionService, useValue: authSessionMock },
+        {
+          provide: ConnectivityService,
+          useValue: {
+            isBrowser: true,
+            onlineHint: true,
+            changes$: connectivitySubject.asObservable(),
+          },
+        },
+      ],
     }).compileComponents();
   });
 
@@ -309,6 +323,20 @@ describe('App', () => {
 
     expect(fixture.nativeElement.querySelector('po-toolbar')).toBeNull();
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+  });
+
+  it('exibe banner offline acessível sem bloquear o conteúdo', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    connectivitySubject.next(false);
+    fixture.detectChanges();
+
+    const banner = fixture.nativeElement.querySelector('[data-testid="offline-banner"]');
+    expect(banner).not.toBeNull();
+    expect(banner.getAttribute('aria-live')).toBe('polite');
+    expect(banner.textContent).toContain('Você está offline');
+    expect(fixture.nativeElement.querySelector('[data-testid="app-content"]')).not.toBeNull();
   });
 
   it('should render the app name in the authenticated Home toolbar without a side menu', async () => {

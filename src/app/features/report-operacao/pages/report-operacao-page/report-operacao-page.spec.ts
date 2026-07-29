@@ -64,8 +64,10 @@ describe('ReportOperacaoPage', () => {
     reportSequence = 0;
     session$ = new BehaviorSubject<AuthSession | null>({
       user: { id: '1', nome: 'Andre', login: 'andre', permissoes: [] },
+      mode: 'ONLINE',
       token: 'token',
       authenticatedAt: new Date(),
+      lastValidatedAt: new Date(),
     });
     operationalContext = { currentContext: null, setContext: vi.fn() };
     stoppages = { setPrefillContext: vi.fn(), clearPrefillContext: vi.fn() };

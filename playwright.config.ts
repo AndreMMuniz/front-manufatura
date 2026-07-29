@@ -86,7 +86,7 @@ export default defineConfig({
   webServer: process.env['PLAYWRIGHT_BASE_URL']
     ? undefined
     : {
-        command: 'npm start -- --configuration e2e --host 127.0.0.1 --port 4201 --allowed-hosts',
+        command: 'APP_OFFLINE_SESSION_TTL_MS=28800000 npm start -- --configuration e2e --host 127.0.0.1 --port 4201 --allowed-hosts',
         url: 'http://127.0.0.1:4201',
         reuseExistingServer: !process.env.CI,
       },

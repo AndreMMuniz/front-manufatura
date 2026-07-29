@@ -42,6 +42,7 @@ export const SYNC_RANDOM = new InjectionToken<SyncRandom>('SYNC_RANDOM', {
 @Injectable({ providedIn: 'root' })
 export class SyncCoordinatorService implements OnDestroy {
   private activeOwner: string | null = null;
+  private remoteCredentialAvailable = false;
   private sessionEpoch = 0;
   private requested = false;
   private running?: Promise<void>;
@@ -72,8 +73,9 @@ export class SyncCoordinatorService implements OnDestroy {
       this.abortActiveRequests();
       this.triggers.stop();
       this.activeOwner = owner;
+      this.remoteCredentialAvailable = session?.mode === 'ONLINE' && Boolean(session.token);
       this.sessionEpoch += 1;
-      if (owner) {
+      if (owner && this.remoteCredentialAvailable) {
         this.triggers.start(() => {
           void this.requestSync().catch(() => undefined);
         });
@@ -83,7 +85,7 @@ export class SyncCoordinatorService implements OnDestroy {
   }
 
   requestSync(): Promise<void> {
-    if (!this.started || !this.activeOwner) {
+    if (!this.started || !this.activeOwner || !this.remoteCredentialAvailable) {
       return Promise.resolve();
     }
     this.requested = true;
@@ -97,7 +99,7 @@ export class SyncCoordinatorService implements OnDestroy {
 
   async retryError(localId: string): Promise<boolean> {
     const owner = this.activeOwner;
-    if (!owner) {
+    if (!owner || !this.remoteCredentialAvailable) {
       return false;
     }
     const changed = await this.outbox.retryError(owner, localId, this.nowIso());
@@ -110,6 +112,7 @@ export class SyncCoordinatorService implements OnDestroy {
   stop(): void {
     this.started = false;
     this.activeOwner = null;
+    this.remoteCredentialAvailable = false;
     this.sessionEpoch += 1;
     this.requested = false;
     this.sessionSubscription?.unsubscribe();
@@ -283,7 +286,10 @@ export class SyncCoordinatorService implements OnDestroy {
   }
 
   private isCurrent(owner: string, epoch: number): boolean {
-    return this.started && this.activeOwner === owner && this.sessionEpoch === epoch;
+    return this.started
+      && this.remoteCredentialAvailable
+      && this.activeOwner === owner
+      && this.sessionEpoch === epoch;
   }
 
   private nowIso(): string {

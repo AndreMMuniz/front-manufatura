@@ -1,48 +1,134 @@
-import { Injectable } from '@angular/core';
+import { Inject, Injectable, InjectionToken } from '@angular/core';
 import { BehaviorSubject, Observable, distinctUntilChanged } from 'rxjs';
 
-import { AuthSession, User } from './auth.models';
+import {
+  AuthSession,
+  OfflineContinuityMetadata,
+  User,
+} from './auth.models';
 
 const AUTH_SESSION_STORAGE_KEY = 'plano-de-controle.auth-session';
+const AUTH_SESSION_SNAPSHOT_VERSION = 2;
 
-/**
- * Facade that holds the current authenticated session for the active browser
- * tab. sessionStorage survives page reloads, but is cleared when the tab is
- * closed and is never accessed during server-side rendering.
- *
- * Constraints:
- * - Credentials are never persisted.
- * - Credential validation belongs to the feature LoginService, so the mock
- *   can be replaced by the Datasul endpoint without changing guards or shell.
- */
+export type AuthClock = () => Date;
+
+interface PersistedAuthSession {
+  readonly version: typeof AUTH_SESSION_SNAPSHOT_VERSION;
+  readonly ownerId: string;
+  readonly user: User;
+  readonly authenticatedAt: string;
+  readonly lastValidatedAt: string;
+  readonly expiresAt: string;
+}
+
+export interface OfflineSessionPolicy {
+  isValid(snapshot: PersistedAuthSession, now: Date): boolean;
+}
+
+const STRICT_OFFLINE_SESSION_POLICY: OfflineSessionPolicy = {
+  isValid: (snapshot, now) => {
+    const authenticatedAt = Date.parse(snapshot.authenticatedAt);
+    const lastValidatedAt = Date.parse(snapshot.lastValidatedAt);
+    const expiresAt = Date.parse(snapshot.expiresAt);
+    const nowTime = now.getTime();
+
+    return Number.isFinite(authenticatedAt)
+      && Number.isFinite(lastValidatedAt)
+      && Number.isFinite(expiresAt)
+      && authenticatedAt <= lastValidatedAt
+      && lastValidatedAt <= nowTime
+      && nowTime < expiresAt;
+  },
+};
+
+export const AUTH_SESSION_STORAGE = new InjectionToken<Storage | null>(
+  'AUTH_SESSION_STORAGE',
+  {
+    providedIn: 'root',
+    factory: () => browserSessionStorage(),
+  },
+);
+
+export const AUTH_CLOCK = new InjectionToken<AuthClock>('AUTH_CLOCK', {
+  providedIn: 'root',
+  factory: () => () => new Date(),
+});
+
+export const OFFLINE_SESSION_POLICY = new InjectionToken<OfflineSessionPolicy>(
+  'OFFLINE_SESSION_POLICY',
+  {
+    providedIn: 'root',
+    factory: () => STRICT_OFFLINE_SESSION_POLICY,
+  },
+);
+
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
-  private readonly sessionSubject = new BehaviorSubject<AuthSession | null>(this.restoreSession());
+  private readonly sessionSubject: BehaviorSubject<AuthSession | null>;
 
-  readonly session$: Observable<AuthSession | null> = this.sessionSubject
-    .asObservable()
-    .pipe(distinctUntilChanged());
+  readonly session$: Observable<AuthSession | null>;
 
-  get currentUser() {
-    return this.sessionSubject.value?.user ?? null;
+  constructor(
+    @Inject(AUTH_SESSION_STORAGE)
+    private readonly storage: Storage | null = browserSessionStorage(),
+    @Inject(AUTH_CLOCK)
+    private readonly clock: AuthClock = () => new Date(),
+    @Inject(OFFLINE_SESSION_POLICY)
+    private readonly policy: OfflineSessionPolicy = STRICT_OFFLINE_SESSION_POLICY,
+  ) {
+    this.sessionSubject = new BehaviorSubject<AuthSession | null>(this.restoreSession());
+    this.session$ = this.sessionSubject.asObservable().pipe(distinctUntilChanged());
+  }
+
+  get currentUser(): User | null {
+    return this.currentSession()?.user ?? null;
   }
 
   get token(): string | null {
-    return this.sessionSubject.value?.token ?? null;
+    return this.currentSession()?.token ?? null;
+  }
+
+  get mode(): AuthSession['mode'] | null {
+    return this.currentSession()?.mode ?? null;
   }
 
   isAuthenticated(): boolean {
-    return this.sessionSubject.value !== null;
+    return this.currentSession() !== null;
   }
 
-  startSession(user: User, token: string): void {
+  hasRemoteCredential(): boolean {
+    const session = this.currentSession();
+    return session?.mode === 'ONLINE' && Boolean(session.token);
+  }
+
+  startSession(
+    user: User,
+    token: string,
+    continuity?: OfflineContinuityMetadata,
+  ): void {
+    const now = validDate(this.clock());
+    const expiresAt = continuity ? this.validFutureDate(continuity.expiresAt, now) : null;
     const session: AuthSession = {
-      user,
+      user: copyUser(user),
+      mode: 'ONLINE',
       token,
-      authenticatedAt: new Date(),
+      authenticatedAt: now,
+      lastValidatedAt: now,
+      ...(expiresAt ? { expiresAt } : {}),
     };
 
-    this.persistSession(session);
+    if (expiresAt) {
+      this.persistSession({
+        version: AUTH_SESSION_SNAPSHOT_VERSION,
+        ownerId: user.id,
+        user: copyUser(user),
+        authenticatedAt: now.toISOString(),
+        lastValidatedAt: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+      });
+    } else {
+      this.removePersistedSession();
+    }
     this.sessionSubject.next(session);
   }
 
@@ -51,31 +137,42 @@ export class AuthSessionService {
     this.sessionSubject.next(null);
   }
 
-  private restoreSession(): AuthSession | null {
-    const storage = this.browserSessionStorage();
+  private currentSession(): AuthSession | null {
+    const session = this.sessionSubject.value;
+    if (
+      session?.mode === 'OFFLINE'
+      && session.expiresAt
+      && this.clock().getTime() >= session.expiresAt.getTime()
+    ) {
+      this.logout();
+      return null;
+    }
+    return session;
+  }
 
-    if (!storage) {
+  private restoreSession(): AuthSession | null {
+    if (!this.storage) {
       return null;
     }
 
     try {
-      const serializedSession = storage.getItem(AUTH_SESSION_STORAGE_KEY);
-
+      const serializedSession = this.storage.getItem(AUTH_SESSION_STORAGE_KEY);
       if (!serializedSession) {
         return null;
       }
 
       const value: unknown = JSON.parse(serializedSession);
-
-      if (!this.isPersistedSession(value)) {
-        storage.removeItem(AUTH_SESSION_STORAGE_KEY);
+      if (!this.isPersistedSession(value) || !this.policy.isValid(value, validDate(this.clock()))) {
+        this.removePersistedSession();
         return null;
       }
 
       return {
-        user: value.user,
-        token: value.token,
+        user: copyUser(value.user),
+        mode: 'OFFLINE',
         authenticatedAt: new Date(value.authenticatedAt),
+        lastValidatedAt: new Date(value.lastValidatedAt),
+        expiresAt: new Date(value.expiresAt),
       };
     } catch {
       this.removePersistedSession();
@@ -83,50 +180,70 @@ export class AuthSessionService {
     }
   }
 
-  private persistSession(session: AuthSession): void {
+  private persistSession(snapshot: PersistedAuthSession): void {
     try {
-      this.browserSessionStorage()?.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(session));
+      this.storage?.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(snapshot));
     } catch {
-      // Browsers can disable storage. The in-memory session still remains valid.
+      // A sessão online em memória continua válida quando sessionStorage falha.
     }
   }
 
   private removePersistedSession(): void {
     try {
-      this.browserSessionStorage()?.removeItem(AUTH_SESSION_STORAGE_KEY);
+      this.storage?.removeItem(AUTH_SESSION_STORAGE_KEY);
     } catch {
-      // Nothing else is required when browser storage is unavailable.
+      // Não há ação adicional segura quando o storage está indisponível.
     }
   }
 
-  private browserSessionStorage(): Storage | null {
-    return typeof sessionStorage === 'undefined' ? null : sessionStorage;
+  private validFutureDate(value: string, now: Date): Date | null {
+    const parsed = new Date(value);
+    return !Number.isNaN(parsed.getTime()) && parsed.getTime() > now.getTime()
+      ? parsed
+      : null;
   }
 
-  private isPersistedSession(value: unknown): value is {
-    user: User;
-    token: string;
-    authenticatedAt: string;
-  } {
-    if (!this.isRecord(value) || !this.isRecord(value['user'])) {
+  private isPersistedSession(value: unknown): value is PersistedAuthSession {
+    if (!isRecord(value) || !isRecord(value['user'])) {
       return false;
     }
 
     const user = value['user'];
-    const authenticatedAt = value['authenticatedAt'];
-
-    return typeof value['token'] === 'string'
-      && value['token'].length > 0
-      && typeof authenticatedAt === 'string'
-      && !Number.isNaN(Date.parse(authenticatedAt))
+    return value['version'] === AUTH_SESSION_SNAPSHOT_VERSION
+      && typeof value['ownerId'] === 'string'
+      && value['ownerId'] === user['id']
       && typeof user['id'] === 'string'
+      && user['id'].trim().length > 0
       && typeof user['nome'] === 'string'
       && typeof user['login'] === 'string'
       && Array.isArray(user['permissoes'])
-      && user['permissoes'].every(permission => typeof permission === 'string');
+      && user['permissoes'].every(permission => typeof permission === 'string')
+      && typeof value['authenticatedAt'] === 'string'
+      && typeof value['lastValidatedAt'] === 'string'
+      && typeof value['expiresAt'] === 'string'
+      && !('token' in value)
+      && !('senha' in value)
+      && !('credential' in value);
   }
+}
 
-  private isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null;
+function browserSessionStorage(): Storage | null {
+  return typeof globalThis.sessionStorage === 'undefined'
+    ? null
+    : globalThis.sessionStorage;
+}
+
+function copyUser(user: User): User {
+  return { ...user, permissoes: [...user.permissoes] };
+}
+
+function validDate(value: Date): Date {
+  if (Number.isNaN(value.getTime())) {
+    throw new Error('Relógio de autenticação inválido.');
   }
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

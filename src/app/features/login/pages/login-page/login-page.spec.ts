@@ -95,6 +95,19 @@ describe('LoginPage', () => {
     expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
   });
 
+  it('informa que um novo login exige conexão com o Datasul', () => {
+    vi.mocked(loginServiceMock.login).mockReturnValue(
+      throwError(() => new LoginError('communication')),
+    );
+    component.login = 'operador';
+    component.senha = 'mock123';
+
+    component.entrar();
+
+    expect(component.feedback).toBe('A autenticação exige conexão com o Datasul.');
+    expect(component.senha).toBe('');
+  });
+
   it('always navigates to /menu after valid credentials even with a returnUrl', () => {
     vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
     setReturnUrl('/quality-control');

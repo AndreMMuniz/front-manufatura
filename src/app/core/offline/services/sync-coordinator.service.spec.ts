@@ -167,6 +167,31 @@ describe('SyncCoordinatorService', () => {
     expect(stop).toHaveBeenCalledTimes(3);
   });
 
+  it('preserva owner offline válido, mas mantém transporte e gatilhos pausados sem credencial', async () => {
+    sessionStorage.clear();
+    const clock = () => new Date('2026-07-29T13:00:00.000Z');
+    const onlineAuth = new AuthSessionService(sessionStorage, clock);
+    onlineAuth.startSession(user(), 'memory-only', {
+      expiresAt: '2026-07-29T21:00:00.000Z',
+    });
+    auth = new AuthSessionService(sessionStorage, clock);
+    await seed(database, [entry('offline-command')]);
+    const sent: string[] = [];
+    const start = vi.spyOn(trigger, 'start');
+    const coordinator = createCoordinator(successTransport(sent));
+
+    coordinator.start();
+    await coordinator.requestSync();
+
+    expect(auth.mode).toBe('OFFLINE');
+    expect(auth.currentUser?.id).toBe(OWNER);
+    expect(start).not.toHaveBeenCalled();
+    expect(sent).toEqual([]);
+    expect(await repository.getById(OWNER, 'offline-command')).toMatchObject({
+      status: 'PENDING',
+    });
+  });
+
   it('não envia claim obtido depois de logout e o devolve para PENDING', async () => {
     await seed(database, [entry('command')]);
     let releaseClaim = () => undefined;
