@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { PRIMARY_OUTLET, Router, RouterOutlet } from '@angular/router';
 import { filter, skip } from 'rxjs';
 
@@ -13,6 +14,7 @@ import {
 
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
+import { ConnectivityService } from './core/offline/services/connectivity.service';
 
 const APP_NAME = 'Apontamento Manufatura';
 
@@ -34,6 +36,10 @@ export class App {
   private readonly router = inject(Router);
   private readonly authSession = inject(AuthSessionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly connectivity = inject(ConnectivityService);
+  private readonly onlineHint = toSignal(this.connectivity.changes$, {
+    initialValue: this.connectivity.onlineHint,
+  });
 
   readonly toolbarActions: Array<PoToolbarAction> = [
     {
@@ -79,6 +85,10 @@ export class App {
 
   get isAuthenticated(): boolean {
     return this.authSession.isAuthenticated();
+  }
+
+  get showOfflineBanner(): boolean {
+    return this.connectivity.isBrowser && !this.onlineHint();
   }
 
   get toolbarTitle(): string {

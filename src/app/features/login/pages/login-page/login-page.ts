@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import { PoButtonModule, PoFieldModule, PoLoadingModule } from '@po-ui/ng-components';
 
 import { LoginError, LoginService } from '../../services/login.service';
+import { messageForOfflineAvailability } from '../../../../core/offline/models/offline-availability';
 
 @Component({
   selector: 'app-login-page',
@@ -108,7 +109,7 @@ export class LoginPage {
 
   private messageForError(error: unknown): string {
     if (error instanceof LoginError && error.code === 'communication') {
-      return 'Não foi possível conectar ao servidor.';
+      return messageForOfflineAvailability('login');
     }
 
     if (error instanceof LoginError && error.code === 'invalid-credentials') {

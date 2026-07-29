@@ -23,6 +23,18 @@
     }
   }
 
+  @if (showOfflineBanner) {
+    <div
+      class="app-shell__offline-banner"
+      role="status"
+      aria-live="polite"
+      data-testid="offline-banner"
+    >
+      <po-icon p-icon="an an-wifi-slash" aria-hidden="true" />
+      <span>Você está offline. Registros locais continuam disponíveis; consultas ao Datasul podem falhar.</span>
+    </div>
+  }
+
   <main class="app-shell__content" data-testid="app-content">
     <router-outlet />
   </main>

@@ -53,6 +53,7 @@ export const routes: Routes = [
     data: {
       title: 'Consulta Item',
       description: 'A consulta de itens sera implementada em uma etapa futura.',
+      requiresOnlineData: true,
     },
   },
   { path: 'quality-control/inspection', pathMatch: 'full', redirectTo: 'quality-control' },

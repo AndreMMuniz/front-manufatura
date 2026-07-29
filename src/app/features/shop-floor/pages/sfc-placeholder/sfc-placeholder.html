@@ -2,6 +2,11 @@
   <section class="sfc-placeholder">
     <po-widget>
       <div class="sfc-placeholder__content">
+        @if (unavailableMessage) {
+          <p class="sfc-placeholder__availability" role="status" aria-live="polite">
+            {{ unavailableMessage }}
+          </p>
+        }
         <p class="sfc-placeholder__message">
           Este módulo está pendente de implementação. Use o menu lateral para acessar os fluxos disponíveis.
         </p>

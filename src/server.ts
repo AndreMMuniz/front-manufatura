@@ -7,6 +7,10 @@ import {
 import express from 'express';
 import { join } from 'node:path';
 import { authenticateExternalLogin } from './auth-login';
+import {
+  PWA_REVALIDATE_CACHE_CONTROL,
+  cacheControlForStaticAsset,
+} from './pwa-cache-policy';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -31,9 +35,12 @@ app.post('/api/auth/login', (req, res) => {
  */
 app.use(
   express.static(browserDistFolder, {
-    maxAge: '1y',
+    maxAge: 0,
     index: false,
     redirect: false,
+    setHeaders: (response, filePath) => {
+      response.setHeader('Cache-Control', cacheControlForStaticAsset(filePath));
+    },
   }),
 );
 
@@ -41,6 +48,9 @@ app.use(
  * Handle all other requests by rendering the Angular application.
  */
 app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    res.setHeader('Cache-Control', PWA_REVALIDATE_CACHE_CONTROL);
+  }
   angularApp
     .handle(req)
     .then((response) =>
