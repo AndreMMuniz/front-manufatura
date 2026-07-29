@@ -8,6 +8,9 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "e2e": "playwright test",
+    "build:pwa:e2e:a": "ng build --configuration pwa-e2e-a --output-path dist/pwa-e2e-a",
+    "build:pwa:e2e:b": "ng build --configuration pwa-e2e-b --output-path dist/pwa-e2e-b",
+    "e2e:pwa": "npm run build:pwa:e2e:a && npm run build:pwa:e2e:b && playwright test --config=playwright.pwa.config.ts",
     "serve:ssr:plano-de-controle": "node dist/plano-de-controle/server/server.mjs"
   },
   "private": true,

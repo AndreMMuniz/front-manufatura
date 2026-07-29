@@ -15,4 +15,11 @@ export const OFFLINE_TEST_ROUTES: Routes = [
         (module) => module.OfflineSynchronizationHarness,
       ),
   },
+  {
+    path: '_test/pwa-offline',
+    loadComponent: () =>
+      import('./pwa-offline-harness').then(
+        (module) => module.PwaOfflineHarness,
+      ),
+  },
 ];

@@ -46,6 +46,7 @@ describe('appConfig sync bootstrap', () => {
     expect(E2E_ROUTES.map((route) => route.path)).toEqual([
       '_test/offline-persistence',
       '_test/offline-synchronization',
+      '_test/pwa-offline',
     ]);
   });
 });

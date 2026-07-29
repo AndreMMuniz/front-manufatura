@@ -36,7 +36,7 @@
           [(ngModel)]="senha"
         ></po-password>
 
-        @if (submitted && !canSubmit) {
+        @if (submitted && !canSubmit && !feedback) {
           <p class="login-page__message" role="alert">{{ emptyFieldsMessage }}</p>
         }
 
