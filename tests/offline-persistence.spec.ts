@@ -25,7 +25,7 @@ test('a infraestrutura real preserva commit, abort, reload e upgrade/versionchan
   await expect(page.getByTestId('harness-result')).toContainText(
     '"receivedVersionChange":true',
   );
-  await expect(page.getByTestId('harness-result')).toContainText('"version":2');
+  await expect(page.getByTestId('harness-result')).toContainText('"version":3');
   await expect(page.getByTestId('harness-result')).toContainText('"hasProbe":true');
   await expect(page.getByTestId('harness-result')).toContainText('"pendingPreserved":true');
 

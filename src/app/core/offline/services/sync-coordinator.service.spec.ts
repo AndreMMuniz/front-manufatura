@@ -24,6 +24,7 @@ describe('SyncCoordinatorService', () => {
   let triggerCallback: ((reason: SyncTriggerReason) => void) | undefined;
   let trigger: SyncTriggerService;
   let uuidIndex: number;
+  let currentTime: string;
 
   beforeEach(() => {
     database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
@@ -38,6 +39,7 @@ describe('SyncCoordinatorService', () => {
       requestSync: () => triggerCallback?.('manual'),
     } as SyncTriggerService;
     uuidIndex = 0;
+    currentTime = NOW;
   });
 
   it('serializa um agregado, paraleliza agregados independentes e limita concorrência', async () => {
@@ -167,6 +169,162 @@ describe('SyncCoordinatorService', () => {
     });
   });
 
+  it('coordena duas instâncias na mesma IDBFactory com um único claim e envio', async () => {
+    const factory = new IDBFactory();
+    const firstDatabase = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
+    const secondDatabase = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
+    const firstRepository = new OutboxRepository(firstDatabase);
+    const secondRepository = new OutboxRepository(secondDatabase);
+    await seed(firstDatabase, [entry('shared-command')]);
+    const firstAuth = new AuthSessionService();
+    const secondAuth = new AuthSessionService();
+    firstAuth.logout();
+    secondAuth.logout();
+    firstAuth.startSession(user(), 'first-memory-token');
+    secondAuth.startSession(user(), 'second-memory-token');
+    let sends = 0;
+    const transport: SyncTransport = {
+      send: async (request) => {
+        sends += 1;
+        return {
+          serverRecordId: 'server-shared',
+          idempotencyKey: request.idempotencyKey,
+          receivedAt: NOW,
+          processedAt: NOW,
+          duplicate: false,
+        };
+      },
+    };
+    const first = isolatedCoordinator(firstRepository, firstAuth, transport, '10');
+    const second = isolatedCoordinator(secondRepository, secondAuth, transport, '20');
+
+    first.start();
+    second.start();
+    await Promise.all([first.requestSync(), second.requestSync()]);
+
+    expect(sends).toBe(1);
+    expect(await firstRepository.getById(OWNER, 'shared-command')).toMatchObject({
+      status: 'SYNCED',
+      attemptCount: 1,
+    });
+  });
+
+  it('retoma BLOCKED_AUTH quando o mesmo owner renova a sessão', async () => {
+    await seed(database, [entry('command')]);
+    let sends = 0;
+    const transport: SyncTransport = {
+      send: async (request) => {
+        sends += 1;
+        if (sends === 1) {
+          throw { status: 401 };
+        }
+        return {
+          serverRecordId: 'server-command',
+          idempotencyKey: request.idempotencyKey,
+          receivedAt: NOW,
+          processedAt: NOW,
+          duplicate: false,
+        };
+      },
+    };
+    const coordinator = createCoordinator(transport);
+    authenticate();
+    coordinator.start();
+    await coordinator.requestSync();
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({
+      status: 'BLOCKED_AUTH',
+    });
+
+    auth.startSession(user(), 'renewed-memory-token');
+    await eventually(() => sends === 2);
+
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
+  });
+
+  it('não repete ERROR automaticamente e retry manual preserva identidade/conteúdo', async () => {
+    await seed(database, [entry('command')]);
+    const before = await repository.getById(OWNER, 'command');
+    let accepts = false;
+    let sends = 0;
+    const transport: SyncTransport = {
+      send: async (request) => {
+        sends += 1;
+        if (!accepts) {
+          throw {
+            status: 422,
+            code: 'BUSINESS_RULE',
+            category: 'VALIDATION',
+            userMessage: 'Regra de negócio não atendida.',
+          };
+        }
+        return {
+          serverRecordId: 'server-command',
+          idempotencyKey: request.idempotencyKey,
+          receivedAt: NOW,
+          processedAt: NOW,
+          duplicate: false,
+        };
+      },
+    };
+    const coordinator = createCoordinator(transport);
+    authenticate();
+    coordinator.start();
+    await coordinator.requestSync();
+    triggerCallback?.('online');
+    triggerCallback?.('interval');
+    await coordinator.requestSync();
+
+    expect(sends).toBe(1);
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'ERROR' });
+
+    accepts = true;
+    await coordinator.retryError('command');
+    const after = await repository.getById(OWNER, 'command');
+    expect(sends).toBe(2);
+    expect(after).toMatchObject({ status: 'SYNCED' });
+    expect({
+      idempotencyKey: after?.idempotencyKey,
+      payloadHash: after?.payloadHash,
+      canonicalPayload: after?.canonicalPayload,
+      payload: after?.payload,
+    }).toEqual({
+      idempotencyKey: before?.idempotencyKey,
+      payloadHash: before?.payloadHash,
+      canonicalPayload: before?.canonicalPayload,
+      payload: before?.payload,
+    });
+  });
+
+  it('reenvia após falha transitória com chave e conteúdo exatamente iguais', async () => {
+    await seed(database, [entry('command')]);
+    const snapshots: string[] = [];
+    const transport: SyncTransport = {
+      send: async (request) => {
+        snapshots.push(JSON.stringify(request));
+        if (snapshots.length === 1) {
+          throw new TypeError('Failed to fetch');
+        }
+        return {
+          serverRecordId: 'server-command',
+          idempotencyKey: request.idempotencyKey,
+          receivedAt: currentTime,
+          processedAt: currentTime,
+          duplicate: true,
+        };
+      },
+    };
+    const coordinator = createCoordinator(transport);
+    authenticate();
+    coordinator.start();
+    await coordinator.requestSync();
+    currentTime = '2026-07-29T13:00:01.000Z';
+    await coordinator.requestSync();
+
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[1]).toBe(snapshots[0]);
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
+  });
+
   function createCoordinator(
     transport: SyncTransport,
     overrides: Partial<typeof DEFAULT_SYNC_SCHEDULER_CONFIG> = {},
@@ -183,7 +341,7 @@ describe('SyncCoordinatorService', () => {
         randomUUID: () =>
           `123e4567-e89b-42d3-a456-4266141740${String(uuidIndex++).padStart(2, '0')}` as `${string}-${string}-${string}-${string}-${string}`,
       })),
-      () => new Date(NOW),
+      () => new Date(currentTime),
       () => 0.5,
       { ...DEFAULT_SYNC_SCHEDULER_CONFIG, batchSize: 10, concurrency: 2, ...overrides },
       timeout,
@@ -191,12 +349,40 @@ describe('SyncCoordinatorService', () => {
   }
 
   function authenticate(): void {
-    auth.startSession(
-      { id: OWNER, nome: 'Operador', login: 'operador', permissoes: [] },
-      'token-memory-only',
-    );
+    auth.startSession(user(), 'token-memory-only');
   }
 });
+
+function isolatedCoordinator(
+  repository: OutboxRepository,
+  auth: AuthSessionService,
+  transport: SyncTransport,
+  uuidSuffix: string,
+): SyncCoordinatorService {
+  const trigger = {
+    start: () => undefined,
+    stop: () => undefined,
+    requestSync: () => undefined,
+  } as unknown as SyncTriggerService;
+  return new SyncCoordinatorService(
+    repository,
+    auth,
+    trigger,
+    transport,
+    new IdempotencyService(() => ({
+      randomUUID: () =>
+        `123e4567-e89b-42d3-a456-4266141740${uuidSuffix}` as `${string}-${string}-${string}-${string}-${string}`,
+    })),
+    () => new Date(NOW),
+    () => 0.5,
+    { ...DEFAULT_SYNC_SCHEDULER_CONFIG, batchSize: 10, concurrency: 2 },
+    { schedule: () => () => undefined },
+  );
+}
+
+function user() {
+  return { id: OWNER, nome: 'Operador', login: 'operador', permissoes: [] };
+}
 
 function successTransport(sent: string[]): SyncTransport {
   return {

@@ -8,4 +8,11 @@ export const OFFLINE_TEST_ROUTES: Routes = [
         (module) => module.OfflinePersistenceHarness,
       ),
   },
+  {
+    path: '_test/offline-synchronization',
+    loadComponent: () =>
+      import('./offline-synchronization-harness').then(
+        (module) => module.OfflineSynchronizationHarness,
+      ),
+  },
 ];

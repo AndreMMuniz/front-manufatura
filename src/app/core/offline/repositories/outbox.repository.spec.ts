@@ -101,6 +101,33 @@ describe('OutboxRepository processing', () => {
     });
   });
 
+  it('recupera claim após crash/reload com repository e conexão recriados', async () => {
+    const factory = new IDBFactory();
+    const firstDatabase = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
+    const firstRepository = new OutboxRepository(firstDatabase);
+    await seed(firstDatabase, [
+      entry('command', {
+        status: 'SYNCING',
+        attemptCount: 1,
+        leaseToken: 'crashed-tab',
+        leaseExpiresAt: '2026-07-29T12:59:59.000Z',
+      }),
+    ]);
+    firstDatabase.close();
+
+    const recoveredDatabase = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
+    const recoveredRepository = new OutboxRepository(recoveredDatabase);
+    const claimed = await recoveredRepository.claim({
+      ...claim('command', 'reloaded-tab'),
+    });
+
+    expect(claimed).toMatchObject({
+      status: 'SYNCING',
+      attemptCount: 2,
+      leaseToken: 'reloaded-tab',
+    });
+  });
+
   it('bloqueia dependência pendente ou ausente e reavalia quando concluída', async () => {
     await seed(database, [
       entry('dependency'),

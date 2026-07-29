@@ -66,9 +66,6 @@ export class SyncCoordinatorService implements OnDestroy {
     this.started = true;
     this.sessionSubscription = this.auth.session$.subscribe((session) => {
       const owner = session?.user.id.trim() || null;
-      if (owner === this.activeOwner) {
-        return;
-      }
       this.activeOwner = owner;
       this.sessionEpoch += 1;
       if (owner) {
