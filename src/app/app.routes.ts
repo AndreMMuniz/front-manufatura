@@ -1,7 +1,7 @@
-import { isDevMode } from '@angular/core';
 import { Routes } from '@angular/router';
 
 import { authGuard } from './core/auth/auth.guard';
+import { OFFLINE_TEST_ROUTES } from './core/offline/testing/offline-test.routes';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
@@ -14,17 +14,7 @@ import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-par
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage },
-  ...(isDevMode()
-    ? [
-        {
-          path: '_test/offline-persistence',
-          loadComponent: () =>
-            import('./core/offline/testing/offline-persistence-harness').then(
-              (module) => module.OfflinePersistenceHarness,
-            ),
-        },
-      ]
-    : []),
+  ...OFFLINE_TEST_ROUTES,
   { path: 'menu', component: MainMenuPage, canActivate: [authGuard] },
   { path: 'work-center', component: WorkCenterPage, canActivate: [authGuard] },
   { path: 'operators', component: OperatorsPage, canActivate: [authGuard] },

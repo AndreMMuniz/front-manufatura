@@ -41,6 +41,12 @@
           },
           "configurations": {
             "production": {
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/offline/testing/offline-test.routes.ts",
+                  "with": "src/app/core/offline/testing/offline-test.routes.production.ts"
+                }
+              ],
               "budgets": [
                 {
                   "type": "initial",
