@@ -30,6 +30,19 @@ interface ExistingCommand {
   readonly outboxEntry?: OutboxEntry<JsonValue>;
 }
 
+interface CommandFingerprint {
+  readonly ownerId: string;
+  readonly aggregateType: string;
+  readonly aggregateId: string;
+  readonly commandType: string;
+  readonly payloadSchemaVersion: number;
+  readonly canonicalPayload: string;
+  readonly payloadHash: string;
+  readonly businessStatus?: string;
+  readonly dependencyIds: readonly string[];
+  readonly occurredAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LocalCommandRepository {
   constructor(
@@ -44,23 +57,37 @@ export class LocalCommandRepository {
   ): Promise<PersistedCommand<JsonValue>> {
     const metadata = validateRequest(request);
     const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
-    const prepared = await this.integrity.prepare(request.payload);
-    const committedAt = validDate(this.now(), 'O relógio local retornou uma data inválida.');
-    const occurredAt = request.occurredAt
-      ? validIsoDate(request.occurredAt)
-      : committedAt;
     const dependencyIds = normalizeDependencyIds(request.dependencyIds);
+    if (dependencyIds.some((dependencyId) => dependencyId.toLowerCase() === idempotencyKey)) {
+      throw new OfflineStorageError(
+        'PAYLOAD_INVALID',
+        'Um comando não pode depender da própria identidade.',
+      );
+    }
+    const requestedOccurredAt =
+      request.occurredAt !== undefined ? validIsoDate(request.occurredAt) : undefined;
+    const payload = request.payload;
+    const prepared = await this.integrity.prepare(payload);
+    const committedAt = validDate(this.now(), 'O relógio local retornou uma data inválida.');
+    const occurredAt = requestedOccurredAt ?? committedAt;
+    const fingerprint: CommandFingerprint = {
+      ...metadata,
+      canonicalPayload: prepared.canonicalPayload,
+      payloadHash: prepared.payloadHash,
+      dependencyIds,
+      occurredAt,
+    };
 
     const existing = await this.findExisting(idempotencyKey);
     if (existing.localRecord || existing.outboxEntry) {
-      return resolveExisting(existing, metadata.ownerId, prepared.payloadHash);
+      return resolveExisting(existing, fingerprint);
     }
 
     const localRecord: LocalRecord<JsonValue> = Object.freeze({
       localId: idempotencyKey,
       idempotencyKey,
       databaseVersion: DATABASE_VERSION,
-      payloadSchemaVersion: request.payloadSchemaVersion,
+      payloadSchemaVersion: metadata.payloadSchemaVersion,
       aggregateType: metadata.aggregateType,
       aggregateId: metadata.aggregateId,
       commandType: metadata.commandType,
@@ -77,7 +104,7 @@ export class LocalCommandRepository {
     const outboxEntry: OutboxEntry<JsonValue> = Object.freeze({
       localId: idempotencyKey,
       idempotencyKey,
-      payloadSchemaVersion: request.payloadSchemaVersion,
+      payloadSchemaVersion: metadata.payloadSchemaVersion,
       aggregateType: metadata.aggregateType,
       aggregateId: metadata.aggregateId,
       commandType: metadata.commandType,
@@ -107,7 +134,7 @@ export class LocalCommandRepository {
     } catch (error) {
       const diagnosed = await this.findExisting(idempotencyKey);
       if (diagnosed.localRecord || diagnosed.outboxEntry) {
-        return resolveExisting(diagnosed, metadata.ownerId, prepared.payloadHash);
+        return resolveExisting(diagnosed, fingerprint);
       }
       throw toOfflineStorageError(error, 'O comando não foi salvo neste dispositivo.');
     }
@@ -154,20 +181,29 @@ function validateRequest<TPayload>(request: PersistConfirmedCommandRequest<TPayl
   readonly aggregateType: string;
   readonly aggregateId: string;
   readonly commandType: string;
+  readonly payloadSchemaVersion: number;
   readonly businessStatus?: string;
 } {
   const ownerId = requiredText(request.ownerId);
   const aggregateType = requiredText(request.aggregateType);
   const aggregateId = requiredText(request.aggregateId);
   const commandType = requiredText(request.commandType);
-  if (!Number.isInteger(request.payloadSchemaVersion) || request.payloadSchemaVersion < 1) {
+  const payloadSchemaVersion = request.payloadSchemaVersion;
+  if (!Number.isInteger(payloadSchemaVersion) || payloadSchemaVersion < 1) {
     throw new OfflineStorageError(
       'PAYLOAD_INVALID',
       'A versão do schema do payload deve ser um inteiro positivo.',
     );
   }
   const businessStatus = request.businessStatus?.trim();
-  return { ownerId, aggregateType, aggregateId, commandType, ...(businessStatus ? { businessStatus } : {}) };
+  return {
+    ownerId,
+    aggregateType,
+    aggregateId,
+    commandType,
+    payloadSchemaVersion,
+    ...(businessStatus ? { businessStatus } : {}),
+  };
 }
 
 function requiredText(value: string): string {
@@ -195,16 +231,13 @@ function validDate(value: Date, message: string): string {
 
 function resolveExisting(
   existing: ExistingCommand,
-  ownerId: string,
-  payloadHash: string,
+  fingerprint: CommandFingerprint,
 ): PersistedCommand<JsonValue> {
   if (
     !existing.localRecord ||
     !existing.outboxEntry ||
-    existing.localRecord.ownerId !== ownerId ||
-    existing.outboxEntry.ownerId !== ownerId ||
-    existing.localRecord.payloadHash !== payloadHash ||
-    existing.outboxEntry.payloadHash !== payloadHash
+    !matchesFingerprint(existing.localRecord, fingerprint) ||
+    !matchesFingerprint(existing.outboxEntry, fingerprint)
   ) {
     throw new OfflineStorageError(
       'CONFLICT',
@@ -220,4 +253,26 @@ function resolveExisting(
     outboxEntry: existing.outboxEntry,
     committedAt: existing.localRecord.createdAt,
   });
+}
+
+function matchesFingerprint(
+  record: LocalRecord<JsonValue> | OutboxEntry<JsonValue>,
+  fingerprint: CommandFingerprint,
+): boolean {
+  return (
+    record.ownerId === fingerprint.ownerId &&
+    record.aggregateType === fingerprint.aggregateType &&
+    record.aggregateId === fingerprint.aggregateId &&
+    record.commandType === fingerprint.commandType &&
+    record.payloadSchemaVersion === fingerprint.payloadSchemaVersion &&
+    record.canonicalPayload === fingerprint.canonicalPayload &&
+    record.payloadHash === fingerprint.payloadHash &&
+    record.businessStatus === fingerprint.businessStatus &&
+    record.occurredAt === fingerprint.occurredAt &&
+    sameStrings(record.dependencyIds, fingerprint.dependencyIds)
+  );
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

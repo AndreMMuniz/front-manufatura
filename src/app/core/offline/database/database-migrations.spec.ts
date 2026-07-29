@@ -55,6 +55,24 @@ describe('database migrations', () => {
     expect(recovered).toEqual(pending);
     versionTwo.close();
   });
+
+  it('abre uma instalação nova direto em v2 sem a migration 0 -> 1 antecipar o schema futuro', async () => {
+    const futureMigration: DatabaseMigration = {
+      toVersion: 2,
+      migrate: ({ database }) => database.createObjectStore('futureStore', { keyPath: 'id' }),
+    };
+
+    const database = await openDatabase(
+      new IDBFactory(),
+      2,
+      [...DATABASE_MIGRATIONS, futureMigration],
+    );
+
+    expect(database.objectStoreNames.contains('futureStore')).toBe(true);
+    expect(database.objectStoreNames.contains('localRecords')).toBe(true);
+    expect(database.objectStoreNames.contains('outbox')).toBe(true);
+    database.close();
+  });
 });
 
 function openDatabase(

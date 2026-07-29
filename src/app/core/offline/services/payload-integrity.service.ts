@@ -15,9 +15,11 @@ export const SUBTLE_CRYPTO_PROVIDER = new InjectionToken<SubtleCryptoProvider>(
   'OFFLINE_SUBTLE_CRYPTO_PROVIDER',
   {
     providedIn: 'root',
-    factory: () => () => globalThis.crypto?.subtle,
+    factory: () => provideBrowserSubtleCrypto,
   },
 );
+
+const MAX_PAYLOAD_DEPTH = 100;
 
 const SENSITIVE_KEY_PARTS = [
   'password',
@@ -33,6 +35,15 @@ const SENSITIVE_KEY_PARTS = [
   'segredo',
 ] as const;
 
+const SENSITIVE_EXACT_KEYS = new Set([
+  'apikey',
+  'accesskey',
+  'clientkey',
+  'privatekey',
+  'jwt',
+  'supervisorpin',
+]);
+
 const SANITIZED_AUTHORIZATION_METADATA = new Set([
   'authorizationstatus',
   'authorizationresult',
@@ -44,7 +55,15 @@ export class PayloadIntegrityService {
   constructor(@Inject(SUBTLE_CRYPTO_PROVIDER) private readonly provideSubtle: SubtleCryptoProvider) {}
 
   async prepare(payload: unknown): Promise<PreparedPayload> {
-    const snapshot = canonicalize(payload);
+    let snapshot: JsonValue;
+    try {
+      snapshot = canonicalize(payload);
+    } catch (error) {
+      if (error instanceof OfflineStorageError) {
+        throw error;
+      }
+      throw invalidPayload();
+    }
     const canonicalPayload = JSON.stringify(snapshot);
     const payloadHash = await this.hashCanonical(canonicalPayload);
     return deepFreeze({ snapshot, canonicalPayload, payloadHash });
@@ -74,7 +93,22 @@ export class PayloadIntegrityService {
   }
 }
 
-function canonicalize(value: unknown, ancestors = new Set<object>()): JsonValue {
+export function provideBrowserSubtleCrypto(): SubtleCrypto | undefined {
+  if (typeof globalThis.window === 'undefined') {
+    return undefined;
+  }
+  return globalThis.crypto?.subtle;
+}
+
+function canonicalize(
+  value: unknown,
+  ancestors = new Set<object>(),
+  depth = 0,
+): JsonValue {
+  if (depth > MAX_PAYLOAD_DEPTH) {
+    throw invalidPayload();
+  }
+
   if (value === null) {
     return null;
   }
@@ -91,10 +125,10 @@ function canonicalize(value: unknown, ancestors = new Set<object>()): JsonValue 
   }
 
   if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) {
+    if (Number.isNaN(Date.prototype.getTime.call(value))) {
       throw invalidPayload();
     }
-    return value.toISOString();
+    return Date.prototype.toISOString.call(value);
   }
 
   if (typeof value !== 'object') {
@@ -113,13 +147,24 @@ function canonicalize(value: unknown, ancestors = new Set<object>()): JsonValue 
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => canonicalize(item, ancestors));
+      const result: JsonValue[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        if (!Object.prototype.hasOwnProperty.call(value, index)) {
+          throw invalidPayload();
+        }
+        result.push(canonicalize(value[index], ancestors, depth + 1));
+      }
+      return result;
     }
 
-    const result: Record<string, JsonValue> = {};
+    const result: Record<string, JsonValue> = Object.create(null) as Record<string, JsonValue>;
     for (const key of Object.keys(value).sort()) {
-      assertSafeKey(key);
-      result[key] = canonicalize((value as Record<string, unknown>)[key], ancestors);
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !('value' in descriptor)) {
+        throw invalidPayload();
+      }
+      assertSafeProperty(key, descriptor.value);
+      result[key] = canonicalize(descriptor.value, ancestors, depth + 1);
     }
     return result;
   } finally {
@@ -127,22 +172,57 @@ function canonicalize(value: unknown, ancestors = new Set<object>()): JsonValue 
   }
 }
 
-function assertSafeKey(key: string): void {
-  const normalized = key
+function assertSafeProperty(key: string, value: unknown): void {
+  const normalized = normalizeKey(key);
+
+  if (SANITIZED_AUTHORIZATION_METADATA.has(normalized)) {
+    assertSanitizedAuthorizationMetadata(normalized, value);
+    return;
+  }
+
+  if (
+    SENSITIVE_EXACT_KEYS.has(normalized) ||
+    SENSITIVE_KEY_PARTS.some((part) => normalized.includes(part))
+  ) {
+    throw sensitiveData();
+  }
+}
+
+function normalizeKey(key: string): string {
+  return key
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .replace(/[^a-z0-9]/gi, '')
     .toLowerCase();
+}
 
-  if (
-    !SANITIZED_AUTHORIZATION_METADATA.has(normalized) &&
-    SENSITIVE_KEY_PARTS.some((part) => normalized.includes(part))
-  ) {
-    throw new OfflineStorageError(
-      'SENSITIVE_DATA',
-      'O payload contém uma categoria de dado que não pode ser persistida.',
-    );
+function assertSanitizedAuthorizationMetadata(key: string, value: unknown): void {
+  if (key === 'supervisorauthorizationid') {
+    if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9._:-]{0,127}$/i.test(value)) {
+      throw sensitiveData();
+    }
+    return;
   }
+
+  const allowedStatuses = new Set([
+    'APPROVED',
+    'AUTHORIZED',
+    'DENIED',
+    'NOT_REQUIRED',
+    'PENDING',
+    'REJECTED',
+    'UNAUTHORIZED',
+  ]);
+  if (typeof value !== 'string' || !allowedStatuses.has(value)) {
+    throw sensitiveData();
+  }
+}
+
+function sensitiveData(): OfflineStorageError {
+  return new OfflineStorageError(
+    'SENSITIVE_DATA',
+    'O payload contém uma categoria de dado que não pode ser persistida.',
+  );
 }
 
 function invalidPayload(): OfflineStorageError {

@@ -60,6 +60,11 @@ describe('OfflineDatabase', () => {
 
     await expect(upgrading.open()).rejects.toEqual(expect.objectContaining({ code: 'BLOCKED' }));
     legacy.close();
+
+    const unchanged = await rawOpen(factory, 1);
+    expect(unchanged.version).toBe(1);
+    expect(unchanged.objectStoreNames.contains('blockedProbe')).toBe(false);
+    unchanged.close();
   });
 
   it('fecha a conexão antiga em versionchange e permite upgrade seguro', async () => {
@@ -72,6 +77,30 @@ describe('OfflineDatabase', () => {
     await expect(upgraded).resolves.toMatchObject({ version: 2 });
     expect(closeSpy).toHaveBeenCalledOnce();
     (await upgraded).close();
+  });
+
+  it('invalida uma abertura em andamento quando close é chamado', async () => {
+    const factory = new IDBFactory();
+    const database = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
+
+    const opening = database.open();
+    database.close();
+
+    await expect(opening).rejects.toEqual(expect.objectContaining({ code: 'ABORTED' }));
+    await expect(database.open()).resolves.toMatchObject({ version: 1 });
+    database.close();
+  });
+
+  it('reabre a conexão cacheada quando um consumidor a fechou externamente', async () => {
+    const factory = new IDBFactory();
+    const database = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
+    const externallyClosed = await database.open();
+    externallyClosed.close();
+
+    const transaction = await database.createTransaction(['localRecords'], 'readonly');
+
+    expect(transaction.db).not.toBe(externallyClosed);
+    database.close();
   });
 
   it.each([
@@ -133,6 +162,14 @@ function rawVersionOne(factory: IDBFactory): Promise<IDBDatabase> {
         migrations: DATABASE_MIGRATIONS,
       });
     };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+function rawOpen(factory: IDBFactory, version: number): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = factory.open(DATABASE_NAME, version);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });

@@ -11,6 +11,7 @@ import { LocalRecordRepository } from './local-record.repository';
 import { OutboxRepository } from './outbox.repository';
 
 const COMMAND_ID = '123e4567-e89b-42d3-a456-426614174000';
+const OTHER_COMMAND_ID = '223e4567-e89b-42d3-a456-426614174000';
 const NOW = '2026-07-28T16:00:00.000Z';
 
 describe('LocalCommandRepository', () => {
@@ -85,6 +86,24 @@ describe('LocalCommandRepository', () => {
     expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
   });
 
+  it.each([
+    { aggregateType: 'SCRAP_REPORT' },
+    { aggregateId: 'OP-99' },
+    { commandType: 'CANCEL_REPORT' },
+    { payloadSchemaVersion: 3 },
+    { dependencyIds: ['another-command'] },
+    { occurredAt: '2026-07-28T15:46:00.000Z' },
+    { businessStatus: 'CONFIRMED' },
+  ])('rejeita chave e payload iguais quando o envelope diverge: %o', async (overrides) => {
+    await commands.persistConfirmedCommand(request({ quantity: 5 }));
+
+    await expect(
+      commands.persistConfirmedCommand(
+        request({ quantity: 5 }, { idempotencyKey: COMMAND_ID, ...overrides }),
+      ),
+    ).rejects.toEqual(expect.objectContaining({ code: 'CONFLICT' }));
+  });
+
   it('aborta 0+0 quando a segunda escrita falha', async () => {
     await seedOutboxCollision(database);
 
@@ -130,6 +149,59 @@ describe('LocalCommandRepository', () => {
     ).rejects.toEqual(expect.objectContaining({ code: 'PAYLOAD_INVALID' }));
     expect(createTransaction).not.toHaveBeenCalled();
   });
+
+  it('captura o envelope antes do await de integridade', async () => {
+    let releasePrepare!: () => void;
+    const waitForRelease = new Promise<void>((resolve) => {
+      releasePrepare = resolve;
+    });
+    const integrity = new PayloadIntegrityService(() => globalThis.crypto.subtle);
+    vi.spyOn(integrity, 'prepare').mockImplementation(async () => {
+      await waitForRelease;
+      return {
+        snapshot: { quantity: 5 },
+        canonicalPayload: '{"quantity":5}',
+        payloadHash: 'stable-hash',
+      };
+    });
+    const isolated = new LocalCommandRepository(
+      database,
+      new IdempotencyService(() => ({
+        randomUUID: () =>
+          COMMAND_ID as `${string}-${string}-${string}-${string}-${string}`,
+      })),
+      integrity,
+      () => new Date(NOW),
+    );
+    const mutable = request({ quantity: 5 }) as ReturnType<typeof request> & {
+      aggregateId: string;
+      payloadSchemaVersion: number;
+    };
+
+    const pending = isolated.persistConfirmedCommand(mutable);
+    mutable.aggregateId = 'MUTATED';
+    mutable.payloadSchemaVersion = 0;
+    releasePrepare();
+
+    await expect(pending).resolves.toMatchObject({
+      localRecord: { aggregateId: 'OP-42', payloadSchemaVersion: 2 },
+      outboxEntry: { aggregateId: 'OP-42', payloadSchemaVersion: 2 },
+    });
+  });
+
+  it('rejeita dependência própria e occurredAt vazio antes de abrir a transação', async () => {
+    const createTransaction = vi.spyOn(database, 'createTransaction');
+
+    await expect(
+      commands.persistConfirmedCommand(
+        request({ quantity: 5 }, { dependencyIds: [COMMAND_ID] }),
+      ),
+    ).rejects.toEqual(expect.objectContaining({ code: 'PAYLOAD_INVALID' }));
+    await expect(
+      commands.persistConfirmedCommand(request({ quantity: 5 }, { occurredAt: '' })),
+    ).rejects.toEqual(expect.objectContaining({ code: 'PAYLOAD_INVALID' }));
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
 });
 
 function request(
@@ -154,7 +226,7 @@ async function seedOutboxCollision(database: OfflineDatabase): Promise<void> {
   const completion = complete(transaction);
   transaction.objectStore(OUTBOX_STORE).add({
     localId: COMMAND_ID,
-    idempotencyKey: COMMAND_ID,
+    idempotencyKey: OTHER_COMMAND_ID,
     ownerId: 'operator-1',
     status: 'PENDING',
     createdAt: NOW,

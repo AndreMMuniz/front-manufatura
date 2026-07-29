@@ -49,6 +49,7 @@ export const OFFLINE_DATABASE_CONFIGURATION = new InjectionToken<OfflineDatabase
 export class OfflineDatabase {
   private connection?: IDBDatabase;
   private opening?: Promise<IDBDatabase>;
+  private lifecycleEpoch = 0;
 
   constructor(
     @Inject(INDEXED_DB_PROVIDER) private readonly provideFactory: IndexedDbProvider,
@@ -83,48 +84,46 @@ export class OfflineDatabase {
       );
     }
 
-    this.opening = this.openRequest(factory).finally(() => {
-      this.opening = undefined;
+    const epoch = this.lifecycleEpoch;
+    let opening!: Promise<IDBDatabase>;
+    opening = this.openRequest(factory, epoch).finally(() => {
+      if (this.opening === opening) {
+        this.opening = undefined;
+      }
     });
-    return this.opening;
+    this.opening = opening;
+    return opening;
   }
 
   async createTransaction(
     storeNames: readonly OfflineStoreName[],
     mode: IDBTransactionMode,
   ): Promise<IDBTransaction> {
-    const database = await this.open();
-    if (mode !== 'readwrite') {
-      try {
-        return database.transaction([...storeNames], mode);
-      } catch (error) {
-        throw toOfflineStorageError(error, 'Não foi possível iniciar a transação local.');
-      }
-    }
-
+    let database = await this.open();
     try {
-      return database.transaction([...storeNames], mode, { durability: 'strict' });
+      return createNativeTransaction(database, storeNames, mode);
     } catch (error) {
-      if (!(error instanceof TypeError)) {
+      if (!isInvalidStateError(error) || this.connection !== database) {
         throw toOfflineStorageError(error, 'Não foi possível iniciar a transação local.');
       }
+      this.connection = undefined;
+      database = await this.open();
       try {
-        return database.transaction([...storeNames], mode);
-      } catch (fallbackError) {
-        throw toOfflineStorageError(
-          fallbackError,
-          'Não foi possível iniciar a transação local.',
-        );
+        return createNativeTransaction(database, storeNames, mode);
+      } catch (retryError) {
+        throw toOfflineStorageError(retryError, 'Não foi possível iniciar a transação local.');
       }
     }
   }
 
   close(): void {
+    this.lifecycleEpoch += 1;
     this.connection?.close();
     this.connection = undefined;
+    this.opening = undefined;
   }
 
-  private openRequest(factory: IDBFactory): Promise<IDBDatabase> {
+  private openRequest(factory: IDBFactory, epoch: number): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       let request: IDBOpenDBRequest;
       let upgradeError: unknown;
@@ -138,6 +137,14 @@ export class OfflineDatabase {
       }
 
       request.onupgradeneeded = (event) => {
+        if (settled || epoch !== this.lifecycleEpoch) {
+          upgradeError = new DOMException(
+            'A abertura foi invalidada antes da migration.',
+            'AbortError',
+          );
+          request.transaction?.abort();
+          return;
+        }
         try {
           runDatabaseMigrations({
             database: request.result,
@@ -175,6 +182,17 @@ export class OfflineDatabase {
           database.close();
           return;
         }
+        if (epoch !== this.lifecycleEpoch) {
+          settled = true;
+          database.close();
+          reject(
+            new OfflineStorageError(
+              'ABORTED',
+              'A abertura do armazenamento local foi cancelada.',
+            ),
+          );
+          return;
+        }
 
         try {
           validateSchema(database);
@@ -201,6 +219,28 @@ export class OfflineDatabase {
       };
     });
   }
+}
+
+function createNativeTransaction(
+  database: IDBDatabase,
+  storeNames: readonly OfflineStoreName[],
+  mode: IDBTransactionMode,
+): IDBTransaction {
+  if (mode !== 'readwrite') {
+    return database.transaction([...storeNames], mode);
+  }
+  try {
+    return database.transaction([...storeNames], mode, { durability: 'strict' });
+  } catch (error) {
+    if (!(error instanceof TypeError)) {
+      throw error;
+    }
+    return database.transaction([...storeNames], mode);
+  }
+}
+
+function isInvalidStateError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'InvalidStateError';
 }
 
 function validateSchema(database: IDBDatabase): void {

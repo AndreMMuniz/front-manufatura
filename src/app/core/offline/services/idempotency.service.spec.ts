@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { OfflineStorageError } from '../models/offline-storage-error';
-import { IdempotencyService } from './idempotency.service';
+import { IdempotencyService, provideBrowserRandomUuid } from './idempotency.service';
 
 describe('IdempotencyService', () => {
   it('gera UUID v4 com Web Crypto uma única vez', () => {
@@ -12,12 +12,12 @@ describe('IdempotencyService', () => {
     expect(randomUUID).toHaveBeenCalledOnce();
   });
 
-  it('preserva uma identidade fornecida válida sem regenerá-la', () => {
+  it('canonicaliza uma identidade fornecida válida sem regenerá-la', () => {
     const randomUUID = vi.fn();
     const service = new IdempotencyService(() => ({ randomUUID }));
     const supplied = '123E4567-E89B-42D3-A456-426614174000';
 
-    expect(service.resolve(supplied)).toBe(supplied);
+    expect(service.resolve(supplied)).toBe(supplied.toLowerCase());
     expect(randomUUID).not.toHaveBeenCalled();
   });
 
@@ -28,5 +28,13 @@ describe('IdempotencyService', () => {
     expect(() => service.resolve()).toThrowError(
       expect.objectContaining({ code: 'CAPABILITY_UNAVAILABLE' }),
     );
+  });
+
+  it('não expõe Web Crypto quando window não existe no SSR', () => {
+    vi.stubGlobal('window', undefined);
+
+    expect(provideBrowserRandomUuid()).toBeUndefined();
+
+    vi.unstubAllGlobals();
   });
 });

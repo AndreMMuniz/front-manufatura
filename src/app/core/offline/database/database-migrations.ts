@@ -1,5 +1,9 @@
 import { OfflineStorageError } from '../models/offline-storage-error';
-import { DATABASE_VERSION, OFFLINE_DATABASE_SCHEMA } from './database-schema';
+import {
+  DATABASE_VERSION,
+  LOCAL_RECORDS_STORE,
+  OUTBOX_STORE,
+} from './database-schema';
 
 export interface DatabaseMigrationContext {
   readonly database: IDBDatabase;
@@ -20,7 +24,7 @@ export interface RunMigrationsRequest extends DatabaseMigrationContext {
 const INITIAL_SCHEMA_MIGRATION: DatabaseMigration = {
   toVersion: 1,
   migrate: ({ database }) => {
-    for (const storeSchema of OFFLINE_DATABASE_SCHEMA.stores) {
+    for (const storeSchema of VERSION_ONE_STORES) {
       const store = database.createObjectStore(storeSchema.name, { keyPath: storeSchema.keyPath });
       for (const indexSchema of storeSchema.indexes) {
         const keyPath =
@@ -32,6 +36,41 @@ const INITIAL_SCHEMA_MIGRATION: DatabaseMigration = {
     }
   },
 };
+
+// Historical migrations are immutable snapshots. Never derive an old migration
+// from OFFLINE_DATABASE_SCHEMA, which evolves with the current target version.
+const VERSION_ONE_STORES = [
+  {
+    name: LOCAL_RECORDS_STORE,
+    keyPath: 'localId',
+    indexes: [
+      { name: 'idempotencyKey', keyPath: 'idempotencyKey', unique: true },
+      { name: 'ownerId', keyPath: 'ownerId', unique: false },
+      {
+        name: 'ownerAggregate',
+        keyPath: ['ownerId', 'aggregateType', 'aggregateId'],
+        unique: false,
+      },
+      { name: 'createdAt', keyPath: 'createdAt', unique: false },
+    ],
+  },
+  {
+    name: OUTBOX_STORE,
+    keyPath: 'localId',
+    indexes: [
+      { name: 'idempotencyKey', keyPath: 'idempotencyKey', unique: true },
+      { name: 'ownerId', keyPath: 'ownerId', unique: false },
+      { name: 'status', keyPath: 'status', unique: false },
+      { name: 'ownerStatus', keyPath: ['ownerId', 'status'], unique: false },
+      {
+        name: 'aggregateCreatedAt',
+        keyPath: ['aggregateType', 'aggregateId', 'createdAt'],
+        unique: false,
+      },
+      { name: 'createdAt', keyPath: 'createdAt', unique: false },
+    ],
+  },
+] as const;
 
 export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
   INITIAL_SCHEMA_MIGRATION,

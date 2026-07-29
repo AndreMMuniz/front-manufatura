@@ -9,10 +9,7 @@ export const RANDOM_UUID_PROVIDER = new InjectionToken<RandomUuidProvider>(
   'OFFLINE_RANDOM_UUID_PROVIDER',
   {
     providedIn: 'root',
-    factory: () => () => {
-      const candidate = globalThis.crypto;
-      return typeof candidate?.randomUUID === 'function' ? candidate : undefined;
-    },
+    factory: () => provideBrowserRandomUuid,
   },
 );
 
@@ -31,7 +28,7 @@ export class IdempotencyService {
           'A chave de idempotência deve ser um UUID v4 válido.',
         );
       }
-      return supplied;
+      return supplied.toLowerCase();
     }
 
     const cryptoCapability = this.provideCrypto();
@@ -49,6 +46,14 @@ export class IdempotencyService {
         'A identidade segura gerada pelo navegador é inválida.',
       );
     }
-    return generated;
+    return generated.toLowerCase();
   }
+}
+
+export function provideBrowserRandomUuid(): RandomUuidCapability | undefined {
+  if (typeof globalThis.window === 'undefined') {
+    return undefined;
+  }
+  const candidate = globalThis.crypto;
+  return typeof candidate?.randomUUID === 'function' ? candidate : undefined;
 }
