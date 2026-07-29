@@ -43,11 +43,12 @@ test('recusa login novo e consulta sem cópia local quando offline', async ({
 
   await context.setOffline(false);
   await login(page);
-  await context.setOffline(true);
   await page.goto('/item-consultation');
-  await expect(page.getByRole('status')).toContainText(
+  await context.setOffline(true);
+  await expect(page.getByText(
     'Dados não disponíveis neste dispositivo. Conecte-se para consultar o Datasul.',
-  );
+    { exact: true },
+  )).toBeVisible();
 });
 
 test('não armazena login, POST nem respostas autenticadas no Cache Storage', async ({
