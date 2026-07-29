@@ -86,6 +86,21 @@ const SCHEDULER_SCHEMA_MIGRATION: DatabaseMigration = {
       ['ownerId', 'aggregateType', 'aggregateId', 'createdAt', 'localId'],
       { unique: false },
     );
+    const cursorRequest = outbox.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        return;
+      }
+      const entry = cursor.value as Readonly<Record<string, unknown>>;
+      if (entry['status'] === 'SYNCING' && typeof entry['leaseExpiresAt'] !== 'string') {
+        cursor.update({
+          ...entry,
+          leaseExpiresAt: '1970-01-01T00:00:00.000Z',
+        });
+      }
+      cursor.continue();
+    };
   },
 };
 

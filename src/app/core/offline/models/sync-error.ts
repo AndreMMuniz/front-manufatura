@@ -37,6 +37,8 @@ export const DEFAULT_SYNC_SCHEDULER_CONFIG: SyncSchedulerConfig = Object.freeze(
   concurrency: 3,
 });
 
+const MAX_SAFE_RETRY_AFTER_SECONDS = 8_000_000_000_000;
+
 export class SyncTimeoutError extends Error {
   constructor() {
     super('A requisição de sincronização excedeu o tempo configurado.');
@@ -75,7 +77,29 @@ export function calculateRetryDelay(
     retryAfterSeconds >= 0
       ? Math.round(retryAfterSeconds * 1_000)
       : 0;
-  return Math.max(jitter, retryAfter);
+  return Math.max(1, jitter, retryAfter);
+}
+
+export function assertValidSyncSchedulerConfig(config: SyncSchedulerConfig): void {
+  const positiveIntegers = [
+    config.baseDelayMs,
+    config.maxDelayMs,
+    config.requestTimeoutMs,
+    config.leaseDurationMs,
+    config.intervalMs,
+    config.batchSize,
+    config.concurrency,
+  ];
+  if (
+    positiveIntegers.some((value) => !Number.isSafeInteger(value) || value < 1) ||
+    config.baseDelayMs > config.maxDelayMs ||
+    config.leaseDurationMs <= config.requestTimeoutMs
+  ) {
+    throw new SyncConfigurationError(
+      'INVALID_SCHEDULER_CONFIGURATION',
+      'A configuração do scheduler de sincronização é inválida.',
+    );
+  }
 }
 
 export function normalizeCommandError(error: unknown): NormalizedSyncError {
@@ -152,9 +176,7 @@ function safeUserMessage(value: unknown, category: SyncErrorCategory): string {
   const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 240);
   if (
     !normalized ||
-    /\b(password|passwd|senha|token|cookie|authorization|credential|credencial)\b/i.test(
-      normalized,
-    )
+    /\b(password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha))\b/i.test(normalized)
   ) {
     return defaultUserMessage(category);
   }
@@ -183,7 +205,10 @@ function safeCorrelationId(value: unknown): string | undefined {
 }
 
 function safeRetryAfter(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+  return typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= MAX_SAFE_RETRY_AFTER_SECONDS
     ? value
     : undefined;
 }

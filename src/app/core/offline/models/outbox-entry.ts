@@ -42,6 +42,9 @@ export interface OutboxEntry<TPayload = JsonValue> {
   readonly leaseExpiresAt?: string;
   readonly receipt?: RemoteCommandReceipt;
   readonly lastError?: PersistedSyncError;
+  readonly manualRetryCount?: number;
+  readonly lastManualRetryAt?: string;
+  readonly lastManualRetryBy?: string;
 }
 
 export interface PersistedCommand<TPayload = JsonValue> {

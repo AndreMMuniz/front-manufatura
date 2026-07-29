@@ -6,6 +6,7 @@ import { OutboxEntry } from '../models/outbox-entry';
 import {
   NormalizedSyncError,
   SyncSchedulerConfig,
+  assertValidSyncSchedulerConfig,
   calculateRetryDelay,
   normalizeCommandError,
 } from '../models/sync-error';
@@ -46,6 +47,7 @@ export class SyncCoordinatorService implements OnDestroy {
   private running?: Promise<void>;
   private sessionSubscription?: Subscription;
   private started = false;
+  private readonly activeRequests = new Set<AbortController>();
 
   constructor(
     private readonly outbox: OutboxRepository,
@@ -63,18 +65,20 @@ export class SyncCoordinatorService implements OnDestroy {
     if (this.started) {
       return;
     }
+    assertValidSyncSchedulerConfig(this.config);
     this.started = true;
     this.sessionSubscription = this.auth.session$.subscribe((session) => {
       const owner = session?.user.id.trim() || null;
+      this.abortActiveRequests();
+      this.triggers.stop();
       this.activeOwner = owner;
       this.sessionEpoch += 1;
       if (owner) {
-        const now = this.nowIso();
-        void this.outbox.resumeBlockedAuth(owner, now).then(() => this.requestSync());
+        this.triggers.start(() => {
+          void this.requestSync().catch(() => undefined);
+        });
+        void this.resumeOwner(owner, this.sessionEpoch).catch(() => undefined);
       }
-    });
-    this.triggers.start(() => {
-      void this.requestSync();
     });
   }
 
@@ -110,6 +114,7 @@ export class SyncCoordinatorService implements OnDestroy {
     this.requested = false;
     this.sessionSubscription?.unsubscribe();
     this.sessionSubscription = undefined;
+    this.abortActiveRequests();
     this.triggers.stop();
   }
 
@@ -167,27 +172,36 @@ export class SyncCoordinatorService implements OnDestroy {
     if (!claimed) {
       return false;
     }
+    if (!this.isCurrent(owner, epoch)) {
+      await this.outbox.releaseClaim(owner, claimed.localId, leaseToken, this.nowIso());
+      return false;
+    }
 
+    const controller = new AbortController();
+    this.activeRequests.add(controller);
     try {
       const result = await sendCommandWithTimeout(
         this.transport,
         toSyncCommandRequest(claimed),
         this.config.requestTimeoutMs,
         this.timeoutScheduler,
+        controller.signal,
       );
-      if (this.isCurrent(owner, epoch)) {
-        await this.outbox.reconcileSuccess({
-          ownerId: owner,
-          localId: claimed.localId,
-          leaseToken,
-          now: this.nowIso(),
-          result,
-        });
-      }
+      await this.outbox.reconcileSuccess({
+        ownerId: owner,
+        localId: claimed.localId,
+        leaseToken,
+        now: this.nowIso(),
+        result,
+      });
     } catch (error) {
       if (this.isCurrent(owner, epoch)) {
         await this.reconcileError(owner, claimed, leaseToken, normalizeCommandError(error));
+      } else {
+        await this.outbox.releaseClaim(owner, claimed.localId, leaseToken, this.nowIso());
       }
+    } finally {
+      this.activeRequests.delete(controller);
     }
     return true;
   }
@@ -250,7 +264,13 @@ export class SyncCoordinatorService implements OnDestroy {
         }
       }
     });
-    await Promise.all(workers);
+    const results = await Promise.allSettled(workers);
+    const rejected = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (rejected) {
+      throw rejected.reason;
+    }
     return successfulClaims;
   }
 
@@ -260,6 +280,20 @@ export class SyncCoordinatorService implements OnDestroy {
 
   private nowIso(): string {
     return validDate(this.clock());
+  }
+
+  private async resumeOwner(owner: string, epoch: number): Promise<void> {
+    await this.outbox.resumeBlockedAuth(owner, this.nowIso());
+    if (this.isCurrent(owner, epoch)) {
+      await this.requestSync();
+    }
+  }
+
+  private abortActiveRequests(): void {
+    for (const controller of this.activeRequests) {
+      controller.abort(new Error('A sessão mudou durante a sincronização.'));
+    }
+    this.activeRequests.clear();
   }
 }
 

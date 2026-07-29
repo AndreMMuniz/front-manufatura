@@ -57,8 +57,12 @@ export class LocalCommandRepository {
   ): Promise<PersistedCommand<JsonValue>> {
     const metadata = validateRequest(request);
     const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
-    const dependencyIds = normalizeDependencyIds(request.dependencyIds);
-    if (dependencyIds.some((dependencyId) => dependencyId.toLowerCase() === idempotencyKey)) {
+    const dependencyIds = Object.freeze(
+      normalizeDependencyIds(request.dependencyIds).map((dependencyId) =>
+        dependencyId.toLowerCase(),
+      ),
+    );
+    if (dependencyIds.includes(idempotencyKey)) {
       throw new OfflineStorageError(
         'PAYLOAD_INVALID',
         'Um comando não pode depender da própria identidade.',
@@ -69,7 +73,12 @@ export class LocalCommandRepository {
     const payload = request.payload;
     const prepared = await this.integrity.prepare(payload);
     const committedAt = validDate(this.now(), 'O relógio local retornou uma data inválida.');
-    const occurredAt = requestedOccurredAt ?? committedAt;
+    const existing = await this.findExisting(idempotencyKey);
+    const occurredAt =
+      requestedOccurredAt ??
+      existing.localRecord?.occurredAt ??
+      existing.outboxEntry?.occurredAt ??
+      committedAt;
     const fingerprint: CommandFingerprint = {
       ...metadata,
       canonicalPayload: prepared.canonicalPayload,
@@ -78,7 +87,6 @@ export class LocalCommandRepository {
       occurredAt,
     };
 
-    const existing = await this.findExisting(idempotencyKey);
     if (existing.localRecord || existing.outboxEntry) {
       return resolveExisting(existing, fingerprint);
     }

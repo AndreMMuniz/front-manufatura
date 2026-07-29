@@ -94,6 +94,7 @@ export function sendCommandWithTimeout(
   request: SyncCommandRequest,
   timeoutMs: number,
   scheduler: TimeoutScheduler,
+  externalSignal?: AbortSignal,
 ): Promise<CommandResult> {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return Promise.reject(
@@ -113,16 +114,32 @@ export function sendCommandWithTimeout(
       cancel();
       callback();
     };
-    cancel = scheduler.schedule(() => {
+    const cancelTimer = scheduler.schedule(() => {
       const timeout = new SyncTimeoutError();
       controller.abort(timeout);
       finish(() => reject(timeout));
     }, timeoutMs);
+    const abortFromExternal = () => {
+      const reason = externalSignal?.reason ?? new Error('A sincronização foi cancelada.');
+      controller.abort(reason);
+      finish(() => reject(reason));
+    };
+    cancel = () => {
+      cancelTimer();
+      externalSignal?.removeEventListener('abort', abortFromExternal);
+    };
+    externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
+    if (externalSignal?.aborted) {
+      abortFromExternal();
+      return;
+    }
 
-    transport.send(request, controller.signal).then(
+    Promise.resolve()
+      .then(() => transport.send(request, controller.signal))
+      .then(
       (result) => finish(() => resolve(validateCommandResult(request, result))),
       (error: unknown) => finish(() => reject(error)),
-    );
+      );
   });
 }
 

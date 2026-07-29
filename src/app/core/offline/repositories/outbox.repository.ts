@@ -31,15 +31,23 @@ export interface ReconcileSuccessRequest {
   readonly result: RemoteCommandReceipt & { readonly idempotencyKey?: string };
 }
 
-export interface ReconcileFailureRequest {
+interface ReconcileFailureBase {
   readonly ownerId: string;
   readonly localId: string;
   readonly leaseToken: string;
   readonly now: string;
-  readonly status: 'RETRY_WAIT' | 'BLOCKED_AUTH' | 'BLOCKED_DEPENDENCY' | 'ERROR';
-  readonly nextAttemptAt?: string;
   readonly error: PersistedSyncError;
 }
+
+export type ReconcileFailureRequest =
+  | (ReconcileFailureBase & {
+      readonly status: 'RETRY_WAIT';
+      readonly nextAttemptAt: string;
+    })
+  | (ReconcileFailureBase & {
+      readonly status: 'BLOCKED_AUTH' | 'BLOCKED_DEPENDENCY' | 'ERROR';
+      readonly nextAttemptAt?: never;
+    });
 
 @Injectable({ providedIn: 'root' })
 export class OutboxRepository {
@@ -94,11 +102,13 @@ export class OutboxRepository {
     const store = transaction.objectStore(OUTBOX_STORE);
     const [orderedEntries, dueEntries] = await Promise.all([
       requestResult<OutboxEntry<JsonValue>[]>(
-        store.index('ownerAggregateOrder').getAll(),
+        store.index('ownerAggregateOrder').getAll(ownerRange(owner)),
         'Não foi possível ordenar a Outbox por agregado.',
       ),
       requestResult<OutboxEntry<JsonValue>[]>(
-        store.index('ownerStatusDue').getAll(),
+        store
+          .index('ownerStatusDue')
+          .getAll(IDBKeyRange.bound([owner, 'RETRY_WAIT', ''], [owner, 'RETRY_WAIT', normalizedNow])),
         'Não foi possível consultar os agendamentos da Outbox.',
       ),
     ]);
@@ -147,7 +157,7 @@ export class OutboxRepository {
     const completed = transactionComplete(transaction);
     const store = transaction.objectStore(OUTBOX_STORE);
     const allEntries = await requestResult<OutboxEntry<JsonValue>[]>(
-      store.index('ownerAggregateOrder').getAll(),
+      store.index('ownerAggregateOrder').getAll(ownerRange(owner)),
       'Não foi possível revalidar a Outbox antes do claim.',
     );
     const current = allEntries.find(
@@ -257,7 +267,7 @@ export class OutboxRepository {
     const failed: OutboxEntry<JsonValue> = {
       ...withoutRuntimeState(current),
       status: request.status,
-      ...(request.status === 'RETRY_WAIT' && request.nextAttemptAt
+      ...(request.status === 'RETRY_WAIT'
         ? { nextAttemptAt: validIso(request.nextAttemptAt) }
         : {}),
       lastError: defensiveCopy(request.error),
@@ -279,6 +289,37 @@ export class OutboxRepository {
       'Não foi possível reabilitar o comando.',
     );
     if (!current || current.ownerId !== owner || current.status !== 'ERROR') {
+      await completed;
+      return false;
+    }
+    store.put({
+      ...withoutRuntimeState(current),
+      status: 'PENDING',
+      manualRetryCount: (current.manualRetryCount ?? 0) + 1,
+      lastManualRetryAt: normalizedNow,
+      lastManualRetryBy: owner,
+      updatedAt: normalizedNow,
+    } satisfies OutboxEntry<JsonValue>);
+    await completed;
+    return true;
+  }
+
+  async releaseClaim(
+    ownerId: string,
+    localId: string,
+    leaseToken: string,
+    now: string,
+  ): Promise<boolean> {
+    const owner = assertOwnerId(ownerId);
+    const normalizedNow = validIso(now);
+    const transaction = await this.database.createTransaction([OUTBOX_STORE], 'readwrite');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(OUTBOX_STORE);
+    const current = await requestResult<OutboxEntry<JsonValue> | undefined>(
+      store.get(localId),
+      'Não foi possível liberar o claim após a mudança de sessão.',
+    );
+    if (!ownsLease(current, owner, leaseToken)) {
       await completed;
       return false;
     }
@@ -320,7 +361,7 @@ function isEligible(
 ): boolean {
   return (
     entry.status === 'PENDING' ||
-    entry.status === 'BLOCKED_DEPENDENCY' ||
+    (entry.status === 'BLOCKED_DEPENDENCY' && !isPermanentDependencyBlock(entry)) ||
     (entry.status === 'RETRY_WAIT' && dueIds.has(entry.localId)) ||
     (entry.status === 'SYNCING' &&
       Boolean(entry.leaseExpiresAt) &&
@@ -331,7 +372,7 @@ function isEligible(
 function isClaimableState(entry: OutboxEntry<JsonValue>, now: string): boolean {
   return (
     entry.status === 'PENDING' ||
-    entry.status === 'BLOCKED_DEPENDENCY' ||
+    (entry.status === 'BLOCKED_DEPENDENCY' && !isPermanentDependencyBlock(entry)) ||
     (entry.status === 'RETRY_WAIT' &&
       Boolean(entry.nextAttemptAt) &&
       entry.nextAttemptAt! <= now) ||
@@ -354,10 +395,59 @@ function inspectDependencies(
       return 'MISSING_OR_PERMANENT';
     }
     if (dependency.status !== 'SYNCED') {
+      if (
+        (dependency.aggregateType === entry.aggregateType &&
+          dependency.aggregateId === entry.aggregateId &&
+          compareEntries(dependency, entry) > 0) ||
+        hasDependencyPath(dependency.localId, entry.localId, allEntries, owner)
+      ) {
+        return 'MISSING_OR_PERMANENT';
+      }
       return 'PENDING';
     }
   }
   return 'READY';
+}
+
+function hasDependencyPath(
+  startId: string,
+  targetId: string,
+  entries: readonly OutboxEntry<JsonValue>[],
+  owner: string,
+): boolean {
+  const byId = new Map(
+    entries
+      .filter((candidate) => candidate.ownerId === owner && candidate.status !== 'SYNCED')
+      .map((candidate) => [candidate.localId, candidate] as const),
+  );
+  const visited = new Set<string>();
+  const pending = [startId];
+  while (pending.length > 0) {
+    const currentId = pending.pop()!;
+    if (currentId === targetId) {
+      return true;
+    }
+    if (visited.has(currentId)) {
+      continue;
+    }
+    visited.add(currentId);
+    const current = byId.get(currentId);
+    if (current) {
+      pending.push(...current.dependencyIds);
+    }
+  }
+  return false;
+}
+
+function isPermanentDependencyBlock(entry: OutboxEntry<JsonValue>): boolean {
+  return (
+    entry.lastError?.code === 'DEPENDENCY_MISSING' &&
+    entry.lastError.category === 'CONFIGURATION'
+  );
+}
+
+function ownerRange(owner: string): IDBKeyRange {
+  return IDBKeyRange.bound([owner], [owner, []]);
 }
 
 function blocked(
