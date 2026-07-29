@@ -6,7 +6,10 @@ import { provideClientHydration } from '@angular/platform-browser';
 
 import {
   ApplicationConfig,
+  afterNextRender,
+  inject,
   importProvidersFrom,
+  provideAppInitializer,
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
 } from '@angular/core';
@@ -14,6 +17,7 @@ import { provideHttpClient, withFetch, withInterceptorsFromDi } from '@angular/c
 
 import { PoHttpRequestModule, PoNotificationService } from '@po-ui/ng-components';
 import { TopNotificationService } from './core/notifications/top-notification.service';
+import { SyncCoordinatorService } from './core/offline/services/sync-coordinator.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -23,5 +27,9 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideHttpClient(withFetch(), withInterceptorsFromDi()),
     { provide: PoNotificationService, useClass: TopNotificationService },
+    provideAppInitializer(() => {
+      const coordinator = inject(SyncCoordinatorService);
+      afterNextRender(() => coordinator.start());
+    }),
   ],
 };

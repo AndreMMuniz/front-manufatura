@@ -1,16 +1,10 @@
 import { JsonValue, LocalRecord } from './local-record';
+import { SyncErrorCategory } from './sync-error';
 import { SyncStatus } from './sync-status';
-
-export type PersistedSyncErrorCategory =
-  | 'TRANSIENT'
-  | 'AUTH'
-  | 'VALIDATION'
-  | 'CONFLICT'
-  | 'CONFIGURATION';
 
 export interface PersistedSyncError {
   readonly code: string;
-  readonly category: PersistedSyncErrorCategory;
+  readonly category: SyncErrorCategory;
   readonly userMessage: string;
   readonly correlationId?: string;
 }
