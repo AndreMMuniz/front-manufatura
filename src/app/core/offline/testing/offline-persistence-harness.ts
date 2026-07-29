@@ -9,6 +9,7 @@ import {
   OfflineDatabase,
 } from '../database/offline-database';
 import {
+  DATABASE_VERSION,
   OUTBOX_STORE,
 } from '../database/database-schema';
 import { OfflineStorageError } from '../models/offline-storage-error';
@@ -125,7 +126,7 @@ export class OfflinePersistenceHarness {
     });
 
     const migration: DatabaseMigration = {
-      toVersion: 2,
+      toVersion: DATABASE_VERSION + 1,
       migrate: ({ database }) =>
         database.createObjectStore('playwrightMigrationProbe', { keyPath: 'id' }),
     };
@@ -133,7 +134,7 @@ export class OfflinePersistenceHarness {
       () => globalThis.indexedDB,
       {
         ...OFFLINE_DATABASE_CONFIG,
-        version: 2,
+        version: DATABASE_VERSION + 1,
         migrations: [...DATABASE_MIGRATIONS, migration],
       },
     );

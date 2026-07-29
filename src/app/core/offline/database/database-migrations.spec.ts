@@ -15,7 +15,7 @@ import {
 } from './database-schema';
 
 describe('database migrations', () => {
-  it('cria o schema 0 -> 1 com stores, key paths e índices obrigatórios', async () => {
+  it('cria o schema 0 -> target com stores, key paths e índices obrigatórios', async () => {
     const database = await openDatabase(new IDBFactory(), DATABASE_VERSION, DATABASE_MIGRATIONS);
 
     expect(database.name).toBe(DATABASE_NAME);
@@ -35,42 +35,46 @@ describe('database migrations', () => {
     database.close();
   });
 
-  it('executa 1 -> 2 em ordem e preserva uma pendência existente', async () => {
+  it('executa 1 -> target e preserva entradas em todos os estados sem alterar conteúdo', async () => {
     const factory = new IDBFactory();
-    const versionOne = await openDatabase(factory, 1, DATABASE_MIGRATIONS);
-    const pending = pendingFixture();
-    await addAndComplete(versionOne, OUTBOX_STORE, pending);
+    const versionOne = await openDatabase(factory, 1, [DATABASE_MIGRATIONS[0]]);
+    const fixtures = [
+      'PENDING',
+      'SYNCING',
+      'RETRY_WAIT',
+      'SYNCED',
+      'BLOCKED_AUTH',
+      'BLOCKED_DEPENDENCY',
+      'ERROR',
+    ].map((status, index) => pendingFixture(status, index));
+    for (const fixture of fixtures) {
+      await addAndComplete(versionOne, OUTBOX_STORE, fixture);
+    }
     versionOne.close();
 
-    const testMigration: DatabaseMigration = {
-      toVersion: 2,
-      migrate: ({ database }) => database.createObjectStore('migrationProbe', { keyPath: 'id' }),
-    };
-    const versionTwo = await openDatabase(factory, 2, [...DATABASE_MIGRATIONS, testMigration]);
-    const recovered = await requestResult<OutboxEntry>(
-      versionTwo.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).get(pending.localId),
+    const upgraded = await openDatabase(factory, DATABASE_VERSION, DATABASE_MIGRATIONS);
+    const recovered = await requestResult<OutboxEntry[]>(
+      upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).getAll(),
     );
 
-    expect(versionTwo.objectStoreNames.contains('migrationProbe')).toBe(true);
-    expect(recovered).toEqual(pending);
-    versionTwo.close();
+    expect(upgraded.version).toBe(DATABASE_VERSION);
+    expect(recovered).toEqual(fixtures);
+    expect([
+      ...upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).indexNames,
+    ]).toEqual(
+      expect.arrayContaining(['ownerStatusDue', 'ownerAggregateOrder']),
+    );
+    upgraded.close();
   });
 
-  it('abre uma instalação nova direto em v2 sem a migration 0 -> 1 antecipar o schema futuro', async () => {
-    const futureMigration: DatabaseMigration = {
-      toVersion: 2,
-      migrate: ({ database }) => database.createObjectStore('futureStore', { keyPath: 'id' }),
-    };
+  it('mantém o snapshot v1 independente e aplica a etapa seguinte em instalação nova', async () => {
+    const database = await openDatabase(new IDBFactory(), DATABASE_VERSION, DATABASE_MIGRATIONS);
 
-    const database = await openDatabase(
-      new IDBFactory(),
-      2,
-      [...DATABASE_MIGRATIONS, futureMigration],
-    );
-
-    expect(database.objectStoreNames.contains('futureStore')).toBe(true);
     expect(database.objectStoreNames.contains('localRecords')).toBe(true);
     expect(database.objectStoreNames.contains('outbox')).toBe(true);
+    expect(database.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).indexNames).toContain(
+      'ownerAggregateOrder',
+    );
     database.close();
   });
 });
@@ -113,10 +117,11 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
-function pendingFixture(): OutboxEntry<{ readonly quantity: number }> {
+function pendingFixture(status = 'PENDING', index = 0): OutboxEntry<{ readonly quantity: number }> {
+  const localId = `123e4567-e89b-42d3-a456-42661417400${index}`;
   return {
-    localId: '123e4567-e89b-42d3-a456-426614174000',
-    idempotencyKey: '123e4567-e89b-42d3-a456-426614174000',
+    localId,
+    idempotencyKey: localId,
     payloadSchemaVersion: 1,
     aggregateType: 'REPORT',
     aggregateId: 'OP-1',
@@ -125,7 +130,7 @@ function pendingFixture(): OutboxEntry<{ readonly quantity: number }> {
     canonicalPayload: '{"quantity":5}',
     payloadHash: 'hash',
     ownerId: 'operator-1',
-    status: 'PENDING',
+    status: status as OutboxEntry['status'],
     dependencyIds: [],
     attemptCount: 0,
     occurredAt: '2026-07-28T15:00:00.000Z',

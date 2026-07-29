@@ -72,8 +72,26 @@ const VERSION_ONE_STORES = [
   },
 ] as const;
 
+const SCHEDULER_SCHEMA_MIGRATION: DatabaseMigration = {
+  toVersion: 2,
+  migrate: ({ transaction }) => {
+    const outbox = transaction.objectStore(OUTBOX_STORE);
+    outbox.createIndex(
+      'ownerStatusDue',
+      ['ownerId', 'status', 'nextAttemptAt'],
+      { unique: false },
+    );
+    outbox.createIndex(
+      'ownerAggregateOrder',
+      ['ownerId', 'aggregateType', 'aggregateId', 'createdAt', 'localId'],
+      { unique: false },
+    );
+  },
+};
+
 export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
   INITIAL_SCHEMA_MIGRATION,
+  SCHEDULER_SCHEMA_MIGRATION,
 ]);
 
 export function runDatabaseMigrations(request: RunMigrationsRequest): void {

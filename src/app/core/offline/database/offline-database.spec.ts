@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { OfflineStorageError, toOfflineStorageError } from '../models/offline-storage-error';
 import { DATABASE_MIGRATIONS, runDatabaseMigrations } from './database-migrations';
-import { DATABASE_NAME } from './database-schema';
+import { DATABASE_NAME, DATABASE_VERSION } from './database-schema';
 import { OFFLINE_DATABASE_CONFIG, OfflineDatabase } from './offline-database';
 
 describe('OfflineDatabase', () => {
@@ -72,9 +72,9 @@ describe('OfflineDatabase', () => {
     const first = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
     const connection = await first.open();
     const closeSpy = vi.spyOn(connection, 'close');
-    const upgraded = openVersionTwo(factory);
+    const upgraded = openNextVersion(factory);
 
-    await expect(upgraded).resolves.toMatchObject({ version: 2 });
+    await expect(upgraded).resolves.toMatchObject({ version: DATABASE_VERSION + 1 });
     expect(closeSpy).toHaveBeenCalledOnce();
     (await upgraded).close();
   });
@@ -87,7 +87,7 @@ describe('OfflineDatabase', () => {
     database.close();
 
     await expect(opening).rejects.toEqual(expect.objectContaining({ code: 'ABORTED' }));
-    await expect(database.open()).resolves.toMatchObject({ version: 1 });
+    await expect(database.open()).resolves.toMatchObject({ version: DATABASE_VERSION });
     database.close();
   });
 
@@ -125,14 +125,15 @@ describe('OfflineDatabase', () => {
   });
 });
 
-function openVersionTwo(factory: IDBFactory): Promise<IDBDatabase> {
+function openNextVersion(factory: IDBFactory): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = factory.open(DATABASE_NAME, 2);
+    const nextVersion = DATABASE_VERSION + 1;
+    const request = factory.open(DATABASE_NAME, nextVersion);
     request.onupgradeneeded = (event) => {
       const migrations = [
         ...DATABASE_MIGRATIONS,
         {
-          toVersion: 2,
+          toVersion: nextVersion,
           migrate: ({ database }: { database: IDBDatabase }) =>
             database.createObjectStore('upgradeProbe'),
         },
@@ -141,7 +142,7 @@ function openVersionTwo(factory: IDBFactory): Promise<IDBDatabase> {
         database: request.result,
         transaction: request.transaction!,
         oldVersion: event.oldVersion,
-        targetVersion: 2,
+        targetVersion: nextVersion,
         migrations,
       });
     };

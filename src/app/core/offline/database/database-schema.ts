@@ -1,5 +1,5 @@
 export const DATABASE_NAME = 'plano-de-controle-operational';
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export const LOCAL_RECORDS_STORE = 'localRecords';
 export const OUTBOX_STORE = 'outbox';
@@ -58,10 +58,20 @@ export const OFFLINE_DATABASE_SCHEMA: OfflineDatabaseSchema = {
         { name: 'status', keyPath: 'status', unique: false },
         // Fila do proprietário por estado de sincronização.
         { name: 'ownerStatus', keyPath: ['ownerId', 'status'], unique: false },
+        {
+          name: 'ownerStatusDue',
+          keyPath: ['ownerId', 'status', 'nextAttemptAt'],
+          unique: false,
+        },
         // Ordenação dos comandos de um mesmo agregado.
         {
           name: 'aggregateCreatedAt',
           keyPath: ['aggregateType', 'aggregateId', 'createdAt'],
+          unique: false,
+        },
+        {
+          name: 'ownerAggregateOrder',
+          keyPath: ['ownerId', 'aggregateType', 'aggregateId', 'createdAt', 'localId'],
           unique: false,
         },
         // Recuperação cronológica global da Outbox.
