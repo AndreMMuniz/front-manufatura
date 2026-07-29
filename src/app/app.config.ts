@@ -6,6 +6,7 @@ import { provideClientHydration } from '@angular/platform-browser';
 
 import {
   ApplicationConfig,
+  PLATFORM_ID,
   afterNextRender,
   inject,
   importProvidersFrom,
@@ -14,10 +15,23 @@ import {
   provideZoneChangeDetection,
 } from '@angular/core';
 import { provideHttpClient, withFetch, withInterceptorsFromDi } from '@angular/common/http';
+import { isPlatformBrowser } from '@angular/common';
 
 import { PoHttpRequestModule, PoNotificationService } from '@po-ui/ng-components';
 import { TopNotificationService } from './core/notifications/top-notification.service';
 import { SyncCoordinatorService } from './core/offline/services/sync-coordinator.service';
+
+export type AfterRenderScheduler = (callback: () => void) => void;
+
+export function initializeSyncRuntime(
+  platformId: object,
+  coordinator: Pick<SyncCoordinatorService, 'start'>,
+  scheduleAfterRender: AfterRenderScheduler = afterNextRender,
+): void {
+  if (isPlatformBrowser(platformId)) {
+    scheduleAfterRender(() => coordinator.start());
+  }
+}
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -29,7 +43,7 @@ export const appConfig: ApplicationConfig = {
     { provide: PoNotificationService, useClass: TopNotificationService },
     provideAppInitializer(() => {
       const coordinator = inject(SyncCoordinatorService);
-      afterNextRender(() => coordinator.start());
+      initializeSyncRuntime(inject(PLATFORM_ID), coordinator);
     }),
   ],
 };
