@@ -198,7 +198,15 @@ export class SyncCoordinatorService implements OnDestroy {
       if (this.isCurrent(owner, epoch)) {
         await this.reconcileError(owner, claimed, leaseToken, normalizeCommandError(error));
       } else {
-        await this.outbox.releaseClaim(owner, claimed.localId, leaseToken, this.nowIso());
+        const released = await this.outbox.releaseClaim(
+          owner,
+          claimed.localId,
+          leaseToken,
+          this.nowIso(),
+        );
+        if (released && this.activeOwner === owner) {
+          this.requested = true;
+        }
       }
     } finally {
       this.activeRequests.delete(controller);

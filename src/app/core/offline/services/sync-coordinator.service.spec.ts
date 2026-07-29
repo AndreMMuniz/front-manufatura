@@ -1,5 +1,5 @@
 import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { OFFLINE_DATABASE_CONFIG, OfflineDatabase } from '../database/offline-database';
@@ -150,6 +150,123 @@ describe('SyncCoordinatorService', () => {
     auth.logout();
     await coordinator.requestSync();
     expect(sent).toEqual(['own']);
+  });
+
+  it('mantém listeners e intervalo parados enquanto não existe sessão autenticada', () => {
+    const start = vi.spyOn(trigger, 'start');
+    const stop = vi.spyOn(trigger, 'stop');
+    const coordinator = createCoordinator(successTransport([]));
+
+    coordinator.start();
+    expect(start).not.toHaveBeenCalled();
+
+    authenticate();
+    expect(start).toHaveBeenCalledOnce();
+
+    auth.logout();
+    expect(stop).toHaveBeenCalledTimes(3);
+  });
+
+  it('não envia claim obtido depois de logout e o devolve para PENDING', async () => {
+    await seed(database, [entry('command')]);
+    let releaseClaim = () => undefined;
+    let claimed = () => undefined;
+    const claimReached = new Promise<void>((resolve) => {
+      claimed = resolve;
+    });
+    const claimGate = new Promise<void>((resolve) => {
+      releaseClaim = resolve;
+    });
+    const originalClaim = repository.claim.bind(repository);
+    vi.spyOn(repository, 'claim').mockImplementation(async (request) => {
+      const result = await originalClaim(request);
+      claimed();
+      await claimGate;
+      return result;
+    });
+    const sent: string[] = [];
+    const coordinator = createCoordinator(successTransport(sent));
+    authenticate();
+    coordinator.start();
+
+    const processing = coordinator.requestSync();
+    await claimReached;
+    auth.logout();
+    releaseClaim();
+    await processing;
+
+    expect(sent).toEqual([]);
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'PENDING' });
+  });
+
+  it('aborta envio em andamento no logout e libera o claim com fencing', async () => {
+    await seed(database, [entry('command')]);
+    let transportStarted = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      transportStarted = resolve;
+    });
+    let aborted = false;
+    const coordinator = createCoordinator({
+      send: (_request, signal) =>
+        new Promise((_resolve, reject) => {
+          transportStarted();
+          signal.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              reject(signal.reason);
+            },
+            { once: true },
+          );
+        }),
+    });
+    authenticate();
+    coordinator.start();
+
+    const processing = coordinator.requestSync();
+    await started;
+    auth.logout();
+    await processing;
+
+    expect(aborted).toBe(true);
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'PENDING' });
+  });
+
+  it('reagenda imediatamente o claim abortado quando o mesmo owner renova a sessão', async () => {
+    await seed(database, [entry('command')]);
+    let sends = 0;
+    let firstStarted = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+    const coordinator = createCoordinator({
+      send: (request, signal) => {
+        sends += 1;
+        if (sends === 1) {
+          firstStarted();
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          });
+        }
+        return Promise.resolve({
+          serverRecordId: 'server-command',
+          idempotencyKey: request.idempotencyKey,
+          receivedAt: NOW,
+          processedAt: NOW,
+          duplicate: true,
+        });
+      },
+    });
+    authenticate();
+    coordinator.start();
+
+    const processing = coordinator.requestSync();
+    await started;
+    auth.startSession(user(), 'renewed-memory-token');
+    await processing;
+    await eventually(() => sends === 2);
+
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
   });
 
   it('trata onLine como sinal: falha de rede produz RETRY_WAIT, não SYNCED', async () => {
@@ -323,6 +440,71 @@ describe('SyncCoordinatorService', () => {
     expect(snapshots).toHaveLength(2);
     expect(snapshots[1]).toBe(snapshots[0]);
     expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
+  });
+
+  it('aguarda todos os workers antes de propagar uma falha e liberar o single-flight', async () => {
+    await seed(database, [
+      entry('a', { aggregateId: 'A' }),
+      entry('b', { aggregateId: 'B' }),
+    ]);
+    let releaseB = () => undefined;
+    let bStarted = () => undefined;
+    const bGate = new Promise<void>((resolve) => {
+      releaseB = resolve;
+    });
+    const bWasStarted = new Promise<void>((resolve) => {
+      bStarted = resolve;
+    });
+    const originalReconcileFailure = repository.reconcileFailure.bind(repository);
+    vi.spyOn(repository, 'reconcileFailure').mockImplementation((request) =>
+      request.localId === 'a'
+        ? Promise.reject(new Error('falha IndexedDB'))
+        : originalReconcileFailure(request),
+    );
+    const coordinator = createCoordinator({
+      send: async (request) => {
+        if (request.localId === 'a') {
+          throw new TypeError('network');
+        }
+        bStarted();
+        await bGate;
+        return {
+          serverRecordId: 'server-b',
+          idempotencyKey: request.idempotencyKey,
+          receivedAt: NOW,
+          processedAt: NOW,
+          duplicate: false,
+        };
+      },
+    });
+    authenticate();
+    coordinator.start();
+    let settled = false;
+
+    const processing = coordinator.requestSync().then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await bWasStarted;
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    releaseB();
+    await processing;
+    expect(settled).toBe(true);
+  });
+
+  it('rejeita configuração cujo lease não ultrapassa o timeout antes de iniciar', () => {
+    const coordinator = createCoordinator(successTransport([]), {
+      requestTimeoutMs: 60_000,
+      leaseDurationMs: 60_000,
+    });
+
+    expect(() => coordinator.start()).toThrowError(/scheduler/i);
   });
 
   function createCoordinator(
