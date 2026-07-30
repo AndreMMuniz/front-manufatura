@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { PoButtonModule, PoDialogService, PoWidgetModule } from '@po-ui/ng-components';
 
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import { OrdemInfoCard } from '../ordem-info-card/ordem-info-card';
 import { OrdemSearch } from '../ordem-search/ordem-search';
 import { ProductionOrderOperation } from '../../models/production-order-route';
@@ -21,6 +22,7 @@ export class RouteGenerationSection {
   private readonly qualityControlService = inject(QualityControlService);
   private readonly dialog = inject(PoDialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly idempotency = inject(IdempotencyService);
 
   get canSearchOrder(): boolean {
     return Boolean(this.workflow.orderNumber().trim()) && !this.workflow.isBusy();
@@ -85,10 +87,13 @@ export class RouteGenerationSection {
     }
 
     const token = this.workflow.beginRouteGeneration();
+    const idempotencyKey =
+      this.workflow.ensureRouteCommandId(() => this.idempotency.resolve());
     this.qualityControlService.generateInspectionRoute({
       orderNumber: this.workflow.orderNumber(),
       operation,
       moveBalance: this.workflow.moveBalance(),
+      idempotencyKey,
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

@@ -766,6 +766,8 @@ export class ReportOperacaoPage implements OnInit {
       ordem: operation.ordem,
       op: operation.op,
       split: operation.split,
+      areaCode: this.workflowState.snapshot().area?.code ?? '',
+      workCenterCode: this.workflowState.snapshot().workCenter?.code ?? operation.ct,
       operador,
       equipe,
       tipoResponsavel: responsavel.tipo,

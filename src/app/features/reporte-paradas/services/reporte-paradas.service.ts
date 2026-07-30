@@ -17,6 +17,8 @@ import {
 import {
   combineLocalDateTime,
   durationMinutes,
+  formatLocalDate,
+  formatLocalTime,
   parseLocalDate,
   validateStopInterval,
 } from '../models/reporte-paradas-time';
@@ -29,6 +31,7 @@ export class ReporteParadasService {
   private readonly authSession = inject(AuthSessionService);
   private prefillContext: ProductionContext | null = null;
   private readonly confirmedStops: StopEntry[] = [];
+  private cacheOwnerId: string | null = null;
   private registrationInFlight = false;
   private finishInFlight = false;
   private activeStopContext: { readonly areaCode: string; readonly workCenterCode: string } | null = null;
@@ -91,12 +94,34 @@ export class ReporteParadasService {
 
       const command = this.cloneRequest(request);
       const validated = this.validateCommand(command);
-      return forkJoin({
-        areas: this.listarAreas(),
-        centers: this.pesquisarCentros(command.areaCode),
-        responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
-      }).pipe(
-        switchMap(({ areas, centers, responsibles }) => {
+      const ownerId = this.authSession.currentUser?.id.trim();
+      if (!ownerId) {
+        throw new Error('É necessária uma sessão autenticada para registrar a parada.');
+      }
+      return from(
+        this.localRecords.getByIdempotencyKey(ownerId, command.idempotencyKey),
+      ).pipe(switchMap(existing => {
+        if (existing?.commandType === 'CREATE_STOP') {
+          const restored = this.stopFromPayload(existing.payload, existing.idempotencyKey);
+          if (restored) {
+            this.ensureOwnerCache(ownerId);
+            const existingIndex =
+              this.confirmedStops.findIndex(item => item.localId === restored.localId);
+            if (existingIndex >= 0) this.confirmedStops[existingIndex] = restored;
+            else this.confirmedStops.push(restored);
+            return of(this.cloneStop(restored));
+          }
+        }
+        return forkJoin({
+          areas: this.listarAreas(),
+          centers: this.pesquisarCentros(command.areaCode),
+          responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
+        });
+      }), switchMap(result => {
+        if (!('areas' in result)) {
+          return of(result);
+        }
+        const { areas, centers, responsibles } = result;
           const area = areas.find(item => this.sameCode(item.code, command.areaCode));
           const center = centers.find(item =>
             item.active
@@ -120,7 +145,7 @@ export class ReporteParadasService {
             : undefined;
           const localId = command.idempotencyKey;
           const stop: StopEntry = {
-            id: this.numericLocalId(localId),
+            id: localId,
             localId,
             creationCommandId: command.idempotencyKey,
             context: {
@@ -149,18 +174,24 @@ export class ReporteParadasService {
             idempotencyKey: command.idempotencyKey,
             occurredAt: validated.start.toISOString(),
             payload: this.stopPayload(stop),
-          })).pipe(map(() => {
+          })).pipe(map(confirmation => {
+            this.ensureOwnerCache(this.authSession.currentUser?.id ?? '');
             const stored = this.cloneStop(stop);
+            const confirmedStop: StopEntry = {
+              ...stored,
+              id: confirmation.localId,
+              localId: confirmation.localId,
+              syncStatus: confirmation.syncStatus,
+            };
             const existingIndex = this.confirmedStops.findIndex(item => item.localId === localId);
             if (existingIndex >= 0) {
-              this.confirmedStops[existingIndex] = stored;
+              this.confirmedStops[existingIndex] = confirmedStop;
             } else {
-              this.confirmedStops.push(stored);
+              this.confirmedStops.push(confirmedStop);
             }
-            return this.cloneStop(stored);
+            return this.cloneStop(confirmedStop);
           }));
-        }),
-      );
+      }));
     }).pipe(
       finalize(() => {
         this.registrationInFlight = false;
@@ -178,13 +209,16 @@ export class ReporteParadasService {
       this.activeStopContext = { areaCode: area, workCenterCode: workCenter };
       const ownerId = this.authSession.currentUser?.id;
       if (!ownerId) {
-        return of(this.openStopsForContext(area, workCenter));
+        this.ensureOwnerCache('');
+        return of([]);
       }
       return from(this.localRecords.listByOwner(ownerId)).pipe(
         map(records => {
+          this.ensureOwnerCache(ownerId);
+          this.confirmedStops.splice(0);
           for (const record of records.filter(item => item.commandType === 'CREATE_STOP')) {
             const restored = this.stopFromPayload(record.payload, record.localId);
-            if (restored && !this.confirmedStops.some(item => item.localId === restored.localId)) {
+            if (restored) {
               this.confirmedStops.push(restored);
             }
           }
@@ -197,7 +231,7 @@ export class ReporteParadasService {
     }).pipe(delay(150));
   }
 
-  finalizarParada(stopId: number, request: FinishStopRequest): Observable<StopEntry> {
+  finalizarParada(stopId: string | number, request: FinishStopRequest): Observable<StopEntry> {
     return defer(() => {
       if (this.finishInFlight) {
         throw new Error('Já existe uma finalização de parada em andamento.');
@@ -408,9 +442,9 @@ export class ReporteParadasService {
       },
       reason: { ...stop.reason },
       responsible: { ...stop.responsible },
-      startDate: stop.startDate.toISOString(),
+      startDate: formatLocalDate(stop.startDate),
       startTime: stop.startTime,
-      endDate: stop.endDate?.toISOString() ?? null,
+      endDate: stop.endDate ? formatLocalDate(stop.endDate) : null,
       endTime: stop.endTime ?? null,
       programmed: stop.programmed,
       status: stop.status,
@@ -422,26 +456,39 @@ export class ReporteParadasService {
     if (!payload || typeof payload !== 'object') {
       return null;
     }
-    const value = payload as Record<string, any>;
+    const value = payload as Record<string, unknown>;
     const context = value['context'];
     const reason = value['reason'];
     const responsible = value['responsible'];
-    const startDate = new Date(value['startDate']);
-    if (!context?.area || !context?.workCenter || !reason || !responsible
-      || Number.isNaN(startDate.getTime())) {
+    const startDate = this.parsePersistedLocalDate(value['startDate']);
+    const endDate = value['endDate']
+      ? this.parsePersistedLocalDate(value['endDate'])
+      : null;
+    if (
+      !this.isValidPersistedContext(context)
+      || !this.isValidPersistedReason(reason)
+      || !this.isValidPersistedResponsible(responsible)
+      || !startDate
+      || (value['endDate'] !== null && value['endDate'] !== undefined && !endDate)
+      || typeof value['startTime'] !== 'string'
+      || !this.isValidTime(value['startTime'])
+      || (value['endTime'] !== null
+        && value['endTime'] !== undefined
+        && (typeof value['endTime'] !== 'string' || !this.isValidTime(value['endTime'])))
+    ) {
       return null;
     }
     const localId = String(value['localId'] ?? creationCommandId);
     return {
-      id: this.numericLocalId(localId),
+      id: localId,
       localId,
       creationCommandId,
-      context: this.cloneContext(context as ProductionContext),
+      context: this.cloneContext(context),
       reason: { ...reason },
       responsible: { ...responsible },
       startDate,
       startTime: String(value['startTime'] ?? ''),
-      ...(value['endDate'] ? { endDate: new Date(value['endDate']) } : {}),
+      ...(endDate ? { endDate } : {}),
       ...(value['endTime'] ? { endTime: String(value['endTime']) } : {}),
       programmed: Boolean(value['programmed']),
       status: value['status'] === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
@@ -453,13 +500,11 @@ export class ReporteParadasService {
     };
   }
 
-  private numericLocalId(localId: string): number {
-    let hash = 2166136261;
-    for (const char of localId) {
-      hash ^= char.charCodeAt(0);
-      hash = Math.imul(hash, 16777619);
-    }
-    return Math.abs(hash) || 1;
+  private ensureOwnerCache(ownerId: string): void {
+    const normalized = ownerId.trim();
+    if (this.cacheOwnerId === normalized) return;
+    this.confirmedStops.splice(0);
+    this.cacheOwnerId = normalized || null;
   }
 
   private applyDurableFinish(payload: unknown, finishCommandId: string): void {
@@ -468,7 +513,15 @@ export class ReporteParadasService {
     }
     const value = payload as Record<string, unknown>;
     const localId = typeof value['stopLocalId'] === 'string' ? value['stopLocalId'] : '';
-    const end = typeof value['endAt'] === 'string' ? new Date(value['endAt']) : null;
+    const persistedEndDate = this.parsePersistedLocalDate(value['endDate']);
+    const persistedEndTime =
+      typeof value['endTime'] === 'string' && this.isValidTime(value['endTime'])
+        ? value['endTime']
+        : null;
+    const legacyEnd = typeof value['endAt'] === 'string' ? new Date(value['endAt']) : null;
+    const end = persistedEndDate && persistedEndTime
+      ? combineLocalDateTime(persistedEndDate, persistedEndTime)
+      : legacyEnd;
     const index = this.confirmedStops.findIndex(stop => stop.localId === localId);
     if (index < 0 || !end || Number.isNaN(end.getTime())) {
       return;
@@ -477,8 +530,8 @@ export class ReporteParadasService {
     const interval = validateStopInterval(
       current.startDate,
       current.startTime,
-      end,
-      `${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}`,
+      persistedEndDate ?? end,
+      persistedEndTime ?? formatLocalTime(end),
     );
     if (!interval) {
       return;
@@ -486,8 +539,8 @@ export class ReporteParadasService {
     this.confirmedStops[index] = {
       ...this.cloneStop(current),
       finishCommandId,
-      endDate: this.dateOnly(end),
-      endTime: `${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}`,
+      endDate: persistedEndDate ?? this.dateOnly(end),
+      endTime: persistedEndTime ?? formatLocalTime(end),
       status: 'FINALIZADA',
       durationMinutes: durationMinutes(interval.start, interval.end),
     };
@@ -504,8 +557,55 @@ export class ReporteParadasService {
       payload: {
         stopLocalId: current.localId ?? current.idempotencyKey,
         endAt: end.toISOString(),
+        endDate: formatLocalDate(end),
+        endTime: formatLocalTime(end),
       },
     });
   }
 
+  private parsePersistedLocalDate(value: unknown): Date | null {
+    if (typeof value !== 'string') return null;
+    const local = parseLocalDate(value);
+    if (local) return local;
+    const legacy = new Date(value);
+    return Number.isNaN(legacy.getTime()) ? null : this.dateOnly(legacy);
+  }
+
+  private isValidPersistedContext(value: unknown): value is ProductionContext {
+    if (!value || typeof value !== 'object') return false;
+    const context = value as Record<string, unknown>;
+    const area = context['area'];
+    const workCenter = context['workCenter'];
+    if (!area || typeof area !== 'object' || !workCenter || typeof workCenter !== 'object') {
+      return false;
+    }
+    const areaValue = area as Record<string, unknown>;
+    const centerValue = workCenter as Record<string, unknown>;
+    return nonEmptyString(areaValue['code'])
+      && nonEmptyString(areaValue['description'])
+      && nonEmptyString(centerValue['code'])
+      && nonEmptyString(centerValue['areaCode'])
+      && typeof centerValue['active'] === 'boolean';
+  }
+
+  private isValidPersistedReason(value: unknown): value is StopReason {
+    if (!value || typeof value !== 'object') return false;
+    const reason = value as Record<string, unknown>;
+    return Number.isInteger(reason['id'])
+      && nonEmptyString(reason['code'])
+      && nonEmptyString(reason['description']);
+  }
+
+  private isValidPersistedResponsible(value: unknown): value is ResponsavelParada {
+    if (!value || typeof value !== 'object') return false;
+    const responsible = value as Record<string, unknown>;
+    return (responsible['tipo'] === 'OPERADOR' || responsible['tipo'] === 'EQUIPE')
+      && nonEmptyString(responsible['codigo'])
+      && nonEmptyString(responsible['nome']);
+  }
+
+}
+
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
 }

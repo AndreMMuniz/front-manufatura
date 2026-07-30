@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { catchError, Observable, of, tap } from 'rxjs';
+import { catchError, concatMap, Observable, of, tap } from 'rxjs';
 
 import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
 
@@ -20,6 +20,7 @@ import { QualityMeasurementStatus } from '../../models/quality-exam';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 import { OperatorService } from '../../../shop-floor/services/operator';
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 
 @Component({
   selector: 'app-exam-entry-panel',
@@ -37,6 +38,7 @@ export class ExamEntryPanel implements AfterViewInit {
   private readonly operatorService = inject(OperatorService);
   private readonly dialog = inject(PoDialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly idempotency = inject(IdempotencyService);
 
   validationMessage = '';
   stopReason = '';
@@ -146,9 +148,35 @@ export class ExamEntryPanel implements AfterViewInit {
 
     this.workflow.isSaving.set(true);
     this.workflow.examFeedback.set('Salvando medição...');
+    const route = this.workflow.route();
+    if (!route?.creationCommandId) {
+      this.workflow.isSaving.set(false);
+      this.workflow.examFeedback.set('O roteiro local não possui identidade confirmada.');
+      return of(null);
+    }
+    const fingerprint = JSON.stringify({
+      minimum,
+      maximum,
+      observation: draft.observation.trim(),
+      status,
+      operatorId: this.operatorService.selectedOperator?.code ?? '',
+    });
+    const idempotencyKey = this.workflow.ensureMeasurementCommandId(
+      exam.id,
+      characteristic.id,
+      fingerprint,
+      () => this.idempotency.resolve(),
+    );
+    const dependencyIds = [
+      route.creationCommandId,
+      ...this.workflow.measurementCommandIds(exam.id).slice(-1),
+    ];
     return this.qualityControlService.saveMeasurement({
       examId: exam.id,
       componentId: characteristic.id,
+      routeNumber: route.localId ?? route.creationCommandId,
+      idempotencyKey,
+      dependencyIds,
       measurement: {
         minimum,
         maximum,
@@ -201,11 +229,27 @@ export class ExamEntryPanel implements AfterViewInit {
 
   completeExam(): void {
     const exam = this.exam;
-    if (!exam || !this.canCompleteExam) return;
+    const route = this.workflow.route();
+    if (!exam || !route?.creationCommandId || !this.canCompleteExam) return;
     this.workflow.isFinishing.set(true);
     this.workflow.examFeedback.set('Concluindo exame...');
-    this.qualityControlService.finishExam({ examId: exam.id })
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    const measurementCommandIds = this.workflow.measurementCommandIds(exam.id);
+    const finishCommandId =
+      this.workflow.ensureFinishCommandId(exam.id, () => this.idempotency.resolve());
+    const inspectionCommandId =
+      this.workflow.ensureInspectionCommandId(exam.id, () => this.idempotency.resolve());
+    this.qualityControlService.finishExam({
+      examId: exam.id,
+      routeNumber: route.localId ?? route.creationCommandId,
+      idempotencyKey: finishCommandId,
+      dependencyIds: [route.creationCommandId, ...measurementCommandIds],
+    })
+      .pipe(
+        concatMap(() => this.qualityControlService.saveInspection(
+          this.inspectionPayload(exam, route, inspectionCommandId, [finishCommandId]),
+        )),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: () => {
           this.workflow.isFinishing.set(false);
@@ -234,12 +278,28 @@ export class ExamEntryPanel implements AfterViewInit {
     this.stopValidationMessage = '';
     this.workflow.isStopping.set(true);
     this.workflow.examFeedback.set('Parando roteiro...');
+    const measurementCommandIds = this.workflow.measurementCommandIds(exam.id);
+    const stopCommandId =
+      this.workflow.ensureStopCommandId(() => this.idempotency.resolve());
+    const inspectionCommandId =
+      this.workflow.ensureInspectionCommandId(exam.id, () => this.idempotency.resolve());
     this.qualityControlService.stopInspectionRoute({
       routeNumber: route.routeNumber,
+      routeLocalId: route.localId ?? route.creationCommandId,
       examId: exam.id,
       reason,
+      idempotencyKey: stopCommandId,
+      dependencyIds: [
+        ...(route.creationCommandId ? [route.creationCommandId] : []),
+        ...measurementCommandIds,
+      ],
     })
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        concatMap(() => this.qualityControlService.saveInspection(
+          this.inspectionPayload(exam, route, inspectionCommandId, [stopCommandId]),
+        )),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: () => {
           this.workflow.completeRouteStop();
@@ -255,6 +315,49 @@ export class ExamEntryPanel implements AfterViewInit {
   private clearValidation(): void {
     this.validationMessage = '';
     this.validationIsOutOfRange = false;
+  }
+
+  private inspectionPayload(
+    exam: NonNullable<ExamEntryPanel['exam']>,
+    route: NonNullable<ReturnType<QualityControlWorkflowState['route']>>,
+    idempotencyKey: string,
+    dependencyIds: readonly string[],
+  ) {
+    const measurements = exam.components.flatMap(component => {
+      const measurement = component.measurement;
+      if (!measurement) return [];
+      return [{
+        componentId: component.id,
+        componentCode: component.code,
+        description: component.description,
+        measuredMinimum: measurement.minimum,
+        measuredMaximum: measurement.maximum,
+        expectedMin: component.minValue,
+        expectedMax: component.maxValue,
+        unit: component.unit,
+        status: measurement.status,
+        ...(measurement.observation ? { observation: measurement.observation } : {}),
+      }];
+    });
+    return {
+      opNumber: route.currentOrder,
+      operationCode: route.operationCode,
+      split: route.split,
+      routeNumber: route.routeNumber,
+      itemCode: route.itemCode,
+      itemDescription: route.itemDescription,
+      examId: exam.id,
+      examCode: exam.code,
+      examVersion: exam.version,
+      operatorId: this.operatorService.selectedOperator?.code ?? '',
+      status: measurements.some(measurement => measurement.status === 'REJECTED')
+        ? 'REJECTED' as const
+        : 'APPROVED' as const,
+      createdAt: new Date(),
+      measurements,
+      idempotencyKey,
+      dependencyIds,
+    };
   }
   private parseNumber(value: string): number | null {
     if (!value.trim()) return null;

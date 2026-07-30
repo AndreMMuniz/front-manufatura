@@ -45,6 +45,7 @@ export interface SaveMeasurementRequest {
 export interface SaveMeasurementResponse {
   componentId: string;
   measurement: QualityMeasurement;
+  idempotencyKey: string;
 }
 
 export interface InspectionMeasurementPayload {
@@ -87,4 +88,6 @@ export interface SaveInspectionPayload {
 export interface SaveInspectionResult {
   inspectionId: string;
   savedAt: Date;
+  idempotencyKey: string;
+  syncStatus: 'PENDING' | 'BLOCKED_AUTH';
 }

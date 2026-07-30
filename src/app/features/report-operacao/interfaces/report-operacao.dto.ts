@@ -52,6 +52,8 @@ export interface IniciarOperacaoRequest {
   readonly ordem: string;
   readonly op: string;
   readonly split: string;
+  readonly areaCode: string;
+  readonly workCenterCode: string;
   readonly operador: string;
   readonly equipe: string;
   readonly tipoResponsavel: TipoResponsavelOperacao;

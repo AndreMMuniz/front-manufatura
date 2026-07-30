@@ -37,6 +37,14 @@ export class QualityControlWorkflowState {
 
   private contextId = 0;
   private examLoadSucceeded = false;
+  private routeAttemptKey: string | null = null;
+  private finishAttemptKeys = new Map<string, string>();
+  private stopAttemptKey: string | null = null;
+  private inspectionAttemptKeys = new Map<string, string>();
+  private measurementAttemptKeys = new Map<
+    string,
+    { readonly fingerprint: string; readonly idempotencyKey: string }
+  >();
 
   readonly components = computed(() =>
     this.exams().flatMap(exam => [...exam.components].sort((left, right) => left.sequence - right.sequence)),
@@ -137,6 +145,55 @@ export class QualityControlWorkflowState {
     this.isGenerating.set(true);
     this.routeFeedback.set('Gerando roteiro de inspecao...');
     return this.contextId;
+  }
+
+  ensureRouteCommandId(create: () => string): string {
+    this.routeAttemptKey ??= create();
+    return this.routeAttemptKey;
+  }
+
+  ensureMeasurementCommandId(
+    examId: string,
+    componentId: string,
+    fingerprint: string,
+    create: () => string,
+  ): string {
+    const identity = `${examId}\u0000${componentId}`;
+    const current = this.measurementAttemptKeys.get(identity);
+    if (current?.fingerprint === fingerprint) {
+      return current.idempotencyKey;
+    }
+    const idempotencyKey = create();
+    this.measurementAttemptKeys.set(identity, { fingerprint, idempotencyKey });
+    return idempotencyKey;
+  }
+
+  ensureFinishCommandId(examId: string, create: () => string): string {
+    const existing = this.finishAttemptKeys.get(examId);
+    if (existing) return existing;
+    const created = create();
+    this.finishAttemptKeys.set(examId, created);
+    return created;
+  }
+
+  ensureStopCommandId(create: () => string): string {
+    this.stopAttemptKey ??= create();
+    return this.stopAttemptKey;
+  }
+
+  ensureInspectionCommandId(examId: string, create: () => string): string {
+    const existing = this.inspectionAttemptKeys.get(examId);
+    if (existing) return existing;
+    const created = create();
+    this.inspectionAttemptKeys.set(examId, created);
+    return created;
+  }
+
+  measurementCommandIds(examId: string): readonly string[] {
+    return this.exams()
+      .find(exam => exam.id === examId)
+      ?.components
+      .flatMap(component => component.measurement?.commandId ?? []) ?? [];
   }
 
   setGeneratedRoute(route: ProductionOrderRoute, token?: number): boolean {
@@ -343,6 +400,11 @@ export class QualityControlWorkflowState {
     this.isStopping.set(false);
     this.examLoadFailed.set(false);
     this.examLoadSucceeded = false;
+    this.routeAttemptKey = null;
+    this.finishAttemptKeys.clear();
+    this.stopAttemptKey = null;
+    this.inspectionAttemptKeys.clear();
+    this.measurementAttemptKeys.clear();
   }
 
   private isCurrent(token: number): boolean {

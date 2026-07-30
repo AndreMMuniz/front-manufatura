@@ -48,4 +48,5 @@ export interface QualityMeasurement {
   status: QualityMeasurementStatus;
   savedAt?: Date;
   operatorId?: string;
+  commandId?: string;
 }

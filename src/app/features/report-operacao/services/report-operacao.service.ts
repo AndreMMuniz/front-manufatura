@@ -179,6 +179,8 @@ export class ReportOperacaoService {
         ordem: request.ordem,
         op: request.op,
         split: request.split,
+        areaCode: request.areaCode,
+        workCenterCode: request.workCenterCode,
         operador: request.operador,
         equipe: request.equipe,
         tipoResponsavel: request.tipoResponsavel,
@@ -369,7 +371,18 @@ export class ReportOperacaoService {
   }
 
   private combineDateTime(date: Date, time: string): string {
-    const [hours, minutes] = time.split(':').map(Number);
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      throw new Error('A data informada é inválida.');
+    }
+    const match = /^(\d{2}):(\d{2})$/.exec(time.trim());
+    if (!match) {
+      throw new Error('A hora informada deve estar no formato HH:mm.');
+    }
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours > 23 || minutes > 59) {
+      throw new Error('A hora informada está fora da faixa válida.');
+    }
     const occurredAt = new Date(date);
     occurredAt.setHours(hours, minutes, 0, 0);
     return occurredAt.toISOString();

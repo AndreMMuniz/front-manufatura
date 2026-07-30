@@ -9,6 +9,7 @@ import {
   ProductionContextOrigin,
   ResponsavelParada,
   StopEntry,
+  StopId,
   StopReason,
   TipoResponsavelParada,
 } from '../models/reporte-paradas.model';
@@ -48,7 +49,7 @@ export interface ReporteParadasWorkflowSnapshot {
   readonly contextError: string;
   readonly saving: boolean;
   readonly openStops: ReadonlyArray<StopEntry>;
-  readonly selectedStopId: number | null;
+  readonly selectedStopId: StopId | null;
   readonly finishDraft: FinalizacaoDraft;
   readonly finishIdempotencyKey: string | null;
   readonly queryLoading: boolean;
@@ -280,7 +281,7 @@ export class ReporteParadasWorkflowState {
     return true;
   }
 
-  selectOpenStop(stopId: number, now: Date): boolean {
+  selectOpenStop(stopId: StopId, now: Date): boolean {
     if (!this.view.openStops.some(stop => stop.id === stopId)) {
       return false;
     }
@@ -336,7 +337,7 @@ export class ReporteParadasWorkflowState {
   }
 
   beginFinishCommand(
-    stopId: number,
+    stopId: StopId,
     areaCode: string,
     workCenterCode: string,
   ): ContextRequestToken {
@@ -354,7 +355,7 @@ export class ReporteParadasWorkflowState {
     return true;
   }
 
-  acceptFinishSuccess(token: ContextRequestToken, stopId: number): boolean {
+  acceptFinishSuccess(token: ContextRequestToken, stopId: StopId): boolean {
     if (!this.isCurrentFor(this.currentFinish, token)
       || this.view.selectedStopId !== stopId) {
       return false;
@@ -438,7 +439,7 @@ export class ReporteParadasWorkflowState {
   private newToken(
     areaCode: string,
     workCenterCode: string,
-    _stopId?: number,
+    _stopId?: StopId,
   ): ContextRequestToken {
     return {
       generation: ++this.generation,

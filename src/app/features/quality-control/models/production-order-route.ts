@@ -20,6 +20,8 @@ export interface GenerateInspectionRouteRequest {
 }
 
 export interface ProductionOrderRoute {
+  localId?: string;
+  creationCommandId?: string;
   routeNumber: string;
   processDescription: string;
   currentOrder: string;

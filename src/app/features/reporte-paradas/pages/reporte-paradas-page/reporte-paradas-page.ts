@@ -30,6 +30,7 @@ import { ResponsavelParadaSelect } from '../../components/responsavel-parada-sel
 import {
   ProductionContext,
   ResponsavelParada,
+  StopId,
   TipoResponsavelParada,
 } from '../../models/reporte-paradas.model';
 import {
@@ -182,7 +183,7 @@ export class ReporteParadasPage implements OnInit {
     }
   }
 
-  selecionarParada(stopId: number): void {
+  selecionarParada(stopId: StopId): void {
     if (this.commandsBlocked() || !this.workflow.selectOpenStop(stopId, new Date())) {
       return;
     }

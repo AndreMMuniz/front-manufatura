@@ -9,7 +9,7 @@ import {
   ViewChildren,
 } from '@angular/core';
 
-import { StopEntry } from '../../models/reporte-paradas.model';
+import { StopEntry, StopId } from '../../models/reporte-paradas.model';
 import {
   combineLocalDateTime,
   durationMinutes,
@@ -24,13 +24,13 @@ import {
 })
 export class ParadasEmAndamentoList {
   @Input() stops: ReadonlyArray<StopEntry> = [];
-  @Input() selectedStopId: number | null = null;
+  @Input() selectedStopId: StopId | null = null;
   @Input() now = new Date();
   @Input() loading = false;
   @Input() disabled = false;
   @Input() errorMessage = '';
 
-  @Output() selectStop = new EventEmitter<number>();
+  @Output() selectStop = new EventEmitter<StopId>();
   @Output() retry = new EventEmitter<void>();
 
   @ViewChildren('stopButton') private stopButtons?: QueryList<ElementRef<HTMLButtonElement>>;
@@ -54,9 +54,9 @@ export class ParadasEmAndamentoList {
     return `${stop.reason.description}. Início ${this.startLabel(stop)}. ${this.responsibleType(stop)} ${stop.responsible.nome}. Duração ${this.duration(stop)}. ${selected}`;
   }
 
-  focusStop(stopId: number): void {
+  focusStop(stopId: StopId): void {
     this.stopButtons
-      ?.find(button => Number(button.nativeElement.dataset['stopId']) === stopId)
+      ?.find(button => button.nativeElement.dataset['stopId'] === String(stopId))
       ?.nativeElement.focus();
   }
 

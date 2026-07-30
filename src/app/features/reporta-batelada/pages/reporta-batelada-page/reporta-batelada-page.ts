@@ -18,6 +18,7 @@ import {
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import {
   GerenciarEquipeResultado,
   GerenciarEquipeSlide,
@@ -76,6 +77,7 @@ export class ReportaBateladaPage implements OnInit {
   private readonly notification = inject(PoNotificationService);
   private readonly dialog = inject(PoDialogService);
   private readonly authSession = inject(AuthSessionService);
+  private readonly idempotency = inject(IdempotencyService);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -101,6 +103,7 @@ export class ReportaBateladaPage implements OnInit {
   private endingRequest = 0;
   private startRequest = 0;
   private pendingStartCommand: IniciarBateladaRequest | null = null;
+  private endIdempotencyKey: string | null = null;
   private responsaveisRequest = 0;
   private sessionActive = true;
   private teamGeneration = 0;
@@ -438,6 +441,7 @@ export class ReportaBateladaPage implements OnInit {
         }
         this.workflow.completeStart(inicio);
         this.pendingStartCommand = null;
+        this.endIdempotencyKey = null;
         this.notification.success('Salvo neste dispositivo — envio pendente.');
         this.syncView();
       },
@@ -711,6 +715,7 @@ export class ReportaBateladaPage implements OnInit {
     this.service.encerrarBatelada({
       batchId,
       orderIds,
+      idempotencyKey: this.endIdempotencyKey ??= this.idempotency.resolve(),
       dependencyIds: [
         ...(snapshot.inicio?.startCommandId ? [snapshot.inicio.startCommandId] : []),
         ...snapshot.history.map(report => report.idempotencyKey),
@@ -723,6 +728,7 @@ export class ReportaBateladaPage implements OnInit {
             return;
           }
           this.workflow.completeEnding(ending);
+          this.endIdempotencyKey = null;
           this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.syncView();
           void this.router.navigate(['/work-center']);

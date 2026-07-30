@@ -1,7 +1,11 @@
-import { Injectable } from '@angular/core';
-import { Observable, from, map, of } from 'rxjs';
+import { Inject, Injectable, InjectionToken, Optional } from '@angular/core';
+import { Observable, from, map, of, switchMap, throwError } from 'rxjs';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
+import { SupervisorProofVault } from '../../../core/offline/services/supervisor-proof-vault';
+import { SyncTriggerService } from '../../../core/offline/services/sync-trigger.service';
 
 import {
   GenerateInspectionRouteRequest,
@@ -23,6 +27,7 @@ import {
 
 export interface StopInspectionRouteRequest {
   routeNumber: string;
+  routeLocalId?: string;
   examId: string;
   reason: string;
   idempotencyKey?: string;
@@ -36,9 +41,33 @@ export interface StopInspectionRouteResponse {
   stoppedAt: Date;
 }
 
+export interface ReactionPlanAuthorizationResult {
+  readonly supervisorAuthorizationId: string;
+  readonly proof: unknown;
+  readonly expiresAt: Date;
+}
+
+export interface ReactionPlanAuthorizationAdapter {
+  authorize(
+    request: ReactionPlanAuthorizationRequest,
+  ): Promise<ReactionPlanAuthorizationResult>;
+}
+
+export const REACTION_PLAN_AUTHORIZER =
+  new InjectionToken<ReactionPlanAuthorizationAdapter>('REACTION_PLAN_AUTHORIZER');
+
 @Injectable({ providedIn: 'root' })
 export class QualityControlService {
-  constructor(private readonly commands: OperationalCommandFacade) {}
+  constructor(
+    private readonly commands: OperationalCommandFacade,
+    @Optional()
+    @Inject(REACTION_PLAN_AUTHORIZER)
+    private readonly reactionPlanAuthorizer?: ReactionPlanAuthorizationAdapter,
+    @Optional() private readonly authSession?: AuthSessionService,
+    @Optional() private readonly supervisorProofs?: SupervisorProofVault,
+    @Optional() private readonly outbox?: OutboxRepository,
+    @Optional() private readonly syncTrigger?: SyncTriggerService,
+  ) {}
 
   // API facade: keep the UI bound to these contracts while Datasul endpoints are unavailable.
   getProductionOrderOperations(orderNumber: string): Observable<ProductionOrderOperationsResult> {
@@ -76,7 +105,9 @@ export class QualityControlService {
   generateInspectionRoute(
     request: GenerateInspectionRouteRequest,
   ): Observable<ProductionOrderRoute> {
-    const aggregateId = `${request.orderNumber}-${request.operation.operationCode}-${request.operation.split?.trim() || '1'}`;
+    const aggregateId =
+      request.idempotencyKey
+      ?? `${request.orderNumber}-${request.operation.operationCode}-${request.operation.split?.trim() || '1'}`;
     const routeNumber = '475.956';
     const occurredAt = new Date().toISOString();
     return from(this.commands.capture({
@@ -94,7 +125,9 @@ export class QualityControlService {
         moveBalance: request.moveBalance,
         generatedAt: occurredAt,
       },
-    })).pipe(map(() => ({
+    })).pipe(map(confirmation => ({
+      localId: confirmation.localId,
+      creationCommandId: confirmation.idempotencyKey,
       routeNumber,
       processDescription: request.operation.processDescription,
       currentOrder: request.orderNumber,
@@ -225,34 +258,43 @@ export class QualityControlService {
         operatorId: request.operatorId,
         savedAt: savedAt.toISOString(),
       },
-    })).pipe(map(() => ({
+    })).pipe(map(confirmation => ({
       componentId: request.componentId,
+      idempotencyKey: confirmation.idempotencyKey,
       measurement: {
         ...request.measurement,
         operatorId: request.operatorId,
         savedAt,
+        commandId: confirmation.idempotencyKey,
       },
     })));
   }
 
   finishExam(request: {
     examId: string;
+    routeNumber: string;
     idempotencyKey?: string;
     dependencyIds?: readonly string[];
-  }): Observable<{ examId: string; success: boolean; finishedAt: Date }> {
+  }): Observable<{
+    examId: string;
+    success: boolean;
+    finishedAt: Date;
+    idempotencyKey: string;
+  }> {
     const finishedAt = new Date();
     return from(this.commands.capture({
       commandType: 'FINISH_EXAM',
-      aggregateId: request.examId,
+      aggregateId: request.routeNumber,
       businessStatus: 'FINALIZADO',
       ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
       ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
       occurredAt: finishedAt.toISOString(),
       payload: { examId: request.examId, finishedAt: finishedAt.toISOString() },
-    })).pipe(map(() => ({
+    })).pipe(map(confirmation => ({
       examId: request.examId,
       success: true,
       finishedAt,
+      idempotencyKey: confirmation.idempotencyKey,
     })));
   }
 
@@ -262,7 +304,7 @@ export class QualityControlService {
     const stoppedAt = new Date();
     return from(this.commands.capture({
       commandType: 'STOP_INSPECTION_ROUTE',
-      aggregateId: request.routeNumber,
+      aggregateId: request.routeLocalId ?? request.routeNumber,
       businessStatus: 'PARADO',
       ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
       ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
@@ -279,23 +321,70 @@ export class QualityControlService {
   authorizeReactionPlan(
     request: ReactionPlanAuthorizationRequest,
   ): Observable<ReactionPlanAuthorization> {
-    return of({
-      componentId: request.componentId,
-      supervisorId: request.supervisorId,
-      reason: request.reason,
-      approvedAt: new Date(),
-    });
+    if (
+      !request.localId.trim()
+      || !request.supervisorId.trim()
+      || !request.password
+      || !request.reason.trim()
+    ) {
+      return throwError(() => new Error('Informe supervisor, senha e motivo da autorização.'));
+    }
+    if (
+      !this.reactionPlanAuthorizer
+      || !this.authSession
+      || !this.supervisorProofs
+      || !this.outbox
+    ) {
+      return throwError(
+        () => new Error('A validação remota do supervisor não está disponível.'),
+      );
+    }
+    const ownerId = this.authSession.currentUser?.id.trim();
+    if (!ownerId) {
+      return throwError(() => new Error('É necessária uma sessão autenticada.'));
+    }
+    return from(this.reactionPlanAuthorizer.authorize(request)).pipe(
+      switchMap(async result => {
+        if (
+          !result.supervisorAuthorizationId.trim()
+          || !Number.isFinite(result.expiresAt.getTime())
+        ) {
+          throw new Error('A prova retornada para o supervisor é inválida.');
+        }
+        this.supervisorProofs!.attach(ownerId, request.localId, result.proof, result.expiresAt);
+        const resumed = await this.outbox!.resumeSupervisorBlocked(
+          ownerId,
+          request.localId,
+          new Date().toISOString(),
+        );
+        if (!resumed) {
+          this.supervisorProofs!.clear(ownerId, request.localId);
+          throw new Error('O apontamento bloqueado não está mais disponível.');
+        }
+        this.syncTrigger?.requestSync();
+        return {
+          componentId: request.componentId,
+          supervisorId: request.supervisorId,
+          supervisorAuthorizationId: result.supervisorAuthorizationId,
+          reason: request.reason.trim(),
+          approvedAt: new Date(),
+        };
+      }),
+    );
   }
 
   saveInspection(payload: SaveInspectionPayload): Observable<SaveInspectionResult> {
     const savedAt = new Date();
     const inspectionId = `INSP-${payload.opNumber}-${payload.examCode}-${payload.routeNumber}`;
-    const requiresSupervisorApproval =
-      payload.status === 'REJECTED'
-      && payload.measurements.some(measurement => measurement.status === 'REJECTED');
+    const rejectedMeasurements =
+      payload.measurements.filter(measurement => measurement.status === 'REJECTED');
+    const requiresSupervisorApproval = rejectedMeasurements.length > 0;
+    if (requiresSupervisorApproval && payload.status !== 'REJECTED') {
+      throw new Error('Uma inspeção com medição rejeitada não pode ser marcada como aprovada.');
+    }
     const hasSupervisorApproval = payload.measurements
       .filter(measurement => measurement.status === 'REJECTED')
-      .every(measurement => Boolean(measurement.supervisorApproval));
+      .every(measurement => isValidSupervisorApproval(measurement.supervisorApproval));
     return from(this.commands.capture({
       commandType: 'SAVE_INSPECTION',
       aggregateId: inspectionId,
@@ -311,6 +400,22 @@ export class QualityControlService {
         createdAt: payload.createdAt.toISOString(),
         measurements: payload.measurements.map(measurement => ({ ...measurement })),
       },
-    })).pipe(map(() => ({ inspectionId, savedAt })));
+    })).pipe(map(confirmation => ({
+      inspectionId,
+      savedAt,
+      idempotencyKey: confirmation.idempotencyKey,
+      syncStatus: confirmation.syncStatus,
+    })));
   }
+}
+
+function isValidSupervisorApproval(
+  approval: SaveInspectionPayload['measurements'][number]['supervisorApproval'],
+): boolean {
+  return Boolean(
+    approval
+    && approval.supervisorAuthorizationId.trim()
+    && approval.reason.trim()
+    && !Number.isNaN(Date.parse(approval.approvedAt)),
+  );
 }
