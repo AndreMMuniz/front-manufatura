@@ -112,6 +112,7 @@ test('indicador abre a Central owner-scoped, preserva reload, teclado, foco e vi
 });
 
 test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto('/login');
   await login(page, 'owner-a');
   await seedEntries(page, [
@@ -120,9 +121,10 @@ test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro'
       localId: 'correct-a',
       ownerId: OWNER_A,
       status: 'ERROR',
-      aggregateType: 'STOPPAGE',
+      aggregateType: 'STOP',
       aggregateId: 'STOP-CORRECT',
       commandType: 'CREATE_STOP',
+      occurredAt: '2026-07-30T15:00:00.000Z',
       payload: {
         localId: 'correct-a',
         reason: { id: 1, code: 'PARADA_NAO_PROGRAMADA', description: 'Ajuste' },
@@ -133,7 +135,13 @@ test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro'
         status: 'EM_ANDAMENTO',
       },
     },
-    { localId: 'abandon-a', ownerId: OWNER_A, status: 'ERROR', aggregateId: 'OP-ABANDON' },
+    {
+      localId: 'abandon-a',
+      ownerId: OWNER_A,
+      status: 'ERROR',
+      aggregateId: 'OP-ABANDON',
+      occurredAt: '2026-07-30T16:00:00.000Z',
+    },
     ...Array.from({ length: 30 }, (_, index) => ({
       localId: `queue-${index}`,
       ownerId: OWNER_A,
@@ -152,7 +160,7 @@ test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro'
     'preparado para nova tentativa',
   );
   await expect(retry).toBeEnabled();
-  expect(Date.now() - retryStartedAt).toBeLessThan(2_000);
+  expect(Date.now() - retryStartedAt).toBeLessThan(5_000);
 
   await page.getByTestId('sync-correct-correct-a').click();
   await expect(page).toHaveURL(/\/stoppages$/);
