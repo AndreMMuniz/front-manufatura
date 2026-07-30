@@ -14,6 +14,8 @@ export interface LocalRecord<TPayload = JsonValue> {
   readonly payloadHash: string;
   readonly ownerId: string;
   readonly businessStatus?: string;
+  readonly initialSyncStatus?: 'PENDING' | 'BLOCKED_AUTH';
+  readonly initialAuthBlockReason?: 'SESSION' | 'SUPERVISOR';
   readonly dependencyIds: readonly string[];
   readonly occurredAt: string;
   readonly createdAt: string;

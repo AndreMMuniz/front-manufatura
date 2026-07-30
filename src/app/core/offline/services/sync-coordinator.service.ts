@@ -25,6 +25,7 @@ import {
   SYNC_SCHEDULER_CONFIGURATION,
   SyncTriggerService,
 } from './sync-trigger.service';
+import { SupervisorProofVault } from './supervisor-proof-vault';
 
 export type SyncClock = () => Date;
 export type SyncRandom = () => number;
@@ -56,6 +57,7 @@ export class SyncCoordinatorService implements OnDestroy {
     private readonly triggers: SyncTriggerService,
     @Inject(SYNC_TRANSPORT) private readonly transport: SyncTransport,
     private readonly idempotency: IdempotencyService,
+    private readonly supervisorProofs: SupervisorProofVault,
     @Inject(SYNC_CLOCK) private readonly clock: SyncClock,
     @Inject(SYNC_RANDOM) private readonly random: SyncRandom,
     @Inject(SYNC_SCHEDULER_CONFIGURATION) private readonly config: SyncSchedulerConfig,
@@ -185,7 +187,10 @@ export class SyncCoordinatorService implements OnDestroy {
     try {
       const result = await sendCommandWithTimeout(
         this.transport,
-        toSyncCommandRequest(claimed),
+        toSyncCommandRequest(
+          claimed,
+          this.supervisorProofs.read(owner, claimed.localId) ?? undefined,
+        ),
         this.config.requestTimeoutMs,
         this.timeoutScheduler,
         controller.signal,

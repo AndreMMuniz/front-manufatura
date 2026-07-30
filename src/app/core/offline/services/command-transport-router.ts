@@ -2,26 +2,25 @@ import { InjectionToken } from '@angular/core';
 
 import { CommandResult, SyncCommandRequest } from '../models/sync-command';
 import { SyncConfigurationError } from '../models/sync-error';
+import { OperationalCommandType } from '../models/operational-command';
 import type { SyncTransport } from './sync-transport';
 
 export interface SyncCommandHandler {
-  readonly commandType: string;
+  readonly commandType: OperationalCommandType;
   readonly send: (
     request: SyncCommandRequest,
     signal: AbortSignal,
   ) => Promise<CommandResult>;
 }
 
-export const SYNC_COMMAND_HANDLERS = new InjectionToken<readonly SyncCommandHandler[]>(
-  'SYNC_COMMAND_HANDLERS',
-  { providedIn: 'root', factory: () => [] },
-);
+export const SYNC_COMMAND_HANDLERS =
+  new InjectionToken<readonly SyncCommandHandler[]>('SYNC_COMMAND_HANDLERS');
 
 export class CommandTransportRouter implements SyncTransport {
-  private readonly handlers: ReadonlyMap<string, SyncCommandHandler>;
+  private readonly handlers: ReadonlyMap<OperationalCommandType, SyncCommandHandler>;
 
   constructor(handlers: readonly SyncCommandHandler[]) {
-    const indexed = new Map<string, SyncCommandHandler>();
+    const indexed = new Map<OperationalCommandType, SyncCommandHandler>();
     for (const handler of handlers) {
       if (indexed.has(handler.commandType)) {
         throw new SyncConfigurationError(
@@ -35,7 +34,7 @@ export class CommandTransportRouter implements SyncTransport {
   }
 
   send(request: SyncCommandRequest, signal: AbortSignal): Promise<CommandResult> {
-    const handler = this.handlers.get(request.commandType);
+    const handler = this.handlers.get(request.commandType as OperationalCommandType);
     if (!handler) {
       return Promise.reject(
         new SyncConfigurationError(

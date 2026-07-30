@@ -11,6 +11,7 @@ export interface SyncCommandRequest {
   readonly payload: JsonValue;
   readonly canonicalPayload: string;
   readonly occurredAt: string;
+  readonly supervisorProof?: unknown;
 }
 
 export interface CommandResult {

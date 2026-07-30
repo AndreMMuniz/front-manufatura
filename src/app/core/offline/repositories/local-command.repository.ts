@@ -58,6 +58,7 @@ export class LocalCommandRepository {
     request: PersistConfirmedCommandRequest<TPayload>,
   ): Promise<PersistedCommand<JsonValue>> {
     const metadata = validateRequest(request);
+    const initialState = validateInitialState(request);
     const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
     const dependencyIds = Object.freeze(
       normalizeDependencyIds(request.dependencyIds).map((dependencyId) =>
@@ -87,9 +88,9 @@ export class LocalCommandRepository {
       payloadHash: prepared.payloadHash,
       dependencyIds,
       occurredAt,
-      initialSyncStatus: request.initialSyncStatus ?? 'PENDING',
-      ...(request.initialAuthBlockReason
-        ? { initialAuthBlockReason: request.initialAuthBlockReason }
+      initialSyncStatus: initialState.status,
+      ...(initialState.reason
+        ? { initialAuthBlockReason: initialState.reason }
         : {}),
     };
 
@@ -109,6 +110,10 @@ export class LocalCommandRepository {
       canonicalPayload: prepared.canonicalPayload,
       payloadHash: prepared.payloadHash,
       ownerId: metadata.ownerId,
+      initialSyncStatus: fingerprint.initialSyncStatus,
+      ...(fingerprint.initialAuthBlockReason
+        ? { initialAuthBlockReason: fingerprint.initialAuthBlockReason }
+        : {}),
       ...(metadata.businessStatus ? { businessStatus: metadata.businessStatus } : {}),
       dependencyIds,
       occurredAt,
@@ -223,6 +228,29 @@ function validateRequest<TPayload>(request: PersistConfirmedCommandRequest<TPayl
   };
 }
 
+function validateInitialState<TPayload>(
+  request: PersistConfirmedCommandRequest<TPayload>,
+): {
+  readonly status: 'PENDING' | 'BLOCKED_AUTH';
+  readonly reason?: 'SESSION' | 'SUPERVISOR';
+} {
+  const status = request.initialSyncStatus ?? 'PENDING';
+  const reason = request.initialAuthBlockReason;
+  if (
+    (status === 'PENDING' && reason !== undefined)
+    || (status === 'BLOCKED_AUTH' && reason === undefined)
+  ) {
+    throw new OfflineStorageError(
+      'PAYLOAD_INVALID',
+      'O estado inicial e o motivo de bloqueio de autenticação são incompatíveis.',
+    );
+  }
+  return {
+    status,
+    ...(reason ? { reason } : {}),
+  };
+}
+
 function requiredText(value: string): string {
   const normalized = value.trim();
   if (!normalized) {
@@ -276,7 +304,7 @@ function matchesFingerprint(
   record: LocalRecord<JsonValue> | OutboxEntry<JsonValue>,
   fingerprint: CommandFingerprint,
 ): boolean {
-  return (
+  const immutableMatches =
     record.ownerId === fingerprint.ownerId &&
     record.aggregateType === fingerprint.aggregateType &&
     record.aggregateId === fingerprint.aggregateId &&
@@ -286,12 +314,15 @@ function matchesFingerprint(
     record.payloadHash === fingerprint.payloadHash &&
     record.businessStatus === fingerprint.businessStatus &&
     record.occurredAt === fingerprint.occurredAt &&
-    sameStrings(record.dependencyIds, fingerprint.dependencyIds)
-    && ('status' in record
-      ? record.status === fingerprint.initialSyncStatus
-        && record.authBlockReason === fingerprint.initialAuthBlockReason
-      : true)
-  );
+    sameStrings(record.dependencyIds, fingerprint.dependencyIds);
+  if (!immutableMatches) {
+    return false;
+  }
+  if ('status' in record) {
+    return true;
+  }
+  return (record.initialSyncStatus ?? 'PENDING') === fingerprint.initialSyncStatus
+    && record.initialAuthBlockReason === fingerprint.initialAuthBlockReason;
 }
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {

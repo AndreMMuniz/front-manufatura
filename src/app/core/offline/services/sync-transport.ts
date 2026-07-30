@@ -50,10 +50,14 @@ export class MissingSyncTransport implements SyncTransport {
 
 export const SYNC_TRANSPORT = new InjectionToken<SyncTransport>('SYNC_TRANSPORT', {
   providedIn: 'root',
-  factory: () => new CommandTransportRouter(inject(SYNC_COMMAND_HANDLERS)),
+  factory: () =>
+    new CommandTransportRouter(inject(SYNC_COMMAND_HANDLERS, { optional: true }) ?? []),
 });
 
-export function toSyncCommandRequest(entry: OutboxEntry<JsonValue>): SyncCommandRequest {
+export function toSyncCommandRequest(
+  entry: OutboxEntry<JsonValue>,
+  supervisorProof?: unknown,
+): SyncCommandRequest {
   return immutableCopy({
     localId: entry.localId,
     idempotencyKey: entry.idempotencyKey,
@@ -65,6 +69,7 @@ export function toSyncCommandRequest(entry: OutboxEntry<JsonValue>): SyncCommand
     payload: entry.payload,
     canonicalPayload: entry.canonicalPayload,
     occurredAt: entry.occurredAt,
+    ...(supervisorProof !== undefined ? { supervisorProof } : {}),
   });
 }
 
@@ -182,10 +187,12 @@ function validateBatchReconciliation(
   const complete =
     expected.length > 0
     && new Set(expected).size === expected.length
+    && expected.every(safeIdentifier)
     && received.length === expected.length
     && unique.size === received.length
     && received.every(item =>
       item.success
+      && safeIdentifier(item.orderId)
       && expected.includes(item.orderId)
       && (item.serverRecordId === undefined || safeIdentifier(item.serverRecordId)))
     && expected.every(orderId => unique.has(orderId));

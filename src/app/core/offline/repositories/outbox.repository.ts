@@ -14,6 +14,7 @@ import {
   requestResult,
   transactionComplete,
 } from './repository-utils';
+import { SupervisorProofVault } from '../services/supervisor-proof-vault';
 
 export interface ClaimOutboxRequest {
   readonly ownerId: string;
@@ -51,7 +52,10 @@ export type ReconcileFailureRequest =
 
 @Injectable({ providedIn: 'root' })
 export class OutboxRepository {
-  constructor(private readonly database: OfflineDatabase) {}
+  constructor(
+    private readonly database: OfflineDatabase,
+    private readonly supervisorProofs: SupervisorProofVault,
+  ) {}
 
   async getById(ownerId: string, localId: string): Promise<OutboxEntry<JsonValue> | null> {
     const owner = assertOwnerId(ownerId);
@@ -246,6 +250,7 @@ export class OutboxRepository {
     };
     store.put(synchronized);
     await completed;
+    this.supervisorProofs.clear(owner, request.localId);
     return true;
   }
 
@@ -346,8 +351,9 @@ export class OutboxRepository {
       if (entry.authBlockReason === 'SUPERVISOR') {
         continue;
       }
+      const { authBlockReason: _reason, ...withoutReason } = withoutRuntimeState(entry);
       store.put({
-        ...withoutRuntimeState(entry),
+        ...withoutReason,
         status: 'PENDING',
         updatedAt: normalizedNow,
       } satisfies OutboxEntry<JsonValue>);
@@ -375,6 +381,7 @@ export class OutboxRepository {
       || current.ownerId !== owner
       || current.status !== 'BLOCKED_AUTH'
       || current.authBlockReason !== 'SUPERVISOR'
+      || this.supervisorProofs.read(owner, localId) === null
     ) {
       await completed;
       return false;
