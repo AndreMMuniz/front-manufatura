@@ -29,7 +29,10 @@ export class ReporteParadasService {
   private readonly commands = inject(OperationalCommandFacade);
   private readonly localRecords = inject(LocalRecordRepository);
   private readonly authSession = inject(AuthSessionService);
-  private prefillContext: ProductionContext | null = null;
+  private prefillContext: {
+    readonly ownerId: string;
+    readonly context: ProductionContext;
+  } | null = null;
   private readonly confirmedStops: StopEntry[] = [];
   private cacheOwnerId: string | null = null;
   private registrationInFlight = false;
@@ -47,13 +50,13 @@ export class ReporteParadasService {
   ]);
 
   listarAreas(): Observable<ReadonlyArray<AreaProducao>> {
-    return this.catalog.listarAreas().pipe(map(areas => areas.map(area => ({ ...area }))));
+    return this.catalog.listarAreas().pipe(map((areas) => areas.map((area) => ({ ...area }))));
   }
 
   pesquisarCentros(areaCode: string, termo = ''): Observable<ReadonlyArray<WorkCenter>> {
     return this.catalog
       .pesquisarCentros(areaCode, termo)
-      .pipe(map(centers => centers.map(center => ({ ...center }))));
+      .pipe(map((centers) => centers.map((center) => ({ ...center }))));
   }
 
   listarResponsaveis(
@@ -62,19 +65,25 @@ export class ReporteParadasService {
   ): Observable<ReadonlyArray<ResponsavelParada>> {
     return this.catalog
       .listarResponsaveis(areaCode, workCenterCode)
-      .pipe(map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))));
+      .pipe(map((responsaveis) => responsaveis.map((responsavel) => ({ ...responsavel }))));
   }
 
   listarMotivos(_areaCode: string, _workCenterCode: string): Observable<ReadonlyArray<StopReason>> {
-    return of(this.reasons.map(reason => ({ ...reason }))).pipe(delay(150));
+    return of(this.reasons.map((reason) => ({ ...reason }))).pipe(delay(150));
   }
 
   setPrefillContext(context: ProductionContext): void {
-    this.prefillContext = this.cloneContext(context);
+    const ownerId = this.authSession.currentUser?.id.trim();
+    this.prefillContext = ownerId ? { ownerId, context: this.cloneContext(context) } : null;
   }
 
   getPrefillContext(): ProductionContext | null {
-    return this.prefillContext ? this.cloneContext(this.prefillContext) : null;
+    const ownerId = this.authSession.currentUser?.id.trim();
+    if (!ownerId || this.prefillContext?.ownerId !== ownerId) {
+      this.prefillContext = null;
+      return null;
+    }
+    return this.cloneContext(this.prefillContext.context);
   }
 
   clearPrefillContext(): void {
@@ -88,6 +97,7 @@ export class ReporteParadasService {
       }
       this.registrationInFlight = true;
 
+      const ownerId = this.authSession.currentUser?.id.trim() ?? '';
       const command = this.cloneRequest(request);
       const validated = this.validateCommand(command);
       return forkJoin({
@@ -96,9 +106,9 @@ export class ReporteParadasService {
         responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
       }).pipe(
         switchMap(({ areas, centers, responsibles }) => {
-          const area = areas.find(item => this.sameCode(item.code, command.areaCode));
+          const area = areas.find((item) => this.sameCode(item.code, command.areaCode));
           const center = centers.find(
-            item =>
+            (item) =>
               item.active &&
               this.sameCode(item.code, command.workCenterCode) &&
               this.sameCode(item.areaCode, command.areaCode),
@@ -108,7 +118,7 @@ export class ReporteParadasService {
           }
 
           const responsible = responsibles.find(
-            item =>
+            (item) =>
               item.tipo === command.responsible.tipo &&
               this.sameCode(item.codigo, command.responsible.codigo),
           );
@@ -131,7 +141,10 @@ export class ReporteParadasService {
               workCenter: { ...center },
               origin: command.origin ? { ...command.origin } : undefined,
               preferredResponsible: { ...responsible },
-              metadata: { machineGroup: center.machineGroup },
+              metadata: {
+                ...this.cloneMetadata(command.metadata),
+                machineGroup: center.machineGroup,
+              },
             },
             reason: { ...validated.reason },
             responsible: { ...responsible, codigo: this.normalizeCode(responsible.codigo) },
@@ -155,8 +168,8 @@ export class ReporteParadasService {
               payload: this.stopPayload(stop),
             }),
           ).pipe(
-            map(confirmation => {
-              this.ensureOwnerCache(this.authSession.currentUser?.id ?? '');
+            map((confirmation) => {
+              this.ensureOwnerCache(ownerId);
               const stored = this.cloneStop(stop);
               const confirmedStop: StopEntry = {
                 ...stored,
@@ -164,7 +177,9 @@ export class ReporteParadasService {
                 localId: confirmation.localId,
                 syncStatus: confirmation.syncStatus,
               };
-              const existingIndex = this.confirmedStops.findIndex(item => item.localId === localId);
+              const existingIndex = this.confirmedStops.findIndex(
+                (item) => item.localId === localId,
+              );
               if (existingIndex >= 0) {
                 this.confirmedStops[existingIndex] = confirmedStop;
               } else {
@@ -196,17 +211,17 @@ export class ReporteParadasService {
         return of([]);
       }
       return from(this.localRecords.listByOwner(ownerId)).pipe(
-        map(records => {
+        map((records) => {
           this.ensureOwnerCache(ownerId);
           if (records.length > 0) {
             this.confirmedStops.splice(0);
-            for (const record of records.filter(item => item.commandType === 'CREATE_STOP')) {
+            for (const record of records.filter((item) => item.commandType === 'CREATE_STOP')) {
               const restored = this.stopFromPayload(record.payload, record.localId);
               if (restored) {
                 this.confirmedStops.push(restored);
               }
             }
-            for (const record of records.filter(item => item.commandType === 'FINISH_STOP')) {
+            for (const record of records.filter((item) => item.commandType === 'FINISH_STOP')) {
               this.applyDurableFinish(record.payload, record.idempotencyKey);
             }
           }
@@ -230,7 +245,7 @@ export class ReporteParadasService {
       if (!end) {
         throw new Error('Informe Data da Finalização e Hora da Finalização válidas.');
       }
-      const index = this.confirmedStops.findIndex(stop => stop.id === stopId);
+      const index = this.confirmedStops.findIndex((stop) => stop.id === stopId);
       const current = index >= 0 ? this.confirmedStops[index] : undefined;
       if (!current) {
         throw new Error('A parada não existe ou não está mais disponível.');
@@ -295,12 +310,7 @@ export class ReporteParadasService {
       preferredResponsible: context.preferredResponsible
         ? { ...context.preferredResponsible }
         : undefined,
-      metadata: context.metadata
-        ? {
-            ...context.metadata,
-            orderIds: context.metadata.orderIds ? [...context.metadata.orderIds] : undefined,
-          }
-        : undefined,
+      metadata: context.metadata ? this.cloneMetadata(context.metadata) : undefined,
     };
   }
 
@@ -323,6 +333,16 @@ export class ReporteParadasService {
         request.startDate instanceof Date ? new Date(request.startDate) : request.startDate,
       endDate: request.endDate instanceof Date ? new Date(request.endDate) : request.endDate,
       origin: request.origin ? { ...request.origin } : undefined,
+      metadata: request.metadata ? this.cloneMetadata(request.metadata) : undefined,
+    };
+  }
+
+  private cloneMetadata(
+    metadata: ProductionContext['metadata'],
+  ): NonNullable<ProductionContext['metadata']> {
+    return {
+      ...metadata,
+      ...(metadata?.orderIds ? { orderIds: [...metadata.orderIds] } : {}),
     };
   }
 
@@ -348,7 +368,7 @@ export class ReporteParadasService {
       throw new Error('A chave de idempotência é obrigatória.');
     }
 
-    const reason = this.reasons.find(item => item.id === command.reasonId);
+    const reason = this.reasons.find((item) => item.id === command.reasonId);
     if (!reason) {
       throw new Error('Selecione um motivo corporativo válido.');
     }
@@ -408,12 +428,12 @@ export class ReporteParadasService {
   private openStopsForContext(areaCode: string, workCenterCode: string): readonly StopEntry[] {
     return this.confirmedStops
       .filter(
-        stop =>
+        (stop) =>
           stop.status === 'EM_ANDAMENTO' &&
           this.sameCode(stop.context.area.code, areaCode) &&
           this.sameCode(stop.context.workCenter.code, workCenterCode),
       )
-      .map(stop => this.cloneStop(stop));
+      .map((stop) => this.cloneStop(stop));
   }
 
   private stopPayload(stop: StopEntry) {
@@ -516,7 +536,7 @@ export class ReporteParadasService {
       persistedEndDate && persistedEndTime
         ? combineLocalDateTime(persistedEndDate, persistedEndTime)
         : legacyEnd;
-    const index = this.confirmedStops.findIndex(stop => stop.localId === localId);
+    const index = this.confirmedStops.findIndex((stop) => stop.localId === localId);
     if (index < 0 || !end || Number.isNaN(end.getTime())) {
       return;
     }

@@ -42,9 +42,7 @@ import {
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
 import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
-import {
-  OperationalCorrectionNotice,
-} from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
+import { OperationalCorrectionNotice } from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
 
 @Component({
   selector: 'app-reporte-paradas-page',
@@ -93,14 +91,9 @@ export class ReporteParadasPage implements OnInit {
   constructor() {
     effect(() => {
       const view = this.view();
-      this.pwaWorkState.setCaptureActive(
-        'stoppages',
-        view.dirty || view.saving || view.finishing,
-      );
+      this.pwaWorkState.setCaptureActive('stoppages', view.dirty || view.saving || view.finishing);
     });
-    this.destroyRef.onDestroy(
-      () => this.pwaWorkState.setCaptureActive('stoppages', false),
-    );
+    this.destroyRef.onDestroy(() => this.pwaWorkState.setCaptureActive('stoppages', false));
   }
 
   ngOnInit(): void {
@@ -118,7 +111,7 @@ export class ReporteParadasPage implements OnInit {
     if (this.commandsBlocked() || code === (this.view().area?.code ?? '')) {
       return;
     }
-    const area = this.areas().find(item => this.sameCode(item.code, code)) ?? null;
+    const area = this.areas().find((item) => this.sameCode(item.code, code)) ?? null;
     this.confirmDiscardIfNeeded(() => this.applyArea(area));
   }
 
@@ -126,11 +119,13 @@ export class ReporteParadasPage implements OnInit {
     if (this.commandsBlocked() || code === (this.view().workCenter?.code ?? '')) {
       return;
     }
-    const center = this.centers().find(item =>
-      item.active
-      && this.sameCode(item.code, code)
-      && this.sameCode(item.areaCode, this.view().area?.code ?? ''),
-    ) ?? null;
+    const center =
+      this.centers().find(
+        (item) =>
+          item.active &&
+          this.sameCode(item.code, code) &&
+          this.sameCode(item.areaCode, this.view().area?.code ?? ''),
+      ) ?? null;
     this.confirmDiscardIfNeeded(() => this.applyWorkCenter(center));
   }
 
@@ -197,14 +192,18 @@ export class ReporteParadasPage implements OnInit {
 
   finalizarParada(): void {
     const snapshot = this.view();
-    if (snapshot.finishing || snapshot.saving
-      || !snapshot.area || !snapshot.workCenter || snapshot.selectedStopId === null
-      || !snapshot.finishDraft.endDate || !snapshot.finishDraft.endTime.trim()) {
+    if (
+      snapshot.finishing ||
+      snapshot.saving ||
+      !snapshot.area ||
+      !snapshot.workCenter ||
+      snapshot.selectedStopId === null ||
+      !snapshot.finishDraft.endDate ||
+      !snapshot.finishDraft.endTime.trim()
+    ) {
       return;
     }
-    const key = this.workflow.ensureFinishIdempotencyKey(
-      () => this.idempotency.resolve(),
-    );
+    const key = this.workflow.ensureFinishIdempotencyKey(() => this.idempotency.resolve());
     const token = this.workflow.beginFinishCommand(
       snapshot.selectedStopId,
       snapshot.area.code,
@@ -213,14 +212,15 @@ export class ReporteParadasPage implements OnInit {
     this.statusMessage.set('');
     this.syncView();
 
-    this.service.finalizarParada(snapshot.selectedStopId, {
-      endDate: snapshot.finishDraft.endDate,
-      endTime: snapshot.finishDraft.endTime,
-      idempotencyKey: key,
-    })
+    this.service
+      .finalizarParada(snapshot.selectedStopId, {
+        endDate: snapshot.finishDraft.endDate,
+        endTime: snapshot.finishDraft.endTime,
+        idempotencyKey: key,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: stop => {
+        next: (stop) => {
           if (!this.workflow.acceptFinishSuccess(token, stop.id)) {
             return;
           }
@@ -239,10 +239,12 @@ export class ReporteParadasPage implements OnInit {
           }
         },
         error: () => {
-          if (this.workflow.acceptFinishError(
-            token,
-            'Não foi possível finalizar a parada. Os dados informados foram preservados.',
-          )) {
+          if (
+            this.workflow.acceptFinishError(
+              token,
+              'Não foi possível finalizar a parada. Os dados informados foram preservados.',
+            )
+          ) {
             this.syncView();
           }
         },
@@ -260,40 +262,44 @@ export class ReporteParadasPage implements OnInit {
     }
     const responsible = this.findSelectedResponsible(snapshot);
     if (!responsible) {
-      this.notification.warning('Selecione um responsável elegível para a Área e o Centro de Trabalho.');
+      this.notification.warning(
+        'Selecione um responsável elegível para a Área e o Centro de Trabalho.',
+      );
       return;
     }
-    if (snapshot.draft.reasonId === null
-      || !snapshot.draft.startDate
-      || !snapshot.draft.startTime.trim()) {
+    if (
+      snapshot.draft.reasonId === null ||
+      !snapshot.draft.startDate ||
+      !snapshot.draft.startTime.trim()
+    ) {
       this.notification.warning('Informe motivo, Data Inicial e Hora Inicial.');
       return;
     }
 
-    const idempotencyKey = this.workflow.ensureIdempotencyKey(
-      () => this.idempotency.resolve(),
-    );
+    const idempotencyKey = this.workflow.ensureIdempotencyKey(() => this.idempotency.resolve());
     this.workflow.setSaving(true);
     this.registrationError.set('');
     this.statusMessage.set('');
     this.syncView();
 
-    this.service.registrarParada({
-      areaCode: snapshot.area.code,
-      workCenterCode: snapshot.workCenter.code,
-      reasonId: snapshot.draft.reasonId,
-      responsible,
-      startDate: snapshot.draft.startDate,
-      startTime: snapshot.draft.startTime,
-      endDate: snapshot.draft.endDate,
-      endTime: snapshot.draft.endTime,
-      programmed: snapshot.draft.programmed,
-      origin: snapshot.origin,
-      idempotencyKey,
-    })
+    this.service
+      .registrarParada({
+        areaCode: snapshot.area.code,
+        workCenterCode: snapshot.workCenter.code,
+        reasonId: snapshot.draft.reasonId,
+        responsible,
+        startDate: snapshot.draft.startDate,
+        startTime: snapshot.draft.startTime,
+        endDate: snapshot.draft.endDate,
+        endTime: snapshot.draft.endTime,
+        programmed: snapshot.draft.programmed,
+        origin: snapshot.origin,
+        metadata: snapshot.metadata,
+        idempotencyKey,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: stop => {
+        next: (stop) => {
           this.workflow.completeRegistration();
           this.syncView();
           this.statusMessage.set(
@@ -307,9 +313,10 @@ export class ReporteParadasPage implements OnInit {
         error: (error: unknown) => {
           this.workflow.setSaving(false);
           this.syncView();
-          const message = error instanceof Error
-            ? error.message
-            : 'Não foi possível registrar a parada. O rascunho foi preservado.';
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Não foi possível registrar a parada. O rascunho foi preservado.';
           this.registrationError.set(message);
           this.notification.error(message);
         },
@@ -330,14 +337,15 @@ export class ReporteParadasPage implements OnInit {
     const request = ++this.areasRequest;
     this.loadingAreas.set(true);
     this.pageError.set('');
-    this.service.listarAreas()
+    this.service
+      .listarAreas()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: areas => {
+        next: (areas) => {
           if (request !== this.areasRequest) {
             return;
           }
-          this.areas.set(areas.map(area => ({ ...area })));
+          this.areas.set(areas.map((area) => ({ ...area })));
           this.loadingAreas.set(false);
           if (prefill) {
             this.loadPrefill(prefill, request);
@@ -354,26 +362,31 @@ export class ReporteParadasPage implements OnInit {
   }
 
   private loadPrefill(prefill: ProductionContext, areasRequest: number): void {
-    const area = this.areas().find(item => this.sameCode(item.code, prefill.area.code));
-    if (!area || !prefill.workCenter.active
-      || !this.sameCode(prefill.workCenter.areaCode, area.code)) {
+    const area = this.areas().find((item) => this.sameCode(item.code, prefill.area.code));
+    if (
+      !area ||
+      !prefill.workCenter.active ||
+      !this.sameCode(prefill.workCenter.areaCode, area.code)
+    ) {
       return;
     }
     const request = ++this.centersRequest;
     this.loadingCenters.set(true);
-    this.service.pesquisarCentros(area.code)
+    this.service
+      .pesquisarCentros(area.code)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: centers => {
+        next: (centers) => {
           if (areasRequest !== this.areasRequest || request !== this.centersRequest) {
             return;
           }
           this.loadingCenters.set(false);
-          this.centers.set(centers.map(center => ({ ...center })));
-          const center = centers.find(item =>
-            item.active
-            && this.sameCode(item.code, prefill.workCenter.code)
-            && this.sameCode(item.areaCode, area.code),
+          this.centers.set(centers.map((center) => ({ ...center })));
+          const center = centers.find(
+            (item) =>
+              item.active &&
+              this.sameCode(item.code, prefill.workCenter.code) &&
+              this.sameCode(item.areaCode, area.code),
           );
           if (!center) {
             return;
@@ -429,17 +442,22 @@ export class ReporteParadasPage implements OnInit {
   private loadCenters(areaCode: string): void {
     const request = ++this.centersRequest;
     this.loadingCenters.set(true);
-    this.service.pesquisarCentros(areaCode)
+    this.service
+      .pesquisarCentros(areaCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: centers => {
-          if (request !== this.centersRequest
-            || !this.sameCode(this.view().area?.code ?? '', areaCode)) {
+        next: (centers) => {
+          if (
+            request !== this.centersRequest ||
+            !this.sameCode(this.view().area?.code ?? '', areaCode)
+          ) {
             return;
           }
-          this.centers.set(centers
-            .filter(center => center.active && this.sameCode(center.areaCode, areaCode))
-            .map(center => ({ ...center })));
+          this.centers.set(
+            centers
+              .filter((center) => center.active && this.sameCode(center.areaCode, areaCode))
+              .map((center) => ({ ...center })),
+          );
           this.loadingCenters.set(false);
         },
         error: () => {
@@ -478,10 +496,12 @@ export class ReporteParadasPage implements OnInit {
           }
         },
         error: () => {
-          if (this.workflow.acceptContextError(
-            token,
-            'Não foi possível carregar responsáveis e motivos. Tente novamente.',
-          )) {
+          if (
+            this.workflow.acceptContextError(
+              token,
+              'Não foi possível carregar responsáveis e motivos. Tente novamente.',
+            )
+          ) {
             this.syncView();
           }
         },
@@ -491,19 +511,22 @@ export class ReporteParadasPage implements OnInit {
   private loadOpenStops(areaCode: string, workCenterCode: string): void {
     const token = this.workflow.beginOpenStopsQuery(areaCode, workCenterCode);
     this.syncView();
-    this.service.listarParadasEmAndamento(areaCode, workCenterCode)
+    this.service
+      .listarParadasEmAndamento(areaCode, workCenterCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: stops => {
+        next: (stops) => {
           if (this.workflow.acceptOpenStops(token, stops)) {
             this.syncView();
           }
         },
         error: () => {
-          if (this.workflow.acceptOpenStopsError(
-            token,
-            'Não foi possível consultar as paradas em andamento. Tente novamente.',
-          )) {
+          if (
+            this.workflow.acceptOpenStopsError(
+              token,
+              'Não foi possível consultar as paradas em andamento. Tente novamente.',
+            )
+          ) {
             this.syncView();
           }
         },
@@ -527,9 +550,10 @@ export class ReporteParadasPage implements OnInit {
   private findSelectedResponsible(
     snapshot: ReporteParadasWorkflowSnapshot,
   ): ResponsavelParada | undefined {
-    return snapshot.responsibles.find(item =>
-      item.tipo === snapshot.responsibleType
-      && this.sameCode(item.codigo, snapshot.responsibleCode),
+    return snapshot.responsibles.find(
+      (item) =>
+        item.tipo === snapshot.responsibleType &&
+        this.sameCode(item.codigo, snapshot.responsibleCode),
     );
   }
 

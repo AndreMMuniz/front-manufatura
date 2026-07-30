@@ -6,7 +6,11 @@ import { ProductionContextCatalogService } from '../../shop-floor/services/produ
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
-import { CreateStopRequest, FinishStopRequest } from '../interfaces/reporte-paradas.dto';
+import {
+  CreateStopRequest,
+  FinishStopRequest,
+  StopResponse,
+} from '../interfaces/reporte-paradas.dto';
 import { ProductionContext, StopReason } from '../models/reporte-paradas.model';
 import { ReporteParadasService } from './reporte-paradas.service';
 
@@ -38,6 +42,9 @@ describe('ReporteParadasService', () => {
 
   function setup() {
     const captured = new Map<string, { readonly fingerprint: string; readonly result: object }>();
+    const authSession: { currentUser: { id: string } | null } = {
+      currentUser: { id: 'operator-1' },
+    };
     const catalog = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([center])),
@@ -74,7 +81,7 @@ describe('ReporteParadasService', () => {
         { provide: ProductionContextCatalogService, useValue: catalog },
         {
           provide: AuthSessionService,
-          useValue: { currentUser: { id: 'operator-1' } },
+          useValue: authSession,
         },
         {
           provide: LocalRecordRepository,
@@ -91,6 +98,7 @@ describe('ReporteParadasService', () => {
       catalog,
       localRecords,
       commands,
+      authSession,
     };
   }
 
@@ -107,6 +115,17 @@ describe('ReporteParadasService', () => {
     expect(areas).toEqual([{ code: '4001', description: 'Produção' }]);
     expect(centers).toEqual([center]);
     expect(responsaveis).toEqual([{ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }]);
+  });
+
+  it('representa bloqueio de autenticação no contrato de resposta', () => {
+    const response: StopResponse = {
+      id: 1,
+      idempotencyKey: 'idem-1',
+      status: 'EM_ANDAMENTO',
+      syncStatus: 'BLOCKED_AUTH',
+    };
+
+    expect(response.syncStatus).toBe('BLOCKED_AUTH');
   });
 
   it('mantém motivos mockados exclusivamente no service e devolve cópias defensivas', async () => {
@@ -145,11 +164,20 @@ describe('ReporteParadasService', () => {
     expect(first).not.toBe(second);
   });
 
-  it('limpa o prefill sem apagar registros confirmados', () => {
+  it('limpa o prefill explicitamente', () => {
     const { service } = setup();
     service.setPrefillContext(context);
 
     service.clearPrefillContext();
+
+    expect(service.getPrefillContext()).toBeNull();
+  });
+
+  it('não entrega a outra sessão o prefill criado pelo owner anterior', () => {
+    const { service, authSession } = setup();
+    service.setPrefillContext(context);
+
+    authSession.currentUser = { id: 'operator-2' };
 
     expect(service.getPrefillContext()).toBeNull();
   });
@@ -240,6 +268,21 @@ describe('ReporteParadasService', () => {
     });
   });
 
+  it('preserva os metadados recebidos no contexto da parada', async () => {
+    const { service } = setup();
+    const command: CreateStopRequest = {
+      ...request(),
+      metadata: context.metadata,
+    };
+
+    const parada = await firstValueFrom(service.registrarParada(command));
+
+    expect(parada.context.metadata).toEqual({
+      shift: '1º Turno',
+      machineGroup: 'Extrusoras',
+    });
+  });
+
   it('reutiliza resultado para a mesma chave e conteúdo e rejeita conteúdo divergente', async () => {
     const { service } = setup();
     const command = request();
@@ -315,6 +358,47 @@ describe('ReporteParadasService', () => {
     await expect(firstValueFrom(service.registrarParada(request()))).resolves.toEqual(
       expect.objectContaining({ idempotencyKey: 'idem-1' }),
     );
+  });
+
+  it('mantém o registro confirmado associado ao owner que iniciou o comando', async () => {
+    const { service, commands, authSession, localRecords } = setup();
+    let confirmCapture!: (confirmation: {
+      localId: string;
+      idempotencyKey: string;
+      payloadHash: string;
+      committedAt: string;
+      syncStatus: 'PENDING';
+    }) => void;
+    commands.capture.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          confirmCapture = resolve;
+        }),
+    );
+    const pending = firstValueFrom(
+      service.registrarParada(
+        request({
+          endDate: null,
+          endTime: null,
+        }),
+      ),
+    );
+    await vi.waitFor(() => expect(commands.capture).toHaveBeenCalledOnce());
+
+    authSession.currentUser = { id: 'operator-2' };
+    confirmCapture({
+      localId: 'idem-1',
+      idempotencyKey: 'idem-1',
+      payloadHash: 'hash',
+      committedAt: '2026-07-30T12:00:00.000Z',
+      syncStatus: 'PENDING',
+    });
+    await pending;
+
+    localRecords.listByOwner.mockResolvedValueOnce([]);
+    await expect(
+      firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01')),
+    ).resolves.toEqual([]);
   });
 
   it('consulta somente paradas em andamento do contexto e devolve cópias', async () => {

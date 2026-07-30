@@ -45,6 +45,7 @@ export interface ReporteParadasWorkflowSnapshot {
   readonly dirty: boolean;
   readonly idempotencyKey: string | null;
   readonly origin?: ProductionContextOrigin;
+  readonly metadata?: ProductionContext['metadata'];
   readonly contextLoading: boolean;
   readonly contextError: string;
   readonly saving: boolean;
@@ -69,13 +70,11 @@ export class ReporteParadasWorkflowState {
   private view = this.initialState();
 
   constructor() {
-    this.authSession.session$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(session => {
-        if (session === null) {
-          this.resetTransient();
-        }
-      });
+    this.authSession.session$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((session) => {
+      if (session === null) {
+        this.resetTransient();
+      }
+    });
   }
 
   snapshot(): ReporteParadasWorkflowSnapshot {
@@ -99,24 +98,28 @@ export class ReporteParadasWorkflowState {
     centers: ReadonlyArray<WorkCenter>,
     responsibles: ReadonlyArray<ResponsavelParada>,
   ): boolean {
-    if (!context.workCenter.active
-      || !this.sameCode(context.workCenter.areaCode, context.area.code)) {
+    if (
+      !context.workCenter.active ||
+      !this.sameCode(context.workCenter.areaCode, context.area.code)
+    ) {
       return false;
     }
-    const area = areas.find(item => this.sameCode(item.code, context.area.code));
-    const center = centers.find(item =>
-      item.active
-      && this.sameCode(item.code, context.workCenter.code)
-      && this.sameCode(item.areaCode, context.area.code),
+    const area = areas.find((item) => this.sameCode(item.code, context.area.code));
+    const center = centers.find(
+      (item) =>
+        item.active &&
+        this.sameCode(item.code, context.workCenter.code) &&
+        this.sameCode(item.areaCode, context.area.code),
     );
     if (!area || !center) {
       return false;
     }
 
     const preferred = context.preferredResponsible
-      ? responsibles.find(item =>
-          item.tipo === context.preferredResponsible?.tipo
-          && this.sameCode(item.codigo, context.preferredResponsible.codigo),
+      ? responsibles.find(
+          (item) =>
+            item.tipo === context.preferredResponsible?.tipo &&
+            this.sameCode(item.codigo, context.preferredResponsible.codigo),
         )
       : undefined;
 
@@ -127,8 +130,12 @@ export class ReporteParadasWorkflowState {
       workCenter: { ...center },
       responsibleType: preferred?.tipo ?? 'OPERADOR',
       responsibleCode: preferred ? this.normalizeCode(preferred.codigo) : '',
-      responsibles: responsibles.map(item => ({ ...item, codigo: this.normalizeCode(item.codigo) })),
+      responsibles: responsibles.map((item) => ({
+        ...item,
+        codigo: this.normalizeCode(item.codigo),
+      })),
       origin: context.origin ? { ...context.origin } : undefined,
+      metadata: context.metadata ? this.cloneMetadata(context.metadata) : undefined,
     };
     return true;
   }
@@ -143,13 +150,11 @@ export class ReporteParadasWorkflowState {
 
   confirmWorkCenterChange(workCenter: WorkCenter | null): void {
     const area = this.view.area ? { ...this.view.area } : null;
-    const origin = this.view.origin ? { ...this.view.origin } : undefined;
     this.invalidateRequests();
     this.view = {
       ...this.initialState(),
       area,
       workCenter: workCenter ? { ...workCenter } : null,
-      origin,
     };
   }
 
@@ -182,7 +187,7 @@ export class ReporteParadasWorkflowState {
     this.view = {
       ...this.view,
       responsibles: this.uniqueResponsibles(responsibles),
-      reasons: reasons.map(reason => ({ ...reason })),
+      reasons: reasons.map((reason) => ({ ...reason })),
       contextLoading: false,
       contextError: '',
     };
@@ -204,6 +209,9 @@ export class ReporteParadasWorkflowState {
   }
 
   setResponsibleType(type: TipoResponsavelParada): void {
+    if (this.view.responsibleType === type) {
+      return;
+    }
     this.view = {
       ...this.view,
       responsibleType: type,
@@ -214,18 +222,26 @@ export class ReporteParadasWorkflowState {
   }
 
   setResponsibleCode(code: string): void {
+    const responsibleCode = this.normalizeCode(code);
+    if (this.view.responsibleCode === responsibleCode) {
+      return;
+    }
     this.view = {
       ...this.view,
-      responsibleCode: this.normalizeCode(code),
+      responsibleCode,
       dirty: true,
       idempotencyKey: null,
     };
   }
 
   updateDraft(change: Partial<ParadaDraft>): void {
+    const draft = { ...this.view.draft, ...change };
+    if (this.sameDraft(this.view.draft, draft)) {
+      return;
+    }
     this.view = {
       ...this.view,
-      draft: { ...this.view.draft, ...change },
+      draft,
       dirty: true,
       idempotencyKey: null,
     };
@@ -256,9 +272,9 @@ export class ReporteParadasWorkflowState {
       return false;
     }
     const openStops = stops
-      .filter(stop => stop.status === 'EM_ANDAMENTO')
-      .map(stop => this.cloneStop(stop));
-    const selectedStopId = openStops.some(stop => stop.id === this.view.selectedStopId)
+      .filter((stop) => stop.status === 'EM_ANDAMENTO')
+      .map((stop) => this.cloneStop(stop));
+    const selectedStopId = openStops.some((stop) => stop.id === this.view.selectedStopId)
       ? this.view.selectedStopId
       : null;
     this.view = {
@@ -282,7 +298,7 @@ export class ReporteParadasWorkflowState {
   }
 
   selectOpenStop(stopId: StopId, now: Date): boolean {
-    if (!this.view.openStops.some(stop => stop.id === stopId)) {
+    if (!this.view.openStops.some((stop) => stop.id === stopId)) {
       return false;
     }
     if (this.view.selectedStopId === stopId) {
@@ -313,8 +329,9 @@ export class ReporteParadasWorkflowState {
 
   updateFinishDraft(change: Partial<FinalizacaoDraft>): void {
     const next = { ...this.view.finishDraft, ...change };
-    const changed = this.materialDate(this.view.finishDraft.endDate) !== this.materialDate(next.endDate)
-      || this.view.finishDraft.endTime.trim() !== next.endTime.trim();
+    const changed =
+      this.materialDate(this.view.finishDraft.endDate) !== this.materialDate(next.endDate) ||
+      this.view.finishDraft.endTime.trim() !== next.endTime.trim();
     this.view = {
       ...this.view,
       finishDraft: next,
@@ -356,15 +373,14 @@ export class ReporteParadasWorkflowState {
   }
 
   acceptFinishSuccess(token: ContextRequestToken, stopId: StopId): boolean {
-    if (!this.isCurrentFor(this.currentFinish, token)
-      || this.view.selectedStopId !== stopId) {
+    if (!this.isCurrentFor(this.currentFinish, token) || this.view.selectedStopId !== stopId) {
       return false;
     }
     this.view = {
       ...this.view,
       openStops: this.view.openStops
-        .filter(stop => stop.id !== stopId)
-        .map(stop => this.cloneStop(stop)),
+        .filter((stop) => stop.id !== stopId)
+        .map((stop) => this.cloneStop(stop)),
       selectedStopId: null,
       finishDraft: this.emptyFinishDraft(),
       finishIdempotencyKey: null,
@@ -425,15 +441,14 @@ export class ReporteParadasWorkflowState {
     return this.isCurrentFor(this.currentRequest, token);
   }
 
-  private isCurrentFor(
-    current: ContextRequestToken | null,
-    token: ContextRequestToken,
-  ): boolean {
-    return current?.generation === token.generation
-      && current.identity === token.identity
-      && this.view.area !== null
-      && this.view.workCenter !== null
-      && token.identity === this.contextIdentity(this.view.area.code, this.view.workCenter.code);
+  private isCurrentFor(current: ContextRequestToken | null, token: ContextRequestToken): boolean {
+    return (
+      current?.generation === token.generation &&
+      current.identity === token.identity &&
+      this.view.area !== null &&
+      this.view.workCenter !== null &&
+      token.identity === this.contextIdentity(this.view.area.code, this.view.workCenter.code)
+    );
   }
 
   private newToken(
@@ -455,7 +470,7 @@ export class ReporteParadasWorkflowState {
       const codigo = this.normalizeCode(responsible.codigo);
       unique.set(`${responsible.tipo}|${codigo}`, { ...responsible, codigo });
     }
-    return [...unique.values()].map(item => ({ ...item }));
+    return [...unique.values()].map((item) => ({ ...item }));
   }
 
   private contextIdentity(areaCode: string, workCenterCode: string): string {
@@ -470,31 +485,33 @@ export class ReporteParadasWorkflowState {
     return value.trim().toUpperCase();
   }
 
-  private cloneSnapshot(
-    snapshot: ReporteParadasWorkflowSnapshot,
-  ): ReporteParadasWorkflowSnapshot {
+  private cloneSnapshot(snapshot: ReporteParadasWorkflowSnapshot): ReporteParadasWorkflowSnapshot {
     return {
       ...snapshot,
       area: snapshot.area ? { ...snapshot.area } : null,
       workCenter: snapshot.workCenter ? { ...snapshot.workCenter } : null,
-      responsibles: snapshot.responsibles.map(item => ({ ...item })),
-      reasons: snapshot.reasons.map(item => ({ ...item })),
+      responsibles: snapshot.responsibles.map((item) => ({ ...item })),
+      reasons: snapshot.reasons.map((item) => ({ ...item })),
       draft: {
         ...snapshot.draft,
-        startDate: snapshot.draft.startDate instanceof Date
-          ? new Date(snapshot.draft.startDate)
-          : snapshot.draft.startDate,
-        endDate: snapshot.draft.endDate instanceof Date
-          ? new Date(snapshot.draft.endDate)
-          : snapshot.draft.endDate,
+        startDate:
+          snapshot.draft.startDate instanceof Date
+            ? new Date(snapshot.draft.startDate)
+            : snapshot.draft.startDate,
+        endDate:
+          snapshot.draft.endDate instanceof Date
+            ? new Date(snapshot.draft.endDate)
+            : snapshot.draft.endDate,
       },
       origin: snapshot.origin ? { ...snapshot.origin } : undefined,
-      openStops: snapshot.openStops.map(stop => this.cloneStop(stop)),
+      metadata: snapshot.metadata ? this.cloneMetadata(snapshot.metadata) : undefined,
+      openStops: snapshot.openStops.map((stop) => this.cloneStop(stop)),
       finishDraft: {
         ...snapshot.finishDraft,
-        endDate: snapshot.finishDraft.endDate instanceof Date
-          ? new Date(snapshot.finishDraft.endDate)
-          : snapshot.finishDraft.endDate,
+        endDate:
+          snapshot.finishDraft.endDate instanceof Date
+            ? new Date(snapshot.finishDraft.endDate)
+            : snapshot.finishDraft.endDate,
       },
     };
   }
@@ -505,6 +522,26 @@ export class ReporteParadasWorkflowState {
 
   private materialDate(value: Date | string | null): string {
     return value instanceof Date ? formatLocalDate(value) : String(value ?? '').trim();
+  }
+
+  private sameDraft(left: ParadaDraft, right: ParadaDraft): boolean {
+    return (
+      left.reasonId === right.reasonId &&
+      this.materialDate(left.startDate) === this.materialDate(right.startDate) &&
+      left.startTime.trim() === right.startTime.trim() &&
+      this.materialDate(left.endDate) === this.materialDate(right.endDate) &&
+      left.endTime.trim() === right.endTime.trim() &&
+      left.programmed === right.programmed
+    );
+  }
+
+  private cloneMetadata(
+    metadata: ProductionContext['metadata'],
+  ): NonNullable<ProductionContext['metadata']> {
+    return {
+      ...metadata,
+      ...(metadata?.orderIds ? { orderIds: [...metadata.orderIds] } : {}),
+    };
   }
 
   private cloneStop(stop: StopEntry): StopEntry {

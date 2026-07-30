@@ -1,6 +1,10 @@
 import {
+  ProductionContext,
   ProductionContextOrigin,
+  ParadaStatus,
+  ParadaSyncStatus,
   ResponsavelParada,
+  StopId,
 } from '../models/reporte-paradas.model';
 
 export interface CreateStopRequest {
@@ -14,14 +18,15 @@ export interface CreateStopRequest {
   readonly endTime?: string | null;
   readonly programmed: boolean;
   readonly origin?: ProductionContextOrigin;
+  readonly metadata?: ProductionContext['metadata'];
   readonly idempotencyKey: string;
 }
 
 export interface StopResponse {
-  readonly id: number;
+  readonly id: StopId;
   readonly idempotencyKey: string;
-  readonly status: 'EM_ANDAMENTO' | 'FINALIZADA';
-  readonly syncStatus: 'PENDING' | 'SYNCED' | 'ERROR';
+  readonly status: ParadaStatus;
+  readonly syncStatus: ParadaSyncStatus;
   readonly durationMinutes?: number;
 }
 

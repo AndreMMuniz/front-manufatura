@@ -1,4 +1,7 @@
-import { ResponsavelOperacional, TipoResponsavelOperacional } from '../../shop-floor/models/operational-responsible';
+import {
+  ResponsavelOperacional,
+  TipoResponsavelOperacional,
+} from '../../shop-floor/models/operational-responsible';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 
@@ -11,14 +14,21 @@ export interface StopReason {
 export type ResponsavelParada = ResponsavelOperacional;
 export type TipoResponsavelParada = TipoResponsavelOperacional;
 
-export type ProductionContextOriginType = 'OPERATION_REPORT' | 'BATCH_REPORT';
+export type ProductionContextOrigin =
+  | {
+      readonly type: 'OPERATION_REPORT';
+      readonly sourceRoute: '/operation-reporting';
+      readonly reportId: string;
+      readonly batchId?: never;
+    }
+  | {
+      readonly type: 'BATCH_REPORT';
+      readonly sourceRoute: '/batch-reporting';
+      readonly batchId: string;
+      readonly reportId?: never;
+    };
 
-export interface ProductionContextOrigin {
-  readonly type: ProductionContextOriginType;
-  readonly sourceRoute: '/operation-reporting' | '/batch-reporting';
-  readonly reportId?: string;
-  readonly batchId?: string;
-}
+export type ProductionContextOriginType = ProductionContextOrigin['type'];
 
 export interface ProductionContext {
   readonly area: AreaProducao;
