@@ -427,7 +427,7 @@ export class ReportaBateladaPage implements OnInit {
           return;
         }
         this.workflow.completeStart(inicio);
-        this.notification.success('Batelada iniciada com sucesso.');
+        this.notification.success('Salvo neste dispositivo — envio pendente.');
         this.syncView();
       },
       error: () => {
@@ -547,6 +547,10 @@ export class ReportaBateladaPage implements OnInit {
         ...item,
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
       })),
+      dependencyIds: [
+        ...(snapshot.inicio?.startCommandId ? [snapshot.inicio.startCommandId] : []),
+        ...snapshot.history.map(report => report.idempotencyKey),
+      ],
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -556,7 +560,7 @@ export class ReportaBateladaPage implements OnInit {
           }
           this.workflow.completeReport(report);
           this.reportSlide?.confirmarReporte(report);
-          this.notification.success('Reporte parcial salvo com sucesso.');
+          this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.syncView();
         },
         error: error => {
@@ -692,7 +696,14 @@ export class ReportaBateladaPage implements OnInit {
     const orderIds = snapshot.composition.map(order => order.id);
     this.syncView();
 
-    this.service.encerrarBatelada({ batchId, orderIds })
+    this.service.encerrarBatelada({
+      batchId,
+      orderIds,
+      dependencyIds: [
+        ...(snapshot.inicio?.startCommandId ? [snapshot.inicio.startCommandId] : []),
+        ...snapshot.history.map(report => report.idempotencyKey),
+      ],
+    })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ending => {
@@ -700,7 +711,7 @@ export class ReportaBateladaPage implements OnInit {
             return;
           }
           this.workflow.completeEnding(ending);
-          this.notification.success('Batelada encerrada com sucesso.');
+          this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.syncView();
           void this.router.navigate(['/work-center']);
         },

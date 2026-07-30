@@ -15,6 +15,12 @@ export interface RemoteCommandReceipt {
   readonly processedAt: string;
   readonly duplicate: boolean;
   readonly correlationId?: string;
+  readonly orderResults?: readonly {
+    readonly orderId: string;
+    readonly success: boolean;
+    readonly serverRecordId?: string;
+    readonly errorCode?: string;
+  }[];
 }
 
 export interface OutboxEntry<TPayload = JsonValue> {

@@ -86,6 +86,9 @@ export function validateCommandResult(
       'O receipt remoto é inválido para reconciliação.',
     );
   }
+  if (request.commandType.endsWith('_BATCH')) {
+    validateBatchReconciliation(request, result);
+  }
   return immutableCopy(result);
 }
 
@@ -163,4 +166,52 @@ function validIso(value: string): boolean {
 
 function safeIdentifier(value: string): boolean {
   return typeof value === 'string' && /^[A-Za-z0-9._:/-]{1,160}$/.test(value);
+}
+
+function validateBatchReconciliation(
+  request: SyncCommandRequest,
+  result: CommandResult,
+): void {
+  const expected = batchOrderIds(request.payload);
+  const received = result.orderResults ?? [];
+  const unique = new Set(received.map(item => item.orderId));
+  const complete =
+    expected.length > 0
+    && new Set(expected).size === expected.length
+    && received.length === expected.length
+    && unique.size === received.length
+    && received.every(item =>
+      item.success
+      && expected.includes(item.orderId)
+      && (item.serverRecordId === undefined || safeIdentifier(item.serverRecordId)))
+    && expected.every(orderId => unique.has(orderId));
+  if (!complete) {
+    throw new SyncConfigurationError(
+      'INCOMPLETE_BATCH_RECONCILIATION',
+      'O receipt multiordem não reconciliou integralmente a composição enviada.',
+    );
+  }
+}
+
+function batchOrderIds(payload: JsonValue): readonly string[] {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return [];
+  }
+  const record = payload as { readonly [key: string]: JsonValue };
+  const direct = record['orderIds'];
+  if (Array.isArray(direct)) {
+    return direct.filter((value): value is string => typeof value === 'string');
+  }
+  const items = record['items'] ?? record['ordens'];
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.flatMap(item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return [];
+    }
+    const candidate = item as { readonly [key: string]: JsonValue };
+    const orderId = candidate['orderId'] ?? candidate['id'];
+    return typeof orderId === 'string' ? [orderId] : [];
+  });
 }

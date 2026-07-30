@@ -70,7 +70,7 @@
       (reporte)="abrirReporte()"
     ></app-report-actions>
 
-    <p class="report-operacao__feedback" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">
+    <p class="report-operacao__feedback" role="status" aria-live="polite" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">
       {{ feedback }}
     </p>
 

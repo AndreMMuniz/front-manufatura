@@ -37,6 +37,9 @@ export type ParadaSyncStatus = 'PENDING' | 'SYNCING' | 'SYNCED' | 'ERROR';
 
 export interface StopEntry {
   readonly id: number;
+  readonly localId?: string;
+  readonly creationCommandId?: string;
+  readonly finishCommandId?: string;
   readonly context: ProductionContext;
   readonly reason: StopReason;
   readonly responsible: ResponsavelParada;

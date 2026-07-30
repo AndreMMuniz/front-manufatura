@@ -1,6 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, defer, delay, finalize, forkJoin, map, of } from 'rxjs';
+import { Observable, defer, delay, finalize, forkJoin, from, map, of, switchMap } from 'rxjs';
 
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
@@ -21,17 +24,11 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ReporteParadasService {
   private readonly catalog = inject(ProductionContextCatalogService);
+  private readonly commands = inject(OperationalCommandFacade);
+  private readonly localRecords = inject(LocalRecordRepository);
+  private readonly authSession = inject(AuthSessionService);
   private prefillContext: ProductionContext | null = null;
-  private nextStopId = 1;
   private readonly confirmedStops: StopEntry[] = [];
-  private readonly registrationsByIdempotency = new Map<
-    string,
-    { readonly fingerprint: string; readonly stop: StopEntry }
-  >();
-  private readonly finishesByIdempotency = new Map<
-    string,
-    { readonly fingerprint: string; readonly stop: StopEntry }
-  >();
   private registrationInFlight = false;
   private finishInFlight = false;
   private activeStopContext: { readonly areaCode: string; readonly workCenterCode: string } | null = null;
@@ -94,21 +91,12 @@ export class ReporteParadasService {
 
       const command = this.cloneRequest(request);
       const validated = this.validateCommand(command);
-      const fingerprint = this.commandFingerprint(command, validated.start, validated.end);
-      const prior = this.registrationsByIdempotency.get(command.idempotencyKey);
-      if (prior) {
-        if (prior.fingerprint !== fingerprint) {
-          throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
-        }
-        return of(this.cloneStop(prior.stop));
-      }
-
       return forkJoin({
         areas: this.listarAreas(),
         centers: this.pesquisarCentros(command.areaCode),
         responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
       }).pipe(
-        map(({ areas, centers, responsibles }) => {
+        switchMap(({ areas, centers, responsibles }) => {
           const area = areas.find(item => this.sameCode(item.code, command.areaCode));
           const center = centers.find(item =>
             item.active
@@ -130,8 +118,11 @@ export class ReporteParadasService {
           const derivedDuration = validated.end
             ? durationMinutes(validated.start, validated.end)
             : undefined;
+          const localId = command.idempotencyKey;
           const stop: StopEntry = {
-            id: this.nextStopId++,
+            id: this.numericLocalId(localId),
+            localId,
+            creationCommandId: command.idempotencyKey,
             context: {
               area: { ...area },
               workCenter: { ...center },
@@ -151,10 +142,23 @@ export class ReporteParadasService {
             idempotencyKey: command.idempotencyKey,
             syncStatus: 'PENDING',
           };
-          const stored = this.cloneStop(stop);
-          this.registrationsByIdempotency.set(command.idempotencyKey, { fingerprint, stop: stored });
-          this.confirmedStops.push(this.cloneStop(stored));
-          return this.cloneStop(stored);
+          return from(this.commands.capture({
+            commandType: 'CREATE_STOP',
+            aggregateId: localId,
+            businessStatus: stop.status,
+            idempotencyKey: command.idempotencyKey,
+            occurredAt: validated.start.toISOString(),
+            payload: this.stopPayload(stop),
+          })).pipe(map(() => {
+            const stored = this.cloneStop(stop);
+            const existingIndex = this.confirmedStops.findIndex(item => item.localId === localId);
+            if (existingIndex >= 0) {
+              this.confirmedStops[existingIndex] = stored;
+            } else {
+              this.confirmedStops.push(stored);
+            }
+            return this.cloneStop(stored);
+          }));
         }),
       );
     }).pipe(
@@ -172,13 +176,21 @@ export class ReporteParadasService {
       const area = this.normalizeCode(areaCode);
       const workCenter = this.normalizeCode(workCenterCode);
       this.activeStopContext = { areaCode: area, workCenterCode: workCenter };
-      return of(this.confirmedStops
-        .filter(stop =>
-          stop.status === 'EM_ANDAMENTO'
-          && this.sameCode(stop.context.area.code, area)
-          && this.sameCode(stop.context.workCenter.code, workCenter),
-        )
-        .map(stop => this.cloneStop(stop)));
+      const ownerId = this.authSession.currentUser?.id;
+      if (!ownerId) {
+        return of(this.openStopsForContext(area, workCenter));
+      }
+      return from(this.localRecords.listByOwner(ownerId)).pipe(
+        map(records => {
+          for (const record of records.filter(item => item.commandType === 'CREATE_STOP')) {
+            const restored = this.stopFromPayload(record.payload, record.localId);
+            if (restored && !this.confirmedStops.some(item => item.localId === restored.localId)) {
+              this.confirmedStops.push(restored);
+            }
+          }
+          return this.openStopsForContext(area, workCenter);
+        }),
+      );
     }).pipe(delay(150));
   }
 
@@ -196,21 +208,16 @@ export class ReporteParadasService {
       if (!end) {
         throw new Error('Informe Data da Finalização e Hora da Finalização válidas.');
       }
-      const fingerprint = JSON.stringify({ stopId, end: end.toISOString() });
-      const prior = this.finishesByIdempotency.get(command.idempotencyKey);
-      if (prior) {
-        if (prior.fingerprint !== fingerprint) {
-          throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
-        }
-        return of(this.cloneStop(prior.stop));
-      }
-
       const index = this.confirmedStops.findIndex(stop => stop.id === stopId);
       const current = index >= 0 ? this.confirmedStops[index] : undefined;
       if (!current) {
         throw new Error('A parada não existe ou não está mais disponível.');
       }
       if (current.status !== 'EM_ANDAMENTO') {
+        if (current.finishCommandId === command.idempotencyKey) {
+          return from(this.captureFinish(current, command.idempotencyKey, end))
+            .pipe(map(() => this.cloneStop(current)));
+        }
         throw new Error('A parada já foi finalizada e não pode receber um novo comando.');
       }
       if (!this.activeStopContext
@@ -230,19 +237,18 @@ export class ReporteParadasService {
 
       const finished: StopEntry = {
         ...this.cloneStop(current),
+        finishCommandId: command.idempotencyKey,
         endDate: new Date(interval.end.getFullYear(), interval.end.getMonth(), interval.end.getDate()),
         endTime: command.endTime.trim(),
         status: 'FINALIZADA',
         durationMinutes: durationMinutes(interval.start, interval.end),
         syncStatus: 'PENDING',
       };
-      const stored = this.cloneStop(finished);
-      this.confirmedStops[index] = stored;
-      this.finishesByIdempotency.set(command.idempotencyKey, {
-        fingerprint,
-        stop: this.cloneStop(stored),
-      });
-      return of(this.cloneStop(stored));
+      return from(this.captureFinish(current, command.idempotencyKey, end)).pipe(map(() => {
+        const stored = this.cloneStop(finished);
+        this.confirmedStops[index] = stored;
+        return this.cloneStop(stored);
+      }));
     }).pipe(
       finalize(() => {
         this.finishInFlight = false;
@@ -349,22 +355,6 @@ export class ReporteParadasService {
     return { reason: { ...reason }, start, end };
   }
 
-  private commandFingerprint(command: CreateStopRequest, start: Date, end: Date | null): string {
-    return JSON.stringify({
-      areaCode: this.normalizeCode(command.areaCode),
-      workCenterCode: this.normalizeCode(command.workCenterCode),
-      reasonId: command.reasonId,
-      responsible: {
-        tipo: command.responsible.tipo,
-        codigo: this.normalizeCode(command.responsible.codigo),
-      },
-      start: start.toISOString(),
-      end: end?.toISOString() ?? null,
-      programmed: command.programmed,
-      origin: command.origin ?? null,
-    });
-  }
-
   private isValidTime(value: string): boolean {
     const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
     return Boolean(match && Number(match[1]) <= 23 && Number(match[2]) <= 59);
@@ -380,6 +370,108 @@ export class ReporteParadasService {
 
   private normalizeCode(value: string): string {
     return value.trim().toUpperCase();
+  }
+
+  private openStopsForContext(areaCode: string, workCenterCode: string): readonly StopEntry[] {
+    return this.confirmedStops
+      .filter(stop =>
+        stop.status === 'EM_ANDAMENTO'
+        && this.sameCode(stop.context.area.code, areaCode)
+        && this.sameCode(stop.context.workCenter.code, workCenterCode),
+      )
+      .map(stop => this.cloneStop(stop));
+  }
+
+  private stopPayload(stop: StopEntry) {
+    return {
+      localId: stop.localId ?? stop.idempotencyKey,
+      context: {
+        area: { ...stop.context.area },
+        workCenter: { ...stop.context.workCenter },
+        ...(stop.context.origin ? { origin: { ...stop.context.origin } } : {}),
+        ...(stop.context.preferredResponsible
+          ? { preferredResponsible: { ...stop.context.preferredResponsible } }
+          : {}),
+        ...(stop.context.metadata
+          ? {
+              metadata: {
+                ...stop.context.metadata,
+                orderIds: stop.context.metadata.orderIds
+                  ? [...stop.context.metadata.orderIds]
+                  : [],
+              },
+            }
+          : {}),
+      },
+      reason: { ...stop.reason },
+      responsible: { ...stop.responsible },
+      startDate: stop.startDate.toISOString(),
+      startTime: stop.startTime,
+      endDate: stop.endDate?.toISOString() ?? null,
+      endTime: stop.endTime ?? null,
+      programmed: stop.programmed,
+      status: stop.status,
+      durationMinutes: stop.durationMinutes ?? null,
+    } as const;
+  }
+
+  private stopFromPayload(payload: unknown, creationCommandId: string): StopEntry | null {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+    const value = payload as Record<string, any>;
+    const context = value['context'];
+    const reason = value['reason'];
+    const responsible = value['responsible'];
+    const startDate = new Date(value['startDate']);
+    if (!context?.area || !context?.workCenter || !reason || !responsible
+      || Number.isNaN(startDate.getTime())) {
+      return null;
+    }
+    const localId = String(value['localId'] ?? creationCommandId);
+    return {
+      id: this.numericLocalId(localId),
+      localId,
+      creationCommandId,
+      context: this.cloneContext(context as ProductionContext),
+      reason: { ...reason },
+      responsible: { ...responsible },
+      startDate,
+      startTime: String(value['startTime'] ?? ''),
+      ...(value['endDate'] ? { endDate: new Date(value['endDate']) } : {}),
+      ...(value['endTime'] ? { endTime: String(value['endTime']) } : {}),
+      programmed: Boolean(value['programmed']),
+      status: value['status'] === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
+      ...(typeof value['durationMinutes'] === 'number'
+        ? { durationMinutes: value['durationMinutes'] }
+        : {}),
+      idempotencyKey: creationCommandId,
+      syncStatus: 'PENDING',
+    };
+  }
+
+  private numericLocalId(localId: string): number {
+    let hash = 2166136261;
+    for (const char of localId) {
+      hash ^= char.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return Math.abs(hash) || 1;
+  }
+
+  private captureFinish(current: StopEntry, idempotencyKey: string, end: Date) {
+    return this.commands.capture({
+      commandType: 'FINISH_STOP',
+      aggregateId: current.localId ?? current.idempotencyKey,
+      businessStatus: 'FINALIZADA',
+      idempotencyKey,
+      dependencyIds: [current.creationCommandId ?? current.idempotencyKey],
+      occurredAt: end.toISOString(),
+      payload: {
+        stopLocalId: current.localId ?? current.idempotencyKey,
+        endAt: end.toISOString(),
+      },
+    });
   }
 
 }

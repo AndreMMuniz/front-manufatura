@@ -245,10 +245,14 @@ export class ReportaBateladaService {
     return of(null).pipe(
       map(() => {
         this.validarReporteParcial(command);
-        this.assertActiveBatchComposition(
-          command.batchId,
-          command.items.map(item => item.orderId),
-        );
+        const isKnownReplay = (this.reportsByBatch.get(command.batchId) ?? [])
+          .some(report => report.idempotencyKey === command.idempotencyKey);
+        if (!isKnownReplay) {
+          this.assertActiveBatchComposition(
+            command.batchId,
+            command.items.map(item => item.orderId),
+          );
+        }
 
         return command;
       }),

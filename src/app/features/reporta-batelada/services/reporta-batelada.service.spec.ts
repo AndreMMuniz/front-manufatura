@@ -39,6 +39,7 @@ describe('ReportaBateladaService', () => {
       listarResponsaveis: vi.fn(() => of([responsavel()])),
     };
 
+    const captured = new Map<string, { readonly fingerprint: string; readonly result: object }>();
     TestBed.configureTestingModule({
       providers: [
         ReportaBateladaService,
@@ -48,16 +49,23 @@ describe('ReportaBateladaService', () => {
         {
           provide: OperationalCommandFacade,
           useValue: {
-            capture: vi.fn(async (request: { idempotencyKey?: string }) => {
+            capture: vi.fn(async (request: { idempotencyKey?: string; payload?: unknown }) => {
               const idempotencyKey =
                 request.idempotencyKey ?? globalThis.crypto.randomUUID();
-              return {
+              const fingerprint = JSON.stringify(request.payload);
+              const prior = captured.get(idempotencyKey);
+              if (prior && prior.fingerprint !== fingerprint) {
+                throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
+              }
+              const result = prior?.result ?? {
                 localId: idempotencyKey,
                 idempotencyKey,
                 payloadHash: 'hash',
                 committedAt: '2026-07-30T12:00:00.000Z',
                 syncStatus: 'PENDING',
               };
+              captured.set(idempotencyKey, { fingerprint, result });
+              return result;
             }),
           },
         },
@@ -107,6 +115,12 @@ describe('ReportaBateladaService', () => {
     );
 
     expect(request).toEqual({
+      batchId: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      ),
+      idempotencyKey: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      ),
       contexto: { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       responsavel: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
       ordens: [order('2'), order('1')],
@@ -137,7 +151,9 @@ describe('ReportaBateladaService', () => {
 
     const result = await firstValueFrom(service.iniciarBatelada(request));
 
-    expect(result.batchId).toMatch(/^batch-/);
+    expect(result.batchId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(result.ordensIniciadas).toEqual(['1', '2']);
     expect(result.iniciadoEm).toBeInstanceOf(Date);
   });

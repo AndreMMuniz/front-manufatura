@@ -160,7 +160,7 @@ export class ExamEntryPanel implements AfterViewInit {
       tap(response => {
         this.workflow.applyMeasurement(exam.id, characteristic.id, response.measurement);
         this.workflow.isSaving.set(false);
-        this.workflow.examFeedback.set('Medição salva.');
+        this.workflow.examFeedback.set('Salvo neste dispositivo — envio pendente.');
         this.clearValidation();
         if (!this.showStopRoute) {
           this.workflow.moveToNextPending(characteristic.id);
@@ -209,7 +209,7 @@ export class ExamEntryPanel implements AfterViewInit {
       .subscribe({
         next: () => {
           this.workflow.isFinishing.set(false);
-          this.workflow.examFeedback.set('Exame concluído.');
+          this.workflow.examFeedback.set('Salvo neste dispositivo — envio pendente.');
           const nextComponentId = this.workflow.selectNextPendingAndClose();
           this.panelClosed.emit(nextComponentId);
         },

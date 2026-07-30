@@ -3,6 +3,9 @@ import { firstValueFrom, of, Subject, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { CreateStopRequest, FinishStopRequest } from '../interfaces/reporte-paradas.dto';
 import { ProductionContext, StopReason } from '../models/reporte-paradas.model';
 import { ReporteParadasService } from './reporte-paradas.service';
@@ -34,6 +37,7 @@ describe('ReporteParadasService', () => {
   };
 
   function setup() {
+    const captured = new Map<string, { readonly fingerprint: string; readonly result: object }>();
     const catalog = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([center])),
@@ -45,6 +49,30 @@ describe('ReporteParadasService', () => {
       providers: [
         ReporteParadasService,
         { provide: ProductionContextCatalogService, useValue: catalog },
+        { provide: AuthSessionService, useValue: { currentUser: null } },
+        { provide: LocalRecordRepository, useValue: { listByOwner: vi.fn(async () => []) } },
+        {
+          provide: OperationalCommandFacade,
+          useValue: {
+            capture: vi.fn(async (request: { idempotencyKey?: string; payload?: unknown }) => {
+              const key = request.idempotencyKey ?? globalThis.crypto.randomUUID();
+              const fingerprint = JSON.stringify(request.payload);
+              const prior = captured.get(key);
+              if (prior && prior.fingerprint !== fingerprint) {
+                throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
+              }
+              const result = prior?.result ?? {
+                localId: key,
+                idempotencyKey: key,
+                payloadHash: 'hash',
+                committedAt: '2026-07-30T12:00:00.000Z',
+                syncStatus: 'PENDING',
+              };
+              captured.set(key, { fingerprint, result });
+              return result;
+            }),
+          },
+        },
       ],
     });
     return { service: TestBed.inject(ReporteParadasService), catalog };

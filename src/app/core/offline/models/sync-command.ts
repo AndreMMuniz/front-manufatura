@@ -20,4 +20,12 @@ export interface CommandResult {
   readonly processedAt: string;
   readonly duplicate: boolean;
   readonly correlationId?: string;
+  readonly orderResults?: readonly OrderCommandResult[];
+}
+
+export interface OrderCommandResult {
+  readonly orderId: string;
+  readonly success: boolean;
+  readonly serverRecordId?: string;
+  readonly errorCode?: string;
 }

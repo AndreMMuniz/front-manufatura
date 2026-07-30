@@ -26,6 +26,9 @@ const OWNER_ID = 'playwright-operator';
   selector: 'app-offline-persistence-harness',
   template: `
     <button type="button" data-testid="persist-command" (click)="persist()">Persistir</button>
+    <button type="button" data-testid="persist-operational-matrix" (click)="persistOperationalMatrix()">
+      Persistir matriz operacional
+    </button>
     <button type="button" data-testid="verify-storage" (click)="verify()">Verificar</button>
     <pre data-testid="harness-result">{{ result() }}</pre>
   `,
@@ -95,6 +98,52 @@ export class OfflinePersistenceHarness {
           ...upgrade,
         }),
       );
+    } catch (error) {
+      this.result.set(JSON.stringify(safeError(error)));
+    }
+  }
+
+  async persistOperationalMatrix(): Promise<void> {
+    const types = [
+      'GENERATE_INSPECTION_ROUTE',
+      'SAVE_MEASUREMENT',
+      'FINISH_EXAM',
+      'STOP_INSPECTION_ROUTE',
+      'SAVE_INSPECTION',
+      'START_OPERATION',
+      'REPORT_OPERATION',
+      'END_OPERATION',
+      'START_BATCH',
+      'REPORT_BATCH',
+      'END_BATCH',
+      'CREATE_STOP',
+      'FINISH_STOP',
+    ] as const;
+    const keys = types.map((_, index) =>
+      `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`);
+    try {
+      for (const [index, commandType] of types.entries()) {
+        const family = commandType.includes('BATCH')
+          ? 'BATCH'
+          : commandType.includes('STOP')
+            ? 'STOP'
+            : commandType.includes('OPERATION')
+              ? 'OPERATION'
+              : 'QUALITY';
+        await this.commands.persistConfirmedCommand({
+          ownerId: OWNER_ID,
+          aggregateType: family,
+          aggregateId: family === 'STOP' ? keys[11] : `${family}-E2E`,
+          commandType,
+          payload: commandType.includes('BATCH')
+            ? { orderIds: ['OP-1', 'OP-2'], sequence: index }
+            : { sequence: index },
+          payloadSchemaVersion: 1,
+          idempotencyKey: keys[index],
+          ...(commandType === 'FINISH_STOP' ? { dependencyIds: [keys[11]] } : {}),
+        });
+      }
+      this.result.set(JSON.stringify({ operationalMatrix: types.length }));
     } catch (error) {
       this.result.set(JSON.stringify(safeError(error)));
     }

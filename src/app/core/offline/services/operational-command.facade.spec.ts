@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { OperationalCommandFacade } from './operational-command.facade';
+import {
+  OPERATIONAL_COMMAND_DEFINITIONS,
+  OPERATIONAL_COMMAND_TYPES,
+} from '../models/operational-command';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
 
@@ -71,4 +75,43 @@ describe('OperationalCommandFacade', () => {
     ).rejects.toThrow('sessão autenticada');
     expect(repository.persistConfirmedCommand).not.toHaveBeenCalled();
   });
+
+  it.each(OPERATIONAL_COMMAND_TYPES)(
+    'captures %s with the closed aggregate/version contract and no secret field',
+    async (commandType) => {
+      const repository = {
+        persistConfirmedCommand: vi.fn(async (request: { initialSyncStatus?: string }) => ({
+          localId: UUID,
+          idempotencyKey: UUID,
+          payloadHash: 'hash',
+          committedAt: '2026-07-30T12:00:00.000Z',
+          outboxEntry: { status: request.initialSyncStatus ?? 'PENDING' },
+        })),
+      };
+      const facade = new OperationalCommandFacade(
+        repository as never,
+        { currentUser: { id: 'operator-1' } } as never,
+        { requestSync: vi.fn() } as never,
+      );
+
+      await facade.capture({
+        commandType,
+        aggregateId: `aggregate-${commandType}`,
+        businessStatus: 'CONFIRMADO',
+        idempotencyKey: UUID,
+        payload: { safeValue: commandType },
+      });
+
+      const persisted = repository.persistConfirmedCommand.mock.calls[0][0];
+      expect(persisted).toMatchObject({
+        ownerId: 'operator-1',
+        commandType,
+        aggregateType: OPERATIONAL_COMMAND_DEFINITIONS[commandType].aggregateType,
+        payloadSchemaVersion: OPERATIONAL_COMMAND_DEFINITIONS[commandType].payloadSchemaVersion,
+      });
+      expect(JSON.stringify(persisted)).not.toMatch(
+        /password|senha|token|cookie|authorization|credential/i,
+      );
+    },
+  );
 });

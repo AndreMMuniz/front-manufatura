@@ -40,6 +40,7 @@ import {
 } from '../../services/reporte-paradas-workflow-state';
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
 import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 
 @Component({
   selector: 'app-reporte-paradas-page',
@@ -66,6 +67,7 @@ export class ReporteParadasPage implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly pwaWorkState = inject(PwaWorkStateService);
+  private readonly idempotency = inject(IdempotencyService);
 
   readonly view = signal<ReporteParadasWorkflowSnapshot>(this.workflow.snapshot());
   readonly areas = signal<ReadonlyArray<AreaProducao>>([]);
@@ -82,8 +84,6 @@ export class ReporteParadasPage implements OnInit {
 
   private areasRequest = 0;
   private centersRequest = 0;
-  private idempotencySequence = 0;
-  private finishIdempotencySequence = 0;
 
   constructor() {
     effect(() => {
@@ -198,7 +198,7 @@ export class ReporteParadasPage implements OnInit {
       return;
     }
     const key = this.workflow.ensureFinishIdempotencyKey(
-      () => `finish-stop-${Date.now()}-${++this.finishIdempotencySequence}`,
+      () => this.idempotency.resolve(),
     );
     const token = this.workflow.beginFinishCommand(
       snapshot.selectedStopId,
@@ -266,7 +266,7 @@ export class ReporteParadasPage implements OnInit {
     }
 
     const idempotencyKey = this.workflow.ensureIdempotencyKey(
-      () => `stop-${Date.now()}-${++this.idempotencySequence}`,
+      () => this.idempotency.resolve(),
     );
     this.workflow.setSaving(true);
     this.registrationError.set('');
