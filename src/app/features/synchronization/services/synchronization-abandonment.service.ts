@@ -62,6 +62,10 @@ export class SynchronizationAbandonmentService implements OnDestroy {
         && this.auth.currentUser?.id.trim() === ownerId
         && this.policy.canAbandon(this.auth.currentUser)
       ),
+      watchSession: listener => {
+        const subscription = this.auth.session$.subscribe(listener);
+        return () => subscription.unsubscribe();
+      },
     });
   }
 

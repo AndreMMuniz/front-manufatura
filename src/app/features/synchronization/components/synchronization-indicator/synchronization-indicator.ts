@@ -52,7 +52,8 @@ export class SynchronizationIndicator {
 
   readonly accessibleName = computed(() => {
     const counts = this.state().counts;
-    return `Sincronização. ${this.message()}. ${counts.pending} pendências. ${counts.error} erros.`;
+    const connectivity = this.online() ? 'Dispositivo online' : 'Dispositivo offline';
+    return `Sincronização. ${connectivity}. ${this.message()}. ${counts.pending} pendências. ${counts.error} erros.`;
   });
 
   readonly pending = computed(() => this.state().counts.pending);

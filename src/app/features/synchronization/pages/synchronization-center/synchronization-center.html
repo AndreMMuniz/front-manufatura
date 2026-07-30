@@ -192,6 +192,9 @@
           @if (state().hasMore) {
             <po-button p-label="Carregar mais" p-kind="secondary" (p-click)="loadMore()" />
           }
+          @if (state().loadMoreError) {
+            <p role="alert" data-testid="sync-load-more-error">{{ state().loadMoreError }}</p>
+          }
         }
       }
     }
@@ -203,6 +206,7 @@
           role="dialog"
           aria-modal="true"
           aria-labelledby="synchronization-detail-title"
+          tabindex="-1"
         >
           <h2 id="synchronization-detail-title">Detalhes do registro</h2>
           <dl>
@@ -233,6 +237,7 @@
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="sync-abandon-title"
+          tabindex="-1"
           data-testid="sync-abandon-dialog"
         >
           <h2 id="sync-abandon-title">Abandonar registro preservado?</h2>

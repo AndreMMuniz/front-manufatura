@@ -21,6 +21,9 @@ import {
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import {
+  OperationalCorrectionNotice,
+} from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
+import {
   GerenciarEquipeResultado,
   GerenciarEquipeSlide,
 } from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
@@ -60,6 +63,7 @@ import {
     GerenciarEquipeSlide,
     PoButtonModule,
     PoPageModule,
+    OperationalCorrectionNotice,
   ],
   providers: [ReportaBateladaWorkflowState],
   templateUrl: './reporta-batelada-page.html',

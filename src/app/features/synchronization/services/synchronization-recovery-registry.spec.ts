@@ -8,6 +8,9 @@ import {
   getRecoveryDefinition,
 } from './synchronization-recovery-registry';
 import { Router } from '@angular/router';
+import {
+  OperationalCorrectionContextService,
+} from '../../../core/offline/services/operational-correction-context.service';
 
 describe('SynchronizationRecoveryRegistry', () => {
   it('fecha a matriz dos 13 command types com rota e policy normativa', () => {
@@ -42,6 +45,8 @@ describe('SynchronizationRecoveryRegistry', () => {
         deliveryDisposition: 'ACTIVE',
         payloadSchemaVersion: 1,
         commandType: 'SAVE_MEASUREMENT',
+        aggregateType: 'QUALITY_INSPECTION',
+        aggregateId: 'R-1|E-1|C-1',
         payload: {
           routeNumber: 'R-1',
           examId: 'E-1',
@@ -59,10 +64,12 @@ describe('SynchronizationRecoveryRegistry', () => {
     } as unknown as OutboxRepository;
     const auth = new AuthSessionService(null);
     auth.startSession({ id: 'owner-1', nome: 'Owner', login: 'owner', permissoes: [] }, 'token');
+    const correctionContext = new OperationalCorrectionContextService(auth);
     const registry = new SynchronizationRecoveryRegistry(
       outbox,
       auth,
       { navigateByUrl } as unknown as Router,
+      correctionContext,
     );
 
     expect(await registry.openCorrection('local-1')).toBe('opened');
@@ -74,13 +81,18 @@ describe('SynchronizationRecoveryRegistry', () => {
       state: {
         synchronizationRecovery: expect.objectContaining({
           sourceLocalId: 'local-1',
-          draft: expect.objectContaining({
-            routeNumber: 'R-1',
-            componentId: 'C-1',
-          }),
         }),
       },
     }));
+    expect(correctionContext.current('owner-1')).toEqual(expect.objectContaining({
+      sourceLocalId: 'local-1',
+      draft: expect.objectContaining({
+        routeNumber: 'R-1',
+        componentId: 'C-1',
+      }),
+    }));
+    expect(JSON.stringify(correctionContext.current('owner-1')))
+      .not.toMatch(/secret|password|token|nested/i);
   });
 
   it('não cria editor/draft para tipo desconhecido, retry-only ou item stale', async () => {

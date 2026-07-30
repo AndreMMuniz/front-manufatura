@@ -130,7 +130,13 @@ function browserEnvironment(platformId: object): BrowserActivityEnvironment | nu
   ) {
     return null;
   }
-  const origin = globalThis.crypto?.randomUUID?.() ?? `tab-${Date.now().toString(36)}`;
+  const randomSuffix = globalThis.crypto?.getRandomValues
+    ? [...globalThis.crypto.getRandomValues(new Uint32Array(2))]
+        .map(value => value.toString(36))
+        .join('-')
+    : Math.random().toString(36).slice(2);
+  const origin = globalThis.crypto?.randomUUID?.()
+    ?? `tab-${Date.now().toString(36)}-${randomSuffix}`;
   return {
     origin,
     createChannel: typeof globalThis.BroadcastChannel === 'function'

@@ -23,6 +23,9 @@ import {
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import {
+  OperationalCorrectionNotice,
+} from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
+import {
   GerenciarEquipeResultado,
   GerenciarEquipeSlide,
 } from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
@@ -65,6 +68,7 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
     PoLoadingModule,
     PoPageModule,
     PoWidgetModule,
+    OperationalCorrectionNotice,
   ],
   templateUrl: './report-operacao-page.html',
   styleUrls: ['./report-operacao-page.css'],

@@ -282,6 +282,23 @@ describe('LocalCommandRepository', () => {
     expect(await outbox.listByOwner('operator-1')).toHaveLength(2);
   });
 
+  it('rejeita substituto de outro tipo, agregado ou schema', async () => {
+    const original = await commands.persistConfirmedCommand(request({ quantity: 5 }));
+    await forceOutboxError(database, original.localId);
+
+    await expect(commands.persistSupersedingCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      originalLocalId: original.localId,
+      command: request({ quantity: 6 }, {
+        commandType: 'OTHER_COMMAND',
+        aggregateId: 'OTHER_AGGREGATE',
+        payloadSchemaVersion: 3,
+      }),
+    })).rejects.toEqual(expect.objectContaining({ code: 'CONFLICT' }));
+    expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
+  });
+
   it('abandona os dois envelopes atomicamente sem excluir histórico', async () => {
     const original = await commands.persistConfirmedCommand(request({ quantity: 5 }));
 
@@ -363,6 +380,113 @@ describe('LocalCommandRepository', () => {
       now: NOW,
       sessionIsCurrent: () => false,
     })).toBe('stale-or-ineligible');
+  });
+
+  it('bloqueia abandono por dependente ancestral e por cauda no mesmo instante lógico', async () => {
+    const original = await commands.persistConfirmedCommand(
+      request({ quantity: 5 }, { aggregateId: 'TARGET', dependencyIds: [] }),
+    );
+    await forceOutboxError(database, original.localId);
+    const replacement = await commands.persistSupersedingCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      originalLocalId: original.localId,
+      command: request({ quantity: 6 }, { aggregateId: 'TARGET', dependencyIds: [] }),
+    });
+    const dependentId = '323e4567-e89b-42d3-a456-426614174000';
+    await seedCommandPair(database, {
+      ...replacement.localRecord,
+      localId: dependentId,
+      idempotencyKey: dependentId,
+      aggregateId: 'DEPENDENT',
+      dependencyIds: [original.localId],
+      supersedesLocalId: undefined,
+    }, {
+      ...replacement.outboxEntry,
+      localId: dependentId,
+      idempotencyKey: dependentId,
+      aggregateId: 'DEPENDENT',
+      dependencyIds: [original.localId],
+      supersedesLocalId: undefined,
+    });
+
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: replacement.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Justificativa operacional válida',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    })).toBe('has-dependents');
+
+    const sameTimeTargetId = '423e4567-e89b-42d3-a456-426614174000';
+    const sameTimeTailId = '523e4567-e89b-42d3-a456-426614174000';
+    await seedCommandPair(database, {
+      ...replacement.localRecord,
+      localId: sameTimeTargetId,
+      idempotencyKey: sameTimeTargetId,
+      aggregateId: 'SAME-TIME',
+      dependencyIds: [],
+      supersedesLocalId: undefined,
+    }, {
+      ...replacement.outboxEntry,
+      localId: sameTimeTargetId,
+      idempotencyKey: sameTimeTargetId,
+      aggregateId: 'SAME-TIME',
+      dependencyIds: [],
+      supersedesLocalId: undefined,
+    });
+    await seedCommandPair(database, {
+      ...replacement.localRecord,
+      localId: sameTimeTailId,
+      idempotencyKey: sameTimeTailId,
+      aggregateId: 'SAME-TIME',
+      dependencyIds: [],
+      supersedesLocalId: undefined,
+    }, {
+      ...replacement.outboxEntry,
+      localId: sameTimeTailId,
+      idempotencyKey: sameTimeTailId,
+      aggregateId: 'SAME-TIME',
+      dependencyIds: [],
+      supersedesLocalId: undefined,
+    });
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: sameTimeTargetId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Justificativa operacional válida',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    })).toBe('has-later-commands');
+  });
+
+  it('aborta abandono quando a sessão muda antes do commit', async () => {
+    const original = await commands.persistConfirmedCommand(request({ quantity: 5 }));
+    let current = true;
+
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: original.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Justificativa operacional válida',
+      now: NOW,
+      sessionIsCurrent: () => current,
+      watchSession: listener => {
+        current = false;
+        listener();
+        return () => undefined;
+      },
+    })).toBe('stale-or-ineligible');
+    expect(await outbox.getById('operator-1', original.localId)).toMatchObject({
+      deliveryDisposition: 'ACTIVE',
+    });
   });
 
   it('não retorna registros de outro proprietário pelas APIs públicas', async () => {

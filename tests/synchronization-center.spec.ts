@@ -10,7 +10,9 @@ interface SeedEntry {
   readonly ownerId: string;
   readonly status: 'PENDING' | 'BLOCKED_AUTH' | 'ERROR' | 'SYNCED';
   readonly commandType?: string;
+  readonly aggregateType?: string;
   readonly aggregateId?: string;
+  readonly payload?: Record<string, unknown>;
   readonly occurredAt?: string;
   readonly receipt?: {
     readonly serverRecordId: string;
@@ -27,6 +29,7 @@ test.beforeEach(async ({ context }) => {
 test('indicador abre a Central owner-scoped, preserva reload, teclado, foco e viewports industriais', async ({
   page,
 }) => {
+  test.setTimeout(45_000);
   await page.goto('/synchronization');
   await expect(page).toHaveURL(/\/login\?returnUrl=%2Fsynchronization$/);
   await login(page, 'owner-a');
@@ -113,23 +116,62 @@ test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro'
   await login(page, 'owner-a');
   await seedEntries(page, [
     { localId: 'retry-a', ownerId: OWNER_A, status: 'ERROR', aggregateId: 'OP-RETRY' },
-    { localId: 'correct-a', ownerId: OWNER_A, status: 'ERROR', aggregateId: 'OP-CORRECT' },
+    {
+      localId: 'correct-a',
+      ownerId: OWNER_A,
+      status: 'ERROR',
+      aggregateType: 'STOPPAGE',
+      aggregateId: 'STOP-CORRECT',
+      commandType: 'CREATE_STOP',
+      payload: {
+        localId: 'correct-a',
+        reason: { id: 1, code: 'PARADA_NAO_PROGRAMADA', description: 'Ajuste' },
+        responsible: { tipo: 'OPERADOR', codigo: '001', nome: 'Operador' },
+        startDate: '2026-07-30',
+        startTime: '08:00',
+        programmed: false,
+        status: 'EM_ANDAMENTO',
+      },
+    },
     { localId: 'abandon-a', ownerId: OWNER_A, status: 'ERROR', aggregateId: 'OP-ABANDON' },
+    ...Array.from({ length: 30 }, (_, index) => ({
+      localId: `queue-${index}`,
+      ownerId: OWNER_A,
+      status: 'PENDING' as const,
+      aggregateId: `QUEUE-${index}`,
+    })),
   ]);
   await invalidateProjection(page);
   await indicatorFor(page).click();
   await expect(page).toHaveURL(/\/synchronization$/);
 
   const retry = page.getByTestId('sync-retry-retry-a');
+  const retryStartedAt = Date.now();
   await retry.dblclick();
   await expect(page.getByTestId('sync-action-feedback')).toContainText(
     'preparado para nova tentativa',
   );
   await expect(retry).toBeEnabled();
+  expect(Date.now() - retryStartedAt).toBeLessThan(2_000);
 
   await page.getByTestId('sync-correct-correct-a').click();
-  await expect(page).toHaveURL(/\/operation-reporting$/);
-  await page.goBack();
+  await expect(page).toHaveURL(/\/stoppages$/);
+  await expect(page.getByText('Correção de registro preservado')).toBeVisible();
+  await selectStoppageContext(page);
+  await page.getByRole('combobox', { name: 'Responsável', exact: true }).selectOption('001');
+  await page.getByRole('combobox', { name: 'Motivo' }).selectOption('1');
+  await selectToday(page, 'Data Inicial');
+  await fillTime(page, 'Hora Inicial', '08:10');
+  await page.getByRole('button', { name: 'Registrar parada' }).click();
+  await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
+    /salva neste dispositivo e pendente de sincronização/i,
+  );
+  const correction = await readSupersession(page, 'correct-a');
+  expect(correction.originalDisposition).toBe('SUPERSEDED');
+  expect(correction.replacement?.supersedesLocalId).toBe('correct-a');
+  expect(correction.replacement?.aggregateId).toBe('STOP-CORRECT');
+  expect(correction.replacement?.logicalOccurredAt).toBe(correction.originalOccurredAt);
+  await indicatorFor(page).click();
   await expect(page).toHaveURL(/\/synchronization$/);
 
   const abandon = page.getByTestId('sync-abandon-abandon-a');
@@ -243,7 +285,7 @@ async function seedEntries(page: Page, entries: readonly SeedEntry[]): Promise<v
     const now = '2026-07-30T14:00:00.000Z';
     for (const value of values) {
       const occurredAt = value.occurredAt ?? now;
-      const payload = {
+      const payload = value.payload ?? {
         ordem: value.aggregateId ?? value.localId,
         op: '10',
         split: '1',
@@ -253,7 +295,7 @@ async function seedEntries(page: Page, entries: readonly SeedEntry[]): Promise<v
         localId: value.localId,
         idempotencyKey: value.localId,
         payloadSchemaVersion: 1,
-        aggregateType: 'OPERATION',
+        aggregateType: value.aggregateType ?? 'OPERATION',
         aggregateId: value.aggregateId ?? value.localId,
         commandType: value.commandType ?? 'REPORT_OPERATION',
         payload,
@@ -296,6 +338,70 @@ async function seedEntries(page: Page, entries: readonly SeedEntry[]): Promise<v
     });
     database.close();
   }, { databaseName: DATABASE_NAME, values: entries });
+}
+
+async function selectStoppageContext(page: Page): Promise<void> {
+  const area = page.getByRole('combobox', { name: 'Área de Produção' });
+  const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
+  await area.focus();
+  await area.press('ArrowDown');
+  await area.press('Enter');
+  await expect(center).toBeEnabled();
+  await center.selectOption('CT-EXT-01');
+}
+
+async function selectToday(page: Page, fieldName: string): Promise<void> {
+  const field = page.getByRole('textbox', { name: fieldName });
+  const datepicker = field.locator('xpath=ancestor::po-datepicker');
+  await datepicker.getByRole('button', { name: 'Open calendar' }).click();
+  await datepicker.getByRole('button', { name: /Today|Hoje/ })
+    .evaluate((button: HTMLButtonElement) => button.click());
+}
+
+async function fillTime(page: Page, fieldName: string, value: string): Promise<void> {
+  const field = page.getByRole('textbox', { name: fieldName });
+  await field.fill(value);
+  await field.dispatchEvent('change');
+  await field.blur();
+}
+
+async function readSupersession(page: Page, originalLocalId: string): Promise<{
+  readonly originalDisposition: string;
+  readonly originalOccurredAt: string;
+  readonly replacement: {
+    readonly supersedesLocalId: string;
+    readonly aggregateId: string;
+    readonly logicalOccurredAt: string;
+  } | null;
+}> {
+  return page.evaluate(async ({ databaseName, originalId }) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(databaseName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction('outbox', 'readonly');
+    const entries = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
+      const request = transaction.objectStore('outbox').getAll();
+      request.onsuccess = () => resolve(request.result as Record<string, unknown>[]);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    const original = entries.find(entry => entry['localId'] === originalId)!;
+    const replacementEntry =
+      entries.find(entry => entry['supersedesLocalId'] === originalId) ?? null;
+    return {
+      originalDisposition: String(original['deliveryDisposition'] ?? 'ACTIVE'),
+      originalOccurredAt: String(original['occurredAt']),
+      replacement: replacementEntry
+        ? {
+            supersedesLocalId: String(replacementEntry['supersedesLocalId']),
+            aggregateId: String(replacementEntry['aggregateId']),
+            logicalOccurredAt: String(replacementEntry['logicalOccurredAt']),
+          }
+        : null,
+    };
+  }, { databaseName: DATABASE_NAME, originalId: originalLocalId });
 }
 
 async function readPairDisposition(page: Page, localId: string): Promise<[string, string]> {

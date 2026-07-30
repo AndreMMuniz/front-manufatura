@@ -37,6 +37,8 @@ export interface PersistSupersedingCommandRequest<TPayload> {
   readonly actorId: string;
   readonly originalLocalId: string;
   readonly command: PersistConfirmedCommandRequest<TPayload>;
+  readonly sessionIsCurrent?: () => boolean;
+  readonly watchSession?: (listener: () => void) => () => void;
 }
 
 export interface PersistConfirmedCommandRequest<TPayload> {

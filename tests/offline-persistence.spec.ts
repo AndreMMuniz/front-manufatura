@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { DATABASE_VERSION } from '../src/app/core/offline/database/database-schema';
+
 const DATABASE_NAME = 'plano-de-controle-operational';
 
 test('a infraestrutura real preserva commit, abort, reload e upgrade/versionchange', async ({
@@ -25,7 +27,9 @@ test('a infraestrutura real preserva commit, abort, reload e upgrade/versionchan
   await expect(page.getByTestId('harness-result')).toContainText(
     '"receivedVersionChange":true',
   );
-  await expect(page.getByTestId('harness-result')).toContainText('"version":3');
+  await expect(page.getByTestId('harness-result')).toContainText(
+    `"version":${DATABASE_VERSION + 1}`,
+  );
   await expect(page.getByTestId('harness-result')).toContainText('"hasProbe":true');
   await expect(page.getByTestId('harness-result')).toContainText('"pendingPreserved":true');
 

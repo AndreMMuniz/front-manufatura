@@ -117,6 +117,56 @@ describe('OperationalCommandFacade', () => {
     expect(result.payloadHash).toBe('new-hash');
   });
 
+  it('converte a próxima captura compatível em supersessão e limpa o contexto após commit', async () => {
+    const repository = {
+      persistSupersedingCommand: vi.fn(async () => ({
+        localId: UUID,
+        idempotencyKey: UUID,
+        payloadHash: 'corrected-hash',
+        committedAt: '2026-07-30T13:00:00.000Z',
+        outboxEntry: { status: 'PENDING' },
+      })),
+      persistConfirmedCommand: vi.fn(),
+    };
+    const correction = {
+      matching: vi.fn().mockReturnValue({
+        sourceLocalId: 'original-id',
+        aggregateId: 'ORIGINAL-AGGREGATE',
+      }),
+      currentEpoch: vi.fn().mockReturnValue(7),
+      isCurrent: vi.fn().mockReturnValue(true),
+      watch: vi.fn().mockReturnValue(() => undefined),
+      clear: vi.fn(),
+    };
+    const facade = new OperationalCommandFacade(
+      repository as never,
+      { currentUser: { id: 'operator-1' } } as never,
+      { requestSync: vi.fn() } as never,
+      correction as never,
+    );
+
+    await facade.capture({
+      commandType: 'REPORT_OPERATION',
+      aggregateId: 'FORM-GENERATED-AGGREGATE',
+      businessStatus: 'REPORTADA',
+      payload: { ordem: '100', quantidadeAprovada: 6 },
+    });
+
+    expect(repository.persistConfirmedCommand).not.toHaveBeenCalled();
+    expect(repository.persistSupersedingCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        originalLocalId: 'original-id',
+        command: expect.objectContaining({
+          aggregateId: 'ORIGINAL-AGGREGATE',
+          commandType: 'REPORT_OPERATION',
+        }),
+        sessionIsCurrent: expect.any(Function),
+        watchSession: expect.any(Function),
+      }),
+    );
+    expect(correction.clear).toHaveBeenCalledWith('original-id');
+  });
+
   it.each(OPERATIONAL_COMMAND_TYPES)(
     'captures %s with the closed aggregate/version contract and no secret field',
     async (commandType) => {

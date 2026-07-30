@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
@@ -10,6 +10,9 @@ import {
 } from '../../../core/offline/models/operational-command';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { SynchronizationRecoveryPolicy } from '../models/synchronization-view.model';
+import {
+  OperationalCorrectionContextService,
+} from '../../../core/offline/services/operational-correction-context.service';
 
 export interface RecoveryDefinition {
   readonly route: string;
@@ -65,12 +68,15 @@ export class SynchronizationRecoveryRegistry {
     private readonly outbox: OutboxRepository,
     private readonly auth: AuthSessionService,
     private readonly router: Router,
+    @Optional()
+    private readonly correctionContext: OperationalCorrectionContextService | null = null,
   ) {}
 
   async openCorrection(localId: string): Promise<OpenCorrectionResult> {
     const ownerId = this.auth.currentUser?.id.trim();
     if (!ownerId) return 'stale';
     const source = await this.outbox.getById(ownerId, localId);
+    if (this.auth.currentUser?.id.trim() !== ownerId) return 'stale';
     if (
       !source
       || source.status !== 'ERROR'
@@ -83,16 +89,31 @@ export class SynchronizationRecoveryRegistry {
     const definition = getRecoveryDefinition(source.commandType);
     if (definition.policy !== 'CORRECTABLE') return 'unavailable';
     const draft = allowedPayload(source.payload, definition.allowedFields);
+    if (this.auth.currentUser?.id.trim() !== ownerId) return 'stale';
+    if (!this.correctionContext?.activate({
+      ownerId,
+      sourceLocalId: source.localId,
+      commandType: source.commandType,
+      aggregateType: source.aggregateType,
+      aggregateId: source.aggregateId,
+      payloadSchemaVersion: source.payloadSchemaVersion,
+      draft,
+    })) {
+      return 'stale';
+    }
     const navigated = await this.router.navigateByUrl(definition.route, {
       state: {
         synchronizationRecovery: Object.freeze({
           sourceLocalId: source.localId,
           commandType: source.commandType,
-          draft,
         }),
       },
     });
-    return navigated ? 'opened' : 'stale';
+    if (!navigated || this.auth.currentUser?.id.trim() !== ownerId) {
+      this.correctionContext.clear(source.localId);
+      return 'stale';
+    }
+    return 'opened';
   }
 }
 

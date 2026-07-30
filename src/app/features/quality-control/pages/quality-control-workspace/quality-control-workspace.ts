@@ -11,10 +11,20 @@ import { RouteGenerationSection } from '../../components/route-generation-sectio
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 import { QualityControlService } from '../../services/quality-control';
 import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
+import {
+  OperationalCorrectionNotice,
+} from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
 
 @Component({
   selector: 'app-quality-control-workspace',
-  imports: [ExamEntryPanel, InspectionSection, RouteGenerationSection, PoButtonModule, PoPageModule],
+  imports: [
+    ExamEntryPanel,
+    InspectionSection,
+    RouteGenerationSection,
+    OperationalCorrectionNotice,
+    PoButtonModule,
+    PoPageModule,
+  ],
   providers: [QualityControlWorkflowState],
   templateUrl: './quality-control-workspace.html',
   styleUrls: ['./quality-control-workspace.css'],

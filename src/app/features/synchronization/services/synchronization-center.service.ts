@@ -42,6 +42,7 @@ export interface SynchronizationCenterState {
   readonly nextCursor: OutboxPageCursor | null;
   readonly hasMore: boolean;
   readonly errorMessage?: string;
+  readonly loadMoreError?: string;
 }
 
 const EMPTY_COUNTS: SynchronizationCounts = Object.freeze({
@@ -125,6 +126,7 @@ export class SynchronizationCenterService implements OnDestroy {
       nextCursor: null,
       hasMore: false,
       errorMessage: undefined,
+      loadMoreError: undefined,
     });
     try {
       const [page, counts] = await Promise.all([
@@ -140,6 +142,7 @@ export class SynchronizationCenterService implements OnDestroy {
         filters,
         nextCursor: page.nextCursor,
         hasMore: page.hasMore,
+        loadMoreError: undefined,
       }));
     } catch (error) {
       if (!this.isCurrent(ownerId, epoch, version)) return;
@@ -180,13 +183,13 @@ export class SynchronizationCenterService implements OnDestroy {
         items: Object.freeze([...current.items, ...page.items.map(mapSynchronizationEntry)]),
         nextCursor: page.nextCursor,
         hasMore: page.hasMore,
+        loadMoreError: undefined,
       }));
     } catch {
       if (!this.isCurrent(ownerId, epoch, version)) return;
       this.stateSubject.next(Object.freeze({
         ...current,
-        readState: 'error',
-        errorMessage: 'Não foi possível carregar mais registros.',
+        loadMoreError: 'Não foi possível carregar mais registros. Tente novamente.',
       }));
     }
   }

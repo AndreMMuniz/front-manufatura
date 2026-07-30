@@ -42,6 +42,9 @@ import {
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
 import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
+import {
+  OperationalCorrectionNotice,
+} from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
 
 @Component({
   selector: 'app-reporte-paradas-page',
@@ -54,6 +57,7 @@ import { IdempotencyService } from '../../../../core/offline/services/idempotenc
     PoButtonModule,
     PoLoadingModule,
     PoPageModule,
+    OperationalCorrectionNotice,
   ],
   providers: [ReporteParadasWorkflowState],
   templateUrl: './reporte-paradas-page.html',

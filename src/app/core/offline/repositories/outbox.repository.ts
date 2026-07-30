@@ -561,12 +561,8 @@ function inspectDependencies(
       (candidate) => candidate.localId === dependencyId && candidate.ownerId === owner,
     );
     const dependency = referenced
-      && deliveryDispositionOf(referenced.deliveryDisposition) === 'SUPERSEDED'
-      ? allEntries.find(candidate =>
-          candidate.ownerId === owner
-          && candidate.supersedesLocalId === referenced.localId
-          && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE')
-      : referenced;
+      ? resolveActiveSupersession(referenced, allEntries, owner)
+      : undefined;
     if (!dependency || dependency.status === 'ERROR') {
       return 'MISSING_OR_PERMANENT';
     }
@@ -616,6 +612,31 @@ function hasDependencyPath(
     }
   }
   return false;
+}
+
+function resolveActiveSupersession(
+  referenced: OutboxEntry<JsonValue>,
+  entries: readonly OutboxEntry<JsonValue>[],
+  owner: string,
+): OutboxEntry<JsonValue> | undefined {
+  const byId = new Map(
+    entries
+      .filter(candidate => candidate.ownerId === owner)
+      .map(candidate => [candidate.localId, candidate] as const),
+  );
+  const visited = new Set<string>();
+  let current: OutboxEntry<JsonValue> | undefined = referenced;
+  while (current && !visited.has(current.localId)) {
+    visited.add(current.localId);
+    const disposition = deliveryDispositionOf(current.deliveryDisposition);
+    if (disposition === 'ACTIVE') return current;
+    if (disposition !== 'SUPERSEDED') return undefined;
+    current = current.supersededByLocalId
+      ? byId.get(current.supersededByLocalId)
+      : entries.find(candidate =>
+          candidate.ownerId === owner && candidate.supersedesLocalId === current?.localId);
+  }
+  return undefined;
 }
 
 function isPermanentDependencyBlock(entry: OutboxEntry<JsonValue>): boolean {
@@ -742,7 +763,7 @@ function summarizeCursor(index: IDBIndex, owner: string): Promise<OutboxOwnerSum
       const entry = cursor.value as OutboxEntry<JsonValue> & {
         readonly deliveryDisposition?: string;
       };
-      if ((entry.deliveryDisposition ?? 'ACTIVE') === 'ACTIVE') {
+      if (deliveryDispositionOf(entry.deliveryDisposition) === 'ACTIVE') {
         if (
           entry.status === 'PENDING'
           || entry.status === 'SYNCING'
@@ -762,12 +783,24 @@ function summarizeCursor(index: IDBIndex, owner: string): Promise<OutboxOwnerSum
 }
 
 function matchesPageQuery(entry: OutboxEntry<JsonValue>, query: OutboxPageQuery): boolean {
-  const disposition = (entry as OutboxEntry<JsonValue> & {
-    readonly deliveryDisposition?: string;
-  }).deliveryDisposition ?? 'ACTIVE';
+  const disposition = deliveryDispositionOf(entry.deliveryDisposition);
   const statuses = query.statuses;
+  const dispositionFilters = statuses?.filter(status =>
+    status === 'ABANDONED' || status === 'SUPERSEDED') ?? [];
+  const syncStatusFilters = statuses?.filter(status =>
+    status !== 'ABANDONED' && status !== 'SUPERSEDED') ?? [];
   return (
-    (!statuses?.length || statuses.includes(entry.status) || statuses.includes(disposition))
+    (
+      !statuses?.length
+      || (
+        disposition !== 'ACTIVE'
+        && dispositionFilters.includes(disposition)
+      )
+      || (
+        disposition === 'ACTIVE'
+        && syncStatusFilters.includes(entry.status)
+      )
+    )
     && (!query.matchesIdentification || query.matchesIdentification(defensiveCopy(entry)))
   );
 }

@@ -119,12 +119,18 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   async correct(item: SynchronizationEntryView): Promise<void> {
     if (this.busyIds().has(item.localId)) return;
     this.busyIds.update(current => new Set([...current, item.localId]));
-    const result = await this.recovery.openCorrection(item.localId);
-    this.busyIds.update(current => {
-      const next = new Set(current);
-      next.delete(item.localId);
-      return next;
-    });
+    let result: Awaited<ReturnType<SynchronizationRecoveryRegistry['openCorrection']>>;
+    try {
+      result = await this.recovery.openCorrection(item.localId);
+    } catch {
+      result = 'stale';
+    } finally {
+      this.busyIds.update(current => {
+        const next = new Set(current);
+        next.delete(item.localId);
+        return next;
+      });
+    }
     if (result !== 'opened') {
       this.actionFeedback.set(
         'A correção não está mais disponível. O registro original permanece preservado.',
@@ -138,7 +144,7 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   }
 
   openAbandon(item: SynchronizationEntryView, event: Event): void {
-    if (!this.canAbandon() || this.busyIds().has(item.localId)) return;
+    if (this.selected() || !this.canAbandon() || this.busyIds().has(item.localId)) return;
     this.abandonTrigger = event.currentTarget as HTMLElement;
     this.abandonTriggerId = item.localId;
     this.abandonReason = '';
@@ -196,6 +202,7 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   }
 
   openDetail(item: SynchronizationEntryView, event: Event): void {
+    if (this.abandonTarget()) return;
     this.detailTrigger = event.currentTarget as HTMLElement;
     this.selected.set(item);
     queueMicrotask(() => {
@@ -217,6 +224,36 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   onEscape(): void {
     if (this.abandonTarget()) this.cancelAbandon();
     else this.closeDetail();
+  }
+
+  @HostListener('document:keydown.tab', ['$event'])
+  trapDialogFocus(event: KeyboardEvent): void {
+    const dialog = this.host.nativeElement.querySelector<HTMLElement>(
+      this.abandonTarget()
+        ? '[data-testid="sync-abandon-dialog"]'
+        : this.selected()
+          ? '[role="dialog"]'
+          : '__no_dialog__',
+    );
+    if (!dialog) return;
+    const focusable = [...dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )].filter(element => !element.hasAttribute('hidden'));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable.at(-1)!;
+    const active = globalThis.document?.activeElement;
+    if (event.shiftKey && (active === first || !dialog.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   ngAfterViewChecked(): void {

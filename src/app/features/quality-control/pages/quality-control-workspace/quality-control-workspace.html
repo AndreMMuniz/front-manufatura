@@ -1,5 +1,6 @@
 <po-page-default p-title="Plano Controle CQ">
   <main class="quality-workspace">
+    <app-operational-correction-notice />
     <app-route-generation-section></app-route-generation-section>
 
     @if (workflow.route()?.routeNumber && (workflow.exams().length > 0 || workflow.isLoadingExams())) {

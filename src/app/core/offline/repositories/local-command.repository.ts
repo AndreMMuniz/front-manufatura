@@ -237,6 +237,8 @@ export class LocalCommandRepository {
       ),
     ]);
     if (
+      request.sessionIsCurrent?.() === false
+      ||
       !originalLocal
       || !originalOutbox
       || originalLocal.ownerId !== ownerId
@@ -245,6 +247,10 @@ export class LocalCommandRepository {
       || deliveryDispositionOf(originalLocal.deliveryDisposition) !== 'ACTIVE'
       || deliveryDispositionOf(originalOutbox.deliveryDisposition) !== 'ACTIVE'
       || originalOutbox.leaseToken
+      || metadata.aggregateType !== originalOutbox.aggregateType
+      || metadata.aggregateId !== originalOutbox.aggregateId
+      || metadata.commandType !== originalOutbox.commandType
+      || metadata.payloadSchemaVersion !== originalOutbox.payloadSchemaVersion
     ) {
       transaction.abort();
       await completed.catch(() => undefined);
@@ -313,10 +319,29 @@ export class LocalCommandRepository {
     outboxStore.add(outboxEntry);
     localStore.put({ ...originalLocal, ...supersession });
     outboxStore.put({ ...originalOutbox, ...supersession });
+    let sessionInvalidated = false;
+    const stopWatchingSession = request.watchSession?.(() => {
+      if (request.sessionIsCurrent?.() === false) {
+        sessionInvalidated = true;
+        try {
+          transaction.abort();
+        } catch {
+          // A transação já pode ter encerrado.
+        }
+      }
+    });
     try {
       await completed;
     } catch (error) {
+      if (sessionInvalidated) {
+        throw new OfflineStorageError(
+          'CONFLICT',
+          'A sessão mudou antes da confirmação da correção.',
+        );
+      }
       throw toOfflineStorageError(error, 'A correção não foi salva neste dispositivo.');
+    } finally {
+      stopWatchingSession?.();
     }
     this.activity.publish();
     return defensiveCopy({
@@ -386,7 +411,8 @@ export class LocalCommandRepository {
         candidate.localId !== localId
         && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE'
         && candidate.status !== 'SYNCED'
-        && candidate.dependencyIds.includes(localId));
+        && candidate.dependencyIds.some(dependencyId =>
+          dependencyResolvesTo(dependencyId, localId, ownerEntries, ownerId)));
       if (hasDependents) {
         transaction.abort();
         await completed.catch(() => undefined);
@@ -400,8 +426,12 @@ export class LocalCommandRepository {
         && candidate.aggregateId === outboxEntry.aggregateId
         && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE'
         && candidate.status !== 'SYNCED'
-        && (candidate.logicalOccurredAt ?? candidate.occurredAt ?? candidate.createdAt)
-          > targetLogical);
+        && compareLogicalPosition(
+          candidate.logicalOccurredAt ?? candidate.occurredAt ?? candidate.createdAt,
+          candidate.localId,
+          targetLogical,
+          outboxEntry.localId,
+        ) > 0);
       if (hasLaterCommands) {
         transaction.abort();
         await completed.catch(() => undefined);
@@ -422,7 +452,25 @@ export class LocalCommandRepository {
       };
       localStore.put({ ...localRecord, ...abandonment });
       outboxStore.put({ ...outboxEntry, ...abandonment });
-      await completed;
+      let sessionInvalidated = false;
+      const stopWatchingSession = request.watchSession?.(() => {
+        if (!request.sessionIsCurrent()) {
+          sessionInvalidated = true;
+          try {
+            transaction?.abort();
+          } catch {
+            // A transação já pode ter encerrado.
+          }
+        }
+      });
+      try {
+        await completed;
+      } catch (error) {
+        if (sessionInvalidated) return 'stale-or-ineligible';
+        throw error;
+      } finally {
+        stopWatchingSession?.();
+      }
       this.activity.publish();
       return 'abandoned';
     } catch {
@@ -460,6 +508,40 @@ export class LocalCommandRepository {
     ]);
     return { localRecord, outboxEntry };
   }
+}
+
+function dependencyResolvesTo(
+  dependencyId: string,
+  targetLocalId: string,
+  entries: readonly OutboxEntry<JsonValue>[],
+  ownerId: string,
+): boolean {
+  const byId = new Map(
+    entries
+      .filter(entry => entry.ownerId === ownerId)
+      .map(entry => [entry.localId, entry] as const),
+  );
+  const visited = new Set<string>();
+  let current = byId.get(dependencyId);
+  while (current && !visited.has(current.localId)) {
+    if (current.localId === targetLocalId) return true;
+    visited.add(current.localId);
+    if (deliveryDispositionOf(current.deliveryDisposition) !== 'SUPERSEDED') return false;
+    current = current.supersededByLocalId
+      ? byId.get(current.supersededByLocalId)
+      : entries.find(entry =>
+          entry.ownerId === ownerId && entry.supersedesLocalId === current?.localId);
+  }
+  return false;
+}
+
+function compareLogicalPosition(
+  leftAt: string,
+  leftId: string,
+  rightAt: string,
+  rightId: string,
+): number {
+  return leftAt.localeCompare(rightAt) || leftId.localeCompare(rightId);
 }
 
 function validateRequest<TPayload>(request: PersistConfirmedCommandRequest<TPayload>): {

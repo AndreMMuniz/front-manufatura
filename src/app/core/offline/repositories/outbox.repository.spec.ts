@@ -107,6 +107,33 @@ describe('OutboxRepository processing', () => {
     });
   });
 
+  it('separa filtros de status ativo das disposições históricas e normaliza legado futuro', async () => {
+    await seed(database, [
+      entry('active-error', { status: 'ERROR' }),
+      entry('superseded-error', {
+        status: 'ERROR',
+        deliveryDisposition: 'SUPERSEDED',
+      }),
+      entry('future-disposition', {
+        status: 'PENDING',
+        deliveryDisposition: 'FUTURE' as never,
+      }),
+    ]);
+
+    expect((await repository.listPage({
+      ownerId: OWNER,
+      statuses: ['ERROR'],
+    })).items.map(item => item.localId)).toEqual(['active-error']);
+    expect((await repository.listPage({
+      ownerId: OWNER,
+      statuses: ['SUPERSEDED'],
+    })).items.map(item => item.localId)).toEqual(['superseded-error']);
+    expect(await repository.summarizeOwner(OWNER)).toMatchObject({
+      pending: 1,
+      error: 1,
+    });
+  });
+
   it('ignora tombstones nos heads/candidates e posiciona o substituto antes da cauda', async () => {
     await seed(database, [
       entry('original', {
@@ -167,6 +194,45 @@ describe('OutboxRepository processing', () => {
       leaseToken: 'replacement-lease',
       now: NOW,
       result: receipt('replacement'),
+    });
+    expect(await repository.claim(claim('dependent', 'ready'))).toMatchObject({
+      status: 'SYNCING',
+    });
+  });
+
+  it('resolve dependência através de múltiplas correções sucessivas', async () => {
+    await seed(database, [
+      entry('original', {
+        aggregateId: 'ORIGINAL',
+        status: 'ERROR',
+        deliveryDisposition: 'SUPERSEDED',
+        supersededByLocalId: 'replacement-1',
+      }),
+      entry('replacement-1', {
+        aggregateId: 'ORIGINAL',
+        status: 'ERROR',
+        deliveryDisposition: 'SUPERSEDED',
+        supersedesLocalId: 'original',
+        supersededByLocalId: 'replacement-2',
+      }),
+      entry('replacement-2', {
+        aggregateId: 'ORIGINAL',
+        supersedesLocalId: 'replacement-1',
+      }),
+      entry('dependent', {
+        aggregateId: 'DEPENDENT',
+        dependencyIds: ['original'],
+      }),
+    ]);
+
+    expect(await repository.claim(claim('dependent', 'blocked'))).toBeNull();
+    await repository.claim(claim('replacement-2', 'replacement-lease'));
+    await repository.reconcileSuccess({
+      ownerId: OWNER,
+      localId: 'replacement-2',
+      leaseToken: 'replacement-lease',
+      now: NOW,
+      result: receipt('replacement-2'),
     });
     expect(await repository.claim(claim('dependent', 'ready'))).toMatchObject({
       status: 'SYNCING',

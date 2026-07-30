@@ -17,4 +17,5 @@ export interface AbandonCommandRequest {
   readonly reason: string;
   readonly now: string;
   readonly sessionIsCurrent: () => boolean;
+  readonly watchSession?: (listener: () => void) => () => void;
 }
