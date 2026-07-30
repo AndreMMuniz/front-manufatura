@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { PoButtonModule, PoFieldModule, PoLoadingModule } from '@po-ui/ng-components';
 
 import { LoginError, LoginService } from '../../services/login.service';
 import { messageForOfflineAvailability } from '../../../../core/offline/models/offline-availability';
+import { buildSafeReturnUrl } from '../../../../core/auth/safe-return-url';
 
 @Component({
   selector: 'app-login-page',
@@ -20,6 +21,7 @@ export class LoginPage {
   private static readonly emptyFieldsMessage = 'Informe login e senha.';
 
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly loginService = inject(LoginService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly changeDetector = inject(ChangeDetectorRef);
@@ -85,7 +87,10 @@ export class LoginPage {
   }
 
   redirecionar(): void {
-    this.router.navigateByUrl(LoginPage.fallbackUrl).then(
+    const returnUrl = buildSafeReturnUrl(
+      this.route.snapshot.queryParamMap.get('returnUrl'),
+    ) ?? LoginPage.fallbackUrl;
+    this.router.navigateByUrl(returnUrl).then(
       navigated => {
         if (!navigated) {
           this.submitting = false;

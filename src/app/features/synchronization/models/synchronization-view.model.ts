@@ -5,9 +5,13 @@ import {
 } from '../../../core/offline/models/operational-command';
 import { OutboxEntry } from '../../../core/offline/models/outbox-entry';
 import { SyncStatus } from '../../../core/offline/models/sync-status';
+import {
+  DELIVERY_DISPOSITIONS,
+  DeliveryDisposition,
+} from '../../../core/offline/models/delivery-disposition';
 
-export const DELIVERY_DISPOSITIONS = ['ACTIVE', 'ABANDONED', 'SUPERSEDED'] as const;
-export type DeliveryDisposition = (typeof DELIVERY_DISPOSITIONS)[number];
+export { DELIVERY_DISPOSITIONS };
+export type { DeliveryDisposition };
 export type SynchronizationRecoveryPolicy = 'CORRECTABLE' | 'RETRY_ONLY' | 'INTERVENTION';
 export type SynchronizationAction =
   | 'retry'

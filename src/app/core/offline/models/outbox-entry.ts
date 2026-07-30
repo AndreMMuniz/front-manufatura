@@ -1,4 +1,5 @@
 import { JsonValue, LocalRecord } from './local-record';
+import { DeliveryDisposition } from './delivery-disposition';
 import { SyncErrorCategory } from './sync-error';
 import { SyncStatus } from './sync-status';
 
@@ -52,6 +53,16 @@ export interface OutboxEntry<TPayload = JsonValue> {
   readonly manualRetryCount?: number;
   readonly lastManualRetryAt?: string;
   readonly lastManualRetryBy?: string;
+  readonly deliveryDisposition?: DeliveryDisposition;
+  readonly logicalOccurredAt?: string;
+  readonly supersedesLocalId?: string;
+  readonly supersededByLocalId?: string;
+  readonly supersededAt?: string;
+  readonly supersededBy?: string;
+  readonly abandonedAt?: string;
+  readonly abandonedBy?: string;
+  readonly abandonReason?: string;
+  readonly abandonPermission?: string;
 }
 
 export interface PersistedCommand<TPayload = JsonValue> {

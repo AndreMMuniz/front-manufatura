@@ -76,6 +76,47 @@ describe('OperationalCommandFacade', () => {
     expect(repository.persistConfirmedCommand).not.toHaveBeenCalled();
   });
 
+  it('confirma correção pela fachada semântica com novo comando e trigger após commit', async () => {
+    const events: string[] = [];
+    const repository = {
+      persistSupersedingCommand: vi.fn(async () => {
+        events.push('commit');
+        return {
+          localId: UUID,
+          idempotencyKey: UUID,
+          payloadHash: 'new-hash',
+          committedAt: '2026-07-30T13:00:00.000Z',
+          outboxEntry: { status: 'PENDING' },
+        };
+      }),
+    };
+    const facade = new OperationalCommandFacade(
+      repository as never,
+      { currentUser: { id: 'operator-1' } } as never,
+      { requestSync: vi.fn(() => events.push('trigger')) } as never,
+    );
+
+    const result = await facade.captureCorrection('original-id', {
+      commandType: 'REPORT_OPERATION',
+      aggregateId: 'OP-1',
+      businessStatus: 'REPORTADA',
+      payload: { ordem: '100', quantidadeAprovada: 5 },
+    });
+
+    expect(events).toEqual(['commit', 'trigger']);
+    expect(repository.persistSupersedingCommand).toHaveBeenCalledWith({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      originalLocalId: 'original-id',
+      command: expect.objectContaining({
+        ownerId: 'operator-1',
+        commandType: 'REPORT_OPERATION',
+        aggregateType: 'OPERATION',
+      }),
+    });
+    expect(result.payloadHash).toBe('new-hash');
+  });
+
   it.each(OPERATIONAL_COMMAND_TYPES)(
     'captures %s with the closed aggregate/version contract and no secret field',
     async (commandType) => {

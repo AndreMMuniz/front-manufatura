@@ -64,6 +64,13 @@ export const routes: Routes = [
       .then(module => module.QualityControlWorkspacePage),
     canActivate: [authGuard],
   },
+  {
+    path: 'synchronization',
+    loadComponent: () => import(
+      './features/synchronization/pages/synchronization-center/synchronization-center'
+    ).then(module => module.SynchronizationCenterPage),
+    canActivate: [authGuard],
+  },
   // Empty root redirects to the authenticated Home.
   { path: '', pathMatch: 'full', redirectTo: 'menu' },
   // `**` is guarded (rather than redirecting to /menu) so that

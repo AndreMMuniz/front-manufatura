@@ -62,4 +62,51 @@ export class OperationalCommandFacade {
         : 'PENDING',
     });
   }
+
+  async captureCorrection(
+    originalLocalId: string,
+    request: CaptureOperationalCommandRequest,
+  ): Promise<LocalCommandConfirmation> {
+    const ownerId = this.authSession.currentUser?.id.trim();
+    if (!ownerId) {
+      throw new OfflineStorageError(
+        'PAYLOAD_INVALID',
+        'É necessária uma sessão autenticada para corrigir o comando.',
+      );
+    }
+    const definition = OPERATIONAL_COMMAND_DEFINITIONS[request.commandType];
+    const persisted = await this.repository.persistSupersedingCommand({
+      ownerId,
+      actorId: ownerId,
+      originalLocalId,
+      command: {
+        ownerId,
+        aggregateType: definition.aggregateType,
+        aggregateId: request.aggregateId,
+        commandType: request.commandType,
+        payloadSchemaVersion: definition.payloadSchemaVersion,
+        payload: request.payload,
+        businessStatus: request.businessStatus,
+        ...(request.occurredAt ? { occurredAt: request.occurredAt } : {}),
+        ...(request.initialSyncStatus
+          ? {
+              initialSyncStatus: request.initialSyncStatus,
+              ...(request.initialSyncStatus === 'BLOCKED_AUTH'
+                ? { initialAuthBlockReason: 'SUPERVISOR' as const }
+                : {}),
+            }
+          : {}),
+      },
+    });
+    this.syncTrigger.requestSync();
+    return Object.freeze({
+      localId: persisted.localId,
+      idempotencyKey: persisted.idempotencyKey,
+      payloadHash: persisted.payloadHash,
+      committedAt: persisted.committedAt,
+      syncStatus: persisted.outboxEntry.status === 'BLOCKED_AUTH'
+        ? 'BLOCKED_AUTH'
+        : 'PENDING',
+    });
+  }
 }

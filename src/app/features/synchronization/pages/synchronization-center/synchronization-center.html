@@ -1,0 +1,278 @@
+<po-page-default p-title="Central de Sincronização">
+  <main class="synchronization-center">
+    <header class="synchronization-center__summary" aria-live="polite">
+      <strong>{{ totalActive() }} registros ativos</strong>
+      <span>{{ state().counts.pending }} pendências</span>
+      <span>{{ state().counts.error }} erros</span>
+    </header>
+
+    @if (actionFeedback()) {
+      <p
+        class="synchronization-center__feedback"
+        role="status"
+        aria-live="polite"
+        data-testid="sync-action-feedback"
+      >
+        {{ actionFeedback() }}
+      </p>
+    }
+
+    <form class="synchronization-center__filters" (submit)="$event.preventDefault(); applyFilters()">
+      <label>
+        Estado
+        <select id="sync-status" [(ngModel)]="status" name="status">
+          <option value="">Todos</option>
+          <option value="PENDING">Envio pendente</option>
+          <option value="SYNCING">Sincronizando</option>
+          <option value="RETRY_WAIT">Nova tentativa</option>
+          <option value="SYNCED">Sincronizado</option>
+          <option value="BLOCKED_AUTH">Bloqueado por autenticação</option>
+          <option value="BLOCKED_DEPENDENCY">Aguardando dependência</option>
+          <option value="ERROR">Precisa de atenção</option>
+          <option value="ABANDONED">Abandonado</option>
+          <option value="SUPERSEDED">Substituído</option>
+        </select>
+      </label>
+      <label>
+        Módulo
+        <select id="sync-module" [(ngModel)]="module" name="module">
+          <option value="">Todos</option>
+          <option value="QUALITY">Plano Controle CQ</option>
+          <option value="OPERATION">Reporte de Operação</option>
+          <option value="BATCH">Reporte de Batelada</option>
+          <option value="STOPPAGE">Reporte de Paradas</option>
+        </select>
+      </label>
+      <label>
+        De
+        <input id="sync-occurred-from" type="date" [(ngModel)]="occurredFrom" name="occurredFrom">
+      </label>
+      <label>
+        Até
+        <input id="sync-occurred-to" type="date" [(ngModel)]="occurredTo" name="occurredTo">
+      </label>
+      <label class="synchronization-center__identification">
+        Identificação operacional
+        <input
+          id="sync-identification"
+          type="search"
+          [(ngModel)]="identification"
+          name="identification"
+          maxlength="120"
+          autocomplete="off"
+        >
+      </label>
+      <div class="synchronization-center__filter-actions">
+        <button type="submit" data-testid="sync-apply-filters">Aplicar filtros</button>
+        <button type="button" data-testid="sync-clear-filters" (click)="clearFilters()">
+          Limpar filtros
+        </button>
+      </div>
+    </form>
+
+    @switch (state().readState) {
+      @case ('idle') {
+        <p class="synchronization-center__state" role="status" data-testid="sync-loading">
+          Preparando consulta local…
+        </p>
+      }
+      @case ('loading') {
+        <div class="synchronization-center__state" role="status" data-testid="sync-loading">
+          <po-loading p-text="Carregando registros locais…" p-size="sm" />
+        </div>
+      }
+      @case ('unavailable') {
+        <section class="synchronization-center__state" role="alert" data-testid="sync-unavailable">
+          <h2>Armazenamento local indisponível</h2>
+          <p>Este contexto não permite consultar os registros preservados no dispositivo.</p>
+        </section>
+      }
+      @case ('error') {
+        <section class="synchronization-center__state" role="alert" data-testid="sync-read-error">
+          <h2>Falha ao ler os registros locais</h2>
+          <p>{{ state().errorMessage ?? 'Tente carregar novamente.' }}</p>
+          <button type="button" data-testid="sync-retry-load" (click)="retryLoad()">
+            Tentar novamente
+          </button>
+        </section>
+      }
+      @case ('ready') {
+        @if (state().items.length === 0) {
+          <p class="synchronization-center__state" role="status" data-testid="sync-empty">
+            Nenhum registro encontrado para os filtros selecionados.
+          </p>
+        } @else {
+          <section class="synchronization-center__records" aria-label="Registros de sincronização">
+            @for (item of state().items; track item.localId) {
+              <article class="synchronization-record">
+                <div>
+                  <span class="synchronization-record__module">{{ item.moduleLabel }}</span>
+                  <h2>{{ item.operationalIdentification }}</h2>
+                  <span>{{ item.commandLabel }} · {{ formatDate(item.occurredAt) }}</span>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Status do negócio</dt>
+                    <dd [attr.data-testid]="'business-status-' + item.localId">
+                      {{ item.businessStatus }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Status da sincronização</dt>
+                    <dd
+                      class="synchronization-record__sync"
+                      [attr.data-tone]="item.syncTone"
+                      [attr.data-testid]="'sync-status-' + item.localId"
+                    >
+                      <po-icon [p-icon]="item.syncIcon" aria-hidden="true" />
+                      {{ item.syncStatusLabel }}
+                    </dd>
+                  </div>
+                  <div><dt>Usuário</dt><dd>{{ item.ownerId }}</dd></div>
+                  <div><dt>Tentativas</dt><dd>{{ item.attemptCount }}</dd></div>
+                </dl>
+                <button
+                  type="button"
+                  [attr.data-testid]="'sync-detail-' + item.localId"
+                  (click)="openDetail(item, $event)"
+                >
+                  Ver detalhes
+                </button>
+                <div class="synchronization-record__actions" aria-label="Ações de recuperação">
+                  @if (item.availableActions.includes('retry')) {
+                    <button
+                      type="button"
+                      [disabled]="busyIds().has(item.localId)"
+                      [attr.data-testid]="'sync-retry-' + item.localId"
+                      (click)="retry(item)"
+                    >
+                      {{ busyIds().has(item.localId) ? 'Preparando…' : 'Tentar novamente' }}
+                    </button>
+                    @if (item.availableActions.includes('correct')) {
+                      <button
+                        type="button"
+                        [disabled]="busyIds().has(item.localId)"
+                        [attr.data-testid]="'sync-correct-' + item.localId"
+                        (click)="correct(item)"
+                      >
+                        Corrigir no módulo
+                      </button>
+                    }
+                  } @else if (item.availableActions.includes('authenticate')) {
+                    <span>Restabeleça a autenticação ou autorização no módulo de origem.</span>
+                  } @else if (item.availableActions.includes('resolve-dependency')) {
+                    <span>Resolva a dependência indicada antes de continuar.</span>
+                  } @else if (item.syncStatus === 'RETRY_WAIT') {
+                    <span>A nova tentativa será feita automaticamente.</span>
+                  } @else if (item.syncStatus === 'PENDING') {
+                    <span>Aguardando processamento pela fila existente.</span>
+                  } @else if (item.syncStatus === 'SYNCING') {
+                    <span>Envio em andamento; ações concorrentes estão bloqueadas.</span>
+                  } @else if (item.syncStatus === 'SYNCED') {
+                    <span>Receipt remoto reconciliado; nenhum novo envio será feito.</span>
+                  }
+                  @if (item.availableActions.includes('abandon')) {
+                    @if (canAbandon()) {
+                      <button
+                        type="button"
+                        [disabled]="busyIds().has(item.localId)"
+                        [attr.data-testid]="'sync-abandon-' + item.localId"
+                        (click)="openAbandon(item, $event)"
+                      >
+                        Abandonar registro
+                      </button>
+                    } @else {
+                      <span>Abandono indisponível: a sessão não possui a permissão homologada.</span>
+                    }
+                  }
+                </div>
+              </article>
+            }
+          </section>
+          @if (state().hasMore) {
+            <po-button p-label="Carregar mais" p-kind="secondary" (p-click)="loadMore()" />
+          }
+        }
+      }
+    }
+
+    @if (selected(); as item) {
+      <div class="synchronization-detail__backdrop">
+        <section
+          class="synchronization-detail"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="synchronization-detail-title"
+        >
+          <h2 id="synchronization-detail-title">Detalhes do registro</h2>
+          <dl>
+            <div><dt>Módulo</dt><dd>{{ item.moduleLabel }}</dd></div>
+            <div><dt>Identificação</dt><dd>{{ item.operationalIdentification }}</dd></div>
+            <div><dt>Horário operacional</dt><dd>{{ formatDate(item.occurredAt) }}</dd></div>
+            <div><dt>Commit local</dt><dd>{{ formatDate(item.createdAt) }}</dd></div>
+            <div><dt>Status do negócio</dt><dd>{{ item.businessStatus }}</dd></div>
+            <div><dt>Status da sincronização</dt><dd>{{ item.syncStatusLabel }}</dd></div>
+            @if (item.lastMessage) {
+              <div><dt>Última mensagem</dt><dd>{{ item.lastMessage }}</dd></div>
+            }
+            @if (item.correlationId) {
+              <div><dt>Referência técnica</dt><dd>{{ item.correlationId }}</dd></div>
+            }
+          </dl>
+          <button type="button" data-testid="sync-close-detail" (click)="closeDetail()">
+            Fechar
+          </button>
+        </section>
+      </div>
+    }
+
+    @if (abandonTarget(); as item) {
+      <div class="synchronization-detail__backdrop">
+        <section
+          class="synchronization-detail synchronization-abandon"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="sync-abandon-title"
+          data-testid="sync-abandon-dialog"
+        >
+          <h2 id="sync-abandon-title">Abandonar registro preservado?</h2>
+          <p>
+            O registro não será mais enviado ao Datasul, mas continuará no histórico local para
+            auditoria. Esta ação não exclui dados.
+          </p>
+          <p><strong>Atenção: não informe senhas, tokens, credenciais ou provas de supervisor.</strong></p>
+          <p>{{ item.operationalIdentification }}</p>
+          <label for="sync-abandon-reason">Justificativa obrigatória</label>
+          <textarea
+            id="sync-abandon-reason"
+            rows="5"
+            minlength="10"
+            maxlength="500"
+            [(ngModel)]="abandonReason"
+          ></textarea>
+          @if (abandonError()) {
+            <p role="alert">{{ abandonError() }}</p>
+          }
+          <div class="synchronization-abandon__actions">
+            <button
+              type="button"
+              [disabled]="isAbandoning()"
+              data-testid="sync-cancel-abandon"
+              (click)="cancelAbandon()"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              [disabled]="isAbandoning()"
+              data-testid="sync-confirm-abandon"
+              (click)="confirmAbandon()"
+            >
+              {{ isAbandoning() ? 'Confirmando…' : 'Confirmar abandono' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    }
+  </main>
+</po-page-default>

@@ -10,8 +10,15 @@ import {
   JsonValue,
   LocalRecord,
   PersistConfirmedCommandRequest,
+  PersistSupersedingCommandRequest,
   normalizeDependencyIds,
 } from '../models/local-record';
+import { deliveryDispositionOf } from '../models/delivery-disposition';
+import {
+  AbandonCommandRequest,
+  AbandonCommandResult,
+  SYNC_UNSYNCHRONIZED_ABANDON,
+} from '../models/command-abandonment';
 import { OfflineStorageError, toOfflineStorageError } from '../models/offline-storage-error';
 import { OutboxEntry, PersistedCommand } from '../models/outbox-entry';
 import { IdempotencyService } from '../services/idempotency.service';
@@ -44,6 +51,8 @@ interface CommandFingerprint {
   readonly occurredAt: string;
   readonly initialSyncStatus: 'PENDING' | 'BLOCKED_AUTH';
   readonly initialAuthBlockReason?: 'SESSION' | 'SUPERVISOR';
+  readonly deliveryDisposition: 'ACTIVE';
+  readonly logicalOccurredAt: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -91,6 +100,8 @@ export class LocalCommandRepository {
       dependencyIds,
       occurredAt,
       initialSyncStatus: initialState.status,
+      deliveryDisposition: 'ACTIVE',
+      logicalOccurredAt: occurredAt,
       ...(initialState.reason
         ? { initialAuthBlockReason: initialState.reason }
         : {}),
@@ -121,6 +132,8 @@ export class LocalCommandRepository {
       occurredAt,
       createdAt: committedAt,
       updatedAt: committedAt,
+      deliveryDisposition: 'ACTIVE',
+      logicalOccurredAt: occurredAt,
     });
     const outboxEntry: OutboxEntry<JsonValue> = Object.freeze({
       localId: idempotencyKey,
@@ -143,6 +156,8 @@ export class LocalCommandRepository {
       occurredAt,
       createdAt: committedAt,
       updatedAt: committedAt,
+      deliveryDisposition: 'ACTIVE',
+      logicalOccurredAt: occurredAt,
     });
 
     const transaction = await this.database.createTransaction(
@@ -172,6 +187,252 @@ export class LocalCommandRepository {
       outboxEntry,
       committedAt,
     });
+  }
+
+  async persistSupersedingCommand<TPayload>(
+    request: PersistSupersedingCommandRequest<TPayload>,
+  ): Promise<PersistedCommand<JsonValue>> {
+    const ownerId = requiredText(request.ownerId);
+    const actorId = requiredText(request.actorId);
+    const originalLocalId = requiredText(request.originalLocalId);
+    if (actorId !== ownerId) {
+      throw new OfflineStorageError(
+        'PAYLOAD_INVALID',
+        'A correção deve ser confirmada pelo owner atual.',
+      );
+    }
+    const metadata = validateRequest(request.command);
+    if (metadata.ownerId !== ownerId) {
+      throw new OfflineStorageError(
+        'PAYLOAD_INVALID',
+        'O novo comando deve pertencer ao mesmo owner.',
+      );
+    }
+    const initialState = validateInitialState(request.command);
+    const prepared = await this.integrity.prepare(request.command.payload);
+    const committedAt = validDate(this.now(), 'O relógio local retornou uma data inválida.');
+    const occurredAt = request.command.occurredAt !== undefined
+      ? validIsoDate(request.command.occurredAt)
+      : committedAt;
+    const localId = this.idempotency.resolve();
+    if (localId === originalLocalId) {
+      throw new OfflineStorageError('CONFLICT', 'A correção deve usar uma nova identidade.');
+    }
+
+    const transaction = await this.database.createTransaction(
+      [LOCAL_RECORDS_STORE, OUTBOX_STORE],
+      'readwrite',
+    );
+    const completed = transactionComplete(transaction);
+    const localStore = transaction.objectStore(LOCAL_RECORDS_STORE);
+    const outboxStore = transaction.objectStore(OUTBOX_STORE);
+    const [originalLocal, originalOutbox] = await Promise.all([
+      requestResult<LocalRecord<JsonValue> | undefined>(
+        localStore.get(originalLocalId),
+        'Não foi possível revalidar o registro original.',
+      ),
+      requestResult<OutboxEntry<JsonValue> | undefined>(
+        outboxStore.get(originalLocalId),
+        'Não foi possível revalidar a Outbox original.',
+      ),
+    ]);
+    if (
+      !originalLocal
+      || !originalOutbox
+      || originalLocal.ownerId !== ownerId
+      || originalOutbox.ownerId !== ownerId
+      || originalOutbox.status !== 'ERROR'
+      || deliveryDispositionOf(originalLocal.deliveryDisposition) !== 'ACTIVE'
+      || deliveryDispositionOf(originalOutbox.deliveryDisposition) !== 'ACTIVE'
+      || originalOutbox.leaseToken
+    ) {
+      transaction.abort();
+      await completed.catch(() => undefined);
+      throw new OfflineStorageError(
+        'CONFLICT',
+        'O registro mudou ou não aceita mais correção.',
+      );
+    }
+    const dependencyIds = Object.freeze([...originalOutbox.dependencyIds]);
+    const logicalOccurredAt =
+      originalOutbox.logicalOccurredAt ?? originalOutbox.occurredAt;
+    const localRecord: LocalRecord<JsonValue> = Object.freeze({
+      localId,
+      idempotencyKey: localId,
+      databaseVersion: DATABASE_VERSION,
+      payloadSchemaVersion: metadata.payloadSchemaVersion,
+      aggregateType: metadata.aggregateType,
+      aggregateId: metadata.aggregateId,
+      commandType: metadata.commandType,
+      payload: prepared.snapshot,
+      canonicalPayload: prepared.canonicalPayload,
+      payloadHash: prepared.payloadHash,
+      ownerId,
+      initialSyncStatus: initialState.status,
+      ...(initialState.reason ? { initialAuthBlockReason: initialState.reason } : {}),
+      ...(metadata.businessStatus ? { businessStatus: metadata.businessStatus } : {}),
+      dependencyIds,
+      occurredAt,
+      createdAt: committedAt,
+      updatedAt: committedAt,
+      deliveryDisposition: 'ACTIVE',
+      logicalOccurredAt,
+      supersedesLocalId: originalLocalId,
+    });
+    const outboxEntry: OutboxEntry<JsonValue> = Object.freeze({
+      localId,
+      idempotencyKey: localId,
+      payloadSchemaVersion: metadata.payloadSchemaVersion,
+      aggregateType: metadata.aggregateType,
+      aggregateId: metadata.aggregateId,
+      commandType: metadata.commandType,
+      payload: prepared.snapshot,
+      canonicalPayload: prepared.canonicalPayload,
+      payloadHash: prepared.payloadHash,
+      ownerId,
+      status: initialState.status,
+      ...(initialState.reason ? { authBlockReason: initialState.reason } : {}),
+      ...(metadata.businessStatus ? { businessStatus: metadata.businessStatus } : {}),
+      dependencyIds,
+      attemptCount: 0,
+      occurredAt,
+      createdAt: committedAt,
+      updatedAt: committedAt,
+      deliveryDisposition: 'ACTIVE',
+      logicalOccurredAt,
+      supersedesLocalId: originalLocalId,
+    });
+    const supersession = {
+      deliveryDisposition: 'SUPERSEDED' as const,
+      supersededByLocalId: localId,
+      supersededAt: committedAt,
+      supersededBy: actorId,
+      updatedAt: committedAt,
+    };
+    localStore.add(localRecord);
+    outboxStore.add(outboxEntry);
+    localStore.put({ ...originalLocal, ...supersession });
+    outboxStore.put({ ...originalOutbox, ...supersession });
+    try {
+      await completed;
+    } catch (error) {
+      throw toOfflineStorageError(error, 'A correção não foi salva neste dispositivo.');
+    }
+    this.activity.publish();
+    return defensiveCopy({
+      localId,
+      idempotencyKey: localId,
+      payloadHash: prepared.payloadHash,
+      localRecord,
+      outboxEntry,
+      committedAt,
+    });
+  }
+
+  async abandonCommand(request: AbandonCommandRequest): Promise<AbandonCommandResult> {
+    const ownerId = requiredText(request.ownerId);
+    const actorId = requiredText(request.actorId);
+    const localId = requiredText(request.localId);
+    const now = validIsoDate(request.now);
+    const reason = normalizeCoreAbandonReason(request.reason);
+    if (
+      !request.authorized
+      || request.permission !== SYNC_UNSYNCHRONIZED_ABANDON
+      || actorId !== ownerId
+      || reason === null
+    ) {
+      return 'denied';
+    }
+    let transaction: IDBTransaction | undefined;
+    try {
+      transaction = await this.database.createTransaction(
+        [LOCAL_RECORDS_STORE, OUTBOX_STORE],
+        'readwrite',
+      );
+      const completed = transactionComplete(transaction);
+      const localStore = transaction.objectStore(LOCAL_RECORDS_STORE);
+      const outboxStore = transaction.objectStore(OUTBOX_STORE);
+      const [localRecord, outboxEntry, ownerEntries] = await Promise.all([
+        requestResult<LocalRecord<JsonValue> | undefined>(
+          localStore.get(localId),
+          'Não foi possível revalidar o registro local.',
+        ),
+        requestResult<OutboxEntry<JsonValue> | undefined>(
+          outboxStore.get(localId),
+          'Não foi possível revalidar a Outbox.',
+        ),
+        requestResult<OutboxEntry<JsonValue>[]>(
+          outboxStore.index('ownerId').getAll(ownerId),
+          'Não foi possível revalidar as dependências do owner.',
+        ),
+      ]);
+      if (
+        !request.sessionIsCurrent()
+        || !localRecord
+        || !outboxEntry
+        || localRecord.ownerId !== ownerId
+        || outboxEntry.ownerId !== ownerId
+        || deliveryDispositionOf(localRecord.deliveryDisposition) !== 'ACTIVE'
+        || deliveryDispositionOf(outboxEntry.deliveryDisposition) !== 'ACTIVE'
+        || outboxEntry.status === 'SYNCED'
+        || outboxEntry.status === 'SYNCING'
+        || Boolean(outboxEntry.leaseToken)
+      ) {
+        transaction.abort();
+        await completed.catch(() => undefined);
+        return 'stale-or-ineligible';
+      }
+      const hasDependents = ownerEntries.some(candidate =>
+        candidate.localId !== localId
+        && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE'
+        && candidate.status !== 'SYNCED'
+        && candidate.dependencyIds.includes(localId));
+      if (hasDependents) {
+        transaction.abort();
+        await completed.catch(() => undefined);
+        return 'has-dependents';
+      }
+      const targetLogical =
+        outboxEntry.logicalOccurredAt ?? outboxEntry.occurredAt ?? outboxEntry.createdAt;
+      const hasLaterCommands = ownerEntries.some(candidate =>
+        candidate.localId !== localId
+        && candidate.aggregateType === outboxEntry.aggregateType
+        && candidate.aggregateId === outboxEntry.aggregateId
+        && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE'
+        && candidate.status !== 'SYNCED'
+        && (candidate.logicalOccurredAt ?? candidate.occurredAt ?? candidate.createdAt)
+          > targetLogical);
+      if (hasLaterCommands) {
+        transaction.abort();
+        await completed.catch(() => undefined);
+        return 'has-later-commands';
+      }
+      if (!request.sessionIsCurrent()) {
+        transaction.abort();
+        await completed.catch(() => undefined);
+        return 'stale-or-ineligible';
+      }
+      const abandonment = {
+        deliveryDisposition: 'ABANDONED' as const,
+        abandonedAt: now,
+        abandonedBy: actorId,
+        abandonReason: reason,
+        abandonPermission: SYNC_UNSYNCHRONIZED_ABANDON,
+        updatedAt: now,
+      };
+      localStore.put({ ...localRecord, ...abandonment });
+      outboxStore.put({ ...outboxEntry, ...abandonment });
+      await completed;
+      this.activity.publish();
+      return 'abandoned';
+    } catch {
+      try {
+        transaction?.abort();
+      } catch {
+        // A transação já pode ter encerrado.
+      }
+      return 'storage-error';
+    }
   }
 
   private async findExisting(idempotencyKey: string): Promise<ExistingCommand> {
@@ -277,6 +538,23 @@ function validDate(value: Date, message: string): string {
   return value.toISOString();
 }
 
+function normalizeCoreAbandonReason(value: string): string | null {
+  const normalized = value
+    .normalize('NFC')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (
+    normalized.length < 10
+    || normalized.length > 500
+    || /\b(?:senha|password|passphrase|token|bearer|api[_ -]?key|secret|credencial)\b\s*[:=]?\s*\S+/iu
+      .test(normalized)
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
 function resolveExisting(
   existing: ExistingCommand,
   fingerprint: CommandFingerprint,
@@ -317,6 +595,8 @@ function matchesFingerprint(
     record.payloadHash === fingerprint.payloadHash &&
     record.businessStatus === fingerprint.businessStatus &&
     record.occurredAt === fingerprint.occurredAt &&
+    deliveryDispositionOf(record.deliveryDisposition) === fingerprint.deliveryDisposition &&
+    (record.logicalOccurredAt ?? record.occurredAt) === fingerprint.logicalOccurredAt &&
     sameStrings(record.dependencyIds, fingerprint.dependencyIds);
   if (!immutableMatches) {
     return false;

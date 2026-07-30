@@ -6,6 +6,14 @@ import {
   SynchronizationCenterService,
   SynchronizationCenterState,
 } from '../../services/synchronization-center.service';
+import { SyncCoordinatorService } from '../../../../core/offline/services/sync-coordinator.service';
+import { SynchronizationRecoveryRegistry } from '../../services/synchronization-recovery-registry';
+import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import {
+  SYNC_UNSYNCHRONIZED_ABANDON,
+  SynchronizationPermissionPolicy,
+} from '../../services/synchronization-permission.policy';
+import { SynchronizationAbandonmentService } from '../../services/synchronization-abandonment.service';
 import { SynchronizationCenterPage } from './synchronization-center';
 
 describe('SynchronizationCenterPage', () => {
@@ -71,13 +79,75 @@ describe('SynchronizationCenterPage', () => {
       modules: [],
     });
   });
+
+  it('bloqueia retry duplo, aguarda só a fila local e comunica o resultado discriminado', async () => {
+    const retry = deferred<'queued'>();
+    const test = await setup(state({
+      readState: 'ready',
+      items: [item()],
+    }), retry.promise);
+    const button = test.fixture.nativeElement.querySelector('[data-testid="sync-retry-local-1"]');
+
+    button.click();
+    button.click();
+    test.fixture.detectChanges();
+    expect(test.retryError).toHaveBeenCalledOnce();
+    expect(button.disabled).toBe(true);
+
+    retry.resolve('queued');
+    await test.fixture.whenStable();
+    test.fixture.detectChanges();
+    expect(test.fixture.nativeElement.querySelector('[data-testid="sync-action-feedback"]')
+      .textContent).toContain('preparado para nova tentativa');
+  });
+
+  it('confirma abandono crítico com justificativa, bloqueia concorrência e devolve foco', async () => {
+    const abandonment = deferred<'abandoned'>();
+    const test = await setup(
+      state({ readState: 'ready', items: [item()] }),
+      Promise.resolve('queued'),
+      abandonment.promise,
+    );
+    const trigger = test.fixture.nativeElement.querySelector('[data-testid="sync-abandon-local-1"]');
+    trigger.focus();
+    trigger.click();
+    test.fixture.detectChanges();
+    const dialog = test.fixture.nativeElement.querySelector('[data-testid="sync-abandon-dialog"]');
+    expect(dialog.textContent).toContain('não será mais enviado');
+    expect(dialog.textContent).toContain('não informe senhas');
+
+    const reason = dialog.querySelector('textarea');
+    reason.value = 'Duplicidade confirmada na operação';
+    reason.dispatchEvent(new Event('input', { bubbles: true }));
+    const confirm = dialog.querySelector('[data-testid="sync-confirm-abandon"]');
+    confirm.click();
+    confirm.click();
+    test.fixture.detectChanges();
+    expect(test.abandon).toHaveBeenCalledOnce();
+    expect(confirm.disabled).toBe(true);
+
+    abandonment.resolve('abandoned');
+    await test.fixture.whenStable();
+    test.fixture.detectChanges();
+    expect(test.fixture.nativeElement.querySelector('[data-testid="sync-abandon-dialog"]'))
+      .toBeNull();
+    expect(document.activeElement).toBe(
+      test.fixture.nativeElement.querySelector('[data-testid="sync-abandon-local-1"]'),
+    );
+  });
 });
 
-async function setup(initial: SynchronizationCenterState) {
+async function setup(
+  initial: SynchronizationCenterState,
+  retryResult: Promise<'queued'> = Promise.resolve('queued'),
+  abandonmentResult: Promise<'abandoned'> = Promise.resolve('abandoned'),
+) {
   const subject = new BehaviorSubject(initial);
   const refresh = vi.fn().mockResolvedValue(undefined);
   const loadMore = vi.fn().mockResolvedValue(undefined);
   const setFilters = vi.fn();
+  const retryError = vi.fn().mockReturnValue(retryResult);
+  const abandon = vi.fn().mockReturnValue(abandonmentResult);
   await TestBed.configureTestingModule({
     imports: [SynchronizationCenterPage],
     providers: [{
@@ -89,11 +159,41 @@ async function setup(initial: SynchronizationCenterState) {
         loadMore,
         setFilters,
       },
+    }, {
+      provide: SyncCoordinatorService,
+      useValue: { retryError },
+    }, {
+      provide: SynchronizationRecoveryRegistry,
+      useValue: { openCorrection: vi.fn().mockResolvedValue('opened') },
+    }, {
+      provide: AuthSessionService,
+      useValue: {
+        currentUser: {
+          id: 'operator-1',
+          nome: 'Owner',
+          login: 'owner',
+          permissoes: [SYNC_UNSYNCHRONIZED_ABANDON],
+        },
+      },
+    }, {
+      provide: SynchronizationPermissionPolicy,
+      useValue: new SynchronizationPermissionPolicy(),
+    }, {
+      provide: SynchronizationAbandonmentService,
+      useValue: { abandon },
     }],
   }).compileComponents();
   const fixture = TestBed.createComponent(SynchronizationCenterPage);
   fixture.detectChanges();
-  return { fixture, subject, refresh, loadMore, setFilters };
+  return { fixture, subject, refresh, loadMore, setFilters, retryError, abandon };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(resolver => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
 }
 
 function state(overrides: Partial<SynchronizationCenterState> = {}): SynchronizationCenterState {

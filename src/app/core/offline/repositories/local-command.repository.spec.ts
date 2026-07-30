@@ -29,13 +29,16 @@ describe('LocalCommandRepository', () => {
     localRecords = new LocalRecordRepository(database);
     outbox = new OutboxRepository(database);
     activity = { publish: vi.fn() } as unknown as OutboxActivityService;
+    const randomUUID = vi.fn()
+      .mockReturnValueOnce(
+        COMMAND_ID as `${string}-${string}-${string}-${string}-${string}`,
+      )
+      .mockReturnValue(
+        OTHER_COMMAND_ID as `${string}-${string}-${string}-${string}-${string}`,
+      );
     commands = new LocalCommandRepository(
       database,
-      new IdempotencyService(() => ({
-        randomUUID: vi.fn(
-          () => COMMAND_ID as `${string}-${string}-${string}-${string}-${string}`,
-        ),
-      })),
+      new IdempotencyService(() => ({ randomUUID })),
       new PayloadIntegrityService(() => globalThis.crypto.subtle),
       () => new Date(NOW),
       activity,
@@ -217,6 +220,151 @@ describe('LocalCommandRepository', () => {
     expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
   });
 
+  it('supersede o par ERROR atomicamente com novo UUID, posição lógica e dependências herdadas', async () => {
+    const original = await commands.persistConfirmedCommand(request({ quantity: 5 }));
+    await forceOutboxError(database, original.localId);
+    const originalIdentity = identity(original.outboxEntry);
+
+    const replacement = await commands.persistSupersedingCommand({
+      ownerId: 'operator-1',
+      actorId: ' operator-1 ',
+      originalLocalId: original.localId,
+      command: request({ quantity: 6 }, {
+        idempotencyKey: undefined,
+        dependencyIds: ['ignored-new-dependency'],
+      }),
+    });
+
+    expect(replacement.localId).toBe(OTHER_COMMAND_ID);
+    expect(replacement.outboxEntry).toMatchObject({
+      deliveryDisposition: 'ACTIVE',
+      supersedesLocalId: COMMAND_ID,
+      logicalOccurredAt: original.outboxEntry.occurredAt,
+      dependencyIds: ['prior-command'],
+    });
+    expect(await localRecords.getById('operator-1', COMMAND_ID)).toMatchObject({
+      deliveryDisposition: 'SUPERSEDED',
+      supersededByLocalId: OTHER_COMMAND_ID,
+      supersededBy: 'operator-1',
+    });
+    const superseded = await outbox.getById('operator-1', COMMAND_ID);
+    expect(superseded).toMatchObject({
+      status: 'ERROR',
+      deliveryDisposition: 'SUPERSEDED',
+      supersededByLocalId: OTHER_COMMAND_ID,
+    });
+    expect(identity(superseded!)).toEqual(originalIdentity);
+    expect(await localRecords.listByOwner('operator-1')).toHaveLength(2);
+    expect(await outbox.listByOwner('operator-1')).toHaveLength(2);
+  });
+
+  it('permite um único vencedor em race de supersessão', async () => {
+    const original = await commands.persistConfirmedCommand(request({ quantity: 5 }));
+    await forceOutboxError(database, original.localId);
+
+    const results = await Promise.allSettled([
+      commands.persistSupersedingCommand({
+        ownerId: 'operator-1',
+        actorId: 'operator-1',
+        originalLocalId: original.localId,
+        command: request({ quantity: 6 }),
+      }),
+      commands.persistSupersedingCommand({
+        ownerId: 'operator-1',
+        actorId: 'operator-1',
+        originalLocalId: original.localId,
+        command: request({ quantity: 7 }),
+      }),
+    ]);
+
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(await localRecords.listByOwner('operator-1')).toHaveLength(2);
+    expect(await outbox.listByOwner('operator-1')).toHaveLength(2);
+  });
+
+  it('abandona os dois envelopes atomicamente sem excluir histórico', async () => {
+    const original = await commands.persistConfirmedCommand(request({ quantity: 5 }));
+
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: original.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Registro duplicado confirmado na operação',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    })).toBe('abandoned');
+
+    expect(await localRecords.getById('operator-1', original.localId)).toMatchObject({
+      deliveryDisposition: 'ABANDONED',
+      abandonedAt: NOW,
+      abandonedBy: 'operator-1',
+      abandonReason: 'Registro duplicado confirmado na operação',
+      abandonPermission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+    });
+    expect(await outbox.getById('operator-1', original.localId)).toMatchObject({
+      deliveryDisposition: 'ABANDONED',
+      status: 'PENDING',
+    });
+    expect(await localRecords.listByOwner('operator-1')).toHaveLength(1);
+    expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
+  });
+
+  it('nega abandono sem permissão/sessão e bloqueia dependentes ou cauda ativa', async () => {
+    const target = await commands.persistConfirmedCommand(
+      request({ quantity: 5 }, { aggregateId: 'TARGET' }),
+    );
+    const denied = await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: target.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: false,
+      reason: 'Justificativa operacional válida',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    });
+    expect(denied).toBe('denied');
+
+    await seedCommandPair(database, {
+      ...target.localRecord,
+      localId: OTHER_COMMAND_ID,
+      idempotencyKey: OTHER_COMMAND_ID,
+      aggregateType: 'OTHER',
+      aggregateId: 'DEPENDENT',
+      dependencyIds: [target.localId],
+    }, {
+      ...target.outboxEntry,
+      localId: OTHER_COMMAND_ID,
+      idempotencyKey: OTHER_COMMAND_ID,
+      aggregateType: 'OTHER',
+      aggregateId: 'DEPENDENT',
+      dependencyIds: [target.localId],
+    });
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: target.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Justificativa operacional válida',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    })).toBe('has-dependents');
+
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: target.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Justificativa operacional válida',
+      now: NOW,
+      sessionIsCurrent: () => false,
+    })).toBe('stale-or-ineligible');
+  });
+
   it('não retorna registros de outro proprietário pelas APIs públicas', async () => {
     await commands.persistConfirmedCommand(request({ quantity: 5 }));
 
@@ -337,10 +485,60 @@ async function seedOutboxCollision(database: OfflineDatabase): Promise<void> {
   await completion;
 }
 
+async function forceOutboxError(database: OfflineDatabase, localId: string): Promise<void> {
+  const transaction = await database.createTransaction([OUTBOX_STORE], 'readwrite');
+  const completion = complete(transaction);
+  const store = transaction.objectStore(OUTBOX_STORE);
+  const current = await new Promise<Record<string, unknown>>((resolve, reject) => {
+    const get = store.get(localId);
+    get.onsuccess = () => resolve(get.result as Record<string, unknown>);
+    get.onerror = () => reject(get.error);
+  });
+  store.put({
+    ...current,
+    status: 'ERROR',
+    lastError: {
+      code: 'VALIDATION',
+      category: 'VALIDATION',
+      userMessage: 'Corrija os dados.',
+    },
+  });
+  await completion;
+}
+
+async function seedCommandPair(
+  database: OfflineDatabase,
+  localRecord: object,
+  outboxEntry: object,
+): Promise<void> {
+  const transaction = await database.createTransaction(
+    ['localRecords', OUTBOX_STORE],
+    'readwrite',
+  );
+  const completion = complete(transaction);
+  transaction.objectStore('localRecords').add(localRecord);
+  transaction.objectStore(OUTBOX_STORE).add(outboxEntry);
+  await completion;
+}
+
 function complete(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
+}
+
+function identity(entry: {
+  readonly idempotencyKey: string;
+  readonly canonicalPayload: string;
+  readonly payload: unknown;
+  readonly payloadHash: string;
+}) {
+  return {
+    idempotencyKey: entry.idempotencyKey,
+    canonicalPayload: entry.canonicalPayload,
+    payload: entry.payload,
+    payloadHash: entry.payloadHash,
+  };
 }

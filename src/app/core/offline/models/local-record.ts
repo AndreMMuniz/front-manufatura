@@ -20,6 +20,23 @@ export interface LocalRecord<TPayload = JsonValue> {
   readonly occurredAt: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly deliveryDisposition?: DeliveryDisposition;
+  readonly logicalOccurredAt?: string;
+  readonly supersedesLocalId?: string;
+  readonly supersededByLocalId?: string;
+  readonly supersededAt?: string;
+  readonly supersededBy?: string;
+  readonly abandonedAt?: string;
+  readonly abandonedBy?: string;
+  readonly abandonReason?: string;
+  readonly abandonPermission?: string;
+}
+
+export interface PersistSupersedingCommandRequest<TPayload> {
+  readonly ownerId: string;
+  readonly actorId: string;
+  readonly originalLocalId: string;
+  readonly command: PersistConfirmedCommandRequest<TPayload>;
 }
 
 export interface PersistConfirmedCommandRequest<TPayload> {
@@ -51,3 +68,4 @@ export function normalizeDependencyIds(dependencyIds: readonly string[] | undefi
 
   return Object.freeze(normalized);
 }
+import { DeliveryDisposition } from './delivery-disposition';

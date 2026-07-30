@@ -25,6 +25,7 @@ import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-b
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
 import { ConnectivityService } from './core/offline/services/connectivity.service';
 import { PwaUpdateService, PwaUpdateState } from './core/offline/pwa/pwa-update.service';
+import { SynchronizationCenterPage } from './features/synchronization/pages/synchronization-center/synchronization-center';
 
 describe('App', () => {
   let authSessionMock: AuthSessionService;
@@ -182,6 +183,18 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/stoppages');
     });
 
+    it('carrega a Central por rota lazy protegida sem adicioná-la aos módulos', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl(
+        '/synchronization',
+        SynchronizationCenterPage,
+      );
+
+      expect(component).toBeInstanceOf(SynchronizationCenterPage);
+      expect(APP_MODULE_NAVIGATION.some(item => item.route === '/synchronization')).toBe(false);
+    });
+
     it('should route scrap-rework to the operation page in scrap entry mode', async () => {
       const harness = await RouterTestingHarness.create();
 
@@ -295,6 +308,16 @@ describe('App', () => {
         expect(returnUrlFrom(router)).toBe(url);
       },
     );
+
+    it('protege a Central preservando returnUrl=/synchronization', async () => {
+      const harness = await RouterTestingHarness.create();
+      const router = TestBed.inject(Router);
+
+      await harness.navigateByUrl('/synchronization');
+
+      expect(router.url.startsWith('/login')).toBe(true);
+      expect(returnUrlFrom(router)).toBe('/synchronization');
+    });
 
     it('should keep login accessible', async () => {
       const harness = await RouterTestingHarness.create();

@@ -107,6 +107,72 @@ describe('OutboxRepository processing', () => {
     });
   });
 
+  it('ignora tombstones nos heads/candidates e posiciona o substituto antes da cauda', async () => {
+    await seed(database, [
+      entry('original', {
+        status: 'ERROR',
+        deliveryDisposition: 'SUPERSEDED',
+        supersededByLocalId: 'replacement',
+        occurredAt: '2026-07-29T12:00:00.000Z',
+        createdAt: '2026-07-29T12:00:00.000Z',
+      }),
+      entry('replacement', {
+        supersedesLocalId: 'original',
+        logicalOccurredAt: '2026-07-29T12:00:00.000Z',
+        occurredAt: '2026-07-29T12:10:00.000Z',
+        createdAt: '2026-07-29T12:10:00.000Z',
+      }),
+      entry('tail', {
+        occurredAt: '2026-07-29T12:01:00.000Z',
+        createdAt: '2026-07-29T12:01:00.000Z',
+      }),
+      entry('abandoned', {
+        aggregateId: 'ABANDONED',
+        deliveryDisposition: 'ABANDONED',
+      }),
+    ]);
+
+    expect((await repository.listCandidates(OWNER, NOW, 10)).map(item => item.localId))
+      .toEqual(['replacement']);
+    expect(await repository.retryError(OWNER, 'original', NOW)).toBe(false);
+    expect(await repository.claim(claim('tail', 'tail-lease'))).toBeNull();
+  });
+
+  it('resolve dependência ao original SUPERSEDED somente após o substituto sincronizar', async () => {
+    await seed(database, [
+      entry('original', {
+        aggregateId: 'ORIGINAL',
+        status: 'ERROR',
+        deliveryDisposition: 'SUPERSEDED',
+        supersededByLocalId: 'replacement',
+      }),
+      entry('replacement', {
+        aggregateId: 'ORIGINAL',
+        supersedesLocalId: 'original',
+      }),
+      entry('dependent', {
+        aggregateId: 'DEPENDENT',
+        dependencyIds: ['original'],
+      }),
+    ]);
+
+    expect(await repository.claim(claim('dependent', 'blocked'))).toBeNull();
+    expect(await repository.getById(OWNER, 'dependent')).toMatchObject({
+      status: 'BLOCKED_DEPENDENCY',
+    });
+    await repository.claim(claim('replacement', 'replacement-lease'));
+    await repository.reconcileSuccess({
+      ownerId: OWNER,
+      localId: 'replacement',
+      leaseToken: 'replacement-lease',
+      now: NOW,
+      result: receipt('replacement'),
+    });
+    expect(await repository.claim(claim('dependent', 'ready'))).toMatchObject({
+      status: 'SYNCING',
+    });
+  });
+
   it('seleciona cabeças elegíveis, faz claim CAS e só devolve após o commit', async () => {
     await seed(database, [
       entry('first', { createdAt: '2026-07-29T12:00:00.000Z' }),

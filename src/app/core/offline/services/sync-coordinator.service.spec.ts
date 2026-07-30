@@ -420,9 +420,13 @@ describe('SyncCoordinatorService', () => {
     expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'ERROR' });
 
     accepts = true;
-    await coordinator.retryError('command');
+    expect(await coordinator.retryError('command')).toBe('queued');
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({
+      status: 'PENDING',
+      manualRetryCount: 1,
+    });
+    await eventually(() => sends === 2);
     const after = await repository.getById(OWNER, 'command');
-    expect(sends).toBe(2);
     expect(after).toMatchObject({ status: 'SYNCED' });
     expect({
       idempotencyKey: after?.idempotencyKey,
@@ -435,6 +439,33 @@ describe('SyncCoordinatorService', () => {
       canonicalPayload: before?.canonicalPayload,
       payload: before?.payload,
     });
+  });
+
+  it('retorna resultado discriminado sem alterar ERROR quando falta credencial remota', async () => {
+    await seed(database, [entry('command', { status: 'ERROR' })]);
+    const coordinator = createCoordinator(successTransport([]));
+    coordinator.start();
+
+    expect(await coordinator.retryError('command')).toBe('no-credential');
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'ERROR' });
+  });
+
+  it('classifica race de sessão e falha de storage no retry manual', async () => {
+    await seed(database, [entry('command', { status: 'ERROR' })]);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+    const originalRetry = repository.retryError.bind(repository);
+    vi.spyOn(repository, 'retryError').mockImplementationOnce(async (...args) => {
+      auth.logout();
+      return originalRetry(...args);
+    });
+
+    expect(await coordinator.retryError('command')).toBe('stale-or-ineligible');
+
+    authenticate();
+    vi.spyOn(repository, 'retryError').mockRejectedValueOnce(new Error('storage'));
+    expect(await coordinator.retryError('command')).toBe('storage-error');
   });
 
   it('reenvia após falha transitória com chave e conteúdo exatamente iguais', async () => {

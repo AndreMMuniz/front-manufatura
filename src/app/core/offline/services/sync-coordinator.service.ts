@@ -29,6 +29,11 @@ import { SupervisorProofVault } from './supervisor-proof-vault';
 
 export type SyncClock = () => Date;
 export type SyncRandom = () => number;
+export type ManualRetryResult =
+  | 'queued'
+  | 'no-credential'
+  | 'stale-or-ineligible'
+  | 'storage-error';
 
 export const SYNC_CLOCK = new InjectionToken<SyncClock>('SYNC_CLOCK', {
   providedIn: 'root',
@@ -99,16 +104,25 @@ export class SyncCoordinatorService implements OnDestroy {
     return this.running;
   }
 
-  async retryError(localId: string): Promise<boolean> {
+  async retryError(localId: string): Promise<ManualRetryResult> {
     const owner = this.activeOwner;
     if (!owner || !this.remoteCredentialAvailable) {
-      return false;
+      return 'no-credential';
     }
-    const changed = await this.outbox.retryError(owner, localId, this.nowIso());
-    if (changed) {
-      await this.requestSync();
+    const epoch = this.sessionEpoch;
+    try {
+      const changed = await this.outbox.retryError(owner, localId, this.nowIso());
+      if (!this.isCurrent(owner, epoch)) {
+        return 'stale-or-ineligible';
+      }
+      if (!changed) {
+        return 'stale-or-ineligible';
+      }
+      void this.requestSync().catch(() => undefined);
+      return 'queued';
+    } catch {
+      return this.isCurrent(owner, epoch) ? 'storage-error' : 'stale-or-ineligible';
     }
-    return changed;
   }
 
   stop(): void {

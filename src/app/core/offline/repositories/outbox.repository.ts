@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { OfflineDatabase } from '../database/offline-database';
 import { OUTBOX_STORE } from '../database/database-schema';
 import { JsonValue } from '../models/local-record';
+import { deliveryDispositionOf } from '../models/delivery-disposition';
 import {
   OutboxEntry,
   PersistedSyncError,
@@ -221,11 +222,16 @@ export class OutboxRepository {
     );
     const heads = new Map<string, OutboxEntry<JsonValue>>();
     for (const entry of orderedEntries) {
-      if (entry.ownerId !== owner || entry.status === 'SYNCED') {
+      if (
+        entry.ownerId !== owner
+        || entry.status === 'SYNCED'
+        || deliveryDispositionOf(entry.deliveryDisposition) !== 'ACTIVE'
+      ) {
         continue;
       }
       const aggregateKey = `${entry.aggregateType}\u0000${entry.aggregateId}`;
-      if (!heads.has(aggregateKey)) {
+      const currentHead = heads.get(aggregateKey);
+      if (!currentHead || compareEntries(entry, currentHead) < 0) {
         heads.set(aggregateKey, entry);
       }
     }
@@ -257,7 +263,11 @@ export class OutboxRepository {
     const current = allEntries.find(
       (entry) => entry.localId === request.localId && entry.ownerId === owner,
     );
-    if (!current || !isClaimableState(current, now)) {
+    if (
+      !current
+      || deliveryDispositionOf(current.deliveryDisposition) !== 'ACTIVE'
+      || !isClaimableState(current, now)
+    ) {
       await completed;
       return null;
     }
@@ -267,7 +277,8 @@ export class OutboxRepository {
         entry.ownerId === owner &&
         entry.aggregateType === current.aggregateType &&
         entry.aggregateId === current.aggregateId &&
-        entry.status !== 'SYNCED',
+        entry.status !== 'SYNCED' &&
+        deliveryDispositionOf(entry.deliveryDisposition) === 'ACTIVE',
     );
     const head = aggregateEntries.sort(compareEntries)[0];
     if (!head || head.localId !== current.localId) {
@@ -388,7 +399,12 @@ export class OutboxRepository {
       store.get(localId),
       'Não foi possível reabilitar o comando.',
     );
-    if (!current || current.ownerId !== owner || current.status !== 'ERROR') {
+    if (
+      !current
+      || current.ownerId !== owner
+      || current.status !== 'ERROR'
+      || deliveryDispositionOf(current.deliveryDisposition) !== 'ACTIVE'
+    ) {
       await completed;
       return false;
     }
@@ -445,7 +461,10 @@ export class OutboxRepository {
       'Não foi possível reabilitar os comandos após autenticação.',
     );
     for (const entry of entries) {
-      if (entry.authBlockReason === 'SUPERVISOR') {
+      if (
+        entry.authBlockReason === 'SUPERVISOR'
+        || deliveryDispositionOf(entry.deliveryDisposition) !== 'ACTIVE'
+      ) {
         continue;
       }
       const { authBlockReason: _reason, ...withoutReason } = withoutRuntimeState(entry);
@@ -456,7 +475,10 @@ export class OutboxRepository {
       } satisfies OutboxEntry<JsonValue>);
     }
     await completed;
-    const resumed = entries.filter(entry => entry.authBlockReason !== 'SUPERVISOR').length;
+    const resumed = entries.filter(entry =>
+      entry.authBlockReason !== 'SUPERVISOR'
+      && deliveryDispositionOf(entry.deliveryDisposition) === 'ACTIVE'
+    ).length;
     if (resumed > 0) this.activity.publish();
     return resumed;
   }
@@ -479,6 +501,7 @@ export class OutboxRepository {
       !current
       || current.ownerId !== owner
       || current.status !== 'BLOCKED_AUTH'
+      || deliveryDispositionOf(current.deliveryDisposition) !== 'ACTIVE'
       || current.authBlockReason !== 'SUPERVISOR'
       || this.supervisorProofs.read(owner, localId) === null
     ) {
@@ -503,12 +526,15 @@ function isEligible(
   dueIds: ReadonlySet<string>,
 ): boolean {
   return (
+    deliveryDispositionOf(entry.deliveryDisposition) === 'ACTIVE' &&
+    (
     entry.status === 'PENDING' ||
     (entry.status === 'BLOCKED_DEPENDENCY' && !isPermanentDependencyBlock(entry)) ||
     (entry.status === 'RETRY_WAIT' && dueIds.has(entry.localId)) ||
     (entry.status === 'SYNCING' &&
       Boolean(entry.leaseExpiresAt) &&
       entry.leaseExpiresAt! <= now)
+    )
   );
 }
 
@@ -531,9 +557,16 @@ function inspectDependencies(
   owner: string,
 ): 'READY' | 'PENDING' | 'MISSING_OR_PERMANENT' {
   for (const dependencyId of entry.dependencyIds) {
-    const dependency = allEntries.find(
+    const referenced = allEntries.find(
       (candidate) => candidate.localId === dependencyId && candidate.ownerId === owner,
     );
+    const dependency = referenced
+      && deliveryDispositionOf(referenced.deliveryDisposition) === 'SUPERSEDED'
+      ? allEntries.find(candidate =>
+          candidate.ownerId === owner
+          && candidate.supersedesLocalId === referenced.localId
+          && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE')
+      : referenced;
     if (!dependency || dependency.status === 'ERROR') {
       return 'MISSING_OR_PERMANENT';
     }
@@ -560,7 +593,10 @@ function hasDependencyPath(
 ): boolean {
   const byId = new Map(
     entries
-      .filter((candidate) => candidate.ownerId === owner && candidate.status !== 'SYNCED')
+      .filter((candidate) =>
+        candidate.ownerId === owner
+        && candidate.status !== 'SYNCED'
+        && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE')
       .map((candidate) => [candidate.localId, candidate] as const),
   );
   const visited = new Set<string>();
@@ -639,7 +675,9 @@ function ownsLease(
 }
 
 function compareEntries(left: OutboxEntry<JsonValue>, right: OutboxEntry<JsonValue>): number {
-  return left.createdAt.localeCompare(right.createdAt) || left.localId.localeCompare(right.localId);
+  const leftLogical = left.logicalOccurredAt ?? left.occurredAt ?? left.createdAt;
+  const rightLogical = right.logicalOccurredAt ?? right.occurredAt ?? right.createdAt;
+  return leftLogical.localeCompare(rightLogical) || left.localId.localeCompare(right.localId);
 }
 
 function validIso(value: string): string {
