@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { PRIMARY_OUTLET, Router, RouterOutlet } from '@angular/router';
@@ -15,6 +15,7 @@ import {
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 import { ConnectivityService } from './core/offline/services/connectivity.service';
+import { PwaUpdateService } from './core/offline/pwa/pwa-update.service';
 
 const APP_NAME = 'Apontamento Manufatura';
 
@@ -37,9 +38,14 @@ export class App {
   private readonly authSession = inject(AuthSessionService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly connectivity = inject(ConnectivityService);
+  private readonly pwaUpdate = inject(PwaUpdateService);
   private readonly onlineHint = toSignal(this.connectivity.changes$, {
     initialValue: this.connectivity.onlineHint,
   });
+  private readonly confirmPendingUpdate = signal(false);
+
+  readonly pwaUpdateState = this.pwaUpdate.state;
+  readonly pwaUpdateFeedback = signal('');
 
   readonly toolbarActions: Array<PoToolbarAction> = [
     {
@@ -89,6 +95,53 @@ export class App {
 
   get showOfflineBanner(): boolean {
     return this.connectivity.isBrowser && !this.onlineHint();
+  }
+
+  get showPwaUpdateNotice(): boolean {
+    return ['ready', 'install-failed', 'unrecoverable'].includes(this.pwaUpdateState().status);
+  }
+
+  get pwaUpdateMessage(): string {
+    const state = this.pwaUpdateState();
+    switch (state.status) {
+      case 'ready':
+        return this.confirmPendingUpdate()
+          ? 'Existem registros aguardando sincronização. Eles serão preservados após a atualização.'
+          : 'Uma nova versão está pronta. Atualize quando terminar a captura atual.';
+      case 'install-failed':
+        return state.message;
+      case 'unrecoverable':
+        return state.message;
+      default:
+        return '';
+    }
+  }
+
+  get canRequestPwaReload(): boolean {
+    return ['ready', 'unrecoverable'].includes(this.pwaUpdateState().status);
+  }
+
+  async applyPwaUpdate(): Promise<void> {
+    const result = await this.pwaUpdate.reloadWhenSafe(this.confirmPendingUpdate());
+    switch (result) {
+      case 'capture-active':
+        this.pwaUpdateFeedback.set('Conclua ou descarte a captura atual antes de atualizar.');
+        break;
+      case 'pending-outbox':
+        this.confirmPendingUpdate.set(true);
+        this.pwaUpdateFeedback.set(
+          'Confirme novamente para atualizar mantendo os registros pendentes no dispositivo.',
+        );
+        break;
+      case 'storage-unavailable':
+        this.pwaUpdateFeedback.set(
+          'Não foi possível verificar os registros locais. A atualização foi bloqueada por segurança.',
+        );
+        break;
+      case 'not-ready':
+        this.pwaUpdateFeedback.set('A atualização ainda não está pronta para aplicação.');
+        break;
+    }
   }
 
   get toolbarTitle(): string {

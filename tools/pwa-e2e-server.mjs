@@ -49,8 +49,14 @@ createServer(async (request, response) => {
   }
 
   if (request.method === 'POST' && url.pathname === '/api/auth/login') {
-    const body = await readBody(request);
-    const input = JSON.parse(body || '{}');
+    let input;
+    try {
+      const body = await readBody(request);
+      input = JSON.parse(body || '{}');
+    } catch {
+      json(response, 400, { code: 'invalid-request' });
+      return;
+    }
     if (input.login !== 'operador' || input.senha !== 'mock123') {
       json(response, 401, { code: 'invalid-credentials' });
       return;
@@ -68,19 +74,52 @@ createServer(async (request, response) => {
     return;
   }
 
-  if (url.pathname.startsWith('/api/') || request.method !== 'GET') {
+  if (
+    (request.method === 'GET' || request.method === 'HEAD')
+    && url.pathname === '/api/health'
+  ) {
+    response.writeHead(204, { 'Cache-Control': 'no-store' });
+    response.end();
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/profile') {
+    if (request.headers.authorization !== 'Bearer pwa-e2e-memory-token') {
+      json(response, 401, { code: 'unauthorized' });
+      return;
+    }
+    json(response, 200, { id: 'USR-PWA-E2E', displayName: 'Operador PWA' });
+    return;
+  }
+
+  if (
+    url.pathname.startsWith('/api/')
+    || (request.method !== 'GET' && request.method !== 'HEAD')
+  ) {
     response.writeHead(404);
     response.end();
     return;
   }
 
   const root = roots[version];
-  const relativePath = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
+  let relativePath;
+  try {
+    relativePath = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
+  } catch {
+    response.writeHead(400);
+    response.end();
+    return;
+  }
   const candidate = join(root, relativePath);
   const safeCandidate = candidate.startsWith(`${root}/`) ? candidate : '';
-  const filePath = safeCandidate && existsSync(safeCandidate) && statSync(safeCandidate).isFile()
-    ? safeCandidate
-    : join(root, 'index.csr.html');
+  const candidateExists =
+    Boolean(safeCandidate) && existsSync(safeCandidate) && statSync(safeCandidate).isFile();
+  if (!candidateExists && extname(relativePath)) {
+    response.writeHead(404);
+    response.end();
+    return;
+  }
+  const filePath = candidateExists ? safeCandidate : join(root, 'index.csr.html');
   const fileName = filePath.split('/').at(-1) ?? '';
   const cacheControl = mutablePwaFiles.has(fileName)
     ? 'no-cache, max-age=0, must-revalidate'
@@ -92,7 +131,11 @@ createServer(async (request, response) => {
     'Cache-Control': cacheControl,
     'Content-Type': contentTypes[extname(filePath)] ?? 'application/octet-stream',
   });
-  createReadStream(filePath).pipe(response);
+  if (request.method === 'HEAD') {
+    response.end();
+  } else {
+    createReadStream(filePath).pipe(response);
+  }
 }).listen(port, '127.0.0.1', () => {
   console.log(`PWA E2E server listening on http://127.0.0.1:${port}`);
 });
@@ -108,15 +151,23 @@ function json(response, status, value) {
 function readBody(request) {
   return new Promise((resolveBody, reject) => {
     let body = '';
+    let rejected = false;
     request.setEncoding('utf8');
     request.on('data', chunk => {
+      if (rejected) {
+        return;
+      }
       body += chunk;
       if (body.length > 16 * 1024) {
+        rejected = true;
         reject(new Error('body too large'));
-        request.destroy();
       }
     });
-    request.on('end', () => resolveBody(body));
+    request.on('end', () => {
+      if (!rejected) {
+        resolveBody(body);
+      }
+    });
     request.on('error', reject);
   });
 }

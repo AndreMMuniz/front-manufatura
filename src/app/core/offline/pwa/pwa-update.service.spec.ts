@@ -1,4 +1,5 @@
 import { Subject } from 'rxjs';
+import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -54,6 +55,15 @@ describe('PwaUpdateService', () => {
     expect('activateUpdate' in swUpdate).toBe(false);
   });
 
+  it('encerra checking quando não existe nova versão', async () => {
+    const { service } = setup();
+
+    service.start();
+    await Promise.resolve();
+
+    expect(service.state()).toEqual({ status: 'up-to-date' });
+  });
+
   it.each(['VERSION_INSTALLATION_FAILED', 'VERSION_FAILED'])(
     'representa %s como falha de instalação sanitizada',
     (type) => {
@@ -87,18 +97,51 @@ describe('PwaUpdateService', () => {
     expect(browserReload.reload).not.toHaveBeenCalled();
   });
 
-  it('recarrega somente por pedido explícito, com versão pronta e em momento seguro', () => {
+  it('recarrega somente por pedido explícito e com versão pronta', async () => {
     const { service, versionUpdates, browserReload } = setup();
     service.start();
 
-    expect(service.reloadWhenSafe(true)).toBe(false);
+    await expect(service.reloadWhenSafe()).resolves.toBe('not-ready');
     versionUpdates.next({
       type: 'VERSION_READY',
       currentVersion: { hash: 'v1' },
       latestVersion: { hash: 'v2' },
     });
-    expect(service.reloadWhenSafe(false)).toBe(false);
-    expect(service.reloadWhenSafe(true)).toBe(true);
+    await expect(service.reloadWhenSafe()).resolves.toBe('reloaded');
     expect(browserReload.reload).toHaveBeenCalledOnce();
+  });
+
+  it('bloqueia captura ativa e exige confirmação explícita para Outbox pendente', async () => {
+    const versionUpdates = new Subject<unknown>();
+    const activeCapture = signal(true);
+    const workState = { hasActiveCapture: activeCapture.asReadonly() };
+    const service = new PwaUpdateService(
+      {
+        isEnabled: true,
+        versionUpdates,
+        unrecoverable: new Subject(),
+        checkForUpdate: vi.fn().mockResolvedValue(false),
+      },
+      { reload: vi.fn() },
+      { currentUser: { id: 'owner-1', nome: 'Operador', login: 'op', permissoes: [] } },
+      {
+        listByOwner: vi.fn().mockResolvedValue([
+          { status: 'PENDING' },
+        ]),
+      } as never,
+      workState,
+    );
+    service.start();
+    versionUpdates.next({
+      type: 'VERSION_READY',
+      currentVersion: { hash: 'v1' },
+      latestVersion: { hash: 'v2' },
+    });
+
+    await expect(service.reloadWhenSafe()).resolves.toBe('capture-active');
+
+    activeCapture.set(false);
+    await expect(service.reloadWhenSafe()).resolves.toBe('pending-outbox');
+    await expect(service.reloadWhenSafe(true)).resolves.toBe('reloaded');
   });
 });

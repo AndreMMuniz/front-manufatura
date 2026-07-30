@@ -19,6 +19,7 @@ import {
 } from '@po-ui/ng-components';
 
 import { MotivoRefugoService } from '../../../report-operacao/services/motivo-refugo.service';
+import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 import {
   arredondarQuantidadeBatelada,
   ItemReporteBatelada,
@@ -61,9 +62,11 @@ export class ReporteBateladaSlide implements OnDestroy {
     private readonly changeDetector: ChangeDetectorRef,
     private readonly dialog: PoDialogService,
     private readonly motivoService: MotivoRefugoService,
+    private readonly pwaWorkState: PwaWorkStateService = new PwaWorkStateService(),
   ) {}
 
   ngOnDestroy(): void {
+    this.pwaWorkState.setCaptureActive('batch-report', false);
     this.destroyed$.next();
     this.destroyed$.complete();
   }
@@ -103,6 +106,7 @@ export class ReporteBateladaSlide implements OnDestroy {
     this.salvando = false;
     this.validationMessage = '';
     this.resetReasonEditor();
+    this.pwaWorkState.setCaptureActive('batch-report', true);
     this.pageSlide.open();
     this.changeDetector.markForCheck();
   }
@@ -251,6 +255,7 @@ export class ReporteBateladaSlide implements OnDestroy {
 
   voltar(): void {
     if (!this.hasDraft) {
+      this.pwaWorkState.setCaptureActive('batch-report', false);
       this.pageSlide.close();
       return;
     }
@@ -269,6 +274,7 @@ export class ReporteBateladaSlide implements OnDestroy {
         this.idempotencyKey = null;
         this.resetReasonEditor();
         this.rascunhoAlterado.emit(this.currentDraft());
+        this.pwaWorkState.setCaptureActive('batch-report', false);
         this.pageSlide.close();
       },
       literals: { cancel: 'Cancelar', confirm: 'Descartar' },

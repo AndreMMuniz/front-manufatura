@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ViewChild, effect, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { PoButtonModule, PoDialogService, PoPageModule } from '@po-ui/ng-components';
@@ -7,6 +7,7 @@ import { ExamEntryPanel } from '../../components/exam-entry-panel/exam-entry-pan
 import { InspectionSection } from '../../components/inspection-section/inspection-section';
 import { RouteGenerationSection } from '../../components/route-generation-section/route-generation-section';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
+import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 
 @Component({
   selector: 'app-quality-control-workspace',
@@ -22,6 +23,20 @@ export class QualityControlWorkspacePage {
   readonly workflow = inject(QualityControlWorkflowState);
   private readonly router = inject(Router);
   private readonly dialog = inject(PoDialogService);
+  private readonly pwaWorkState = inject(PwaWorkStateService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    effect(() => {
+      this.pwaWorkState.setCaptureActive(
+        'quality-control',
+        this.workflow.isDirty() || this.workflow.isBusy(),
+      );
+    });
+    this.destroyRef.onDestroy(
+      () => this.pwaWorkState.setCaptureActive('quality-control', false),
+    );
+  }
 
   goBack(): void {
     if (this.workflow.isBusy()) return;

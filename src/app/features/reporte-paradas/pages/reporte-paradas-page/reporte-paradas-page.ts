@@ -6,6 +6,7 @@ import {
   ViewChild,
   inject,
   signal,
+  effect,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
@@ -38,6 +39,7 @@ import {
   ReporteParadasWorkflowState,
 } from '../../services/reporte-paradas-workflow-state';
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
+import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 
 @Component({
   selector: 'app-reporte-paradas-page',
@@ -63,6 +65,7 @@ export class ReporteParadasPage implements OnInit {
   private readonly dialog = inject(PoDialogService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly pwaWorkState = inject(PwaWorkStateService);
 
   readonly view = signal<ReporteParadasWorkflowSnapshot>(this.workflow.snapshot());
   readonly areas = signal<ReadonlyArray<AreaProducao>>([]);
@@ -81,6 +84,19 @@ export class ReporteParadasPage implements OnInit {
   private centersRequest = 0;
   private idempotencySequence = 0;
   private finishIdempotencySequence = 0;
+
+  constructor() {
+    effect(() => {
+      const view = this.view();
+      this.pwaWorkState.setCaptureActive(
+        'stoppages',
+        view.dirty || view.saving || view.finishing,
+      );
+    });
+    this.destroyRef.onDestroy(
+      () => this.pwaWorkState.setCaptureActive('stoppages', false),
+    );
+  }
 
   ngOnInit(): void {
     const prefill = this.service.getPrefillContext();

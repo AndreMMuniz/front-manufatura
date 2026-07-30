@@ -25,6 +25,32 @@
   font-weight: 600;
 }
 
+.app-shell__update-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-sm);
+  padding: var(--app-space-sm) var(--app-space-md);
+  border-bottom: 1px solid var(--color-action-default);
+  background: var(--color-brand-01-lightest);
+  color: var(--app-color-text);
+}
+
+.app-shell__update-action {
+  min-height: var(--app-touch-target);
+  padding: 0 var(--app-space-md);
+  border: 1px solid currentColor;
+  border-radius: var(--border-radius-md);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.app-shell__update-action:focus-visible {
+  outline: 2px solid var(--color-action-focus);
+  outline-offset: 2px;
+}
+
 .app-shell__session-actions-trigger {
   display: inline-flex;
   align-items: center;

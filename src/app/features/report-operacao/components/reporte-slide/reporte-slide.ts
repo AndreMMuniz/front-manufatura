@@ -24,6 +24,7 @@ import {
   ReporteRefugoItem,
 } from '../../models/report-operacao.model';
 import { MotivoRefugoService } from '../../services/motivo-refugo.service';
+import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 
 export interface ReporteParcialDraft {
   readonly idempotencyKey?: string;
@@ -66,9 +67,11 @@ export class ReporteSlide implements OnDestroy {
     private readonly changeDetector: ChangeDetectorRef,
     private readonly dialog: PoDialogService,
     private readonly motivoService: MotivoRefugoService = new MotivoRefugoService(),
+    private readonly pwaWorkState: PwaWorkStateService = new PwaWorkStateService(),
   ) {}
 
   ngOnDestroy(): void {
+    this.pwaWorkState.setCaptureActive('report-operation', false);
     this.destroyed$.next();
     this.destroyed$.complete();
   }
@@ -220,6 +223,7 @@ export class ReporteSlide implements OnDestroy {
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }));
     this.resetDraft();
+    this.pwaWorkState.setCaptureActive('report-operation', true);
     this.pageSlide.open();
     this.changeDetector.markForCheck();
   }
@@ -271,6 +275,7 @@ export class ReporteSlide implements OnDestroy {
 
   voltar(): void {
     if (!this.hasDraft) {
+      this.pwaWorkState.setCaptureActive('report-operation', false);
       this.pageSlide.close();
       return;
     }
@@ -280,6 +285,7 @@ export class ReporteSlide implements OnDestroy {
       message: 'Existem quantidades ainda não salvas. Deseja descartá-las?',
       confirm: () => {
         this.resetDraft();
+        this.pwaWorkState.setCaptureActive('report-operation', false);
         this.pageSlide.close();
       },
       literals: { cancel: 'Cancelar', confirm: 'Descartar' },

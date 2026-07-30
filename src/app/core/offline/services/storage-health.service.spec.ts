@@ -54,6 +54,24 @@ describe('StorageHealthService', () => {
     });
   });
 
+  it('representa quota esgotada como risco mesmo quando o storage é persistente', async () => {
+    const storage: BrowserStorageManager = {
+      persisted: vi.fn().mockResolvedValue(true),
+      persist: vi.fn(),
+      estimate: vi.fn().mockResolvedValue({ usage: 100, quota: 100 }),
+    };
+    const service = new StorageHealthService(storage);
+
+    await service.assess();
+
+    expect(service.state()).toMatchObject({
+      status: 'risk',
+      persisted: true,
+      usageRatio: 1,
+      message: 'O armazenamento local atingiu a quota disponível.',
+    });
+  });
+
   it('sanitiza falhas da API como risco sem expor conteúdo', async () => {
     const storage: BrowserStorageManager = {
       persisted: vi.fn().mockRejectedValue(new Error('payload secreto')),

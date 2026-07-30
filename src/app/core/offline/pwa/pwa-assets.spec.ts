@@ -52,6 +52,7 @@ describe('configuração dos artefatos PWA', () => {
       '/manifest.webmanifest',
       '/assets/logo-cortag.png',
       '/icons/*.png',
+      '/media/**',
     ]));
     expect(config.dataGroups ?? []).toEqual([]);
     expect(config.navigationUrls).toContain('!/api/**');

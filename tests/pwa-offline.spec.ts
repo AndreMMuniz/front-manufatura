@@ -56,6 +56,14 @@ test('não armazena login, POST nem respostas autenticadas no Cache Storage', as
 }) => {
   await login(page);
   await waitForController(page);
+  const authenticatedResponse = await page.evaluate(async () => {
+    const response = await fetch('/api/profile', {
+      headers: { Authorization: 'Bearer pwa-e2e-memory-token' },
+    });
+    return { ok: response.ok, body: await response.json() };
+  });
+  expect(authenticatedResponse.ok).toBe(true);
+  expect(authenticatedResponse.body).toMatchObject({ id: 'USR-PWA-E2E' });
 
   const cachedRequests = await page.evaluate(async () => {
     const urls: string[] = [];
@@ -86,13 +94,14 @@ test('atualiza A para B e preserva item PENDING byte/logicamente legível', asyn
     payload: { quantity: 7, note: 'sem segredo' },
   });
 
-  const cacheCountBefore = await page.evaluate(() => caches.keys().then(keys => keys.length));
   await selectVersion(request, 'b');
   await page.reload();
-  await expect.poll(
-    () => page.evaluate(() => caches.keys().then(keys => keys.length)),
-  ).toBeGreaterThan(cacheCountBefore);
-  await page.reload();
+  const updateNotice = page.getByTestId('pwa-update-notice');
+  await expect(updateNotice).toContainText('Uma nova versão está pronta');
+  await Promise.all([
+    page.waitForEvent('load'),
+    updateNotice.getByRole('button', { name: 'Atualizar agora' }).click(),
+  ]);
 
   await expect(page.getByTestId('pwa-version')).toHaveText('B');
   await page.getByTestId('verify-pending').click();

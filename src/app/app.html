@@ -31,8 +31,27 @@
       data-testid="offline-banner"
     >
       <po-icon p-icon="an an-wifi-slash" aria-hidden="true" />
-      <span>Você está offline. Registros locais continuam disponíveis; consultas ao Datasul podem falhar.</span>
+      <span>Você está offline. Confirme cada registro salvo; consultas ao Datasul podem falhar.</span>
     </div>
+  }
+
+  @if (showPwaUpdateNotice) {
+    <section
+      class="app-shell__update-notice"
+      role="status"
+      aria-live="polite"
+      data-testid="pwa-update-notice"
+    >
+      <span>{{ pwaUpdateMessage }}</span>
+      @if (canRequestPwaReload) {
+        <button type="button" class="app-shell__update-action" (click)="applyPwaUpdate()">
+          {{ pwaUpdateState().status === 'unrecoverable' ? 'Recarregar com conexão' : 'Atualizar agora' }}
+        </button>
+      }
+      @if (pwaUpdateFeedback()) {
+        <span data-testid="pwa-update-feedback">{{ pwaUpdateFeedback() }}</span>
+      }
+    </section>
   }
 
   <main class="app-shell__content" data-testid="app-content">

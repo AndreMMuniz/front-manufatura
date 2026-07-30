@@ -9,9 +9,13 @@ import {
 import { isPlatformBrowser } from '@angular/common';
 import { SwUpdate } from '@angular/service-worker';
 import { Observable } from 'rxjs';
+import { AuthSessionService } from '../../auth/auth-session.service';
+import { OutboxRepository } from '../repositories/outbox.repository';
+import { PwaWorkStateService } from './pwa-work-state.service';
 
 export type PwaUpdateState =
   | { readonly status: 'disabled' }
+  | { readonly status: 'up-to-date' }
   | { readonly status: 'checking'; readonly versionHash?: string }
   | {
       readonly status: 'ready';
@@ -36,6 +40,13 @@ export interface BrowserReload {
   reload(): void;
 }
 
+export type PwaReloadResult =
+  | 'reloaded'
+  | 'not-ready'
+  | 'capture-active'
+  | 'pending-outbox'
+  | 'storage-unavailable';
+
 export const BROWSER_RELOAD = new InjectionToken<BrowserReload | null>('BROWSER_RELOAD', {
   providedIn: 'root',
   factory: () => {
@@ -57,6 +68,12 @@ export class PwaUpdateService {
   constructor(
     @Inject(SwUpdate) private readonly swUpdate: SwUpdateFacade,
     @Inject(BROWSER_RELOAD) private readonly browserReload: BrowserReload | null,
+    @Inject(AuthSessionService)
+    private readonly authSession: Pick<AuthSessionService, 'currentUser'> | null = null,
+    @Inject(OutboxRepository)
+    private readonly outbox: Pick<OutboxRepository, 'listByOwner'> | null = null,
+    @Inject(PwaWorkStateService)
+    private readonly workState: Pick<PwaWorkStateService, 'hasActiveCapture'> | null = null,
   ) {}
 
   start(): void {
@@ -75,25 +92,46 @@ export class PwaUpdateService {
       });
     });
 
-    void this.swUpdate.checkForUpdate().catch(() => {
-      this.updateState.set({
-        status: 'install-failed',
-        message: 'Não foi possível verificar atualizações.',
+    void this.swUpdate.checkForUpdate()
+      .then(found => {
+        if (!found && this.updateState().status === 'checking') {
+          this.updateState.set({ status: 'up-to-date' });
+        }
+      })
+      .catch(() => {
+        this.updateState.set({
+          status: 'install-failed',
+          message: 'Não foi possível verificar atualizações.',
+        });
       });
-    });
   }
 
-  reloadWhenSafe(isSafeMoment: boolean): boolean {
+  async reloadWhenSafe(confirmPendingWork = false): Promise<PwaReloadResult> {
     if (
-      !isSafeMoment
-      || this.updateState().status !== 'ready'
+      !['ready', 'unrecoverable'].includes(this.updateState().status)
       || !this.browserReload
     ) {
-      return false;
+      return 'not-ready';
+    }
+
+    if (this.workState?.hasActiveCapture()) {
+      return 'capture-active';
+    }
+
+    const ownerId = this.authSession?.currentUser?.id.trim();
+    if (ownerId && this.outbox) {
+      try {
+        const entries = await this.outbox.listByOwner(ownerId);
+        if (!confirmPendingWork && entries.some(entry => entry.status !== 'SYNCED')) {
+          return 'pending-outbox';
+        }
+      } catch {
+        return 'storage-unavailable';
+      }
     }
 
     this.browserReload.reload();
-    return true;
+    return 'reloaded';
   }
 
   private handleVersionEvent(event: unknown): void {
@@ -122,6 +160,9 @@ export class PwaUpdateService {
         }
         break;
       }
+      case 'NO_NEW_VERSION_DETECTED':
+        this.updateState.set({ status: 'up-to-date' });
+        break;
       case 'VERSION_INSTALLATION_FAILED':
       case 'VERSION_FAILED':
         this.updateState.set({

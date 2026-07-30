@@ -46,9 +46,7 @@ export function authenticateExternalLogin(
     return null;
   }
 
-  const offlineSessionExpiresAt = config.offlineSessionTtlMs
-    ? new Date(Date.now() + config.offlineSessionTtlMs).toISOString()
-    : undefined;
+  const offlineSessionExpiresAt = validOfflineSessionExpiresAt(config.offlineSessionTtlMs);
 
   return {
     token: createSessionToken(),
@@ -60,4 +58,15 @@ export function authenticateExternalLogin(
       permissoes: ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ'],
     },
   };
+}
+
+function validOfflineSessionExpiresAt(ttlMs: number | null): string | undefined {
+  if (ttlMs === null) {
+    return undefined;
+  }
+
+  const expiresAt = Date.now() + ttlMs;
+  return Number.isFinite(expiresAt) && expiresAt <= 8.64e15
+    ? new Date(expiresAt).toISOString()
+    : undefined;
 }

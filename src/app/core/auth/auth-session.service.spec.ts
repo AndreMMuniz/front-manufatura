@@ -38,6 +38,15 @@ describe('AuthSessionService', () => {
       .not.toHaveProperty('token');
   });
 
+  it('rejeita credencial remota vazia sem criar sessão', () => {
+    expect(() => service.startSession(USER, '   ', {
+      expiresAt: '2026-07-29T20:00:00.000Z',
+    })).toThrow('Credencial remota inválida.');
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(sessionStorage.getItem('plano-de-controle.auth-session')).toBeNull();
+  });
+
   it('should clear the session on logout', () => {
     service.startSession(USER, 'token-123', {
       expiresAt: '2026-07-29T20:00:00.000Z',
@@ -106,6 +115,50 @@ describe('AuthSessionService', () => {
       expect(new AuthSessionService(sessionStorage, () => new Date(now)).isAuthenticated()).toBe(false);
       expect(sessionStorage.getItem('plano-de-controle.auth-session')).toBeNull();
     }
+  });
+
+  it('rejeita snapshots com campos extras em vez de persistir possíveis segredos', () => {
+    sessionStorage.setItem('plano-de-controle.auth-session', JSON.stringify({
+      version: 2,
+      ownerId: USER.id,
+      user: { ...USER, refreshToken: 'segredo' },
+      authenticatedAt: '2026-07-29T10:00:00.000Z',
+      lastValidatedAt: '2026-07-29T10:00:00.000Z',
+      expiresAt: '2026-07-29T20:00:00.000Z',
+    }));
+
+    const reloadedService = new AuthSessionService(sessionStorage, () => new Date(now));
+
+    expect(reloadedService.isAuthenticated()).toBe(false);
+    expect(sessionStorage.getItem('plano-de-controle.auth-session')).toBeNull();
+  });
+
+  it('expira sessão online no prazo e notifica assinantes sem depender de getters', () => {
+    let expiryCallback: (() => void) | undefined;
+    const cancel = vi.fn();
+    const scheduler = vi.fn((callback: () => void) => {
+      expiryCallback = callback;
+      return cancel;
+    });
+    const scheduledService = new AuthSessionService(
+      sessionStorage,
+      () => new Date(now),
+      undefined,
+      scheduler,
+    );
+    const emissions: Array<boolean> = [];
+    scheduledService.session$.subscribe(session => emissions.push(session !== null));
+
+    scheduledService.startSession(USER, 'token-123', {
+      expiresAt: '2026-07-29T12:01:00.000Z',
+    });
+    expect(scheduler).toHaveBeenLastCalledWith(expect.any(Function), 60_000);
+
+    now = new Date('2026-07-29T12:01:00.000Z');
+    expiryCallback?.();
+
+    expect(emissions).toEqual([false, true, false]);
+    expect(sessionStorage.getItem('plano-de-controle.auth-session')).toBeNull();
   });
 
   it('invalida formato legado que continha token sem tentar persistir o segredo', () => {

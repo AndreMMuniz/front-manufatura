@@ -1,4 +1,5 @@
 import { By } from '@angular/platform-browser';
+import { signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -23,18 +24,23 @@ import { ReportOperacaoPage } from './features/report-operacao/pages/report-oper
 import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
 import { ConnectivityService } from './core/offline/services/connectivity.service';
+import { PwaUpdateService, PwaUpdateState } from './core/offline/pwa/pwa-update.service';
 
 describe('App', () => {
   let authSessionMock: AuthSessionService;
   let currentUserValue: User | null;
   let sessionSubject: BehaviorSubject<unknown>;
   let connectivitySubject: BehaviorSubject<boolean>;
+  let pwaState: WritableSignal<PwaUpdateState>;
+  let reloadWhenSafe: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     currentUserValue = null;
 
     sessionSubject = new BehaviorSubject<unknown>(null);
     connectivitySubject = new BehaviorSubject<boolean>(true);
+    pwaState = signal<PwaUpdateState>({ status: 'disabled' });
+    reloadWhenSafe = vi.fn().mockResolvedValue('reloaded');
 
     authSessionMock = {
       logout: vi.fn(() => sessionSubject.next(null)),
@@ -52,6 +58,10 @@ describe('App', () => {
       providers: [
         provideRouter(routes),
         { provide: AuthSessionService, useValue: authSessionMock },
+        {
+          provide: PwaUpdateService,
+          useValue: { state: pwaState.asReadonly(), reloadWhenSafe },
+        },
         {
           provide: ConnectivityService,
           useValue: {
@@ -337,6 +347,33 @@ describe('App', () => {
     expect(banner.getAttribute('aria-live')).toBe('polite');
     expect(banner.textContent).toContain('Você está offline');
     expect(fixture.nativeElement.querySelector('[data-testid="app-content"]')).not.toBeNull();
+  });
+
+  it('comunica update pronto e exige confirmação para Outbox pendente', async () => {
+    reloadWhenSafe
+      .mockResolvedValueOnce('pending-outbox')
+      .mockResolvedValueOnce('reloaded');
+    pwaState.set({
+      status: 'ready',
+      currentVersionHash: 'v1',
+      versionHash: 'v2',
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const notice = fixture.nativeElement.querySelector('[data-testid="pwa-update-notice"]');
+    expect(notice.textContent).toContain('Uma nova versão está pronta');
+
+    notice.querySelector('button').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="pwa-update-feedback"]').textContent)
+      .toContain('Confirme novamente');
+
+    fixture.nativeElement.querySelector('[data-testid="pwa-update-notice"] button').click();
+    await fixture.whenStable();
+    expect(reloadWhenSafe).toHaveBeenNthCalledWith(1, false);
+    expect(reloadWhenSafe).toHaveBeenNthCalledWith(2, true);
   });
 
   it('should render the app name in the authenticated Home toolbar without a side menu', async () => {

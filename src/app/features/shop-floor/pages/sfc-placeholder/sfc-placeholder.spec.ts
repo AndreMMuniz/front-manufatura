@@ -1,27 +1,34 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { SfcPlaceholderPage } from './sfc-placeholder';
 import { ConnectivityService } from '../../../../core/offline/services/connectivity.service';
+import { OnlineDataAvailabilityService } from '../../../../core/offline/services/online-data-availability.service';
 
 describe('SfcPlaceholderPage', () => {
   let fixture: ComponentFixture<SfcPlaceholderPage>;
   let component: SfcPlaceholderPage;
   let routerMock: Router;
-  let connectivityMock: { onlineHint: boolean };
+  let connectivityMock: { onlineHint: boolean; changes$: BehaviorSubject<boolean> };
+  let serverAvailable: boolean;
 
   beforeEach(async () => {
     routerMock = { navigate: vi.fn().mockResolvedValue(true) } as unknown as Router;
-    connectivityMock = { onlineHint: true };
+    connectivityMock = { onlineHint: true, changes$: new BehaviorSubject(true) };
+    serverAvailable = true;
 
     await TestBed.configureTestingModule({
       imports: [SfcPlaceholderPage],
       providers: [
         { provide: Router, useValue: routerMock },
         { provide: ConnectivityService, useValue: connectivityMock },
+        {
+          provide: OnlineDataAvailabilityService,
+          useValue: { check: vi.fn(() => of(serverAvailable && connectivityMock.onlineHint)) },
+        },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -82,6 +89,18 @@ describe('SfcPlaceholderPage', () => {
     fixture.destroy();
     connectivityMock.onlineHint = false;
     fixture = TestBed.createComponent(SfcPlaceholderPage);
+    fixture.detectChanges();
+    fixture.componentInstance.refreshAvailability();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Dados não disponíveis neste dispositivo. Conecte-se para consultar o Datasul.',
+    );
+  });
+
+  it('mostra indisponibilidade quando o Datasul falha mesmo com navegador online', () => {
+    serverAvailable = false;
+    component.refreshAvailability();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain(

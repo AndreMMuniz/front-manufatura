@@ -11,6 +11,9 @@ const AUTH_SESSION_STORAGE_KEY = 'plano-de-controle.auth-session';
 const AUTH_SESSION_SNAPSHOT_VERSION = 2;
 
 export type AuthClock = () => Date;
+export type AuthExpiryScheduler = (callback: () => void, delayMs: number) => () => void;
+
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 interface PersistedAuthSession {
   readonly version: typeof AUTH_SESSION_SNAPSHOT_VERSION;
@@ -54,6 +57,14 @@ export const AUTH_CLOCK = new InjectionToken<AuthClock>('AUTH_CLOCK', {
   factory: () => () => new Date(),
 });
 
+export const AUTH_EXPIRY_SCHEDULER = new InjectionToken<AuthExpiryScheduler>(
+  'AUTH_EXPIRY_SCHEDULER',
+  {
+    providedIn: 'root',
+    factory: () => scheduleAuthExpiry,
+  },
+);
+
 export const OFFLINE_SESSION_POLICY = new InjectionToken<OfflineSessionPolicy>(
   'OFFLINE_SESSION_POLICY',
   {
@@ -65,6 +76,7 @@ export const OFFLINE_SESSION_POLICY = new InjectionToken<OfflineSessionPolicy>(
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
   private readonly sessionSubject: BehaviorSubject<AuthSession | null>;
+  private cancelExpiry?: () => void;
 
   readonly session$: Observable<AuthSession | null>;
 
@@ -75,9 +87,12 @@ export class AuthSessionService {
     private readonly clock: AuthClock = () => new Date(),
     @Inject(OFFLINE_SESSION_POLICY)
     private readonly policy: OfflineSessionPolicy = STRICT_OFFLINE_SESSION_POLICY,
+    @Inject(AUTH_EXPIRY_SCHEDULER)
+    private readonly expiryScheduler: AuthExpiryScheduler = scheduleAuthExpiry,
   ) {
     this.sessionSubject = new BehaviorSubject<AuthSession | null>(this.restoreSession());
     this.session$ = this.sessionSubject.asObservable().pipe(distinctUntilChanged());
+    this.scheduleCurrentExpiry();
   }
 
   get currentUser(): User | null {
@@ -106,6 +121,10 @@ export class AuthSessionService {
     token: string,
     continuity?: OfflineContinuityMetadata,
   ): void {
+    if (!token.trim()) {
+      throw new Error('Credencial remota inválida.');
+    }
+
     const now = validDate(this.clock());
     const expiresAt = continuity ? this.validFutureDate(continuity.expiresAt, now) : null;
     const session: AuthSession = {
@@ -130,9 +149,11 @@ export class AuthSessionService {
       this.removePersistedSession();
     }
     this.sessionSubject.next(session);
+    this.scheduleCurrentExpiry();
   }
 
   logout(): void {
+    this.cancelScheduledExpiry();
     this.removePersistedSession();
     this.sessionSubject.next(null);
   }
@@ -140,14 +161,42 @@ export class AuthSessionService {
   private currentSession(): AuthSession | null {
     const session = this.sessionSubject.value;
     if (
-      session?.mode === 'OFFLINE'
-      && session.expiresAt
+      session?.expiresAt
       && this.clock().getTime() >= session.expiresAt.getTime()
     ) {
       this.logout();
       return null;
     }
     return session;
+  }
+
+  private scheduleCurrentExpiry(): void {
+    this.cancelScheduledExpiry();
+    const session = this.sessionSubject.value;
+    if (!session?.expiresAt) {
+      return;
+    }
+
+    const remainingMs = session.expiresAt.getTime() - validDate(this.clock()).getTime();
+    if (remainingMs <= 0) {
+      this.logout();
+      return;
+    }
+
+    this.cancelExpiry = this.expiryScheduler(
+      () => {
+        this.cancelExpiry = undefined;
+        if (this.currentSession()) {
+          this.scheduleCurrentExpiry();
+        }
+      },
+      Math.min(remainingMs, MAX_TIMER_DELAY_MS),
+    );
+  }
+
+  private cancelScheduledExpiry(): void {
+    this.cancelExpiry?.();
+    this.cancelExpiry = undefined;
   }
 
   private restoreSession(): AuthSession | null {
@@ -210,6 +259,15 @@ export class AuthSessionService {
 
     const user = value['user'];
     return value['version'] === AUTH_SESSION_SNAPSHOT_VERSION
+      && hasOnlyKeys(value, [
+        'version',
+        'ownerId',
+        'user',
+        'authenticatedAt',
+        'lastValidatedAt',
+        'expiresAt',
+      ])
+      && hasOnlyKeys(user, ['id', 'nome', 'login', 'permissoes'])
       && typeof value['ownerId'] === 'string'
       && value['ownerId'] === user['id']
       && typeof user['id'] === 'string'
@@ -220,10 +278,7 @@ export class AuthSessionService {
       && user['permissoes'].every(permission => typeof permission === 'string')
       && typeof value['authenticatedAt'] === 'string'
       && typeof value['lastValidatedAt'] === 'string'
-      && typeof value['expiresAt'] === 'string'
-      && !('token' in value)
-      && !('senha' in value)
-      && !('credential' in value);
+      && typeof value['expiresAt'] === 'string';
   }
 }
 
@@ -234,7 +289,12 @@ function browserSessionStorage(): Storage | null {
 }
 
 function copyUser(user: User): User {
-  return { ...user, permissoes: [...user.permissoes] };
+  return {
+    id: user.id,
+    nome: user.nome,
+    login: user.login,
+    permissoes: [...user.permissoes],
+  };
 }
 
 function validDate(value: Date): Date {
@@ -246,4 +306,17 @@ function validDate(value: Date): Date {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): boolean {
+  const allowed = new Set(allowedKeys);
+  return Object.keys(value).every(key => allowed.has(key));
+}
+
+function scheduleAuthExpiry(callback: () => void, delayMs: number): () => void {
+  const handle = globalThis.setTimeout(callback, delayMs);
+  if (typeof handle === 'object' && handle !== null && 'unref' in handle) {
+    (handle as { unref(): void }).unref();
+  }
+  return () => globalThis.clearTimeout(handle);
 }

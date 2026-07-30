@@ -88,9 +88,11 @@ export class StorageHealthService {
       const usageRatio = usage !== undefined && quota !== undefined
         ? Math.min(usage / quota, 1)
         : undefined;
+      const quotaExhausted = usageRatio === 1;
+      const status = persisted && !quotaExhausted ? 'healthy' : 'risk';
 
       this.healthState.set({
-        status: persisted ? 'healthy' : 'risk',
+        status,
         supported: true,
         persisted,
         ...(usage !== undefined ? { usage } : {}),
@@ -98,7 +100,9 @@ export class StorageHealthService {
         ...(usageRatio !== undefined ? { usageRatio } : {}),
         ...(!persisted
           ? { message: 'O navegador pode remover dados locais quando precisar liberar espaço.' }
-          : {}),
+          : quotaExhausted
+            ? { message: 'O armazenamento local atingiu a quota disponível.' }
+            : {}),
       });
     } catch {
       this.healthState.set({

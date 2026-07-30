@@ -30,6 +30,11 @@ app.post('/api/auth/login', (req, res) => {
   res.json(loginResult);
 });
 
+app.head('/api/health', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendStatus(204);
+});
+
 /**
  * Serve static files from /browser
  */

@@ -29,7 +29,8 @@
           "/favicon.ico",
           "/manifest.webmanifest",
           "/assets/logo-cortag.png",
-          "/icons/*.png"
+          "/icons/*.png",
+          "/media/**"
         ]
       }
     }
