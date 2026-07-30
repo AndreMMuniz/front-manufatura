@@ -213,15 +213,17 @@ export class ReporteParadasService {
       return from(this.localRecords.listByOwner(ownerId)).pipe(
         map(records => {
           this.ensureOwnerCache(ownerId);
-          this.confirmedStops.splice(0);
-          for (const record of records.filter(item => item.commandType === 'CREATE_STOP')) {
-            const restored = this.stopFromPayload(record.payload, record.localId);
-            if (restored) {
-              this.confirmedStops.push(restored);
+          if (records.length > 0) {
+            this.confirmedStops.splice(0);
+            for (const record of records.filter(item => item.commandType === 'CREATE_STOP')) {
+              const restored = this.stopFromPayload(record.payload, record.localId);
+              if (restored) {
+                this.confirmedStops.push(restored);
+              }
             }
-          }
-          for (const record of records.filter(item => item.commandType === 'FINISH_STOP')) {
-            this.applyDurableFinish(record.payload, record.idempotencyKey);
+            for (const record of records.filter(item => item.commandType === 'FINISH_STOP')) {
+              this.applyDurableFinish(record.payload, record.idempotencyKey);
+            }
           }
           return this.openStopsForContext(area, workCenter);
         }),

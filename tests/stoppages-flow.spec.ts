@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readOperationalOutbox } from './helpers/operational-outbox';
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
@@ -62,6 +63,25 @@ test.describe('registro de Paradas', () => {
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
       /salva neste dispositivo e pendente de sincronização/i,
     );
+
+    const openStop = page.getByRole('list', {
+      name: 'Paradas elegíveis para finalização',
+    }).getByRole('button').first();
+    await expect(openStop).toBeVisible();
+    await openStop.click();
+    await page.getByRole('textbox', { name: 'Data da Finalização' }).fill('28/07/2026');
+    await page.getByRole('textbox', { name: 'Hora da Finalização' }).fill('09:00');
+    await page.getByRole('button', { name: 'Finalizar parada' }).click();
+    await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
+      /finalização salva neste dispositivo e pendente de sincronização/i,
+    );
+
+    const outbox = await readOperationalOutbox(page);
+    const create = outbox.find(entry => entry.commandType === 'CREATE_STOP');
+    const finish = outbox.find(entry => entry.commandType === 'FINISH_STOP');
+    expect(create).toBeDefined();
+    expect(finish).toBeDefined();
+    expect(finish?.dependencyIds).toEqual([create?.localId]);
     await expect(page.getByRole('combobox', { name: 'Área de Produção' }))
       .toBeEnabled();
     await expectNoHorizontalOverflow(page);

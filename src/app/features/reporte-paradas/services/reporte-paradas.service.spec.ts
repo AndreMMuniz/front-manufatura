@@ -49,8 +49,17 @@ describe('ReporteParadasService', () => {
       providers: [
         ReporteParadasService,
         { provide: ProductionContextCatalogService, useValue: catalog },
-        { provide: AuthSessionService, useValue: { currentUser: null } },
-        { provide: LocalRecordRepository, useValue: { listByOwner: vi.fn(async () => []) } },
+        {
+          provide: AuthSessionService,
+          useValue: { currentUser: { id: 'operator-1' } },
+        },
+        {
+          provide: LocalRecordRepository,
+          useValue: {
+            listByOwner: vi.fn(async () => []),
+            getByIdempotencyKey: vi.fn(async () => null),
+          },
+        },
         {
           provide: OperationalCommandFacade,
           useValue: {

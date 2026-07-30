@@ -51,4 +51,14 @@ describe('CommandTransportRouter', () => {
       }, new AbortController().signal),
     ).rejects.toBeInstanceOf(SyncConfigurationError);
   });
+
+  it('falha cedo quando dois adapters registram o mesmo tipo de comando', () => {
+    const handler = {
+      commandType: 'CREATE_STOP' as const,
+      send: vi.fn(),
+    };
+
+    expect(() => new CommandTransportRouter([handler, handler]))
+      .toThrowError(/mais de um adapter/i);
+  });
 });

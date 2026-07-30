@@ -265,7 +265,7 @@ describe('ExamEntryPanel', () => {
     expect(state.route()).toEqual(route);
   });
 
-  it('stops a rejected route only after the service confirms it', () => {
+  it('stops a rejected route only after the service confirms it', async () => {
     state.openPanel('a-10');
     state.applyMeasurement('exam-a', 'a-10', {
       minimum: 0, maximum: 5, status: 'REJECTED', savedAt: new Date(),
@@ -282,6 +282,7 @@ describe('ExamEntryPanel', () => {
     component.updateStopReason('  Aguardar conferência do supervisor  ');
 
     component.stopRoute();
+    await vi.waitFor(() => expect(state.route()).toBeUndefined());
 
     expect(stopSpy).toHaveBeenCalledWith(expect.objectContaining({
       routeNumber: route.routeNumber,
@@ -434,11 +435,12 @@ describe('ExamEntryPanel', () => {
     expect(state.isDirty()).toBe(false);
   });
 
-  it('closes only after a successful exam completion and selects the next pending component', () => {
+  it('closes only after a successful exam completion and selects the next pending component', async () => {
     state.applyMeasurement('exam-b', 'b-10', { minimum: 10, maximum: 20, status: 'APPROVED' });
     vi.spyOn(service, 'finishExam').mockReturnValue(of({ examId: 'exam-b', success: true, finishedAt: new Date() }));
 
     component.completeExam();
+    await vi.waitFor(() => expect(state.panelOpen()).toBe(false));
 
     expect(state.panelOpen()).toBe(false);
     expect(state.selectedComponentId()).toBe('a-10');

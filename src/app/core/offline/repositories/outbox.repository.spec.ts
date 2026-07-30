@@ -259,6 +259,7 @@ describe('OutboxRepository processing', () => {
     });
     expect(identity((await repository.getById(OWNER, 'error'))!)).toEqual(errorIdentity);
     expect(await repository.getById(OWNER, 'auth')).toMatchObject({ status: 'PENDING' });
+    expect(await repository.getById(OWNER, 'auth')).not.toHaveProperty('authBlockReason');
     expect(await repository.getById(OWNER, 'supervisor-auth')).toMatchObject({
       status: 'BLOCKED_AUTH',
       authBlockReason: 'SUPERVISOR',
@@ -275,6 +276,8 @@ describe('OutboxRepository processing', () => {
     expect(await repository.getById(OWNER, 'supervisor-auth')).toMatchObject({
       status: 'PENDING',
     });
+    expect(await repository.getById(OWNER, 'supervisor-auth'))
+      .not.toHaveProperty('authBlockReason');
   });
 
   it('libera claim com fencing quando a sessão muda antes do envio', async () => {

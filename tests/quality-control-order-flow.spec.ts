@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readOperationalOutbox } from './helpers/operational-outbox';
 
 async function login(page: import('@playwright/test').Page) {
   await page.goto('/login');
@@ -66,6 +67,14 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await expect(page.getByText('Salvo neste dispositivo — envio pendente.')).toBeVisible();
     await expect(page.getByText('2 de 3 componentes concluídos')).toBeVisible();
     await expect(page).toHaveURL(/\/quality-control$/);
+
+    const outbox = await readOperationalOutbox(page);
+    const route = outbox.find(entry => entry.commandType === 'GENERATE_INSPECTION_ROUTE');
+    const measurements = outbox.filter(entry => entry.commandType === 'SAVE_MEASUREMENT');
+    expect(route).toBeDefined();
+    expect(measurements).toHaveLength(2);
+    expect(new Set(measurements.map(entry => entry.idempotencyKey)).size).toBe(2);
+    expect(measurements.every(entry => entry.dependencyIds.includes(route!.localId))).toBe(true);
   });
 
   for (const viewport of [

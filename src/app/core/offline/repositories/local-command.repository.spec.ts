@@ -89,6 +89,48 @@ describe('LocalCommandRepository', () => {
     expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
   });
 
+  it('mantém replay idempotente depois que o estado mutável da Outbox avança', async () => {
+    await commands.persistConfirmedCommand(
+      request({ quantity: 5 }, { dependencyIds: [] }),
+    );
+    await outbox.claim({
+      ownerId: 'operator-1',
+      localId: COMMAND_ID,
+      leaseToken: 'lease-replay',
+      now: NOW,
+      leaseExpiresAt: '2026-07-28T16:01:00.000Z',
+    });
+
+    const replayed = await commands.persistConfirmedCommand(
+      request(
+        { quantity: 5 },
+        { idempotencyKey: COMMAND_ID, dependencyIds: [] },
+      ),
+    );
+
+    expect(replayed.outboxEntry.status).toBe('SYNCING');
+    expect(await localRecords.listByOwner('operator-1')).toHaveLength(1);
+    expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      initialSyncStatus: 'PENDING' as const,
+      initialAuthBlockReason: 'SESSION' as const,
+    },
+    {
+      initialSyncStatus: 'BLOCKED_AUTH' as const,
+      initialAuthBlockReason: undefined,
+    },
+  ])('rejeita estado e motivo inicial incompatíveis: %o', async (overrides) => {
+    const createTransaction = vi.spyOn(database, 'createTransaction');
+
+    await expect(
+      commands.persistConfirmedCommand(request({ quantity: 5 }, overrides)),
+    ).rejects.toEqual(expect.objectContaining({ code: 'PAYLOAD_INVALID' }));
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
   it('reutiliza occurredAt persistido quando a repetição idempotente omite a data', async () => {
     let current = new Date(NOW);
     const isolated = new LocalCommandRepository(

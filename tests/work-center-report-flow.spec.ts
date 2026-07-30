@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readOperationalOutbox } from './helpers/operational-outbox';
 
 const credentials = {
   user: 'operador',
@@ -190,6 +191,14 @@ test.describe('fluxo de Reporte Ordem', () => {
     ).toHaveValue('2');
     await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Encerrar', exact: true })).toHaveCount(0);
+
+    const outbox = await readOperationalOutbox(page);
+    const start = outbox.find(entry => entry.commandType === 'START_OPERATION');
+    const reports = outbox.filter(entry => entry.commandType === 'REPORT_OPERATION');
+    expect(start).toBeDefined();
+    expect(reports).toHaveLength(3);
+    expect(new Set(reports.map(entry => entry.idempotencyKey)).size).toBe(3);
+    expect(reports.every(entry => entry.dependencyIds.includes(start!.localId))).toBe(true);
   });
 
   test('exibe somente Iniciar e Reporte nas ações e bloqueia responsável após iniciar', async ({ page }) => {
@@ -372,6 +381,14 @@ test.describe('fluxo de Reporte Batelada', () => {
     await reportAction.click();
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(2);
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450002' })).toHaveCount(2);
+
+    const outbox = await readOperationalOutbox(page);
+    const start = outbox.find(entry => entry.commandType === 'START_BATCH');
+    const reports = outbox.filter(entry => entry.commandType === 'REPORT_BATCH');
+    expect(start).toBeDefined();
+    expect(reports).toHaveLength(2);
+    expect(new Set(reports.map(entry => entry.idempotencyKey)).size).toBe(2);
+    expect(reports.every(entry => entry.dependencyIds.includes(start!.localId))).toBe(true);
 
     const drawerContainer = drawer.locator('.po-page-slide-container');
     await page.setViewportSize({ width: 800, height: 800 });

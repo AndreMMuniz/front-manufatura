@@ -80,6 +80,29 @@ describe('sync transport contract', () => {
         { orderId: '2', success: false, errorCode: 'VALIDATION' },
       ],
     })).toThrow(/multiordem/i);
+    expect(() => validateCommandResult(request, {
+      ...complete,
+      orderResults: [
+        { orderId: '1', success: true },
+        { orderId: ' ', success: true },
+      ],
+    })).toThrow(/multiordem/i);
+  });
+
+  it('rejeita identificadores inválidos no payload multiordem antes da reconciliação', () => {
+    const request = toSyncCommandRequest(entry({
+      commandType: 'REPORT_BATCH',
+      aggregateType: 'BATCH',
+      payload: { items: [{ orderId: '1' }, { orderId: '' }] },
+    }));
+
+    expect(() => validateCommandResult(request, {
+      ...receipt(),
+      orderResults: [
+        { orderId: '1', success: true },
+        { orderId: '2', success: true },
+      ],
+    })).toThrow(/multiordem/i);
   });
 
   it('controla timeout com scheduler injetado e aborta o transporte', async () => {
