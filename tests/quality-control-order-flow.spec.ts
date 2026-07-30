@@ -63,7 +63,7 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await minimum.fill('254,5');
     await maximum.fill('255,5');
     await page.getByRole('button', { name: 'Salvar' }).click();
-    await expect(page.getByText('Medição salva.')).toBeVisible();
+    await expect(page.getByText('Salvo neste dispositivo — envio pendente.')).toBeVisible();
     await expect(page.getByText('2 de 3 componentes concluídos')).toBeVisible();
     await expect(page).toHaveURL(/\/quality-control$/);
   });

@@ -32,6 +32,7 @@ import { InformacoesBatelada } from '../../components/informacoes-batelada/infor
 import { OrdensCentroBateladaList } from '../../components/ordens-centro-list/ordens-centro-list';
 import { OrdensSelecionadasBatelada } from '../../components/ordens-selecionadas/ordens-selecionadas';
 import { ReporteBateladaSlide } from '../../components/reporte-batelada-slide/reporte-batelada-slide';
+import { IniciarBateladaRequest } from '../../interfaces/reporta-batelada.dto';
 import {
   EstadoBatelada,
   RascunhoReporteBatelada,
@@ -99,6 +100,7 @@ export class ReportaBateladaPage implements OnInit {
   private reportRequest = 0;
   private endingRequest = 0;
   private startRequest = 0;
+  private pendingStartCommand: IniciarBateladaRequest | null = null;
   private responsaveisRequest = 0;
   private sessionActive = true;
   private teamGeneration = 0;
@@ -181,6 +183,7 @@ export class ReportaBateladaPage implements OnInit {
           this.reportRequest += 1;
           this.endingRequest += 1;
           this.startRequest += 1;
+          this.pendingStartCommand = null;
           this.responsaveisRetry = null;
           this.areas = [];
           this.centers = [];
@@ -241,6 +244,7 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   selecionarArea(code: string): void {
+    this.pendingStartCommand = null;
     const area = this.areas.find(item => item.code === code) ?? null;
     if (!this.workflow.setArea(area)) {
       this.syncView();
@@ -264,6 +268,7 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   selecionarCentro(code: string): void {
+    this.pendingStartCommand = null;
     const center = this.centers.find(item => item.code === code) ?? null;
     if (!this.workflow.setWorkCenter(center)) {
       this.syncView();
@@ -313,17 +318,20 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   atualizarSelecao(ids: ReadonlySet<string>): void {
+    this.pendingStartCommand = null;
     this.invalidateTeamContext();
     this.workflow.setSelectedOrderIds(ids);
     this.syncView();
   }
 
   prepararBatelada(): void {
+    this.pendingStartCommand = null;
     this.workflow.prepareBatch();
     this.syncView();
   }
 
   selecionarResponsavel(responsavel: ResponsavelBatelada | null): void {
+    this.pendingStartCommand = null;
     this.workflow.setResponsavel(responsavel);
     this.syncView();
   }
@@ -372,6 +380,7 @@ export class ReportaBateladaPage implements OnInit {
       codigo: this.normalizeCode(resultado.equipe.codigo),
       nome: resultado.equipe.descricao,
     };
+    this.pendingStartCommand = null;
     const key = this.responsavelKey(equipe);
     const selectedBefore = this.view.responsavel;
     const merged = new Map<string, ResponsavelBatelada>();
@@ -408,7 +417,7 @@ export class ReportaBateladaPage implements OnInit {
       return;
     }
 
-    const request = this.service.montarComandoInicio(
+    const request = this.pendingStartCommand ?? this.service.montarComandoInicio(
       {
         areaCode: snapshot.area.code,
         workCenterCode: snapshot.workCenter.code,
@@ -416,6 +425,7 @@ export class ReportaBateladaPage implements OnInit {
       snapshot.responsavel,
       snapshot.composition,
     );
+    this.pendingStartCommand = request;
     this.syncView();
 
     const startRequest = ++this.startRequest;
@@ -427,6 +437,7 @@ export class ReportaBateladaPage implements OnInit {
           return;
         }
         this.workflow.completeStart(inicio);
+        this.pendingStartCommand = null;
         this.notification.success('Salvo neste dispositivo — envio pendente.');
         this.syncView();
       },
@@ -540,6 +551,10 @@ export class ReportaBateladaPage implements OnInit {
     const batchId = snapshot.batchId;
     this.syncView();
 
+    const dependencyIds = [
+      ...(snapshot.inicio?.startCommandId ? [snapshot.inicio.startCommandId] : []),
+      ...snapshot.history.map(report => report.idempotencyKey),
+    ];
     this.service.reportarBateladaParcial({
       batchId,
       idempotencyKey: draft.idempotencyKey,
@@ -547,10 +562,7 @@ export class ReportaBateladaPage implements OnInit {
         ...item,
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
       })),
-      dependencyIds: [
-        ...(snapshot.inicio?.startCommandId ? [snapshot.inicio.startCommandId] : []),
-        ...snapshot.history.map(report => report.idempotencyKey),
-      ],
+      ...(dependencyIds.length > 0 ? { dependencyIds } : {}),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

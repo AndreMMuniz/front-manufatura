@@ -188,6 +188,9 @@ export class ReporteParadasService {
               this.confirmedStops.push(restored);
             }
           }
+          for (const record of records.filter(item => item.commandType === 'FINISH_STOP')) {
+            this.applyDurableFinish(record.payload, record.idempotencyKey);
+          }
           return this.openStopsForContext(area, workCenter);
         }),
       );
@@ -457,6 +460,37 @@ export class ReporteParadasService {
       hash = Math.imul(hash, 16777619);
     }
     return Math.abs(hash) || 1;
+  }
+
+  private applyDurableFinish(payload: unknown, finishCommandId: string): void {
+    if (!payload || typeof payload !== 'object') {
+      return;
+    }
+    const value = payload as Record<string, unknown>;
+    const localId = typeof value['stopLocalId'] === 'string' ? value['stopLocalId'] : '';
+    const end = typeof value['endAt'] === 'string' ? new Date(value['endAt']) : null;
+    const index = this.confirmedStops.findIndex(stop => stop.localId === localId);
+    if (index < 0 || !end || Number.isNaN(end.getTime())) {
+      return;
+    }
+    const current = this.confirmedStops[index];
+    const interval = validateStopInterval(
+      current.startDate,
+      current.startTime,
+      end,
+      `${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}`,
+    );
+    if (!interval) {
+      return;
+    }
+    this.confirmedStops[index] = {
+      ...this.cloneStop(current),
+      finishCommandId,
+      endDate: this.dateOnly(end),
+      endTime: `${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}`,
+      status: 'FINALIZADA',
+      durationMinutes: durationMinutes(interval.start, interval.end),
+    };
   }
 
   private captureFinish(current: StopEntry, idempotencyKey: string, end: Date) {

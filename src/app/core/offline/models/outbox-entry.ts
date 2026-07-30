@@ -35,6 +35,7 @@ export interface OutboxEntry<TPayload = JsonValue> {
   readonly payloadHash: string;
   readonly ownerId: string;
   readonly status: SyncStatus;
+  readonly authBlockReason?: 'SESSION' | 'SUPERVISOR';
   readonly businessStatus?: string;
   readonly dependencyIds: readonly string[];
   readonly attemptCount: number;

@@ -1,9 +1,13 @@
-import { InjectionToken } from '@angular/core';
+import { inject, InjectionToken } from '@angular/core';
 
 import { JsonValue } from '../models/local-record';
 import { OutboxEntry } from '../models/outbox-entry';
 import { CommandResult, SyncCommandRequest } from '../models/sync-command';
 import { SyncConfigurationError, SyncTimeoutError } from '../models/sync-error';
+import {
+  CommandTransportRouter,
+  SYNC_COMMAND_HANDLERS,
+} from './command-transport-router';
 
 export interface SyncTransport {
   /**
@@ -46,7 +50,7 @@ export class MissingSyncTransport implements SyncTransport {
 
 export const SYNC_TRANSPORT = new InjectionToken<SyncTransport>('SYNC_TRANSPORT', {
   providedIn: 'root',
-  factory: () => new MissingSyncTransport(),
+  factory: () => new CommandTransportRouter(inject(SYNC_COMMAND_HANDLERS)),
 });
 
 export function toSyncCommandRequest(entry: OutboxEntry<JsonValue>): SyncCommandRequest {

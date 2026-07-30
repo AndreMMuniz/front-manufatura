@@ -32,6 +32,7 @@ export interface PersistConfirmedCommandRequest<TPayload> {
   readonly occurredAt?: string;
   readonly businessStatus?: string;
   readonly initialSyncStatus?: 'PENDING' | 'BLOCKED_AUTH';
+  readonly initialAuthBlockReason?: 'SESSION' | 'SUPERVISOR';
 }
 
 export function normalizeDependencyIds(dependencyIds: readonly string[] | undefined): readonly string[] {

@@ -116,6 +116,8 @@ export class ReportOperacaoPage implements OnInit {
   private startRequest = 0;
   private reportRequest = 0;
   private endRequest = 0;
+  private startIdempotencyKey = '';
+  private endIdempotencyKey = '';
   private responsaveisRequest = 0;
   private teamGeneration = 0;
   private activeTeamContext: {
@@ -760,6 +762,7 @@ export class ReportOperacaoPage implements OnInit {
     this.workflowState.setResponsavel(responsavel);
 
     this.reportOperacaoService.iniciarOperacao({
+      idempotencyKey: this.startIdempotencyKey ||= this.idempotency.resolve(),
       ordem: operation.ordem,
       op: operation.op,
       split: operation.split,
@@ -782,6 +785,7 @@ export class ReportOperacaoPage implements OnInit {
           equipe,
           dataInicio: start.dataInicio,
           horaInicio: start.horaInicio,
+          ...(start.idempotencyKey ? { startCommandId: start.idempotencyKey } : {}),
           dataFim: undefined,
           horaFim: '',
         };
@@ -790,7 +794,7 @@ export class ReportOperacaoPage implements OnInit {
         this.feedback = this.auxiliaryFlow === 'refugo'
           ? 'Operação iniciada. Informe a quantidade de refugo no reporte.'
           : 'Operação iniciada. Informe as quantidades para reportar.';
-        this.notification.success('Operação iniciada.');
+        this.notification.success('Salvo neste dispositivo — envio pendente.');
         if (this.auxiliaryFlow === 'refugo') {
           this.abrirRefugo();
         }
@@ -907,6 +911,7 @@ export class ReportOperacaoPage implements OnInit {
             quantidadeRetrabalho,
             quantidadeRefugo,
             refugoItens: refugoItens.map(item => ({ ...item })),
+            commandId: result.apontamentoId,
           };
           this.reportes = [...this.reportes, reporte];
           this.operacao = this.withDerivedTotals({
@@ -944,15 +949,21 @@ export class ReportOperacaoPage implements OnInit {
     const end = this.ensureEnd();
     const activeOrderId = this.workflowState.snapshot().activeOrder?.id;
     const request = ++this.endRequest;
+    const dependencyIds = [
+      ...(operation.startCommandId ? [operation.startCommandId] : []),
+      ...this.reportes.map(report => report.commandId ?? report.idempotencyKey),
+    ];
     this.encerrando = true;
     this.estado = EstadoOperacao.Reportando;
 
     this.reportOperacaoService.encerrarOperacao({
+      idempotencyKey: this.endIdempotencyKey ||= this.idempotency.resolve(),
       ordem: operation.ordem,
       op: operation.op,
       split: operation.split,
       dataFim: end.dataFim ?? new Date(),
       horaFim: end.horaFim,
+      ...(dependencyIds.length > 0 ? { dependencyIds } : {}),
     }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: result => {
         if (
@@ -975,7 +986,7 @@ export class ReportOperacaoPage implements OnInit {
             this.loadOrders(area, center);
           }
         }
-        this.notification.success('Operação encerrada.');
+        this.notification.success('Salvo neste dispositivo — envio pendente.');
         this.changeDetector.markForCheck();
       },
       error: () => {
@@ -1064,6 +1075,8 @@ export class ReportOperacaoPage implements OnInit {
     this.reportes = [];
     this.responsavelCodigo = '';
     this.tipoResponsavel = 'OPERADOR';
+    this.startIdempotencyKey = '';
+    this.endIdempotencyKey = '';
   }
 
   private invalidateRequests(): void {
@@ -1093,6 +1106,10 @@ export class ReportOperacaoPage implements OnInit {
     refugoItens: ReportarOperacaoRequest['refugoItens'],
     idempotencyKey: string,
   ): ReportarOperacaoRequest {
+    const dependencyIds = [
+      ...(operation.startCommandId ? [operation.startCommandId] : []),
+      ...this.reportes.map(report => report.commandId ?? report.idempotencyKey),
+    ];
     return {
       idempotencyKey,
       ordem: operation.ordem,
@@ -1111,6 +1128,7 @@ export class ReportOperacaoPage implements OnInit {
       tipoResponsavel: responsavel.tipo,
       codigoResponsavel: responsavel.codigo,
       ct: operation.ct,
+      ...(dependencyIds.length > 0 ? { dependencyIds } : {}),
     };
   }
 

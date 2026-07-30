@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, delay, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { IdempotencyService } from '../../../core/offline/services/idempotency.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
@@ -41,6 +42,7 @@ export class ReportaBateladaService {
   private readonly authSession = inject(AuthSessionService, { optional: true });
   private readonly idempotency = inject(IdempotencyService);
   private readonly commands = inject(OperationalCommandFacade);
+  private readonly localRecords = inject(LocalRecordRepository);
   private readonly batches = new Map<string, BatchMockRecord>();
   private readonly reportsByBatch = new Map<string, ReadonlyArray<ReporteParcialBatelada>>();
   private stoppedWorkflow: ReportaBateladaWorkflowSnapshot | null = null;
@@ -122,6 +124,7 @@ export class ReportaBateladaService {
     return {
       batchId: this.idempotency.resolve(),
       idempotencyKey: this.idempotency.resolve(),
+      occurredAt: new Date().toISOString(),
       contexto: { ...contexto },
       responsavel: { ...responsavel },
       ordens: ordens.map(ordem => ({ ...ordem })),
@@ -131,7 +134,12 @@ export class ReportaBateladaService {
   iniciarBatelada(request: IniciarBateladaRequest): Observable<InicioBatelada> {
     const batchId = this.idempotency.resolve(request.batchId);
     const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
-    const iniciadoEm = new Date();
+    const iniciadoEm = request.occurredAt
+      ? new Date(request.occurredAt)
+      : new Date();
+    if (Number.isNaN(iniciadoEm.getTime())) {
+      throw new Error('O instante de início da batelada é inválido.');
+    }
     return from(this.commands.capture({
       commandType: 'START_BATCH',
       aggregateId: batchId,
@@ -247,15 +255,15 @@ export class ReportaBateladaService {
         this.validarReporteParcial(command);
         const isKnownReplay = (this.reportsByBatch.get(command.batchId) ?? [])
           .some(report => report.idempotencyKey === command.idempotencyKey);
-        if (!isKnownReplay) {
-          this.assertActiveBatchComposition(
-            command.batchId,
-            command.items.map(item => item.orderId),
-          );
-        }
-
-        return command;
+        return { command, isKnownReplay };
       }),
+      switchMap(({ command: validated, isKnownReplay }) =>
+        from(isKnownReplay
+          ? Promise.resolve()
+          : this.assertActiveBatchCompositionDurable(
+              validated.batchId,
+              validated.items.map(item => item.orderId),
+            )).pipe(map(() => validated))),
       switchMap(validated => from(this.commands.capture({
         commandType: 'REPORT_BATCH',
         aggregateId: validated.batchId,
@@ -319,6 +327,30 @@ export class ReportaBateladaService {
   }
 
   listarReportesBatelada(batchId: string): Observable<ReadonlyArray<ReporteParcialBatelada>> {
+    const ownerId = this.authSession?.currentUser?.id;
+    if (ownerId) {
+      return from(this.localRecords.listByOwner(ownerId)).pipe(
+        map(records => records
+          .filter(record =>
+            record.commandType === 'REPORT_BATCH'
+            && record.aggregateId === batchId)
+          .flatMap(record => {
+            const payload = record.payload as {
+              readonly items?: ReadonlyArray<ItemReporteBatelada>;
+            };
+            return payload.items
+              ? [{
+                  reporteId: record.localId,
+                  batchId,
+                  idempotencyKey: record.idempotencyKey,
+                  confirmadoEm: new Date(record.createdAt),
+                  items: this.cloneItems(payload.items),
+                }]
+              : [];
+          })
+          .map(report => this.cloneReport(report))),
+      );
+    }
     return of(null).pipe(
       delay(100),
       map(() => (this.reportsByBatch.get(batchId) ?? []).map(report => this.cloneReport(report))),
@@ -326,19 +358,22 @@ export class ReportaBateladaService {
   }
 
   encerrarBatelada(request: EncerrarBateladaRequest): Observable<EncerramentoBatelada> {
-    this.assertActiveBatchComposition(request.batchId, request.orderIds);
     const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
-    return from(this.commands.capture({
-      commandType: 'END_BATCH',
-      aggregateId: request.batchId,
-      businessStatus: 'FINALIZADA',
-      idempotencyKey,
-      ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
-      payload: {
-        batchId: request.batchId,
-        orderIds: [...request.orderIds],
-      },
-    })).pipe(
+    return from(this.assertActiveBatchCompositionDurable(
+      request.batchId,
+      request.orderIds,
+    )).pipe(
+      switchMap(() => from(this.commands.capture({
+        commandType: 'END_BATCH',
+        aggregateId: request.batchId,
+        businessStatus: 'FINALIZADA',
+        idempotencyKey,
+        ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
+        payload: {
+          batchId: request.batchId,
+          orderIds: [...request.orderIds],
+        },
+      }))),
       map(confirmation => {
         const encerramento: EncerramentoBatelada = {
           batchId: request.batchId,
@@ -386,6 +421,40 @@ export class ReportaBateladaService {
     if (!matches) {
       throw new Error('A composição da batelada não corresponde ao comando informado.');
     }
+  }
+
+  private async assertActiveBatchCompositionDurable(
+    batchId: string,
+    orderIds: ReadonlyArray<string>,
+  ): Promise<void> {
+    const batch = this.batches.get(batchId);
+    if (batch) {
+      this.assertActiveBatchComposition(batchId, orderIds);
+      return;
+    }
+    const ownerId = this.authSession?.currentUser?.id;
+    if (!ownerId) {
+      this.assertActiveBatchComposition(batchId, orderIds);
+      return;
+    }
+    const records = await this.localRecords.listByOwner(ownerId);
+    const start = records.find(record =>
+      record.commandType === 'START_BATCH' && record.aggregateId === batchId);
+    const ended = records.some(record =>
+      record.commandType === 'END_BATCH' && record.aggregateId === batchId);
+    const payload = start?.payload as {
+      readonly ordens?: ReadonlyArray<{ readonly id?: string }>;
+    } | undefined;
+    const durableOrderIds = payload?.ordens?.flatMap(order =>
+      typeof order.id === 'string' ? [order.id] : []) ?? [];
+    const matches =
+      !ended
+      && durableOrderIds.length === orderIds.length
+      && durableOrderIds.every((id, index) => id === orderIds[index]);
+    if (!matches) {
+      throw new Error('A composição da batelada não corresponde ao comando informado.');
+    }
+    this.batches.set(batchId, { orderIds: [...durableOrderIds], encerrada: false });
   }
 
   private hasCompleteResults(

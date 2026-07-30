@@ -30,6 +30,7 @@ export type EstadoConsultaOrdens =
   | 'erro';
 
 export interface ReportOperacao {
+  readonly startCommandId?: string;
   readonly ordem: string;
   readonly op: string;
   readonly split: string;
@@ -80,6 +81,7 @@ export interface ReporteParcialOperacao {
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
   readonly refugoItens: ReadonlyArray<ReporteRefugoItem>;
+  readonly commandId?: string;
 }
 
 export interface ResultadoConsultaOP {

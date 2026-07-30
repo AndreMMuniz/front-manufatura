@@ -236,6 +236,10 @@ describe('OutboxRepository processing', () => {
           userMessage: 'Sessão expirada.',
         },
       }),
+      entry('supervisor-auth', {
+        status: 'BLOCKED_AUTH',
+        authBlockReason: 'SUPERVISOR',
+      }),
     ]);
     const errorIdentity = identity((await repository.getById(OWNER, 'error'))!);
 
@@ -252,6 +256,16 @@ describe('OutboxRepository processing', () => {
     });
     expect(identity((await repository.getById(OWNER, 'error'))!)).toEqual(errorIdentity);
     expect(await repository.getById(OWNER, 'auth')).toMatchObject({ status: 'PENDING' });
+    expect(await repository.getById(OWNER, 'supervisor-auth')).toMatchObject({
+      status: 'BLOCKED_AUTH',
+      authBlockReason: 'SUPERVISOR',
+    });
+    expect(
+      await repository.resumeSupervisorBlocked(OWNER, 'supervisor-auth', NOW),
+    ).toBe(true);
+    expect(await repository.getById(OWNER, 'supervisor-auth')).toMatchObject({
+      status: 'PENDING',
+    });
   });
 
   it('libera claim com fencing quando a sessão muda antes do envio', async () => {

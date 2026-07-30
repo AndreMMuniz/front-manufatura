@@ -42,7 +42,12 @@ export class OperationalCommandFacade {
       ...(request.occurredAt ? { occurredAt: request.occurredAt } : {}),
       ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
       ...(request.initialSyncStatus
-        ? { initialSyncStatus: request.initialSyncStatus }
+        ? {
+            initialSyncStatus: request.initialSyncStatus,
+            ...(request.initialSyncStatus === 'BLOCKED_AUTH'
+              ? { initialAuthBlockReason: 'SUPERVISOR' as const }
+              : {}),
+          }
         : {}),
     });
 

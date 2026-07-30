@@ -218,7 +218,9 @@ describe('ReporteParadasPage', () => {
 
     component.registrarParada();
     const firstRequest = service.registrarParada.mock.calls[0][0];
-    expect(firstRequest.idempotencyKey).toBe(`stop-${new Date(2026, 6, 28, 8).getTime()}-1`);
+    expect(firstRequest.idempotencyKey).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     component.registrarParada();
 
     expect(service.registrarParada).toHaveBeenCalledOnce();

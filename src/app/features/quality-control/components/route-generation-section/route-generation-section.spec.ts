@@ -6,6 +6,7 @@ import { PoDialogService } from '@po-ui/ng-components';
 
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
+import { OperationalCommandFacade } from '../../../../core/offline/services/operational-command.facade';
 
 import { RouteGenerationSection } from './route-generation-section';
 
@@ -21,6 +22,21 @@ describe('RouteGenerationSection', () => {
       providers: [
         QualityControlWorkflowState,
         QualityControlService,
+        {
+          provide: OperationalCommandFacade,
+          useValue: {
+            capture: vi.fn(async (request: { idempotencyKey?: string }) => {
+              const key = request.idempotencyKey ?? globalThis.crypto.randomUUID();
+              return {
+                localId: key,
+                idempotencyKey: key,
+                payloadHash: 'hash',
+                committedAt: new Date().toISOString(),
+                syncStatus: 'PENDING',
+              };
+            }),
+          },
+        },
         { provide: PoDialogService, useValue: { confirm: vi.fn() } },
       ],
     }).compileComponents();
@@ -42,7 +58,7 @@ describe('RouteGenerationSection', () => {
     expect(native.textContent).toContain('Localização da Ordem');
   });
 
-  it('generates inline and loads exams exactly once without router navigation', () => {
+  it('generates inline and loads exams exactly once without router navigation', async () => {
     const loadSpy = vi.spyOn(service, 'getQualityExams');
     state.updateOrderNumber(' 325571 ');
     component.searchOrder();
@@ -51,12 +67,12 @@ describe('RouteGenerationSection', () => {
     component.generateRoute();
     component.generateRoute();
 
-    expect(state.route()?.routeNumber).toBe('475.956');
+    await vi.waitFor(() => expect(state.route()?.routeNumber).toBe('475.956'));
     expect(state.exams().length).toBe(1);
     expect(loadSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the generated route and enables a single explicit retry after exam load failure', () => {
+  it('keeps the generated route and enables a single explicit retry after exam load failure', async () => {
     const loadSpy = vi.spyOn(service, 'getQualityExams')
       .mockReturnValueOnce(throwError(() => new Error('offline')))
       .mockReturnValueOnce(of([]));
@@ -65,7 +81,7 @@ describe('RouteGenerationSection', () => {
     state.selectOperation(state.operations()[0]);
 
     component.generateRoute();
-    expect(state.route()?.routeNumber).toBe('475.956');
+    await vi.waitFor(() => expect(state.route()?.routeNumber).toBe('475.956'));
     expect(state.examLoadFailed()).toBe(true);
 
     component.retryExamLoad();

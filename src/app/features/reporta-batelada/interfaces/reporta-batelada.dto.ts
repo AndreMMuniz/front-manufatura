@@ -13,6 +13,7 @@ export interface ConsultaOrdensBateladaRequest {
 export interface IniciarBateladaRequest {
   readonly batchId?: string;
   readonly idempotencyKey?: string;
+  readonly occurredAt?: string;
   readonly contexto: ContextoBatelada;
   readonly responsavel: ResponsavelBatelada;
   readonly ordens: ReadonlyArray<OrdemLiberadaBatelada>;

@@ -63,6 +63,18 @@ describe('LocalCommandRepository', () => {
     expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
   });
 
+  it('permite captura atômica inicialmente bloqueada por autorização sem persistir prova', async () => {
+    const result = await commands.persistConfirmedCommand(
+      request(
+        { approvalStatus: 'PENDING' },
+        { initialSyncStatus: 'BLOCKED_AUTH' },
+      ),
+    );
+
+    expect(result.outboxEntry.status).toBe('BLOCKED_AUTH');
+    expect(JSON.stringify(result)).not.toMatch(/password|senha|credential|token|proof/i);
+  });
+
   it('repete chave + hash iguais de forma idempotente sem criar novas linhas', async () => {
     const first = await commands.persistConfirmedCommand(request({ quantity: 5 }));
     const repeated = await commands.persistConfirmedCommand(
@@ -131,6 +143,7 @@ describe('LocalCommandRepository', () => {
     { dependencyIds: ['another-command'] },
     { occurredAt: '2026-07-28T15:46:00.000Z' },
     { businessStatus: 'CONFIRMED' },
+    { initialSyncStatus: 'BLOCKED_AUTH' as const },
   ])('rejeita chave e payload iguais quando o envelope diverge: %o', async (overrides) => {
     await commands.persistConfirmedCommand(request({ quantity: 5 }));
 

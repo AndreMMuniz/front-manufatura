@@ -1,6 +1,8 @@
+import { InjectionToken } from '@angular/core';
+
 import { CommandResult, SyncCommandRequest } from '../models/sync-command';
 import { SyncConfigurationError } from '../models/sync-error';
-import { SyncTransport } from './sync-transport';
+import type { SyncTransport } from './sync-transport';
 
 export interface SyncCommandHandler {
   readonly commandType: string;
@@ -9,6 +11,11 @@ export interface SyncCommandHandler {
     signal: AbortSignal,
   ) => Promise<CommandResult>;
 }
+
+export const SYNC_COMMAND_HANDLERS = new InjectionToken<readonly SyncCommandHandler[]>(
+  'SYNC_COMMAND_HANDLERS',
+  { providedIn: 'root', factory: () => [] },
+);
 
 export class CommandTransportRouter implements SyncTransport {
   private readonly handlers: ReadonlyMap<string, SyncCommandHandler>;

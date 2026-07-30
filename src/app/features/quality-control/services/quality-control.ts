@@ -290,6 +290,12 @@ export class QualityControlService {
   saveInspection(payload: SaveInspectionPayload): Observable<SaveInspectionResult> {
     const savedAt = new Date();
     const inspectionId = `INSP-${payload.opNumber}-${payload.examCode}-${payload.routeNumber}`;
+    const requiresSupervisorApproval =
+      payload.status === 'REJECTED'
+      && payload.measurements.some(measurement => measurement.status === 'REJECTED');
+    const hasSupervisorApproval = payload.measurements
+      .filter(measurement => measurement.status === 'REJECTED')
+      .every(measurement => Boolean(measurement.supervisorApproval));
     return from(this.commands.capture({
       commandType: 'SAVE_INSPECTION',
       aggregateId: inspectionId,
@@ -297,6 +303,9 @@ export class QualityControlService {
       ...(payload.idempotencyKey ? { idempotencyKey: payload.idempotencyKey } : {}),
       ...(payload.dependencyIds ? { dependencyIds: payload.dependencyIds } : {}),
       occurredAt: savedAt.toISOString(),
+      initialSyncStatus: requiresSupervisorApproval && !hasSupervisorApproval
+        ? 'BLOCKED_AUTH'
+        : 'PENDING',
       payload: {
         ...payload,
         createdAt: payload.createdAt.toISOString(),

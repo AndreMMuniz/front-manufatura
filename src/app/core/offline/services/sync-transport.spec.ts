@@ -47,6 +47,41 @@ describe('sync transport contract', () => {
     ).toThrowError(/receipt/i);
   });
 
+  it('aceita somente reconciliação multiordem integral, sem ausências ou duplicatas', () => {
+    const request = toSyncCommandRequest(entry({
+      commandType: 'REPORT_BATCH',
+      aggregateType: 'BATCH',
+      payload: { items: [{ orderId: '1' }, { orderId: '2' }] },
+    }));
+    const complete: CommandResult = {
+      ...receipt(),
+      orderResults: [
+        { orderId: '1', success: true, serverRecordId: 'server-order-1' },
+        { orderId: '2', success: true, serverRecordId: 'server-order-2' },
+      ],
+    };
+
+    expect(validateCommandResult(request, complete)).toEqual(complete);
+    expect(() => validateCommandResult(request, {
+      ...complete,
+      orderResults: [{ orderId: '1', success: true }],
+    })).toThrow(/multiordem/i);
+    expect(() => validateCommandResult(request, {
+      ...complete,
+      orderResults: [
+        { orderId: '1', success: true },
+        { orderId: '1', success: true },
+      ],
+    })).toThrow(/multiordem/i);
+    expect(() => validateCommandResult(request, {
+      ...complete,
+      orderResults: [
+        { orderId: '1', success: true },
+        { orderId: '2', success: false, errorCode: 'VALIDATION' },
+      ],
+    })).toThrow(/multiordem/i);
+  });
+
   it('controla timeout com scheduler injetado e aborta o transporte', async () => {
     let timeoutCallback = () => undefined;
     const scheduler: TimeoutScheduler = {

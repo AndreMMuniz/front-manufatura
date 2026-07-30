@@ -10,6 +10,7 @@ import { QualityExam } from '../../models/quality-exam';
 import { OperatorService } from '../../../shop-floor/services/operator';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
+import { OperationalCommandFacade } from '../../../../core/offline/services/operational-command.facade';
 
 import { ExamEntryPanel } from './exam-entry-panel';
 
@@ -38,6 +39,21 @@ describe('ExamEntryPanel', () => {
       providers: [
         QualityControlWorkflowState,
         QualityControlService,
+        {
+          provide: OperationalCommandFacade,
+          useValue: {
+            capture: vi.fn(async (request: { idempotencyKey?: string }) => {
+              const key = request.idempotencyKey ?? globalThis.crypto.randomUUID();
+              return {
+                localId: key,
+                idempotencyKey: key,
+                payloadHash: 'hash',
+                committedAt: new Date().toISOString(),
+                syncStatus: 'PENDING',
+              };
+            }),
+          },
+        },
         OperatorService,
         { provide: PoDialogService, useValue: { confirm } },
       ],

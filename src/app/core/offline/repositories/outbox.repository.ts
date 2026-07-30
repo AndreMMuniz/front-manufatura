@@ -343,6 +343,9 @@ export class OutboxRepository {
       'Não foi possível reabilitar os comandos após autenticação.',
     );
     for (const entry of entries) {
+      if (entry.authBlockReason === 'SUPERVISOR') {
+        continue;
+      }
       store.put({
         ...withoutRuntimeState(entry),
         status: 'PENDING',
@@ -350,7 +353,40 @@ export class OutboxRepository {
       } satisfies OutboxEntry<JsonValue>);
     }
     await completed;
-    return entries.length;
+    return entries.filter(entry => entry.authBlockReason !== 'SUPERVISOR').length;
+  }
+
+  async resumeSupervisorBlocked(
+    ownerId: string,
+    localId: string,
+    now: string,
+  ): Promise<boolean> {
+    const owner = assertOwnerId(ownerId);
+    const normalizedNow = validIso(now);
+    const transaction = await this.database.createTransaction([OUTBOX_STORE], 'readwrite');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(OUTBOX_STORE);
+    const current = await requestResult<OutboxEntry<JsonValue> | undefined>(
+      store.get(localId),
+      'Não foi possível retomar a autorização do supervisor.',
+    );
+    if (
+      !current
+      || current.ownerId !== owner
+      || current.status !== 'BLOCKED_AUTH'
+      || current.authBlockReason !== 'SUPERVISOR'
+    ) {
+      await completed;
+      return false;
+    }
+    const { authBlockReason: _reason, ...withoutReason } = current;
+    store.put({
+      ...withoutReason,
+      status: 'PENDING',
+      updatedAt: normalizedNow,
+    } satisfies OutboxEntry<JsonValue>);
+    await completed;
+    return true;
   }
 }
 
