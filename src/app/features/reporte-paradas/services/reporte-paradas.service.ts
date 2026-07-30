@@ -34,7 +34,8 @@ export class ReporteParadasService {
   private cacheOwnerId: string | null = null;
   private registrationInFlight = false;
   private finishInFlight = false;
-  private activeStopContext: { readonly areaCode: string; readonly workCenterCode: string } | null = null;
+  private activeStopContext: { readonly areaCode: string; readonly workCenterCode: string } | null =
+    null;
 
   private readonly reasons: ReadonlyArray<StopReason> = Object.freeze([
     { id: 1, code: '01', description: 'Setup' },
@@ -46,30 +47,25 @@ export class ReporteParadasService {
   ]);
 
   listarAreas(): Observable<ReadonlyArray<AreaProducao>> {
-    return this.catalog.listarAreas().pipe(
-      map(areas => areas.map(area => ({ ...area }))),
-    );
+    return this.catalog.listarAreas().pipe(map(areas => areas.map(area => ({ ...area }))));
   }
 
   pesquisarCentros(areaCode: string, termo = ''): Observable<ReadonlyArray<WorkCenter>> {
-    return this.catalog.pesquisarCentros(areaCode, termo).pipe(
-      map(centers => centers.map(center => ({ ...center }))),
-    );
+    return this.catalog
+      .pesquisarCentros(areaCode, termo)
+      .pipe(map(centers => centers.map(center => ({ ...center }))));
   }
 
   listarResponsaveis(
     areaCode: string,
     workCenterCode: string,
   ): Observable<ReadonlyArray<ResponsavelParada>> {
-    return this.catalog.listarResponsaveis(areaCode, workCenterCode).pipe(
-      map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))),
-    );
+    return this.catalog
+      .listarResponsaveis(areaCode, workCenterCode)
+      .pipe(map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))));
   }
 
-  listarMotivos(
-    _areaCode: string,
-    _workCenterCode: string,
-  ): Observable<ReadonlyArray<StopReason>> {
+  listarMotivos(_areaCode: string, _workCenterCode: string): Observable<ReadonlyArray<StopReason>> {
     return of(this.reasons.map(reason => ({ ...reason }))).pipe(delay(150));
   }
 
@@ -94,48 +90,32 @@ export class ReporteParadasService {
 
       const command = this.cloneRequest(request);
       const validated = this.validateCommand(command);
-      const ownerId = this.authSession.currentUser?.id.trim();
-      const existingLookup = ownerId
-        ? from(this.localRecords.getByIdempotencyKey(ownerId, command.idempotencyKey))
-        : of(null);
-      return existingLookup.pipe(switchMap(existing => {
-        if (existing?.commandType === 'CREATE_STOP') {
-          const restored = this.stopFromPayload(existing.payload, existing.idempotencyKey);
-          if (restored) {
-            this.ensureOwnerCache(ownerId ?? '');
-            const existingIndex =
-              this.confirmedStops.findIndex(item => item.localId === restored.localId);
-            if (existingIndex >= 0) this.confirmedStops[existingIndex] = restored;
-            else this.confirmedStops.push(restored);
-            return of(this.cloneStop(restored));
-          }
-        }
-        return forkJoin({
-          areas: this.listarAreas(),
-          centers: this.pesquisarCentros(command.areaCode),
-          responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
-        });
-      }), switchMap(result => {
-        if (!('areas' in result)) {
-          return of(result);
-        }
-        const { areas, centers, responsibles } = result;
+      return forkJoin({
+        areas: this.listarAreas(),
+        centers: this.pesquisarCentros(command.areaCode),
+        responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
+      }).pipe(
+        switchMap(({ areas, centers, responsibles }) => {
           const area = areas.find(item => this.sameCode(item.code, command.areaCode));
-          const center = centers.find(item =>
-            item.active
-            && this.sameCode(item.code, command.workCenterCode)
-            && this.sameCode(item.areaCode, command.areaCode),
+          const center = centers.find(
+            item =>
+              item.active &&
+              this.sameCode(item.code, command.workCenterCode) &&
+              this.sameCode(item.areaCode, command.areaCode),
           );
           if (!area || !center) {
             throw new Error('Informe uma Área de Produção e um Centro de Trabalho válidos.');
           }
 
-          const responsible = responsibles.find(item =>
-            item.tipo === command.responsible.tipo
-            && this.sameCode(item.codigo, command.responsible.codigo),
+          const responsible = responsibles.find(
+            item =>
+              item.tipo === command.responsible.tipo &&
+              this.sameCode(item.codigo, command.responsible.codigo),
           );
           if (!responsible) {
-            throw new Error('Selecione um responsável elegível para a Área e o Centro de Trabalho.');
+            throw new Error(
+              'Selecione um responsável elegível para a Área e o Centro de Trabalho.',
+            );
           }
 
           const derivedDuration = validated.end
@@ -165,31 +145,36 @@ export class ReporteParadasService {
             idempotencyKey: command.idempotencyKey,
             syncStatus: 'PENDING',
           };
-          return from(this.commands.capture({
-            commandType: 'CREATE_STOP',
-            aggregateId: localId,
-            businessStatus: stop.status,
-            idempotencyKey: command.idempotencyKey,
-            occurredAt: validated.start.toISOString(),
-            payload: this.stopPayload(stop),
-          })).pipe(map(confirmation => {
-            this.ensureOwnerCache(this.authSession.currentUser?.id ?? '');
-            const stored = this.cloneStop(stop);
-            const confirmedStop: StopEntry = {
-              ...stored,
-              id: confirmation.localId,
-              localId: confirmation.localId,
-              syncStatus: confirmation.syncStatus,
-            };
-            const existingIndex = this.confirmedStops.findIndex(item => item.localId === localId);
-            if (existingIndex >= 0) {
-              this.confirmedStops[existingIndex] = confirmedStop;
-            } else {
-              this.confirmedStops.push(confirmedStop);
-            }
-            return this.cloneStop(confirmedStop);
-          }));
-      }));
+          return from(
+            this.commands.capture({
+              commandType: 'CREATE_STOP',
+              aggregateId: localId,
+              businessStatus: stop.status,
+              idempotencyKey: command.idempotencyKey,
+              occurredAt: validated.start.toISOString(),
+              payload: this.stopPayload(stop),
+            }),
+          ).pipe(
+            map(confirmation => {
+              this.ensureOwnerCache(this.authSession.currentUser?.id ?? '');
+              const stored = this.cloneStop(stop);
+              const confirmedStop: StopEntry = {
+                ...stored,
+                id: confirmation.localId,
+                localId: confirmation.localId,
+                syncStatus: confirmation.syncStatus,
+              };
+              const existingIndex = this.confirmedStops.findIndex(item => item.localId === localId);
+              if (existingIndex >= 0) {
+                this.confirmedStops[existingIndex] = confirmedStop;
+              } else {
+                this.confirmedStops.push(confirmedStop);
+              }
+              return this.cloneStop(confirmedStop);
+            }),
+          );
+        }),
+      );
     }).pipe(
       finalize(() => {
         this.registrationInFlight = false;
@@ -252,14 +237,17 @@ export class ReporteParadasService {
       }
       if (current.status !== 'EM_ANDAMENTO') {
         if (current.finishCommandId === command.idempotencyKey) {
-          return from(this.captureFinish(current, command.idempotencyKey, end))
-            .pipe(map(() => this.cloneStop(current)));
+          return from(this.captureFinish(current, command.idempotencyKey, end)).pipe(
+            map(() => this.cloneStop(current)),
+          );
         }
         throw new Error('A parada já foi finalizada e não pode receber um novo comando.');
       }
-      if (!this.activeStopContext
-        || !this.sameCode(current.context.area.code, this.activeStopContext.areaCode)
-        || !this.sameCode(current.context.workCenter.code, this.activeStopContext.workCenterCode)) {
+      if (
+        !this.activeStopContext ||
+        !this.sameCode(current.context.area.code, this.activeStopContext.areaCode) ||
+        !this.sameCode(current.context.workCenter.code, this.activeStopContext.workCenterCode)
+      ) {
         throw new Error('A parada não pertence ao contexto corrente.');
       }
       const interval = validateStopInterval(
@@ -275,17 +263,23 @@ export class ReporteParadasService {
       const finished: StopEntry = {
         ...this.cloneStop(current),
         finishCommandId: command.idempotencyKey,
-        endDate: new Date(interval.end.getFullYear(), interval.end.getMonth(), interval.end.getDate()),
+        endDate: new Date(
+          interval.end.getFullYear(),
+          interval.end.getMonth(),
+          interval.end.getDate(),
+        ),
         endTime: command.endTime.trim(),
         status: 'FINALIZADA',
         durationMinutes: durationMinutes(interval.start, interval.end),
         syncStatus: 'PENDING',
       };
-      return from(this.captureFinish(current, command.idempotencyKey, end)).pipe(map(() => {
-        const stored = this.cloneStop(finished);
-        this.confirmedStops[index] = stored;
-        return this.cloneStop(stored);
-      }));
+      return from(this.captureFinish(current, command.idempotencyKey, end)).pipe(
+        map(() => {
+          const stored = this.cloneStop(finished);
+          this.confirmedStops[index] = stored;
+          return this.cloneStop(stored);
+        }),
+      );
     }).pipe(
       finalize(() => {
         this.finishInFlight = false;
@@ -325,7 +319,8 @@ export class ReporteParadasService {
     return {
       ...request,
       responsible: { ...request.responsible },
-      startDate: request.startDate instanceof Date ? new Date(request.startDate) : request.startDate,
+      startDate:
+        request.startDate instanceof Date ? new Date(request.startDate) : request.startDate,
       endDate: request.endDate instanceof Date ? new Date(request.endDate) : request.endDate,
       origin: request.origin ? { ...request.origin } : undefined,
     };
@@ -366,8 +361,9 @@ export class ReporteParadasService {
       throw new Error('Informe uma Hora Inicial válida no formato HH:mm.');
     }
 
-    const hasEndDate = command.endDate instanceof Date
-      || (typeof command.endDate === 'string' && command.endDate.trim().length > 0);
+    const hasEndDate =
+      command.endDate instanceof Date ||
+      (typeof command.endDate === 'string' && command.endDate.trim().length > 0);
     const hasEndTime = typeof command.endTime === 'string' && command.endTime.trim().length > 0;
     if (hasEndDate !== hasEndTime) {
       throw new Error('Data Final e Hora Final devem ser informadas juntas ou deixadas vazias.');
@@ -411,10 +407,11 @@ export class ReporteParadasService {
 
   private openStopsForContext(areaCode: string, workCenterCode: string): readonly StopEntry[] {
     return this.confirmedStops
-      .filter(stop =>
-        stop.status === 'EM_ANDAMENTO'
-        && this.sameCode(stop.context.area.code, areaCode)
-        && this.sameCode(stop.context.workCenter.code, workCenterCode),
+      .filter(
+        stop =>
+          stop.status === 'EM_ANDAMENTO' &&
+          this.sameCode(stop.context.area.code, areaCode) &&
+          this.sameCode(stop.context.workCenter.code, workCenterCode),
       )
       .map(stop => this.cloneStop(stop));
   }
@@ -433,9 +430,7 @@ export class ReporteParadasService {
           ? {
               metadata: {
                 ...stop.context.metadata,
-                orderIds: stop.context.metadata.orderIds
-                  ? [...stop.context.metadata.orderIds]
-                  : [],
+                orderIds: stop.context.metadata.orderIds ? [...stop.context.metadata.orderIds] : [],
               },
             }
           : {}),
@@ -461,20 +456,18 @@ export class ReporteParadasService {
     const reason = value['reason'];
     const responsible = value['responsible'];
     const startDate = this.parsePersistedLocalDate(value['startDate']);
-    const endDate = value['endDate']
-      ? this.parsePersistedLocalDate(value['endDate'])
-      : null;
+    const endDate = value['endDate'] ? this.parsePersistedLocalDate(value['endDate']) : null;
     if (
-      !this.isValidPersistedContext(context)
-      || !this.isValidPersistedReason(reason)
-      || !this.isValidPersistedResponsible(responsible)
-      || !startDate
-      || (value['endDate'] !== null && value['endDate'] !== undefined && !endDate)
-      || typeof value['startTime'] !== 'string'
-      || !this.isValidTime(value['startTime'])
-      || (value['endTime'] !== null
-        && value['endTime'] !== undefined
-        && (typeof value['endTime'] !== 'string' || !this.isValidTime(value['endTime'])))
+      !this.isValidPersistedContext(context) ||
+      !this.isValidPersistedReason(reason) ||
+      !this.isValidPersistedResponsible(responsible) ||
+      !startDate ||
+      (value['endDate'] !== null && value['endDate'] !== undefined && !endDate) ||
+      typeof value['startTime'] !== 'string' ||
+      !this.isValidTime(value['startTime']) ||
+      (value['endTime'] !== null &&
+        value['endTime'] !== undefined &&
+        (typeof value['endTime'] !== 'string' || !this.isValidTime(value['endTime'])))
     ) {
       return null;
     }
@@ -519,9 +512,10 @@ export class ReporteParadasService {
         ? value['endTime']
         : null;
     const legacyEnd = typeof value['endAt'] === 'string' ? new Date(value['endAt']) : null;
-    const end = persistedEndDate && persistedEndTime
-      ? combineLocalDateTime(persistedEndDate, persistedEndTime)
-      : legacyEnd;
+    const end =
+      persistedEndDate && persistedEndTime
+        ? combineLocalDateTime(persistedEndDate, persistedEndTime)
+        : legacyEnd;
     const index = this.confirmedStops.findIndex(stop => stop.localId === localId);
     if (index < 0 || !end || Number.isNaN(end.getTime())) {
       return;
@@ -581,29 +575,34 @@ export class ReporteParadasService {
     }
     const areaValue = area as Record<string, unknown>;
     const centerValue = workCenter as Record<string, unknown>;
-    return nonEmptyString(areaValue['code'])
-      && nonEmptyString(areaValue['description'])
-      && nonEmptyString(centerValue['code'])
-      && nonEmptyString(centerValue['areaCode'])
-      && typeof centerValue['active'] === 'boolean';
+    return (
+      nonEmptyString(areaValue['code']) &&
+      nonEmptyString(areaValue['description']) &&
+      nonEmptyString(centerValue['code']) &&
+      nonEmptyString(centerValue['areaCode']) &&
+      typeof centerValue['active'] === 'boolean'
+    );
   }
 
   private isValidPersistedReason(value: unknown): value is StopReason {
     if (!value || typeof value !== 'object') return false;
     const reason = value as Record<string, unknown>;
-    return Number.isInteger(reason['id'])
-      && nonEmptyString(reason['code'])
-      && nonEmptyString(reason['description']);
+    return (
+      Number.isInteger(reason['id']) &&
+      nonEmptyString(reason['code']) &&
+      nonEmptyString(reason['description'])
+    );
   }
 
   private isValidPersistedResponsible(value: unknown): value is ResponsavelParada {
     if (!value || typeof value !== 'object') return false;
     const responsible = value as Record<string, unknown>;
-    return (responsible['tipo'] === 'OPERADOR' || responsible['tipo'] === 'EQUIPE')
-      && nonEmptyString(responsible['codigo'])
-      && nonEmptyString(responsible['nome']);
+    return (
+      (responsible['tipo'] === 'OPERADOR' || responsible['tipo'] === 'EQUIPE') &&
+      nonEmptyString(responsible['codigo']) &&
+      nonEmptyString(responsible['nome'])
+    );
   }
-
 }
 
 function nonEmptyString(value: unknown): value is string {

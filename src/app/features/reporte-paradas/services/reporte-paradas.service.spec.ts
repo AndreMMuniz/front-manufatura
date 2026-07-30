@@ -41,9 +41,32 @@ describe('ReporteParadasService', () => {
     const catalog = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([center])),
-      listarResponsaveis: vi.fn(() => of([
-        { tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' },
-      ])),
+      listarResponsaveis: vi.fn(() =>
+        of([{ tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' }]),
+      ),
+    };
+    const localRecords = {
+      listByOwner: vi.fn(async () => []),
+      getByIdempotencyKey: vi.fn(async () => null),
+    };
+    const commands = {
+      capture: vi.fn(async (request: { idempotencyKey?: string; payload?: unknown }) => {
+        const key = request.idempotencyKey ?? globalThis.crypto.randomUUID();
+        const fingerprint = JSON.stringify(request.payload);
+        const prior = captured.get(key);
+        if (prior && prior.fingerprint !== fingerprint) {
+          throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
+        }
+        const result = prior?.result ?? {
+          localId: key,
+          idempotencyKey: key,
+          payloadHash: 'hash',
+          committedAt: '2026-07-30T12:00:00.000Z',
+          syncStatus: 'PENDING',
+        };
+        captured.set(key, { fingerprint, result });
+        return result;
+      }),
     };
     TestBed.configureTestingModule({
       providers: [
@@ -55,36 +78,20 @@ describe('ReporteParadasService', () => {
         },
         {
           provide: LocalRecordRepository,
-          useValue: {
-            listByOwner: vi.fn(async () => []),
-            getByIdempotencyKey: vi.fn(async () => null),
-          },
+          useValue: localRecords,
         },
         {
           provide: OperationalCommandFacade,
-          useValue: {
-            capture: vi.fn(async (request: { idempotencyKey?: string; payload?: unknown }) => {
-              const key = request.idempotencyKey ?? globalThis.crypto.randomUUID();
-              const fingerprint = JSON.stringify(request.payload);
-              const prior = captured.get(key);
-              if (prior && prior.fingerprint !== fingerprint) {
-                throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
-              }
-              const result = prior?.result ?? {
-                localId: key,
-                idempotencyKey: key,
-                payloadHash: 'hash',
-                committedAt: '2026-07-30T12:00:00.000Z',
-                syncStatus: 'PENDING',
-              };
-              captured.set(key, { fingerprint, result });
-              return result;
-            }),
-          },
+          useValue: commands,
         },
       ],
     });
-    return { service: TestBed.inject(ReporteParadasService), catalog };
+    return {
+      service: TestBed.inject(ReporteParadasService),
+      catalog,
+      localRecords,
+      commands,
+    };
   }
 
   it('delega Área, CT e responsáveis à fronteira operacional compartilhada', async () => {
@@ -99,9 +106,7 @@ describe('ReporteParadasService', () => {
     expect(catalog.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01');
     expect(areas).toEqual([{ code: '4001', description: 'Produção' }]);
     expect(centers).toEqual([center]);
-    expect(responsaveis).toEqual([
-      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
-    ]);
+    expect(responsaveis).toEqual([{ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }]);
   });
 
   it('mantém motivos mockados exclusivamente no service e devolve cópias defensivas', async () => {
@@ -121,8 +126,9 @@ describe('ReporteParadasService', () => {
       throwError(() => new Error('Catálogo indisponível')),
     );
 
-    await expect(firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01')))
-      .rejects.toThrow('Catálogo indisponível');
+    await expect(firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01'))).rejects.toThrow(
+      'Catálogo indisponível',
+    );
   });
 
   it('preserva e devolve prefill tipado por cópia profunda', () => {
@@ -151,10 +157,14 @@ describe('ReporteParadasService', () => {
   it('registra parada em andamento sem inventar fim', async () => {
     const { service } = setup();
 
-    const parada = await firstValueFrom(service.registrarParada(request({
-      endDate: null,
-      endTime: '',
-    })));
+    const parada = await firstValueFrom(
+      service.registrarParada(
+        request({
+          endDate: null,
+          endTime: '',
+        }),
+      ),
+    );
 
     expect(parada.status).toBe('EM_ANDAMENTO');
     expect(parada.endDate).toBeUndefined();
@@ -168,10 +178,14 @@ describe('ReporteParadasService', () => {
     const { service } = setup();
 
     const finalizada = await firstValueFrom(service.registrarParada(request()));
-    const instantanea = await firstValueFrom(service.registrarParada(request({
-      idempotencyKey: 'idem-equal',
-      endTime: '08:00',
-    })));
+    const instantanea = await firstValueFrom(
+      service.registrarParada(
+        request({
+          idempotencyKey: 'idem-equal',
+          endTime: '08:00',
+        }),
+      ),
+    );
 
     expect(finalizada.status).toBe('FINALIZADA');
     expect(finalizada.durationMinutes).toBe(90);
@@ -198,21 +212,26 @@ describe('ReporteParadasService', () => {
   it('valida motivo, contexto e responsável elegível', async () => {
     const { service, catalog } = setup();
 
-    await expect(firstValueFrom(service.registrarParada(request({ reasonId: 999 }))))
-      .rejects.toThrow('motivo');
-    await expect(firstValueFrom(service.registrarParada(request({ areaCode: '' }))))
-      .rejects.toThrow('Área');
+    await expect(
+      firstValueFrom(service.registrarParada(request({ reasonId: 999 }))),
+    ).rejects.toThrow('motivo');
+    await expect(
+      firstValueFrom(service.registrarParada(request({ areaCode: '' }))),
+    ).rejects.toThrow('Área');
     catalog.listarResponsaveis.mockReturnValueOnce(of([]));
-    await expect(firstValueFrom(service.registrarParada(request())))
-      .rejects.toThrow('responsável');
+    await expect(firstValueFrom(service.registrarParada(request()))).rejects.toThrow('responsável');
   });
 
   it('normaliza identidade composta do responsável', async () => {
     const { service } = setup();
 
-    const parada = await firstValueFrom(service.registrarParada(request({
-      responsible: { tipo: 'OPERADOR', codigo: ' op-001 ', nome: 'Nome não canônico' },
-    })));
+    const parada = await firstValueFrom(
+      service.registrarParada(
+        request({
+          responsible: { tipo: 'OPERADOR', codigo: ' op-001 ', nome: 'Nome não canônico' },
+        }),
+      ),
+    );
 
     expect(parada.responsible).toEqual({
       tipo: 'OPERADOR',
@@ -230,24 +249,66 @@ describe('ReporteParadasService', () => {
 
     expect(retry).toEqual(first);
     expect(retry).not.toBe(first);
-    await expect(firstValueFrom(service.registrarParada({
-      ...command,
-      programmed: false,
-    }))).rejects.toThrow('outro conteúdo');
+    await expect(
+      firstValueFrom(
+        service.registrarParada({
+          ...command,
+          programmed: false,
+        }),
+      ),
+    ).rejects.toThrow('outro conteúdo');
+  });
+
+  it('revalida na fachada central conteúdo divergente de uma chave já persistida', async () => {
+    const { service, localRecords, commands } = setup();
+    localRecords.getByIdempotencyKey.mockResolvedValueOnce({
+      commandType: 'CREATE_STOP',
+      idempotencyKey: 'idem-1',
+      payload: {
+        localId: 'idem-1',
+        context,
+        reason: { id: 1, code: '01', description: 'Setup' },
+        responsible: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+        startDate: '2026-07-28',
+        startTime: '08:00',
+        endDate: '2026-07-28',
+        endTime: '09:30',
+        programmed: true,
+        status: 'FINALIZADA',
+        durationMinutes: 90,
+      },
+    });
+    commands.capture.mockRejectedValueOnce(
+      new Error('A chave de idempotência já foi usada com outro conteúdo.'),
+    );
+
+    await expect(
+      firstValueFrom(
+        service.registrarParada(
+          request({
+            programmed: false,
+          }),
+        ),
+      ),
+    ).rejects.toThrow('outro conteúdo');
+    expect(commands.capture).toHaveBeenCalledOnce();
   });
 
   it('bloqueia comando concorrente e libera o retry após erro', async () => {
     const { service, catalog } = setup();
-    const pending = new Subject<Array<{
-      tipo: 'OPERADOR';
-      codigo: string;
-      nome: string;
-    }>>();
+    const pending = new Subject<
+      Array<{
+        tipo: 'OPERADOR';
+        codigo: string;
+        nome: string;
+      }>
+    >();
     catalog.listarResponsaveis.mockReturnValueOnce(pending);
     const first = firstValueFrom(service.registrarParada(request()));
 
-    await expect(firstValueFrom(service.registrarParada(request({ idempotencyKey: 'idem-2' }))))
-      .rejects.toThrow('andamento');
+    await expect(
+      firstValueFrom(service.registrarParada(request({ idempotencyKey: 'idem-2' }))),
+    ).rejects.toThrow('andamento');
 
     pending.error(new Error('falha temporária'));
     await expect(first).rejects.toThrow('falha temporária');
@@ -258,65 +319,72 @@ describe('ReporteParadasService', () => {
 
   it('consulta somente paradas em andamento do contexto e devolve cópias', async () => {
     const { service } = setup();
-    const aberta = await firstValueFrom(service.registrarParada(request({
-      idempotencyKey: 'inicio-aberta',
-      endDate: null,
-      endTime: null,
-    })));
-    await firstValueFrom(service.registrarParada(request({
-      idempotencyKey: 'inicio-finalizada',
-    })));
+    const aberta = await firstValueFrom(
+      service.registrarParada(
+        request({
+          idempotencyKey: 'inicio-aberta',
+          endDate: null,
+          endTime: null,
+        }),
+      ),
+    );
+    await firstValueFrom(
+      service.registrarParada(
+        request({
+          idempotencyKey: 'inicio-finalizada',
+        }),
+      ),
+    );
 
-    const first = await firstValueFrom(
-      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
-    );
-    const second = await firstValueFrom(
-      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
-    );
+    const first = await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+    const second = await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
 
     expect(first).toEqual([aberta]);
     expect(first[0]).not.toBe(aberta);
     expect(second[0]).not.toBe(first[0]);
-    expect(await firstValueFrom(
-      service.listarParadasEmAndamento('4002', 'CT-EXT-01'),
-    )).toEqual([]);
+    expect(await firstValueFrom(service.listarParadasEmAndamento('4002', 'CT-EXT-01'))).toEqual([]);
   });
 
   it('finaliza por cópia e remove a parada da consulta de abertas', async () => {
     const { service } = setup();
-    const aberta = await firstValueFrom(service.registrarParada(request({
-      idempotencyKey: 'inicio-aberta',
-      endDate: null,
-      endTime: null,
-    })));
+    const aberta = await firstValueFrom(
+      service.registrarParada(
+        request({
+          idempotencyKey: 'inicio-aberta',
+          endDate: null,
+          endTime: null,
+        }),
+      ),
+    );
     await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
 
-    const finalizada = await firstValueFrom(service.finalizarParada(
-      aberta.id,
-      finishRequest(),
-    ));
+    const finalizada = await firstValueFrom(service.finalizarParada(aberta.id, finishRequest()));
 
-    expect(finalizada).toEqual(expect.objectContaining({
-      id: aberta.id,
-      status: 'FINALIZADA',
-      endDate: new Date(2026, 6, 28),
-      endTime: '09:30',
-      durationMinutes: 90,
-      syncStatus: 'PENDING',
-    }));
+    expect(finalizada).toEqual(
+      expect.objectContaining({
+        id: aberta.id,
+        status: 'FINALIZADA',
+        endDate: new Date(2026, 6, 28),
+        endTime: '09:30',
+        durationMinutes: 90,
+        syncStatus: 'PENDING',
+      }),
+    );
     expect(finalizada).not.toBe(aberta);
-    expect(await firstValueFrom(
-      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
-    )).toEqual([]);
+    expect(await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'))).toEqual([]);
   });
 
   it('consulta idempotência do fim antes do status e detecta conflito de conteúdo', async () => {
     const { service } = setup();
-    const aberta = await firstValueFrom(service.registrarParada(request({
-      idempotencyKey: 'inicio-aberta',
-      endDate: null,
-      endTime: null,
-    })));
+    const aberta = await firstValueFrom(
+      service.registrarParada(
+        request({
+          idempotencyKey: 'inicio-aberta',
+          endDate: null,
+          endTime: null,
+        }),
+      ),
+    );
     await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
     const command = finishRequest();
 
@@ -325,31 +393,42 @@ describe('ReporteParadasService', () => {
 
     expect(retry).toEqual(first);
     expect(retry).not.toBe(first);
-    await expect(firstValueFrom(service.finalizarParada(aberta.id, {
-      ...command,
-      endTime: '09:31',
-    }))).rejects.toThrow('outro conteúdo');
+    await expect(
+      firstValueFrom(
+        service.finalizarParada(aberta.id, {
+          ...command,
+          endTime: '09:31',
+        }),
+      ),
+    ).rejects.toThrow('outro conteúdo');
   });
 
   it('revalida contexto, estado e intervalo para comandos de fim ainda não registrados', async () => {
     const { service } = setup();
-    const aberta = await firstValueFrom(service.registrarParada(request({
-      idempotencyKey: 'inicio-aberta',
-      endDate: null,
-      endTime: null,
-    })));
+    const aberta = await firstValueFrom(
+      service.registrarParada(
+        request({
+          idempotencyKey: 'inicio-aberta',
+          endDate: null,
+          endTime: null,
+        }),
+      ),
+    );
 
     await firstValueFrom(service.listarParadasEmAndamento('4002', 'CT-EXT-01'));
-    await expect(firstValueFrom(service.finalizarParada(
-      aberta.id,
-      finishRequest(),
-    ))).rejects.toThrow('contexto');
+    await expect(
+      firstValueFrom(service.finalizarParada(aberta.id, finishRequest())),
+    ).rejects.toThrow('contexto');
 
     await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
-    await expect(firstValueFrom(service.finalizarParada(
-      aberta.id,
-      finishRequest({ endTime: '07:59', idempotencyKey: 'fim-anterior' }),
-    ))).rejects.toThrow('anterior');
+    await expect(
+      firstValueFrom(
+        service.finalizarParada(
+          aberta.id,
+          finishRequest({ endTime: '07:59', idempotencyKey: 'fim-anterior' }),
+        ),
+      ),
+    ).rejects.toThrow('anterior');
   });
 
   function request(overrides: Partial<CreateStopRequest> = {}): CreateStopRequest {
