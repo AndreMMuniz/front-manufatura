@@ -1,8 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 
-import { Observable, delay, map, of } from 'rxjs';
+import { Observable, delay, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { IdempotencyService } from '../../../core/offline/services/idempotency.service';
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
@@ -32,22 +34,16 @@ interface BatchMockRecord {
   encerrada: boolean;
 }
 
-interface IdempotentReportRecord {
-  readonly fingerprint: string;
-  readonly report: ReporteParcialBatelada;
-}
-
 @Injectable({ providedIn: 'root' })
 export class ReportaBateladaService {
   private readonly reportCatalog = inject(ReportOperacaoService);
   private readonly productionCatalog = inject(ProductionContextCatalogService);
   private readonly authSession = inject(AuthSessionService, { optional: true });
+  private readonly idempotency = inject(IdempotencyService);
+  private readonly commands = inject(OperationalCommandFacade);
   private readonly batches = new Map<string, BatchMockRecord>();
   private readonly reportsByBatch = new Map<string, ReadonlyArray<ReporteParcialBatelada>>();
-  private readonly reportsByIdempotency = new Map<string, IdempotentReportRecord>();
   private stoppedWorkflow: ReportaBateladaWorkflowSnapshot | null = null;
-  private batchSequence = 0;
-  private reportSequence = 0;
 
   constructor() {
     this.authSession?.session$.subscribe(session => {
@@ -124,6 +120,8 @@ export class ReportaBateladaService {
     }
 
     return {
+      batchId: this.idempotency.resolve(),
+      idempotencyKey: this.idempotency.resolve(),
       contexto: { ...contexto },
       responsavel: { ...responsavel },
       ordens: ordens.map(ordem => ({ ...ordem })),
@@ -131,18 +129,30 @@ export class ReportaBateladaService {
   }
 
   iniciarBatelada(request: IniciarBateladaRequest): Observable<InicioBatelada> {
-    const batchId = `batch-${++this.batchSequence}`;
-    const response: IniciarBateladaResponse = {
-      status: 'SUCESSO_INTEGRAL',
-      batchId,
-      iniciadoEm: new Date(),
-      resultados: request.ordens.map(ordem => ({ ordemId: ordem.id, sucesso: true })),
-    };
-
-    return of(response).pipe(
-      delay(200),
-      map(result => {
-        const inicio = this.validarRespostaInicio(result, request.ordens.map(ordem => ordem.id));
+    const batchId = this.idempotency.resolve(request.batchId);
+    const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
+    const iniciadoEm = new Date();
+    return from(this.commands.capture({
+      commandType: 'START_BATCH',
+      aggregateId: batchId,
+      businessStatus: 'INICIADA',
+      idempotencyKey,
+      occurredAt: iniciadoEm.toISOString(),
+      payload: {
+        batchId,
+        contexto: { ...request.contexto },
+        responsavel: { ...request.responsavel },
+        ordens: request.ordens.map(ordem => ({ ...ordem })),
+        iniciadoEm: iniciadoEm.toISOString(),
+      },
+    })).pipe(
+      map(confirmation => {
+        const inicio: InicioBatelada = {
+          batchId,
+          iniciadoEm,
+          ordensIniciadas: request.ordens.map(ordem => ordem.id),
+          startCommandId: confirmation.idempotencyKey,
+        };
         this.batches.set(inicio.batchId, {
           orderIds: [...inicio.ordensIniciadas],
           encerrada: false,
@@ -233,42 +243,46 @@ export class ReportaBateladaService {
     // garantir atomicidade ou devolver resultados por ordem para reconciliação.
     const command = this.cloneReportRequest(request);
     return of(null).pipe(
-      delay(200),
       map(() => {
         this.validarReporteParcial(command);
-
-        const idempotencyIdentity = `${command.batchId}:${command.idempotencyKey}`;
-        const fingerprint = this.reportFingerprint(command);
-        const prior = this.reportsByIdempotency.get(idempotencyIdentity);
-        if (prior) {
-          if (prior.fingerprint !== fingerprint) {
-            throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
-          }
-          return this.cloneReport(prior.report);
-        }
-
         this.assertActiveBatchComposition(
           command.batchId,
           command.items.map(item => item.orderId),
         );
 
-        const response: ReporteParcialBateladaResponse = {
-          status: 'SUCESSO_INTEGRAL',
-          reporteId: `report-${++this.reportSequence}`,
-          batchId: command.batchId,
-          idempotencyKey: command.idempotencyKey,
-          confirmadoEm: new Date(),
-          resultados: command.items.map(item => ({ ordemId: item.orderId, sucesso: true })),
+        return command;
+      }),
+      switchMap(validated => from(this.commands.capture({
+        commandType: 'REPORT_BATCH',
+        aggregateId: validated.batchId,
+        businessStatus: 'REPORTADA',
+        idempotencyKey: validated.idempotencyKey,
+        ...(validated.dependencyIds
+          ? { dependencyIds: validated.dependencyIds }
+          : {}),
+        payload: {
+          batchId: validated.batchId,
+          items: validated.items.map(item => ({
+            ...item,
+            refugoItens: item.refugoItens.map(reason => ({ ...reason })),
+          })),
+        },
+      })).pipe(map(confirmation => {
+        const confirmed: ReporteParcialBatelada = {
+          reporteId: confirmation.localId,
+          batchId: validated.batchId,
+          idempotencyKey: confirmation.idempotencyKey,
+          confirmadoEm: new Date(confirmation.committedAt),
+          items: this.cloneItems(validated.items),
         };
-        const confirmed = this.validarRespostaReporte(response, command);
         const stored = this.cloneReport(confirmed);
-        this.reportsByIdempotency.set(idempotencyIdentity, { fingerprint, report: stored });
-        this.reportsByBatch.set(command.batchId, [
-          ...(this.reportsByBatch.get(command.batchId) ?? []),
+        const existing = this.reportsByBatch.get(validated.batchId) ?? [];
+        this.reportsByBatch.set(validated.batchId, [
+          ...existing.filter(report => report.idempotencyKey !== stored.idempotencyKey),
           stored,
         ]);
         return this.cloneReport(stored);
-      }),
+      }))),
     );
   }
 
@@ -308,21 +322,25 @@ export class ReportaBateladaService {
   }
 
   encerrarBatelada(request: EncerrarBateladaRequest): Observable<EncerramentoBatelada> {
-    return of(null).pipe(
-      delay(200),
-      map(() => {
-        this.assertActiveBatchComposition(request.batchId, request.orderIds);
-        const response: EncerrarBateladaResponse = {
-          status: 'SUCESSO_INTEGRAL',
+    this.assertActiveBatchComposition(request.batchId, request.orderIds);
+    const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
+    return from(this.commands.capture({
+      commandType: 'END_BATCH',
+      aggregateId: request.batchId,
+      businessStatus: 'FINALIZADA',
+      idempotencyKey,
+      ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
+      payload: {
+        batchId: request.batchId,
+        orderIds: [...request.orderIds],
+      },
+    })).pipe(
+      map(confirmation => {
+        const encerramento: EncerramentoBatelada = {
           batchId: request.batchId,
-          encerradoEm: new Date(),
-          resultados: request.orderIds.map(ordemId => ({ ordemId, sucesso: true })),
+          encerradoEm: new Date(confirmation.committedAt),
+          ordensEncerradas: [...request.orderIds],
         };
-        const encerramento = this.validarRespostaEncerramento(
-          response,
-          request.batchId,
-          request.orderIds,
-        );
         const batch = this.batches.get(request.batchId);
         if (batch) {
           batch.encerrada = true;
@@ -383,21 +401,10 @@ export class ReportaBateladaService {
     );
   }
 
-  private reportFingerprint(request: ReporteParcialBateladaRequest): string {
-    return JSON.stringify({
-      batchId: request.batchId,
-      items: request.items.map(item => ({
-        ...item,
-        refugoItens: item.refugoItens.map(reason => ({ ...reason })),
-      })),
-    });
-  }
-
   private clearSessionState(): void {
     this.stoppedWorkflow = null;
     this.batches.clear();
     this.reportsByBatch.clear();
-    this.reportsByIdempotency.clear();
   }
 
   private cloneReportRequest(
@@ -406,6 +413,7 @@ export class ReportaBateladaService {
     return {
       batchId: request.batchId,
       idempotencyKey: request.idempotencyKey,
+      ...(request.dependencyIds ? { dependencyIds: [...request.dependencyIds] } : {}),
       items: request.items.map(item => ({
         ...item,
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
@@ -418,6 +426,7 @@ export class ReportaBateladaService {
       batchId: inicio.batchId,
       iniciadoEm: new Date(inicio.iniciadoEm),
       ordensIniciadas: [...inicio.ordensIniciadas],
+      ...(inicio.startCommandId ? { startCommandId: inicio.startCommandId } : {}),
     };
   }
 

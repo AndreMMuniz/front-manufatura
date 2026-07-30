@@ -37,6 +37,9 @@ export interface SaveMeasurementRequest {
   componentId: string;
   measurement: QualityMeasurement;
   operatorId: string;
+  idempotencyKey?: string;
+  routeNumber?: string;
+  dependencyIds?: readonly string[];
 }
 
 export interface SaveMeasurementResponse {
@@ -56,10 +59,10 @@ export interface InspectionMeasurementPayload {
   unit: string;
   status: QualityComponentStatus;
   observation?: string;
-  authorization?: {
-    supervisorId: string;
+  supervisorApproval?: {
+    supervisorAuthorizationId: string;
     reason: string;
-    approvedAt: Date;
+    approvedAt: string;
   };
 }
 
@@ -77,6 +80,8 @@ export interface SaveInspectionPayload {
   status: 'APPROVED' | 'REJECTED';
   createdAt: Date;
   measurements: InspectionMeasurementPayload[];
+  idempotencyKey?: string;
+  dependencyIds?: readonly string[];
 }
 
 export interface SaveInspectionResult {

@@ -1,7 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 
-import { Observable, delay, map, of } from 'rxjs';
+import { Observable, delay, from, map, of } from 'rxjs';
 
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
@@ -23,7 +24,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ReportOperacaoService {
   private readonly productionCatalog = inject(ProductionContextCatalogService);
-  private readonly reportesPorIdempotencia = new Map<string, ReporteResultado>();
+  private readonly commands = inject(OperationalCommandFacade);
 
   private readonly ordens: ReadonlyArray<OrdemCentroTrabalhoResponseDTO> = [
     {
@@ -162,8 +163,34 @@ export class ReportOperacaoService {
     );
   }
 
-  iniciarOperacao(request: IniciarOperacaoRequest): Observable<{ readonly dataInicio: Date; readonly horaInicio: string }> {
-    return of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio }).pipe(delay(200));
+  iniciarOperacao(request: IniciarOperacaoRequest): Observable<{
+    readonly dataInicio: Date;
+    readonly horaInicio: string;
+    readonly idempotencyKey: string;
+  }> {
+    const aggregateId = this.operationAggregateId(request.ordem, request.op, request.split);
+    return from(this.commands.capture({
+      commandType: 'START_OPERATION',
+      aggregateId,
+      businessStatus: 'INICIADA',
+      ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
+      occurredAt: this.combineDateTime(request.dataInicio, request.horaInicio),
+      payload: {
+        ordem: request.ordem,
+        op: request.op,
+        split: request.split,
+        operador: request.operador,
+        equipe: request.equipe,
+        tipoResponsavel: request.tipoResponsavel,
+        codigoResponsavel: request.codigoResponsavel,
+        dataInicio: request.dataInicio.toISOString(),
+        horaInicio: request.horaInicio,
+      },
+    })).pipe(map(confirmation => ({
+      dataInicio: request.dataInicio,
+      horaInicio: request.horaInicio,
+      idempotencyKey: confirmation.idempotencyKey,
+    })));
   }
 
   listarResponsaveis(
@@ -176,24 +203,58 @@ export class ReportOperacaoService {
   }
 
   reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteResultado> {
-    const existing = this.reportesPorIdempotencia.get(request.idempotencyKey);
-    if (existing) {
-      return of({ ...existing, reportadoEm: new Date(existing.reportadoEm) }).pipe(delay(300));
-    }
-
-    const result = {
-      apontamentoId: `${request.op}-${Date.now()}`,
-      reportadoEm: new Date(),
-    };
-    this.reportesPorIdempotencia.set(request.idempotencyKey, result);
-    return of({ ...result, reportadoEm: new Date(result.reportadoEm) }).pipe(delay(300));
+    const reportadoEm = new Date(this.combineDateTime(request.dataFim, request.horaFim));
+    return from(this.commands.capture({
+      commandType: 'REPORT_OPERATION',
+      aggregateId: this.operationAggregateId(request.ordem, request.op, request.split),
+      businessStatus: 'REPORTADA',
+      idempotencyKey: request.idempotencyKey,
+      ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
+      occurredAt: reportadoEm.toISOString(),
+      payload: {
+        ordem: request.ordem,
+        op: request.op,
+        split: request.split,
+        quantidadeAprovada: request.quantidadeAprovada,
+        quantidadeRetrabalho: request.quantidadeRetrabalho,
+        quantidadeRefugo: request.quantidadeRefugo,
+        refugoItens: (request.refugoItens ?? []).map(item => ({ ...item })),
+        dataInicio: request.dataInicio.toISOString(),
+        horaInicio: request.horaInicio,
+        dataFim: request.dataFim.toISOString(),
+        horaFim: request.horaFim,
+        operador: request.operador,
+        equipe: request.equipe,
+        tipoResponsavel: request.tipoResponsavel,
+        codigoResponsavel: request.codigoResponsavel,
+        ct: request.ct,
+      },
+    })).pipe(map(confirmation => ({
+      apontamentoId: confirmation.localId,
+      reportadoEm,
+    })));
   }
 
   encerrarOperacao(request: EncerrarOperacaoRequest): Observable<ReporteResultado> {
-    return of({
-      apontamentoId: `${request.op}-ENC-${Date.now()}`,
-      reportadoEm: new Date(),
-    }).pipe(delay(300));
+    const reportadoEm = new Date(this.combineDateTime(request.dataFim, request.horaFim));
+    return from(this.commands.capture({
+      commandType: 'END_OPERATION',
+      aggregateId: this.operationAggregateId(request.ordem, request.op, request.split),
+      businessStatus: 'FINALIZADA',
+      ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
+      ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
+      occurredAt: reportadoEm.toISOString(),
+      payload: {
+        ordem: request.ordem,
+        op: request.op,
+        split: request.split,
+        dataFim: request.dataFim.toISOString(),
+        horaFim: request.horaFim,
+      },
+    })).pipe(map(confirmation => ({
+      apontamentoId: confirmation.localId,
+      reportadoEm,
+    })));
   }
 
   validarReporteParcial(
@@ -301,5 +362,16 @@ export class ReportOperacaoService {
 
   private round3(value: number): number {
     return Math.round((value + Number.EPSILON) * 1000) / 1000;
+  }
+
+  private operationAggregateId(ordem: string, op: string, split: string): string {
+    return [ordem, op, split].map(value => this.normalizeCode(value)).join('|');
+  }
+
+  private combineDateTime(date: Date, time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+    const occurredAt = new Date(date);
+    occurredAt.setHours(hours, minutes, 0, 0);
+    return occurredAt.toISOString();
   }
 }

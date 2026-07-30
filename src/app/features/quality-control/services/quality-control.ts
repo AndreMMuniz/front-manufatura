@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, from, map, of } from 'rxjs';
+
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 
 import {
   GenerateInspectionRouteRequest,
@@ -13,8 +15,6 @@ import {
 } from '../models/reaction-plan-authorization';
 import {
   MeasurementValidationResult,
-  RegisterComponentResultRequest,
-  RegisterComponentResultResponse,
   SaveMeasurementRequest,
   SaveMeasurementResponse,
   SaveInspectionPayload,
@@ -25,6 +25,8 @@ export interface StopInspectionRouteRequest {
   routeNumber: string;
   examId: string;
   reason: string;
+  idempotencyKey?: string;
+  dependencyIds?: readonly string[];
 }
 
 export interface StopInspectionRouteResponse {
@@ -36,6 +38,8 @@ export interface StopInspectionRouteResponse {
 
 @Injectable({ providedIn: 'root' })
 export class QualityControlService {
+  constructor(private readonly commands: OperationalCommandFacade) {}
+
   // API facade: keep the UI bound to these contracts while Datasul endpoints are unavailable.
   getProductionOrderOperations(orderNumber: string): Observable<ProductionOrderOperationsResult> {
     return of({
@@ -72,8 +76,26 @@ export class QualityControlService {
   generateInspectionRoute(
     request: GenerateInspectionRouteRequest,
   ): Observable<ProductionOrderRoute> {
-    return of({
-      routeNumber: '475.956',
+    const aggregateId = `${request.orderNumber}-${request.operation.operationCode}-${request.operation.split?.trim() || '1'}`;
+    const routeNumber = '475.956';
+    const occurredAt = new Date().toISOString();
+    return from(this.commands.capture({
+      commandType: 'GENERATE_INSPECTION_ROUTE',
+      aggregateId,
+      businessStatus: 'GERADO',
+      ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
+      occurredAt,
+      payload: {
+        orderNumber: request.orderNumber,
+        operationCode: request.operation.operationCode,
+        split: request.operation.split?.trim() || '1',
+        itemCode: request.operation.itemCode,
+        itemDescription: request.operation.itemDescription,
+        moveBalance: request.moveBalance,
+        generatedAt: occurredAt,
+      },
+    })).pipe(map(() => ({
+      routeNumber,
       processDescription: request.operation.processDescription,
       currentOrder: request.orderNumber,
       operationCode: request.operation.operationCode,
@@ -81,7 +103,7 @@ export class QualityControlService {
       split: request.operation.split?.trim() || '1',
       itemCode: request.operation.itemCode,
       itemDescription: request.operation.itemDescription,
-    });
+    })));
   }
 
   getQualityExams(itemCode: string, operationCode: string): Observable<QualityExam[]> {
@@ -184,33 +206,74 @@ export class QualityControlService {
   }
 
   saveMeasurement(request: SaveMeasurementRequest): Observable<SaveMeasurementResponse> {
-    return of({
+    const savedAt = new Date();
+    return from(this.commands.capture({
+      commandType: 'SAVE_MEASUREMENT',
+      aggregateId: request.examId,
+      businessStatus: request.measurement.status,
+      ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
+      ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
+      occurredAt: savedAt.toISOString(),
+      payload: {
+        routeNumber: request.routeNumber ?? '',
+        examId: request.examId,
+        componentId: request.componentId,
+        minimum: request.measurement.minimum,
+        maximum: request.measurement.maximum,
+        observation: request.measurement.observation ?? '',
+        status: request.measurement.status,
+        operatorId: request.operatorId,
+        savedAt: savedAt.toISOString(),
+      },
+    })).pipe(map(() => ({
       componentId: request.componentId,
       measurement: {
         ...request.measurement,
         operatorId: request.operatorId,
-        savedAt: new Date(),
+        savedAt,
       },
-    });
+    })));
   }
 
   finishExam(request: {
     examId: string;
+    idempotencyKey?: string;
+    dependencyIds?: readonly string[];
   }): Observable<{ examId: string; success: boolean; finishedAt: Date }> {
-    return of({
+    const finishedAt = new Date();
+    return from(this.commands.capture({
+      commandType: 'FINISH_EXAM',
+      aggregateId: request.examId,
+      businessStatus: 'FINALIZADO',
+      ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
+      ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
+      occurredAt: finishedAt.toISOString(),
+      payload: { examId: request.examId, finishedAt: finishedAt.toISOString() },
+    })).pipe(map(() => ({
       examId: request.examId,
       success: true,
-      finishedAt: new Date(),
-    });
+      finishedAt,
+    })));
   }
 
   stopInspectionRoute(
     request: StopInspectionRouteRequest,
   ): Observable<StopInspectionRouteResponse> {
-    return of({
-      ...request,
-      stoppedAt: new Date(),
-    });
+    const stoppedAt = new Date();
+    return from(this.commands.capture({
+      commandType: 'STOP_INSPECTION_ROUTE',
+      aggregateId: request.routeNumber,
+      businessStatus: 'PARADO',
+      ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
+      ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
+      occurredAt: stoppedAt.toISOString(),
+      payload: {
+        routeNumber: request.routeNumber,
+        examId: request.examId,
+        reason: request.reason,
+        stoppedAt: stoppedAt.toISOString(),
+      },
+    })).pipe(map(() => ({ ...request, stoppedAt })));
   }
 
   authorizeReactionPlan(
@@ -224,21 +287,21 @@ export class QualityControlService {
     });
   }
 
-  registerComponentResult(
-    request: RegisterComponentResultRequest,
-  ): Observable<RegisterComponentResultResponse> {
-    return of({
-      componentId: request.componentId,
-      status: request.result,
-      inspectedAt: new Date(),
-      operatorId: request.operatorId,
-    });
-  }
-
   saveInspection(payload: SaveInspectionPayload): Observable<SaveInspectionResult> {
-    return of({
-      inspectionId: `INSP-${payload.opNumber}-${payload.examCode}`,
-      savedAt: new Date(),
-    });
+    const savedAt = new Date();
+    const inspectionId = `INSP-${payload.opNumber}-${payload.examCode}-${payload.routeNumber}`;
+    return from(this.commands.capture({
+      commandType: 'SAVE_INSPECTION',
+      aggregateId: inspectionId,
+      businessStatus: payload.status,
+      ...(payload.idempotencyKey ? { idempotencyKey: payload.idempotencyKey } : {}),
+      ...(payload.dependencyIds ? { dependencyIds: payload.dependencyIds } : {}),
+      occurredAt: savedAt.toISOString(),
+      payload: {
+        ...payload,
+        createdAt: payload.createdAt.toISOString(),
+        measurements: payload.measurements.map(measurement => ({ ...measurement })),
+      },
+    })).pipe(map(() => ({ inspectionId, savedAt })));
   }
 }

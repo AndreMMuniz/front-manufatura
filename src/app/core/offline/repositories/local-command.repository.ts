@@ -41,6 +41,7 @@ interface CommandFingerprint {
   readonly businessStatus?: string;
   readonly dependencyIds: readonly string[];
   readonly occurredAt: string;
+  readonly initialSyncStatus: 'PENDING' | 'BLOCKED_AUTH';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -85,6 +86,7 @@ export class LocalCommandRepository {
       payloadHash: prepared.payloadHash,
       dependencyIds,
       occurredAt,
+      initialSyncStatus: request.initialSyncStatus ?? 'PENDING',
     };
 
     if (existing.localRecord || existing.outboxEntry) {
@@ -120,7 +122,7 @@ export class LocalCommandRepository {
       canonicalPayload: prepared.canonicalPayload,
       payloadHash: prepared.payloadHash,
       ownerId: metadata.ownerId,
-      status: 'PENDING',
+      status: fingerprint.initialSyncStatus,
       ...(metadata.businessStatus ? { businessStatus: metadata.businessStatus } : {}),
       dependencyIds,
       attemptCount: 0,
@@ -278,6 +280,7 @@ function matchesFingerprint(
     record.businessStatus === fingerprint.businessStatus &&
     record.occurredAt === fingerprint.occurredAt &&
     sameStrings(record.dependencyIds, fingerprint.dependencyIds)
+    && ('status' in record ? record.status === fingerprint.initialSyncStatus : true)
   );
 }
 

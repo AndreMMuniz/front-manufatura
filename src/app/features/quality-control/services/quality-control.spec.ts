@@ -5,7 +5,15 @@ import { QualityExamComponent } from '../models/quality-exam';
 import { QualityControlService } from './quality-control';
 
 describe('QualityControlService', () => {
-  const service = new QualityControlService();
+  const service = new QualityControlService({
+    capture: async (request: { idempotencyKey?: string }) => ({
+      localId: request.idempotencyKey ?? '123e4567-e89b-42d3-a456-426614174000',
+      idempotencyKey: request.idempotencyKey ?? '123e4567-e89b-42d3-a456-426614174000',
+      payloadHash: 'hash',
+      committedAt: '2026-07-30T12:00:00.000Z',
+      syncStatus: 'PENDING',
+    }),
+  } as never);
   const component: QualityExamComponent = {
     id: '500517-010',
     code: '010',

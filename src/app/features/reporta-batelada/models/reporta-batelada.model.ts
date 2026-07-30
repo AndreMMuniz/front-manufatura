@@ -40,6 +40,7 @@ export interface InicioBatelada {
   readonly batchId: string;
   readonly iniciadoEm: Date;
   readonly ordensIniciadas: ReadonlyArray<string>;
+  readonly startCommandId?: string;
 }
 
 export interface MotivoRefugoBatelada {

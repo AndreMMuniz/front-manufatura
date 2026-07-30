@@ -48,6 +48,7 @@ export interface ReportOperacaoResponseDTO {
 }
 
 export interface IniciarOperacaoRequest {
+  readonly idempotencyKey?: string;
   readonly ordem: string;
   readonly op: string;
   readonly split: string;
@@ -60,6 +61,8 @@ export interface IniciarOperacaoRequest {
 }
 
 export interface EncerrarOperacaoRequest {
+  readonly idempotencyKey?: string;
+  readonly dependencyIds?: readonly string[];
   readonly ordem: string;
   readonly op: string;
   readonly split: string;
@@ -91,4 +94,5 @@ export interface ReportarOperacaoRequest {
   readonly tipoResponsavel: TipoResponsavelOperacao;
   readonly codigoResponsavel: string;
   readonly ct: string;
+  readonly dependencyIds?: readonly string[];
 }

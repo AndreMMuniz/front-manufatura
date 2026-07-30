@@ -3,6 +3,7 @@ import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
@@ -44,6 +45,22 @@ describe('ReportaBateladaService', () => {
         { provide: AuthSessionService, useValue: { session$ } },
         { provide: ReportOperacaoService, useValue: catalogMock },
         { provide: ProductionContextCatalogService, useValue: catalogMock },
+        {
+          provide: OperationalCommandFacade,
+          useValue: {
+            capture: vi.fn(async (request: { idempotencyKey?: string }) => {
+              const idempotencyKey =
+                request.idempotencyKey ?? globalThis.crypto.randomUUID();
+              return {
+                localId: idempotencyKey,
+                idempotencyKey,
+                payloadHash: 'hash',
+                committedAt: '2026-07-30T12:00:00.000Z',
+                syncStatus: 'PENDING',
+              };
+            }),
+          },
+        },
       ],
     });
     service = TestBed.inject(ReportaBateladaService);

@@ -11,6 +11,8 @@ export interface ConsultaOrdensBateladaRequest {
 }
 
 export interface IniciarBateladaRequest {
+  readonly batchId?: string;
+  readonly idempotencyKey?: string;
   readonly contexto: ContextoBatelada;
   readonly responsavel: ResponsavelBatelada;
   readonly ordens: ReadonlyArray<OrdemLiberadaBatelada>;
@@ -50,6 +52,7 @@ export interface ReporteParcialBateladaRequest {
   readonly batchId: string;
   readonly idempotencyKey: string;
   readonly items: ReadonlyArray<ItemReporteParcialBateladaRequest>;
+  readonly dependencyIds?: readonly string[];
 }
 
 export interface ResultadoComandoOrdem {
@@ -77,6 +80,8 @@ export interface ListarReportesBateladaResponse {
 export interface EncerrarBateladaRequest {
   readonly batchId: string;
   readonly orderIds: ReadonlyArray<string>;
+  readonly idempotencyKey?: string;
+  readonly dependencyIds?: readonly string[];
 }
 
 export interface EncerrarBateladaResponse {

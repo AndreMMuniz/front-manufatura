@@ -25,6 +25,7 @@ import {
 } from '../../models/report-operacao.model';
 import { MotivoRefugoService } from '../../services/motivo-refugo.service';
 import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 
 export interface ReporteParcialDraft {
   readonly idempotencyKey?: string;
@@ -68,6 +69,9 @@ export class ReporteSlide implements OnDestroy {
     private readonly dialog: PoDialogService,
     private readonly motivoService: MotivoRefugoService = new MotivoRefugoService(),
     private readonly pwaWorkState: PwaWorkStateService = new PwaWorkStateService(),
+    private readonly idempotency: IdempotencyService = new IdempotencyService(
+      () => globalThis.crypto,
+    ),
   ) {}
 
   ngOnDestroy(): void {
@@ -366,7 +370,6 @@ export class ReporteSlide implements OnDestroy {
   }
 
   private createIdempotencyKey(): string {
-    return globalThis.crypto?.randomUUID?.()
-      ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return this.idempotency.resolve();
   }
 }

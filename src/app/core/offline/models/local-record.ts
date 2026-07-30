@@ -31,6 +31,7 @@ export interface PersistConfirmedCommandRequest<TPayload> {
   readonly idempotencyKey?: string;
   readonly occurredAt?: string;
   readonly businessStatus?: string;
+  readonly initialSyncStatus?: 'PENDING' | 'BLOCKED_AUTH';
 }
 
 export function normalizeDependencyIds(dependencyIds: readonly string[] | undefined): readonly string[] {

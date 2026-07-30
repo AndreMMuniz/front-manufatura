@@ -16,6 +16,7 @@ export interface GenerateInspectionRouteRequest {
   orderNumber: string;
   operation: ProductionOrderOperation;
   moveBalance: boolean;
+  idempotencyKey?: string;
 }
 
 export interface ProductionOrderRoute {

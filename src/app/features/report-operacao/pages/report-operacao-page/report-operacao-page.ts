@@ -20,6 +20,7 @@ import {
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import {
   GerenciarEquipeResultado,
   GerenciarEquipeSlide,
@@ -78,6 +79,7 @@ export class ReportOperacaoPage implements OnInit {
   private readonly workflowState = inject(ReportOperacaoWorkflowState);
   private readonly operationalContext = inject(OperationalContextService);
   private readonly authSession = inject(AuthSessionService);
+  private readonly idempotency = inject(IdempotencyService);
   private readonly reporteParadasService = inject(ReporteParadasService);
   private readonly notification = inject(PoNotificationService);
   private readonly dialog = inject(PoDialogService);
@@ -821,8 +823,7 @@ export class ReportOperacaoPage implements OnInit {
     const quantidadeAprovada = this.round3(draft.quantidadeAprovada);
     const quantidadeRetrabalho = this.round3(draft.quantidadeRetrabalho);
     const quantidadeRefugo = this.round3(draft.quantidadeRefugo);
-    const idempotencyKey = draft.idempotencyKey
-      ?? `${operation?.op ?? 'sem-op'}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const idempotencyKey = draft.idempotencyKey ?? this.idempotency.resolve();
     if (!operation?.dataInicio || !operation.horaInicio || !responsavel || !this.canEditProduction) {
       const message = 'Inicie a operação com uma equipe ou operador válido antes de reportar.';
       this.feedback = message;
@@ -873,7 +874,7 @@ export class ReportOperacaoPage implements OnInit {
     const activeOrderId = this.workflowState.snapshot().activeOrder?.id;
     const request = ++this.reportRequest;
     this.estado = EstadoOperacao.Reportando;
-    this.feedback = 'Enviando reporte parcial ao Datasul...';
+    this.feedback = 'Salvando reporte neste dispositivo...';
 
     const parcial: ReportOperacao = {
       ...operation,
@@ -916,8 +917,8 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setActiveOperation(this.operacao, this.estado);
           this.workflowState.addReporte(reporte);
           this.reporteSlide?.confirmarReporte(reporte);
-          this.feedback = `Reporte ${result.apontamentoId} registrado. A operação continua ativa.`;
-          this.notification.success('Reporte registrado com sucesso.');
+          this.feedback = 'Salvo neste dispositivo — envio pendente. A operação continua ativa.';
+          this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.changeDetector.markForCheck();
         },
         error: () => {
@@ -929,7 +930,7 @@ export class ReportOperacaoPage implements OnInit {
           this.estado = EstadoOperacao.Erro;
           this.operacao = operation;
           this.workflowState.setActiveOperation(operation, this.estado);
-          this.feedback = 'Não foi possível comunicar com o ERP. O reporte foi preservado para nova tentativa.';
+          this.feedback = 'Não foi possível salvar neste dispositivo. O rascunho foi preservado para correção.';
           this.reporteSlide?.informarErro(this.feedback);
           this.notification.error(this.feedback);
           this.changeDetector.markForCheck();

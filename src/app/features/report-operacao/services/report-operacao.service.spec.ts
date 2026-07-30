@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSession } from '../../../core/auth/auth.models';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { EquipesService } from '../../equipes/services/equipes.service';
 import { ReportOperacao } from '../models/report-operacao.model';
 
@@ -24,6 +25,22 @@ describe('ReportOperacaoService', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: AuthSessionService, useValue: { session$ } },
+        {
+          provide: OperationalCommandFacade,
+          useValue: {
+            capture: vi.fn(async (request: { idempotencyKey?: string }) => {
+              const idempotencyKey =
+                request.idempotencyKey ?? '123e4567-e89b-42d3-a456-426614174000';
+              return {
+                localId: idempotencyKey,
+                idempotencyKey,
+                payloadHash: 'hash',
+                committedAt: '2026-07-30T12:00:00.000Z',
+                syncStatus: 'PENDING',
+              };
+            }),
+          },
+        },
       ],
     });
     service = TestBed.inject(ReportOperacaoService);
