@@ -45,7 +45,7 @@ export interface SaveMeasurementRequest {
 export interface SaveMeasurementResponse {
   componentId: string;
   measurement: QualityMeasurement;
-  idempotencyKey: string;
+  idempotencyKey?: string;
 }
 
 export interface InspectionMeasurementPayload {

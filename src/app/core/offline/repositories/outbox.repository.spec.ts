@@ -7,6 +7,7 @@ import { JsonValue } from '../models/local-record';
 import { OutboxEntry } from '../models/outbox-entry';
 import { transactionComplete } from './repository-utils';
 import { OutboxRepository } from './outbox.repository';
+import { SupervisorProofVault } from '../services/supervisor-proof-vault';
 
 const OWNER = 'operator-1';
 const OTHER_OWNER = 'operator-2';
@@ -16,11 +17,13 @@ const LEASE_EXPIRES = '2026-07-29T13:01:00.000Z';
 describe('OutboxRepository processing', () => {
   let database: OfflineDatabase;
   let repository: OutboxRepository;
+  let supervisorProofs: SupervisorProofVault;
 
   beforeEach(() => {
     vi.stubGlobal('IDBKeyRange', FakeIDBKeyRange);
     database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
-    repository = new OutboxRepository(database);
+    supervisorProofs = new SupervisorProofVault();
+    repository = new OutboxRepository(database, supervisorProofs);
   });
 
   afterEach(() => {
@@ -260,6 +263,12 @@ describe('OutboxRepository processing', () => {
       status: 'BLOCKED_AUTH',
       authBlockReason: 'SUPERVISOR',
     });
+    supervisorProofs.attach(
+      OWNER,
+      'supervisor-auth',
+      { authorizationId: 'auth-1' },
+      new Date('2099-01-01T00:00:00.000Z'),
+    );
     expect(
       await repository.resumeSupervisorBlocked(OWNER, 'supervisor-auth', NOW),
     ).toBe(true);

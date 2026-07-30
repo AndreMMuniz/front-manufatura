@@ -61,6 +61,10 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
     return this.cloneSnapshot(this.value());
   }
 
+  restoreDurable(snapshot: ReportaBateladaWorkflowSnapshot): void {
+    this.value.set(this.cloneSnapshot(snapshot));
+  }
+
   setArea(area: AreaProducaoBatelada | null): boolean {
     if (this.isLocked()) {
       return false;

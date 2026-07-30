@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { catchError, of } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -229,6 +230,43 @@ export class ReportOperacaoPage implements OnInit {
     this.destroyRef.onDestroy(() => this.invalidateTeamContext());
     const snapshot = this.workflowState.snapshot();
     this.hydrate(snapshot);
+    const restoreOperation =
+      this.reportOperacaoService.restaurarOperacaoAtiva?.bind(this.reportOperacaoService);
+    if (!snapshot.operation && restoreOperation) {
+      restoreOperation()
+        .pipe(catchError(() => of(null)))
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(restored => {
+          if (!restored || this.workflowState.snapshot().operation) return;
+          const activeOrder: OrdemCentroTrabalho = {
+            id: [
+              restored.workCenter.code,
+              restored.operation.ordem,
+              restored.operation.op,
+              restored.operation.split,
+            ].join('|'),
+            ordem: restored.operation.ordem,
+            itemOp: `${restored.operation.item} / ${restored.operation.op}`,
+            operacao: restored.operation.op,
+            split: restored.operation.split,
+          };
+          this.workflowState.restore({
+            ...this.workflowState.snapshot(),
+            area: restored.area,
+            workCenter: restored.workCenter,
+            orders: [activeOrder],
+            selectedOrderIds: new Set([activeOrder.id]),
+            queue: [activeOrder],
+            activeOrder,
+            operation: restored.operation,
+            operationState: EstadoOperacao.OperacaoIniciada,
+            responsavel: restored.responsavel,
+            reportes: restored.reportes,
+          });
+          this.hydrate(this.workflowState.snapshot());
+          this.changeDetector.markForCheck();
+        });
+    }
     this.loadAreas();
     if (snapshot.operation) {
       this.loadResponsaveis();
@@ -768,6 +806,9 @@ export class ReportOperacaoPage implements OnInit {
       split: operation.split,
       areaCode: this.workflowState.snapshot().area?.code ?? '',
       workCenterCode: this.workflowState.snapshot().workCenter?.code ?? operation.ct,
+      area: this.workflowState.snapshot().area!,
+      workCenter: this.workflowState.snapshot().workCenter!,
+      operationSnapshot: operation,
       operador,
       equipe,
       tipoResponsavel: responsavel.tipo,

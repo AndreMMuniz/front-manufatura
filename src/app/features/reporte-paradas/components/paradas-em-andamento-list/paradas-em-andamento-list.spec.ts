@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { describe, expect, it } from 'vitest';
 
-import { StopEntry } from '../../models/reporte-paradas.model';
+import { StopEntry, StopId } from '../../models/reporte-paradas.model';
 import { ParadasEmAndamentoList } from './paradas-em-andamento-list';
 
 describe('ParadasEmAndamentoList', () => {
@@ -34,7 +34,7 @@ describe('ParadasEmAndamentoList', () => {
     const { fixture, component } = await setup();
     fixture.componentRef.setInput('stops', [stop()]);
     fixture.componentRef.setInput('now', new Date(2026, 6, 28, 9, 2, 59));
-    const selected: number[] = [];
+    const selected: StopId[] = [];
     component.selectStop.subscribe(id => selected.push(id));
     fixture.detectChanges();
 

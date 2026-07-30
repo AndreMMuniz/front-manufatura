@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { catchError, of } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -204,6 +205,19 @@ export class ReportaBateladaPage implements OnInit {
       this.centers = stopped.workCenter ? [{ ...stopped.workCenter }] : [];
       this.syncView();
       return;
+    }
+
+    const restoreBatch = this.service.restaurarBateladaAtiva?.bind(this.service);
+    if (restoreBatch) {
+      restoreBatch()
+        .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
+        .subscribe(restored => {
+          if (!restored || this.workflow.snapshot().batchId) return;
+          this.workflow.restoreDurable(restored);
+          this.areas = [{ ...restored.area! }];
+          this.centers = [{ ...restored.workCenter! }];
+          this.syncView();
+        });
     }
 
     const context = this.operationalContext.currentContext;

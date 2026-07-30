@@ -57,11 +57,11 @@ export class SyncCoordinatorService implements OnDestroy {
     private readonly triggers: SyncTriggerService,
     @Inject(SYNC_TRANSPORT) private readonly transport: SyncTransport,
     private readonly idempotency: IdempotencyService,
-    private readonly supervisorProofs: SupervisorProofVault,
     @Inject(SYNC_CLOCK) private readonly clock: SyncClock,
     @Inject(SYNC_RANDOM) private readonly random: SyncRandom,
     @Inject(SYNC_SCHEDULER_CONFIGURATION) private readonly config: SyncSchedulerConfig,
     @Inject(SYNC_TIMEOUT_SCHEDULER) private readonly timeoutScheduler: TimeoutScheduler,
+    private readonly supervisorProofs: SupervisorProofVault = new SupervisorProofVault(),
   ) {}
 
   start(): void {

@@ -54,7 +54,7 @@ export type ReconcileFailureRequest =
 export class OutboxRepository {
   constructor(
     private readonly database: OfflineDatabase,
-    private readonly supervisorProofs: SupervisorProofVault,
+    private readonly supervisorProofs: SupervisorProofVault = new SupervisorProofVault(),
   ) {}
 
   async getById(ownerId: string, localId: string): Promise<OutboxEntry<JsonValue> | null> {

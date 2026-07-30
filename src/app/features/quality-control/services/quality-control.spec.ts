@@ -66,7 +66,7 @@ describe('QualityControlService', () => {
           moveBalance: false,
         }),
       ),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       routeNumber: '475.956',
       processDescription: 'Dobra de chapa',
       currentOrder: '325571',

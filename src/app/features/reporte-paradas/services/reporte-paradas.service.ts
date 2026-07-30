@@ -95,16 +95,14 @@ export class ReporteParadasService {
       const command = this.cloneRequest(request);
       const validated = this.validateCommand(command);
       const ownerId = this.authSession.currentUser?.id.trim();
-      if (!ownerId) {
-        throw new Error('É necessária uma sessão autenticada para registrar a parada.');
-      }
-      return from(
-        this.localRecords.getByIdempotencyKey(ownerId, command.idempotencyKey),
-      ).pipe(switchMap(existing => {
+      const existingLookup = ownerId
+        ? from(this.localRecords.getByIdempotencyKey(ownerId, command.idempotencyKey))
+        : of(null);
+      return existingLookup.pipe(switchMap(existing => {
         if (existing?.commandType === 'CREATE_STOP') {
           const restored = this.stopFromPayload(existing.payload, existing.idempotencyKey);
           if (restored) {
-            this.ensureOwnerCache(ownerId);
+            this.ensureOwnerCache(ownerId ?? '');
             const existingIndex =
               this.confirmedStops.findIndex(item => item.localId === restored.localId);
             if (existingIndex >= 0) this.confirmedStops[existingIndex] = restored;

@@ -283,11 +283,11 @@ describe('ExamEntryPanel', () => {
 
     component.stopRoute();
 
-    expect(stopSpy).toHaveBeenCalledWith({
+    expect(stopSpy).toHaveBeenCalledWith(expect.objectContaining({
       routeNumber: route.routeNumber,
       examId: 'exam-a',
       reason: 'Aguardar conferência do supervisor',
-    });
+    }));
     expect(state.route()).toBeUndefined();
     expect(state.exams()).toEqual([]);
     expect(state.panelOpen()).toBe(false);

@@ -196,6 +196,14 @@ export class QualityControlWorkflowState {
       .flatMap(component => component.measurement?.commandId ?? []) ?? [];
   }
 
+  restoreCommandIdentities(
+    finishCommandIds: Readonly<Record<string, string>>,
+    inspectionCommandIds: Readonly<Record<string, string>>,
+  ): void {
+    this.finishAttemptKeys = new Map(Object.entries(finishCommandIds));
+    this.inspectionAttemptKeys = new Map(Object.entries(inspectionCommandIds));
+  }
+
   setGeneratedRoute(route: ProductionOrderRoute, token?: number): boolean {
     if (token !== undefined && !this.isCurrent(token)) return false;
     if (token === undefined) this.contextId += 1;

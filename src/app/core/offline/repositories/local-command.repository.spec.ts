@@ -67,7 +67,10 @@ describe('LocalCommandRepository', () => {
     const result = await commands.persistConfirmedCommand(
       request(
         { approvalStatus: 'PENDING' },
-        { initialSyncStatus: 'BLOCKED_AUTH' },
+        {
+          initialSyncStatus: 'BLOCKED_AUTH',
+          initialAuthBlockReason: 'SUPERVISOR',
+        },
       ),
     );
 
@@ -143,7 +146,10 @@ describe('LocalCommandRepository', () => {
     { dependencyIds: ['another-command'] },
     { occurredAt: '2026-07-28T15:46:00.000Z' },
     { businessStatus: 'CONFIRMED' },
-    { initialSyncStatus: 'BLOCKED_AUTH' as const },
+    {
+      initialSyncStatus: 'BLOCKED_AUTH' as const,
+      initialAuthBlockReason: 'SUPERVISOR' as const,
+    },
   ])('rejeita chave e payload iguais quando o envelope diverge: %o', async (overrides) => {
     await commands.persistConfirmedCommand(request({ quantity: 5 }));
 

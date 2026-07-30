@@ -3,6 +3,8 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, delay, from, map, of } from 'rxjs';
 
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
+import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
@@ -17,6 +19,7 @@ import {
   OrdemCentroTrabalho,
   ReportOperacao,
   ReporteResultado,
+  ReporteParcialOperacao,
   ResponsavelOperacao,
   ResultadoConsultaOP,
 } from '../models/report-operacao.model';
@@ -25,6 +28,8 @@ import {
 export class ReportOperacaoService {
   private readonly productionCatalog = inject(ProductionContextCatalogService);
   private readonly commands = inject(OperationalCommandFacade);
+  private readonly authSession = inject(AuthSessionService);
+  private readonly localRecords = inject(LocalRecordRepository);
 
   private readonly ordens: ReadonlyArray<OrdemCentroTrabalhoResponseDTO> = [
     {
@@ -181,6 +186,9 @@ export class ReportOperacaoService {
         split: request.split,
         areaCode: request.areaCode,
         workCenterCode: request.workCenterCode,
+        area: { ...request.area },
+        workCenter: { ...request.workCenter },
+        operation: this.operationSnapshot(request.operationSnapshot),
         operador: request.operador,
         equipe: request.equipe,
         tipoResponsavel: request.tipoResponsavel,
@@ -202,6 +210,65 @@ export class ReportOperacaoService {
     return this.productionCatalog.listarResponsaveis(areaCode, workCenterCode).pipe(
       map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))),
     );
+  }
+
+  restaurarOperacaoAtiva(): Observable<{
+    readonly area: AreaProducao;
+    readonly workCenter: WorkCenter;
+    readonly operation: ReportOperacao;
+    readonly responsavel: ResponsavelOperacao;
+    readonly reportes: ReadonlyArray<ReporteParcialOperacao>;
+  } | null> {
+    const ownerId = this.authSession.currentUser?.id.trim();
+    if (!ownerId) return of(null);
+    return from(this.localRecords.listByOwner(ownerId)).pipe(map(records => {
+      const starts = [...records]
+        .filter(record => record.commandType === 'START_OPERATION')
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+      const start = starts.find(candidate =>
+        !records.some(record =>
+          record.commandType === 'END_OPERATION'
+          && record.aggregateId === candidate.aggregateId));
+      if (!start) return null;
+      const payload = start.payload as Record<string, unknown>;
+      const area = payload['area'] as AreaProducao | undefined;
+      const workCenter = payload['workCenter'] as WorkCenter | undefined;
+      const operation = this.restoreOperationSnapshot(
+        payload['operation'],
+        start.idempotencyKey,
+        start.occurredAt,
+      );
+      const responsibleType = payload['tipoResponsavel'];
+      const responsibleCode = payload['codigoResponsavel'];
+      const responsibleName =
+        responsibleType === 'OPERADOR' ? payload['operador'] : payload['equipe'];
+      if (
+        !area?.code
+        || !workCenter?.code
+        || !operation
+        || (responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE')
+        || typeof responsibleCode !== 'string'
+        || typeof responsibleName !== 'string'
+      ) {
+        return null;
+      }
+      const reportes = records
+        .filter(record =>
+          record.commandType === 'REPORT_OPERATION'
+          && record.aggregateId === start.aggregateId)
+        .flatMap(record => this.restoreOperationReport(record.payload, record));
+      return {
+        area: { ...area },
+        workCenter: { ...workCenter },
+        operation,
+        responsavel: {
+          tipo: responsibleType,
+          codigo: responsibleCode,
+          nome: responsibleName,
+        },
+        reportes,
+      };
+    }));
   }
 
   reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteResultado> {
@@ -386,5 +453,71 @@ export class ReportOperacaoService {
     const occurredAt = new Date(date);
     occurredAt.setHours(hours, minutes, 0, 0);
     return occurredAt.toISOString();
+  }
+
+  private operationSnapshot(operation: ReportOperacao) {
+    return {
+      ...operation,
+      dataInicio: operation.dataInicio?.toISOString() ?? null,
+      dataFim: operation.dataFim?.toISOString() ?? null,
+    };
+  }
+
+  private restoreOperationSnapshot(
+    value: unknown,
+    startCommandId: string,
+    occurredAt: string,
+  ): ReportOperacao | null {
+    if (!value || typeof value !== 'object') return null;
+    const operation = value as Record<string, unknown>;
+    const requiredStrings = [
+      'ordem', 'op', 'split', 'item', 'descricao', 'unidade', 'roteiro',
+      'linha', 'ct', 'grupoMaquina', 'operador', 'equipe', 'turno',
+    ];
+    if (requiredStrings.some(key => typeof operation[key] !== 'string')) return null;
+    const requiredNumbers = [
+      'quantidadeOrdem', 'quantidadeSaldo', 'quantidadeAprovada',
+      'quantidadeRetrabalho', 'quantidadeRefugo',
+    ];
+    if (requiredNumbers.some(key => typeof operation[key] !== 'number')) return null;
+    return {
+      ...(operation as unknown as ReportOperacao),
+      startCommandId,
+      dataInicio: new Date(occurredAt),
+      horaInicio: typeof operation['horaInicio'] === 'string' ? operation['horaInicio'] : '',
+      dataFim: undefined,
+      horaFim: '',
+    };
+  }
+
+  private restoreOperationReport(
+    payload: unknown,
+    record: { readonly localId: string; readonly idempotencyKey: string; readonly createdAt: string },
+  ): readonly ReporteParcialOperacao[] {
+    if (!payload || typeof payload !== 'object') return [];
+    const value = payload as Record<string, unknown>;
+    if (
+      typeof value['quantidadeAprovada'] !== 'number'
+      || typeof value['quantidadeRetrabalho'] !== 'number'
+      || typeof value['quantidadeRefugo'] !== 'number'
+      || typeof value['dataInicio'] !== 'string'
+      || typeof value['dataFim'] !== 'string'
+    ) return [];
+    return [{
+      id: record.localId,
+      commandId: record.idempotencyKey,
+      idempotencyKey: record.idempotencyKey,
+      registradoEm: new Date(record.createdAt),
+      dataInicio: new Date(value['dataInicio']),
+      horaInicio: typeof value['horaInicio'] === 'string' ? value['horaInicio'] : '',
+      dataFim: new Date(value['dataFim']),
+      horaFim: typeof value['horaFim'] === 'string' ? value['horaFim'] : '',
+      quantidadeAprovada: value['quantidadeAprovada'],
+      quantidadeRetrabalho: value['quantidadeRetrabalho'],
+      quantidadeRefugo: value['quantidadeRefugo'],
+      refugoItens: Array.isArray(value['refugoItens'])
+        ? value['refugoItens'] as ReporteParcialOperacao['refugoItens']
+        : [],
+    }];
   }
 }

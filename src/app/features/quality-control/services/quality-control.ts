@@ -3,6 +3,7 @@ import { Observable, from, map, of, switchMap, throwError } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
+import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { SupervisorProofVault } from '../../../core/offline/services/supervisor-proof-vault';
 import { SyncTriggerService } from '../../../core/offline/services/sync-trigger.service';
@@ -13,6 +14,7 @@ import {
   ProductionOrderRoute,
 } from '../models/production-order-route';
 import { QualityComponentStatus, QualityExam, QualityExamComponent } from '../models/quality-exam';
+import { QualityMeasurement } from '../models/quality-exam';
 import {
   ReactionPlanAuthorization,
   ReactionPlanAuthorizationRequest,
@@ -53,6 +55,17 @@ export interface ReactionPlanAuthorizationAdapter {
   ): Promise<ReactionPlanAuthorizationResult>;
 }
 
+export interface RestoredQualityWorkflow {
+  readonly route: ProductionOrderRoute;
+  readonly measurements: ReadonlyArray<{
+    readonly examId: string;
+    readonly componentId: string;
+    readonly measurement: QualityMeasurement;
+  }>;
+  readonly finishCommandIds: Readonly<Record<string, string>>;
+  readonly inspectionCommandIds: Readonly<Record<string, string>>;
+}
+
 export const REACTION_PLAN_AUTHORIZER =
   new InjectionToken<ReactionPlanAuthorizationAdapter>('REACTION_PLAN_AUTHORIZER');
 
@@ -67,6 +80,7 @@ export class QualityControlService {
     @Optional() private readonly supervisorProofs?: SupervisorProofVault,
     @Optional() private readonly outbox?: OutboxRepository,
     @Optional() private readonly syncTrigger?: SyncTriggerService,
+    @Optional() private readonly localRecords?: LocalRecordRepository,
   ) {}
 
   // API facade: keep the UI bound to these contracts while Datasul endpoints are unavailable.
@@ -117,8 +131,11 @@ export class QualityControlService {
       ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
       occurredAt,
       payload: {
+        routeNumber,
         orderNumber: request.orderNumber,
         operationCode: request.operation.operationCode,
+        operationDescription: request.operation.operationDescription,
+        processDescription: request.operation.processDescription,
         split: request.operation.split?.trim() || '1',
         itemCode: request.operation.itemCode,
         itemDescription: request.operation.itemDescription,
@@ -193,6 +210,98 @@ export class QualityControlService {
         ],
       },
     ]);
+  }
+
+  restoreLatestConfirmedRoute(): Observable<RestoredQualityWorkflow | null> {
+    const ownerId = this.authSession?.currentUser?.id.trim();
+    if (!ownerId || !this.localRecords) return of(null);
+    return from(this.localRecords.listByOwner(ownerId)).pipe(map(records => {
+      const generated = [...records]
+        .filter(record => record.commandType === 'GENERATE_INSPECTION_ROUTE')
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+      if (!generated) return null;
+      const stopped = records.some(record =>
+        record.commandType === 'STOP_INSPECTION_ROUTE'
+        && record.aggregateId === generated.localId
+        && record.createdAt >= generated.createdAt);
+      if (stopped) return null;
+      const payload = generated.payload as Record<string, unknown>;
+      if (
+        !nonEmptyText(payload['orderNumber'])
+        || !nonEmptyText(payload['operationCode'])
+        || !nonEmptyText(payload['itemCode'])
+      ) {
+        return null;
+      }
+      const route: ProductionOrderRoute = {
+        localId: generated.localId,
+        creationCommandId: generated.idempotencyKey,
+        routeNumber: nonEmptyText(payload['routeNumber'])
+          ? payload['routeNumber']
+          : generated.localId,
+        processDescription: textOr(payload['processDescription'], ''),
+        currentOrder: payload['orderNumber'],
+        operationCode: payload['operationCode'],
+        operationDescription: textOr(
+          payload['operationDescription'],
+          payload['operationCode'],
+        ),
+        split: textOr(payload['split'], '1'),
+        itemCode: payload['itemCode'],
+        itemDescription: textOr(payload['itemDescription'], ''),
+      };
+      const measurements = records
+        .filter(record =>
+          record.commandType === 'SAVE_MEASUREMENT'
+          && (record.aggregateId === generated.localId
+            || record.dependencyIds.includes(generated.idempotencyKey)))
+        .flatMap(record => {
+          const value = record.payload as Record<string, unknown>;
+          if (
+            !nonEmptyText(value['examId'])
+            || !nonEmptyText(value['componentId'])
+            || typeof value['minimum'] !== 'number'
+            || typeof value['maximum'] !== 'number'
+            || (value['status'] !== 'APPROVED' && value['status'] !== 'REJECTED')
+          ) {
+            return [];
+          }
+          return [{
+            examId: value['examId'],
+            componentId: value['componentId'],
+            measurement: {
+              minimum: value['minimum'],
+              maximum: value['maximum'],
+              status: value['status'] as QualityMeasurement['status'],
+              ...(nonEmptyText(value['observation'])
+                ? { observation: value['observation'] }
+                : {}),
+              ...(nonEmptyText(value['operatorId']) ? { operatorId: value['operatorId'] } : {}),
+              savedAt: new Date(record.createdAt),
+              commandId: record.idempotencyKey,
+            },
+          }];
+        });
+      const finishCommandIds = Object.fromEntries(records
+        .filter(record =>
+          record.commandType === 'FINISH_EXAM'
+          && record.aggregateId === generated.localId)
+        .flatMap(record => {
+          const value = record.payload as Record<string, unknown>;
+          return nonEmptyText(value['examId'])
+            ? [[value['examId'], record.idempotencyKey] as const]
+            : [];
+        }));
+      const inspectionCommandIds = Object.fromEntries(records
+        .filter(record => record.commandType === 'SAVE_INSPECTION')
+        .flatMap(record => {
+          const value = record.payload as Record<string, unknown>;
+          return nonEmptyText(value['examId'])
+            ? [[value['examId'], record.idempotencyKey] as const]
+            : [];
+        }));
+      return { route, measurements, finishCommandIds, inspectionCommandIds };
+    }));
   }
 
   validateMeasurement(
@@ -279,7 +388,7 @@ export class QualityControlService {
     examId: string;
     success: boolean;
     finishedAt: Date;
-    idempotencyKey: string;
+    idempotencyKey?: string;
   }> {
     const finishedAt = new Date();
     return from(this.commands.capture({
@@ -418,4 +527,12 @@ function isValidSupervisorApproval(
     && approval.reason.trim()
     && !Number.isNaN(Date.parse(approval.approvedAt)),
   );
+}
+
+function nonEmptyText(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function textOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
 }

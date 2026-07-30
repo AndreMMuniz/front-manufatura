@@ -1,4 +1,6 @@
-import type { TipoResponsavelOperacao } from '../models/report-operacao.model';
+import type { ReportOperacao, TipoResponsavelOperacao } from '../models/report-operacao.model';
+import type { AreaProducao } from '../../shop-floor/models/production-area';
+import type { WorkCenter } from '../../shop-floor/models/work-center';
 
 export interface AreaProducaoResponseDTO {
   readonly code: string;
@@ -54,6 +56,9 @@ export interface IniciarOperacaoRequest {
   readonly split: string;
   readonly areaCode: string;
   readonly workCenterCode: string;
+  readonly area: AreaProducao;
+  readonly workCenter: WorkCenter;
+  readonly operationSnapshot: ReportOperacao;
   readonly operador: string;
   readonly equipe: string;
   readonly tipoResponsavel: TipoResponsavelOperacao;

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 
-import { Observable, delay, from, map, of, switchMap } from 'rxjs';
+import { Observable, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
@@ -27,6 +27,7 @@ import {
   OrdemLiberadaBatelada,
   ReporteParcialBatelada,
   ResponsavelBatelada,
+  EstadoBatelada,
 } from '../models/reporta-batelada.model';
 import type { ReportaBateladaWorkflowSnapshot } from './reporta-batelada-workflow-state';
 
@@ -67,6 +68,72 @@ export class ReportaBateladaService {
 
   descartarFluxoParada(): void {
     this.stoppedWorkflow = null;
+  }
+
+  restaurarBateladaAtiva(): Observable<ReportaBateladaWorkflowSnapshot | null> {
+    const ownerId = this.authSession?.currentUser?.id.trim();
+    if (!ownerId) return of(null);
+    return from(this.localRecords.listByOwner(ownerId)).pipe(
+      switchMap(records => {
+        const starts = [...records]
+          .filter(record => record.commandType === 'START_BATCH')
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+        const start = starts.find(candidate =>
+          !records.some(record =>
+            record.commandType === 'END_BATCH'
+            && record.aggregateId === candidate.aggregateId));
+        if (!start) return of(null);
+        const payload = start.payload as Record<string, unknown>;
+        const contexto = payload['contexto'] as Record<string, unknown> | undefined;
+        const responsavel = payload['responsavel'] as ResponsavelBatelada | undefined;
+        const ordens = Array.isArray(payload['ordens'])
+          ? payload['ordens'] as OrdemLiberadaBatelada[]
+          : [];
+        const areaCode = typeof contexto?.['areaCode'] === 'string' ? contexto['areaCode'] : '';
+        const workCenterCode =
+          typeof contexto?.['workCenterCode'] === 'string' ? contexto['workCenterCode'] : '';
+        if (!areaCode || !workCenterCode || !responsavel || ordens.length === 0) {
+          return of(null);
+        }
+        return forkJoin({
+          areas: this.listarAreas(),
+          centers: this.pesquisarCentros(areaCode, ''),
+          reportes: this.listarReportesBatelada(start.aggregateId),
+          responsaveis: this.listarResponsaveisElegiveis(areaCode, workCenterCode),
+        }).pipe(map(({ areas, centers, reportes, responsaveis }) => {
+          const area = areas.find(item => item.code === areaCode);
+          const workCenter = centers.find(item => item.code === workCenterCode);
+          if (!area || !workCenter) return null;
+          const inicio: InicioBatelada = {
+            batchId: start.aggregateId,
+            iniciadoEm: new Date(start.occurredAt),
+            ordensIniciadas: ordens.map(ordem => ordem.id),
+            startCommandId: start.idempotencyKey,
+          };
+          return {
+            area,
+            workCenter,
+            orders: ordens.map(ordem => ({ ...ordem })),
+            selectedOrderIds: ordens.map(ordem => ordem.id),
+            composition: ordens.map(ordem => ({ ...ordem })),
+            responsaveis,
+            responsavel: { ...responsavel },
+            estado: EstadoBatelada.BateladaIniciada,
+            asyncState: 'sucesso' as const,
+            lastOperationalState: EstadoBatelada.BateladaIniciada,
+            errorMessage: '',
+            batchId: start.aggregateId,
+            inicio,
+            history: reportes,
+            draft: null,
+            reportAsyncState: 'ocioso' as const,
+            historyAsyncState: 'sucesso' as const,
+            endingAsyncState: 'ocioso' as const,
+            encerramento: null,
+          };
+        }));
+      }),
+    );
   }
 
   listarAreas(): Observable<ReadonlyArray<AreaProducao>> {
