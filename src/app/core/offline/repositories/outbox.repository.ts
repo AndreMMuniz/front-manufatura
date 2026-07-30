@@ -15,6 +15,7 @@ import {
   transactionComplete,
 } from './repository-utils';
 import { SupervisorProofVault } from '../services/supervisor-proof-vault';
+import { OutboxActivityService } from '../services/outbox-activity.service';
 
 export interface ClaimOutboxRequest {
   readonly ownerId: string;
@@ -50,11 +51,41 @@ export type ReconcileFailureRequest =
       readonly nextAttemptAt?: never;
     });
 
+export interface OutboxPageCursor {
+  readonly ownerId: string;
+  readonly occurredAt: string;
+  readonly localId: string;
+}
+
+export interface OutboxPageQuery {
+  readonly ownerId: string;
+  readonly pageSize?: number;
+  readonly cursor?: OutboxPageCursor;
+  readonly statuses?: readonly string[];
+  readonly occurredFrom?: string;
+  readonly occurredTo?: string;
+  readonly matchesIdentification?: (entry: OutboxEntry<JsonValue>) => boolean;
+}
+
+export interface OutboxPage {
+  readonly items: readonly OutboxEntry<JsonValue>[];
+  readonly nextCursor: OutboxPageCursor | null;
+  readonly hasMore: boolean;
+}
+
+export interface OutboxOwnerSummary {
+  readonly pending: number;
+  readonly error: number;
+  readonly syncing: number;
+  readonly receipts: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OutboxRepository {
   constructor(
     private readonly database: OfflineDatabase,
     private readonly supervisorProofs: SupervisorProofVault = new SupervisorProofVault(),
+    private readonly activity: OutboxActivityService = new OutboxActivityService(null),
   ) {}
 
   async getById(ownerId: string, localId: string): Promise<OutboxEntry<JsonValue> | null> {
@@ -88,6 +119,65 @@ export class OutboxRepository {
       'Não foi possível listar a Outbox local.',
     );
     return defensiveCopy(entries);
+  }
+
+  async listPage(query: OutboxPageQuery): Promise<OutboxPage> {
+    const owner = assertOwnerId(query.ownerId);
+    const pageSize = query.pageSize ?? 25;
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+      throw new TypeError('pageSize deve estar entre 1 e 100.');
+    }
+    if (query.cursor?.ownerId !== undefined && query.cursor.ownerId !== owner) {
+      throw new TypeError('O cursor não pertence ao owner consultado.');
+    }
+    const occurredFrom = query.occurredFrom ? validIso(query.occurredFrom) : undefined;
+    const occurredTo = query.occurredTo ? validIso(query.occurredTo) : undefined;
+    if (occurredFrom && occurredTo && occurredFrom > occurredTo) {
+      throw new TypeError('O intervalo operacional é inválido.');
+    }
+    const cursor = query.cursor
+      ? {
+          ownerId: owner,
+          occurredAt: validIso(query.cursor.occurredAt),
+          localId: requiredText(query.cursor.localId),
+        }
+      : undefined;
+    const transaction = await this.database.createTransaction([OUTBOX_STORE], 'readonly');
+    const completed = transactionComplete(transaction);
+    const index = transaction.objectStore(OUTBOX_STORE).index('ownerOccurredAtLocalId');
+    const entries = await scanPage(
+      index,
+      pageRange(owner, cursor, occurredFrom, occurredTo),
+      pageSize,
+      entry => matchesPageQuery(entry, query),
+    );
+    await completed;
+    const hasMore = entries.length > pageSize;
+    const items = entries.slice(0, pageSize);
+    const last = items.at(-1);
+    return defensiveCopy({
+      items,
+      nextCursor: hasMore && last
+        ? {
+            ownerId: owner,
+            occurredAt: last.occurredAt,
+            localId: last.localId,
+          }
+        : null,
+      hasMore,
+    });
+  }
+
+  async summarizeOwner(ownerId: string): Promise<OutboxOwnerSummary> {
+    const owner = assertOwnerId(ownerId);
+    const transaction = await this.database.createTransaction([OUTBOX_STORE], 'readonly');
+    const completed = transactionComplete(transaction);
+    const summary = await summarizeCursor(
+      transaction.objectStore(OUTBOX_STORE).index('ownerId'),
+      owner,
+    );
+    await completed;
+    return defensiveCopy(summary);
   }
 
   async listCandidates(
@@ -185,6 +275,7 @@ export class OutboxRepository {
         store.put(blocked(current, now));
       }
       await completed;
+      if (head) this.activity.publish();
       return null;
     }
 
@@ -204,6 +295,7 @@ export class OutboxRepository {
         ),
       );
       await completed;
+      this.activity.publish();
       return null;
     }
 
@@ -218,6 +310,7 @@ export class OutboxRepository {
     };
     store.put(claimed);
     await completed;
+    this.activity.publish();
     return defensiveCopy(claimed);
   }
 
@@ -251,6 +344,7 @@ export class OutboxRepository {
     store.put(synchronized);
     await completed;
     this.supervisorProofs.clear(owner, request.localId);
+    this.activity.publish();
     return true;
   }
 
@@ -280,6 +374,7 @@ export class OutboxRepository {
     };
     store.put(failed);
     await completed;
+    this.activity.publish();
     return true;
   }
 
@@ -306,6 +401,7 @@ export class OutboxRepository {
       updatedAt: normalizedNow,
     } satisfies OutboxEntry<JsonValue>);
     await completed;
+    this.activity.publish();
     return true;
   }
 
@@ -334,6 +430,7 @@ export class OutboxRepository {
       updatedAt: normalizedNow,
     } satisfies OutboxEntry<JsonValue>);
     await completed;
+    this.activity.publish();
     return true;
   }
 
@@ -359,7 +456,9 @@ export class OutboxRepository {
       } satisfies OutboxEntry<JsonValue>);
     }
     await completed;
-    return entries.filter(entry => entry.authBlockReason !== 'SUPERVISOR').length;
+    const resumed = entries.filter(entry => entry.authBlockReason !== 'SUPERVISOR').length;
+    if (resumed > 0) this.activity.publish();
+    return resumed;
   }
 
   async resumeSupervisorBlocked(
@@ -393,6 +492,7 @@ export class OutboxRepository {
       updatedAt: normalizedNow,
     } satisfies OutboxEntry<JsonValue>);
     await completed;
+    this.activity.publish();
     return true;
   }
 }
@@ -556,4 +656,101 @@ function requiredText(value: string): string {
     throw new TypeError('O token de lease é obrigatório.');
   }
   return normalized;
+}
+
+function scanPage(
+  index: IDBIndex,
+  range: IDBKeyRange | undefined,
+  pageSize: number,
+  matches: (entry: OutboxEntry<JsonValue>) => boolean,
+): Promise<OutboxEntry<JsonValue>[]> {
+  return new Promise((resolve, reject) => {
+    const entries: OutboxEntry<JsonValue>[] = [];
+    const request = index.openCursor(range, 'prev');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor || entries.length > pageSize) {
+        resolve(entries);
+        return;
+      }
+      const entry = cursor.value as OutboxEntry<JsonValue>;
+      if (matches(entry)) {
+        entries.push(entry);
+      }
+      if (entries.length > pageSize) {
+        resolve(entries);
+        return;
+      }
+      cursor.continue();
+    };
+  });
+}
+
+function summarizeCursor(index: IDBIndex, owner: string): Promise<OutboxOwnerSummary> {
+  return new Promise((resolve, reject) => {
+    let pending = 0;
+    let error = 0;
+    let syncing = 0;
+    let receipts = 0;
+    const request = index.openCursor(globalThis.IDBKeyRange?.only(owner));
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve({ pending, error, syncing, receipts });
+        return;
+      }
+      const entry = cursor.value as OutboxEntry<JsonValue> & {
+        readonly deliveryDisposition?: string;
+      };
+      if ((entry.deliveryDisposition ?? 'ACTIVE') === 'ACTIVE') {
+        if (
+          entry.status === 'PENDING'
+          || entry.status === 'SYNCING'
+          || entry.status === 'RETRY_WAIT'
+          || entry.status === 'BLOCKED_AUTH'
+          || entry.status === 'BLOCKED_DEPENDENCY'
+        ) {
+          pending += 1;
+        }
+        if (entry.status === 'SYNCING') syncing += 1;
+        if (entry.status === 'ERROR') error += 1;
+      }
+      if (entry.status === 'SYNCED' && entry.receipt) receipts += 1;
+      cursor.continue();
+    };
+  });
+}
+
+function matchesPageQuery(entry: OutboxEntry<JsonValue>, query: OutboxPageQuery): boolean {
+  const disposition = (entry as OutboxEntry<JsonValue> & {
+    readonly deliveryDisposition?: string;
+  }).deliveryDisposition ?? 'ACTIVE';
+  const statuses = query.statuses;
+  return (
+    (!statuses?.length || statuses.includes(entry.status) || statuses.includes(disposition))
+    && (!query.matchesIdentification || query.matchesIdentification(defensiveCopy(entry)))
+  );
+}
+
+function pageRange(
+  owner: string,
+  cursor: OutboxPageCursor | undefined,
+  occurredFrom: string | undefined,
+  occurredTo: string | undefined,
+): IDBKeyRange | undefined {
+  const keyRange = globalThis.IDBKeyRange;
+  if (!keyRange) return undefined;
+  const lower: IDBValidKey = occurredFrom ? [owner, occurredFrom, ''] : [owner];
+  if (cursor) {
+    return keyRange.bound(
+      lower,
+      [owner, cursor.occurredAt, cursor.localId],
+      false,
+      true,
+    );
+  }
+  const upper: IDBValidKey = occurredTo ? [owner, occurredTo, []] : [owner, []];
+  return keyRange.bound(lower, upper);
 }

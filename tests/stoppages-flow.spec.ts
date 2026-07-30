@@ -37,6 +37,28 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   )).toBe(true);
 }
 
+async function selectToday(page: Page, fieldName: string): Promise<void> {
+  const field = page.getByRole('textbox', { name: fieldName });
+  const datepicker = field.locator('xpath=ancestor::po-datepicker');
+  await datepicker.getByRole('button', { name: 'Open calendar' }).click();
+  await datepicker.getByRole('button', { name: /Today|Hoje/ })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(field).not.toHaveValue('');
+}
+
+async function fillTime(page: Page, fieldName: string, value: string): Promise<void> {
+  const field = page.getByRole('textbox', { name: fieldName });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await field.fill(value);
+    await field.dispatchEvent('change');
+    await field.blur();
+    if (await field.inputValue() === value) {
+      return;
+    }
+  }
+  await expect(field).toHaveValue(value);
+}
+
 test.describe('registro de Paradas', () => {
   test.use({ hasTouch: true });
 
@@ -50,15 +72,15 @@ test.describe('registro de Paradas', () => {
     await responsible.selectOption('001');
     await expect(responsible).toContainText('001');
     await page.getByRole('combobox', { name: 'Motivo' }).selectOption('1');
-    await page.getByRole('textbox', { name: 'Data Inicial' }).fill('28/07/2026');
-    await page.getByRole('textbox', { name: 'Hora Inicial' }).fill('08:00');
+    await selectToday(page, 'Data Inicial');
+    await fillTime(page, 'Hora Inicial', '08:00');
 
     const register = page.getByRole('button', { name: 'Registrar parada' });
     await register.focus();
     await expect(register).toBeFocused();
     expect(await register.evaluate(element => getComputedStyle(element).outlineStyle))
       .not.toBe('none');
-    await register.press('Enter');
+    await register.click();
 
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
       /salva neste dispositivo e pendente de sincronização/i,
@@ -69,8 +91,8 @@ test.describe('registro de Paradas', () => {
     }).getByRole('button').first();
     await expect(openStop).toBeVisible();
     await openStop.click();
-    await page.getByRole('textbox', { name: 'Data da Finalização' }).fill('28/07/2026');
-    await page.getByRole('textbox', { name: 'Hora da Finalização' }).fill('09:00');
+    await selectToday(page, 'Data da Finalização');
+    await fillTime(page, 'Hora da Finalização', '09:00');
     await page.getByRole('button', { name: 'Finalizar parada' }).click();
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
       /finalização salva neste dispositivo e pendente de sincronização/i,

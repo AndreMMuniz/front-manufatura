@@ -6,6 +6,7 @@ import { OUTBOX_STORE } from '../database/database-schema';
 import { OfflineStorageError } from '../models/offline-storage-error';
 import { IdempotencyService } from '../services/idempotency.service';
 import { PayloadIntegrityService } from '../services/payload-integrity.service';
+import { OutboxActivityService } from '../services/outbox-activity.service';
 import { LocalCommandRepository } from './local-command.repository';
 import { LocalRecordRepository } from './local-record.repository';
 import { OutboxRepository } from './outbox.repository';
@@ -20,12 +21,14 @@ describe('LocalCommandRepository', () => {
   let commands: LocalCommandRepository;
   let localRecords: LocalRecordRepository;
   let outbox: OutboxRepository;
+  let activity: OutboxActivityService;
 
   beforeEach(() => {
     factory = new IDBFactory();
     database = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);
     localRecords = new LocalRecordRepository(database);
     outbox = new OutboxRepository(database);
+    activity = { publish: vi.fn() } as unknown as OutboxActivityService;
     commands = new LocalCommandRepository(
       database,
       new IdempotencyService(() => ({
@@ -35,6 +38,7 @@ describe('LocalCommandRepository', () => {
       })),
       new PayloadIntegrityService(() => globalThis.crypto.subtle),
       () => new Date(NOW),
+      activity,
     );
   });
 
@@ -47,7 +51,7 @@ describe('LocalCommandRepository', () => {
       idempotencyKey: COMMAND_ID,
       committedAt: NOW,
       localRecord: {
-        databaseVersion: 2,
+        databaseVersion: 3,
         ownerId: 'operator-1',
         payloadSchemaVersion: 2,
       },
@@ -61,6 +65,7 @@ describe('LocalCommandRepository', () => {
     expect(Object.isFrozen(result)).toBe(true);
     expect(await localRecords.listByOwner('operator-1')).toHaveLength(1);
     expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
+    expect(activity.publish).toHaveBeenCalledOnce();
   });
 
   it('permite captura atômica inicialmente bloqueada por autorização sem persistir prova', async () => {

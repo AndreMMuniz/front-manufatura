@@ -68,7 +68,11 @@ describe('database migrations', () => {
     expect([
       ...upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).indexNames,
     ]).toEqual(
-      expect.arrayContaining(['ownerStatusDue', 'ownerAggregateOrder']),
+      expect.arrayContaining([
+        'ownerStatusDue',
+        'ownerAggregateOrder',
+        'ownerOccurredAtLocalId',
+      ]),
     );
     upgraded.close();
   });

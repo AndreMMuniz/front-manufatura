@@ -15,6 +15,7 @@ import {
 import { OfflineStorageError, toOfflineStorageError } from '../models/offline-storage-error';
 import { OutboxEntry, PersistedCommand } from '../models/outbox-entry';
 import { IdempotencyService } from '../services/idempotency.service';
+import { OutboxActivityService } from '../services/outbox-activity.service';
 import { PayloadIntegrityService } from '../services/payload-integrity.service';
 import { defensiveCopy, requestResult, transactionComplete } from './repository-utils';
 
@@ -52,6 +53,7 @@ export class LocalCommandRepository {
     private readonly idempotency: IdempotencyService,
     private readonly integrity: PayloadIntegrityService,
     @Inject(OFFLINE_NOW_PROVIDER) private readonly now: NowProvider,
+    private readonly activity: OutboxActivityService = new OutboxActivityService(null),
   ) {}
 
   async persistConfirmedCommand<TPayload>(
@@ -160,6 +162,7 @@ export class LocalCommandRepository {
       }
       throw toOfflineStorageError(error, 'O comando não foi salvo neste dispositivo.');
     }
+    this.activity.publish();
 
     return defensiveCopy({
       localId: idempotencyKey,

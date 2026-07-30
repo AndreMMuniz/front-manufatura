@@ -16,6 +16,7 @@ import { AuthSessionService } from './core/auth/auth-session.service';
 import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 import { ConnectivityService } from './core/offline/services/connectivity.service';
 import { PwaUpdateService } from './core/offline/pwa/pwa-update.service';
+import { SynchronizationIndicator } from './features/synchronization/components/synchronization-indicator/synchronization-indicator';
 
 const APP_NAME = 'Apontamento Manufatura';
 
@@ -28,7 +29,13 @@ const HOME_MENU: PoMenuItem = {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, PoIconModule, PoMenuModule, PoToolbarModule],
+  imports: [
+    RouterOutlet,
+    PoIconModule,
+    PoMenuModule,
+    PoToolbarModule,
+    SynchronizationIndicator,
+  ],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

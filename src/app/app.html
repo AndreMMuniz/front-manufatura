@@ -16,6 +16,8 @@
       [p-actions-icon]="sessionActionsIcon"
     ></po-toolbar>
 
+    <app-synchronization-indicator data-testid="synchronization-indicator" />
+
     @if (showSideMenu) {
       <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
         <po-menu [p-menus]="menus"></po-menu>

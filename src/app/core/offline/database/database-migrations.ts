@@ -104,9 +104,21 @@ const SCHEDULER_SCHEMA_MIGRATION: DatabaseMigration = {
   },
 };
 
+const SYNCHRONIZATION_CENTER_MIGRATION: DatabaseMigration = {
+  toVersion: 3,
+  migrate: ({ transaction }) => {
+    transaction.objectStore(OUTBOX_STORE).createIndex(
+      'ownerOccurredAtLocalId',
+      ['ownerId', 'occurredAt', 'localId'],
+      { unique: false },
+    );
+  },
+};
+
 export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
   INITIAL_SCHEMA_MIGRATION,
   SCHEDULER_SCHEMA_MIGRATION,
+  SYNCHRONIZATION_CENTER_MIGRATION,
 ]);
 
 export function runDatabaseMigrations(request: RunMigrationsRequest): void {

@@ -1,0 +1,13 @@
+<button
+  type="button"
+  class="synchronization-indicator"
+  [attr.aria-label]="accessibleName()"
+  (click)="open()"
+  (keydown)="handleKeydown($event)"
+>
+  <po-icon [p-icon]="icon()" aria-hidden="true" />
+  <span class="synchronization-indicator__message" aria-live="polite">{{ message() }}</span>
+  <span class="synchronization-indicator__counts" aria-hidden="true">
+    {{ pending() }} pendências · {{ errors() }} erros
+  </span>
+</button>

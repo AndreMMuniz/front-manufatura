@@ -8,6 +8,7 @@ import { OutboxEntry } from '../models/outbox-entry';
 import { transactionComplete } from './repository-utils';
 import { OutboxRepository } from './outbox.repository';
 import { SupervisorProofVault } from '../services/supervisor-proof-vault';
+import { OutboxActivityService } from '../services/outbox-activity.service';
 
 const OWNER = 'operator-1';
 const OTHER_OWNER = 'operator-2';
@@ -18,16 +19,92 @@ describe('OutboxRepository processing', () => {
   let database: OfflineDatabase;
   let repository: OutboxRepository;
   let supervisorProofs: SupervisorProofVault;
+  let activity: OutboxActivityService;
 
   beforeEach(() => {
     vi.stubGlobal('IDBKeyRange', FakeIDBKeyRange);
     database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
     supervisorProofs = new SupervisorProofVault();
-    repository = new OutboxRepository(database, supervisorProofs);
+    activity = { publish: vi.fn() } as unknown as OutboxActivityService;
+    repository = new OutboxRepository(database, supervisorProofs, activity);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('pagina por cursor exclusivo owner/occurredAt/localId sem gap ou duplicata', async () => {
+    await seed(database, [
+      entry('a', { occurredAt: '2026-07-29T12:03:00.000Z' }),
+      entry('b', { occurredAt: '2026-07-29T12:02:00.000Z' }),
+      entry('c', { occurredAt: '2026-07-29T12:02:00.000Z' }),
+      entry('d', { occurredAt: '2026-07-29T12:01:00.000Z' }),
+      entry('foreign', {
+        ownerId: OTHER_OWNER,
+        occurredAt: '2026-07-29T12:04:00.000Z',
+      }),
+    ]);
+
+    const first = await repository.listPage({ ownerId: OWNER, pageSize: 2 });
+    const second = await repository.listPage({
+      ownerId: OWNER,
+      pageSize: 2,
+      cursor: first.nextCursor!,
+    });
+
+    expect(first.items.map(item => item.localId)).toEqual(['a', 'c']);
+    expect(first.hasMore).toBe(true);
+    expect(first.nextCursor).toEqual({
+      ownerId: OWNER,
+      occurredAt: '2026-07-29T12:02:00.000Z',
+      localId: 'c',
+    });
+    expect(second.items.map(item => item.localId)).toEqual(['b', 'd']);
+    expect(second.hasMore).toBe(false);
+    expect(new Set([...first.items, ...second.items].map(item => item.localId)).size).toBe(4);
+  });
+
+  it('faz overfetch para filtros derivados e limita pageSize entre 1 e 100', async () => {
+    await seed(database, Array.from({ length: 30 }, (_, index) => entry(`item-${index
+      .toString()
+      .padStart(2, '0')}`, {
+      occurredAt: new Date(Date.parse(NOW) - index * 1_000).toISOString(),
+      payload: { ordem: index % 7 === 0 ? 'OP-ALVO' : `OP-${index}` },
+    })));
+
+    const page = await repository.listPage({
+      ownerId: OWNER,
+      pageSize: 3,
+      matchesIdentification: candidate =>
+        (candidate.payload as { ordem?: string }).ordem === 'OP-ALVO',
+    });
+
+    expect(page.items.map(item => item.localId)).toEqual(['item-00', 'item-07', 'item-14']);
+    expect(page.hasMore).toBe(true);
+    await expect(repository.listPage({ ownerId: OWNER, pageSize: 101 }))
+      .rejects.toThrow(/100/);
+  });
+
+  it('calcula summary owner-scoped separado da página e ignora disposições terminais', async () => {
+    await seed(database, [
+      entry('pending'),
+      entry('syncing', { status: 'SYNCING' }),
+      entry('auth', { status: 'BLOCKED_AUTH' }),
+      entry('error', { status: 'ERROR' }),
+      entry('synced', { status: 'SYNCED', receipt: receipt('synced') }),
+      entry('abandoned', {
+        status: 'ERROR',
+        deliveryDisposition: 'ABANDONED',
+      } as Partial<OutboxEntry<JsonValue>>),
+      entry('foreign', { ownerId: OTHER_OWNER, status: 'ERROR' }),
+    ]);
+
+    expect(await repository.summarizeOwner(OWNER)).toEqual({
+      pending: 3,
+      error: 1,
+      syncing: 1,
+      receipts: 1,
+    });
   });
 
   it('seleciona cabeças elegíveis, faz claim CAS e só devolve após o commit', async () => {
@@ -59,6 +136,7 @@ describe('OutboxRepository processing', () => {
     });
     expect(await repository.getById(OWNER, 'first')).toEqual(claimed);
     expect(await repository.getById(OTHER_OWNER, 'first')).toBeNull();
+    expect(activity.publish).toHaveBeenCalledOnce();
   });
 
   it('permite somente um vencedor concorrente e não rouba lease ativo', async () => {

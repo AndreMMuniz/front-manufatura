@@ -1,5 +1,5 @@
 export const DATABASE_NAME = 'plano-de-controle-operational';
-export const DATABASE_VERSION = 2;
+export const DATABASE_VERSION = 3;
 
 export const LOCAL_RECORDS_STORE = 'localRecords';
 export const OUTBOX_STORE = 'outbox';
@@ -72,6 +72,11 @@ export const OFFLINE_DATABASE_SCHEMA: OfflineDatabaseSchema = {
         {
           name: 'ownerAggregateOrder',
           keyPath: ['ownerId', 'aggregateType', 'aggregateId', 'createdAt', 'localId'],
+          unique: false,
+        },
+        {
+          name: 'ownerOccurredAtLocalId',
+          keyPath: ['ownerId', 'occurredAt', 'localId'],
           unique: false,
         },
         // Recuperação cronológica global da Outbox.

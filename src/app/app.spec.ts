@@ -333,6 +333,8 @@ describe('App', () => {
 
     expect(fixture.nativeElement.querySelector('po-toolbar')).toBeNull();
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="synchronization-indicator"]'))
+      .toBeNull();
   });
 
   it('exibe banner offline acessível sem bloquear o conteúdo', () => {
@@ -390,6 +392,8 @@ describe('App', () => {
     expect(toolbar.title).toBe('Apontamento Manufatura - operador');
     expect(fixture.nativeElement.querySelector('po-toolbar')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="synchronization-indicator"]'))
+      .not.toBeNull();
   });
 
   it('should keep the side menu hidden during the root redirect and with Home matrix parameters', async () => {
