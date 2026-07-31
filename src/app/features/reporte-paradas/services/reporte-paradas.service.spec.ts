@@ -140,6 +140,8 @@ describe('ReporteParadasService', () => {
       outbox,
       commands,
       authSession,
+      durableRecords,
+      durableOutbox,
     };
   }
 
@@ -470,6 +472,54 @@ describe('ReporteParadasService', () => {
     expect(await firstValueFrom(service.listarParadasEmAndamento('4002', 'CT-EXT-01'))).toEqual([]);
   });
 
+  it('remove cache vazio e ignora comandos abandonados ou supersedidos na reconstrução', async () => {
+    const { service, durableRecords, durableOutbox } = setup();
+    await firstValueFrom(service.registrarParada(request({ endDate: null, endTime: null })));
+    expect(await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).toHaveLength(1);
+
+    durableRecords[0]['deliveryDisposition'] = 'ABANDONED';
+    durableOutbox[0]['deliveryDisposition'] = 'ABANDONED';
+    expect(await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).toEqual([]);
+
+    durableRecords.splice(0);
+    durableOutbox.splice(0);
+    expect(await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).toEqual([]);
+  });
+
+  it('restaura o status corrente da Outbox', async () => {
+    const { service, durableOutbox } = setup();
+    await firstValueFrom(service.registrarParada(request({ endDate: null, endTime: null })));
+    durableOutbox[0]['status'] = 'ERROR';
+
+    const [restored] = await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    );
+
+    expect(restored.syncStatus).toBe('ERROR');
+  });
+
+  it('rejeita troca de owner antes do commit', async () => {
+    const { service, catalog, authSession, commands } = setup();
+    const responsibles = new Subject<
+      Array<{ tipo: 'OPERADOR'; codigo: string; nome: string }>
+    >();
+    catalog.listarResponsaveis.mockReturnValueOnce(responsibles);
+    const pending = firstValueFrom(service.registrarParada(request()));
+
+    authSession.currentUser = { id: 'operator-2' };
+    responsibles.next([{ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }]);
+    responsibles.complete();
+
+    await expect(pending).rejects.toThrow('sessão mudou');
+    expect(commands.capture).not.toHaveBeenCalled();
+  });
+
   it('finaliza por cópia e remove a parada da consulta de abertas', async () => {
     const { service } = setup();
     const aberta = await firstValueFrom(
@@ -500,7 +550,7 @@ describe('ReporteParadasService', () => {
   });
 
   it('consulta idempotência do fim antes do status e detecta conflito de conteúdo', async () => {
-    const { service } = setup();
+    const { service, localRecords, outbox } = setup();
     const aberta = await firstValueFrom(
       service.registrarParada(
         request({
@@ -514,6 +564,9 @@ describe('ReporteParadasService', () => {
     const command = finishRequest();
 
     const first = await firstValueFrom(service.finalizarParada(aberta.id, command));
+    localRecords.listByOwner.mockResolvedValueOnce([]);
+    outbox.listByOwner.mockResolvedValueOnce([]);
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
     const retry = await firstValueFrom(service.finalizarParada(aberta.id, command));
 
     expect(retry).toEqual(first);
@@ -526,6 +579,46 @@ describe('ReporteParadasService', () => {
         }),
       ),
     ).rejects.toThrow('outro conteúdo');
+  });
+
+  it('mantém o agregado original ao finalizar criação supersessora', async () => {
+    const { service, commands, durableRecords, durableOutbox } = setup();
+    const creation = {
+      localId: 'replacement-local-id',
+      idempotencyKey: 'replacement-idempotency',
+      aggregateId: 'original-stop-aggregate',
+      aggregateType: 'STOP',
+      commandType: 'CREATE_STOP',
+      ownerId: 'operator-1',
+      dependencyIds: [],
+      deliveryDisposition: 'ACTIVE',
+      payload: {
+        localId: 'form-generated-id',
+        context,
+        reason: { id: 1, code: '01', description: 'Setup' },
+        responsible: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+        startDate: '2026-07-28',
+        startTime: '08:00',
+        endDate: null,
+        endTime: null,
+        programmed: false,
+        status: 'EM_ANDAMENTO',
+        durationMinutes: null,
+      },
+    };
+    durableRecords.push(creation);
+    durableOutbox.push({ ...creation, status: 'ERROR' });
+    const [open] = await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    );
+
+    await firstValueFrom(service.finalizarParada(open.id, finishRequest()));
+
+    expect(commands.capture).toHaveBeenLastCalledWith(expect.objectContaining({
+      commandType: 'FINISH_STOP',
+      aggregateId: 'original-stop-aggregate',
+      dependencyIds: ['replacement-local-id'],
+    }));
   });
 
   it('revalida contexto, estado e intervalo para comandos de fim ainda não registrados', async () => {

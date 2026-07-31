@@ -155,11 +155,11 @@ export class ReporteParadasService {
             responsible: { ...responsible, codigo: this.normalizeCode(responsible.codigo) },
             startDate: this.dateOnly(validated.start),
             startTime: command.startTime.trim(),
-            endDate: validated.end ? this.dateOnly(validated.end) : undefined,
-            endTime: validated.end ? command.endTime!.trim() : undefined,
+            ...(validated.end ? { endDate: this.dateOnly(validated.end) } : {}),
+            ...(validated.end ? { endTime: command.endTime!.trim() } : {}),
             programmed: command.programmed,
             status: validated.end ? 'FINALIZADA' : 'EM_ANDAMENTO',
-            durationMinutes: derivedDuration,
+            ...(derivedDuration !== undefined ? { durationMinutes: derivedDuration } : {}),
             idempotencyKey: command.idempotencyKey,
             syncStatus: 'PENDING',
           };
@@ -485,7 +485,9 @@ export class ReporteParadasService {
           ? {
               metadata: {
                 ...stop.context.metadata,
-                orderIds: stop.context.metadata.orderIds ? [...stop.context.metadata.orderIds] : [],
+                ...(stop.context.metadata.orderIds
+                  ? { orderIds: [...stop.context.metadata.orderIds] }
+                  : {}),
               },
             }
           : {}),

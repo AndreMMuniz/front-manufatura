@@ -13,7 +13,12 @@ describe('FooterAcoesBatelada', () => {
 
     const buttons = fixture.debugElement.queryAll(By.css('po-button'));
 
-    expect(buttons.map(button => button.componentInstance.label())).toEqual(['Iniciar', 'Reporte', 'Sair']);
+    expect(buttons.map(button => button.componentInstance.label())).toEqual([
+      'Iniciar',
+      'Reporte',
+      'Parada',
+      'Sair',
+    ]);
     expect(buttons[0].componentInstance.disabled).toBe(true);
     expect(buttons[1].componentInstance.disabled).toBe(false);
   });
@@ -27,15 +32,18 @@ describe('FooterAcoesBatelada', () => {
     const start = vi.fn();
     const report = vi.fn();
     const sair = vi.fn();
+    const stop = vi.fn();
     fixture.componentInstance.start.subscribe(start);
     fixture.componentInstance.report.subscribe(report);
     fixture.componentInstance.sair.subscribe(sair);
+    fixture.componentInstance.stop.subscribe(stop);
 
     const buttons = fixture.debugElement.queryAll(By.css('po-button'));
     buttons.forEach(button => button.componentInstance.onClick());
 
     expect(start).toHaveBeenCalledOnce();
     expect(report).toHaveBeenCalledOnce();
+    expect(stop).toHaveBeenCalledOnce();
     expect(sair).toHaveBeenCalledOnce();
   });
 });

@@ -201,7 +201,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     expect(reports.every(entry => entry.dependencyIds.includes(start!.localId))).toBe(true);
   });
 
-  test('exibe somente Iniciar e Reporte nas ações e bloqueia responsável após iniciar', async ({ page }) => {
+  test('exibe Iniciar, Reporte e Parada nas ações e bloqueia responsável após iniciar', async ({ page }) => {
     await login(page);
     await page.getByRole('link', { name: 'Reporte Ordem' }).click();
     await selectProductionContext(page);
@@ -209,9 +209,9 @@ test.describe('fluxo de Reporte Ordem', () => {
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
     const actions = page.locator('app-report-actions');
-    await expect(actions.getByRole('button')).toHaveCount(2);
+    await expect(actions.getByRole('button')).toHaveCount(3);
     const actionLabels = (await actions.getByRole('button').allTextContents()).map(label => label.trim());
-    expect(actionLabels).toEqual(['Iniciar', 'Reporte']);
+    expect(actionLabels).toEqual(['Iniciar', 'Reporte', 'Parada']);
 
     const operator = page.getByRole('combobox', { name: 'Operador' });
     await expect(operator).toBeEnabled();

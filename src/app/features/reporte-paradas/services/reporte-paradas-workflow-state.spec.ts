@@ -229,6 +229,7 @@ describe('ReporteParadasWorkflowState', () => {
       expect.objectContaining({
         selectedStopId: 10,
         finishDraft: { endDate: '2026-07-28', endTime: '09:45' },
+        finishDirty: false,
       }),
     );
     const first = state.ensureFinishIdempotencyKey(() => 'finish-1');
@@ -241,6 +242,7 @@ describe('ReporteParadasWorkflowState', () => {
     expect(first).toBe('finish-1');
     expect(retry).toBe('finish-1');
     expect(state.ensureFinishIdempotencyKey(() => 'finish-3')).toBe('finish-3');
+    expect(state.snapshot().finishDirty).toBe(true);
   });
 
   it('preserva seleção/rascunho após falha e remove somente a finalizada após sucesso', () => {

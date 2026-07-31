@@ -6,6 +6,7 @@ import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { ProductionContext, StopEntry } from '../../models/reporte-paradas.model';
 import { ReporteParadasService } from '../../services/reporte-paradas.service';
@@ -147,6 +148,25 @@ describe('ReporteParadasPage', () => {
 
     expect(component.view().area).toBeNull();
     expect(component.view().workCenter).toBeNull();
+  });
+
+  it('preserva o prefill para retry após falha transitória', () => {
+    service.getPrefillContext.mockReturnValue(prefill);
+    service.listarAreas
+      .mockReturnValueOnce(throwError(() => new Error('indisponível')))
+      .mockReturnValueOnce(of([area]));
+
+    fixture.detectChanges();
+    expect(service.clearPrefillContext).not.toHaveBeenCalled();
+
+    component.retryAreas();
+
+    expect(component.view()).toEqual(expect.objectContaining({
+      area,
+      workCenter: center,
+      origin: prefill.origin,
+    }));
+    expect(service.clearPrefillContext).toHaveBeenCalledOnce();
   });
 
   it('confirma descarte do rascunho antes de trocar contexto e preserva tudo ao cancelar', () => {
@@ -300,6 +320,23 @@ describe('ReporteParadasPage', () => {
 
     component.finalizarParada();
     expect(service.finalizarParada.mock.calls[1][1].idempotencyKey).toBe(first.idempotencyKey);
+  });
+
+  it('protege rascunho de finalização no descarte e no estado PWA', () => {
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.selecionarParada(42);
+    component.onFinishDraftChange({ endDate: '2026-07-28', endTime: '09:31' });
+    fixture.detectChanges();
+
+    expect(component.view().finishDirty).toBe(true);
+    expect(TestBed.inject(PwaWorkStateService).hasActiveCapture()).toBe(true);
+
+    component.onAreaChange('');
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+    expect(component.view().selectedStopId).toBe(42);
   });
 
   it.each([

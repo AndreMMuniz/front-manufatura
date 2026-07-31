@@ -59,6 +59,22 @@ async function fillTime(page: Page, fieldName: string, value: string): Promise<v
   await expect(field).toHaveValue(value);
 }
 
+async function registerOpenStop(page: Page, startTime = '08:00') {
+  const responsible = page.getByRole('combobox', { name: 'Responsável', exact: true });
+  await expect(responsible).toBeEnabled();
+  await responsible.selectOption('001');
+  await page.getByRole('combobox', { name: 'Motivo' }).selectOption('1');
+  await selectToday(page, 'Data Inicial');
+  await fillTime(page, 'Hora Inicial', startTime);
+  await page.getByRole('button', { name: 'Registrar parada' }).click();
+  await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
+    /salva neste dispositivo e pendente de sincronização/i,
+  );
+  return page.getByRole('list', {
+    name: 'Paradas elegíveis para finalização',
+  }).getByRole('button').first();
+}
+
 test.describe('registro de Paradas', () => {
   test.use({ hasTouch: true });
 
@@ -66,16 +82,14 @@ test.describe('registro de Paradas', () => {
     await page.setViewportSize({ width: 480, height: 900 });
     await openStoppages(page);
     await selectContext(page);
+    await expect(page.getByText('Nenhuma parada em andamento neste contexto.')).toBeVisible();
 
+    const register = page.getByRole('button', { name: 'Registrar parada' });
     const responsible = page.getByRole('combobox', { name: 'Responsável', exact: true });
-    await expect(responsible).toBeEnabled();
     await responsible.selectOption('001');
-    await expect(responsible).toContainText('001');
     await page.getByRole('combobox', { name: 'Motivo' }).selectOption('1');
     await selectToday(page, 'Data Inicial');
     await fillTime(page, 'Hora Inicial', '08:00');
-
-    const register = page.getByRole('button', { name: 'Registrar parada' });
     await register.focus();
     await expect(register).toBeFocused();
     expect(await register.evaluate(element => getComputedStyle(element).outlineStyle))
@@ -90,9 +104,13 @@ test.describe('registro de Paradas', () => {
       name: 'Paradas elegíveis para finalização',
     }).getByRole('button').first();
     await expect(openStop).toBeVisible();
-    await openStop.click();
+    await openStop.focus();
+    await openStop.press('Enter');
+    await expect(page.getByRole('textbox', { name: 'Data da Finalização' })).toBeFocused();
     await selectToday(page, 'Data da Finalização');
-    await fillTime(page, 'Hora da Finalização', '09:00');
+    await fillTime(page, 'Hora da Finalização', '07:59');
+    await expect(page.getByRole('alert')).toContainText('anterior ao início');
+    await fillTime(page, 'Hora da Finalização', '08:00');
     await page.getByRole('button', { name: 'Finalizar parada' }).click();
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
       /finalização salva neste dispositivo e pendente de sincronização/i,
@@ -107,6 +125,43 @@ test.describe('registro de Paradas', () => {
     await expect(page.getByRole('combobox', { name: 'Área de Produção' }))
       .toBeEnabled();
     await expectNoHorizontalOverflow(page);
+  });
+
+  test('seleciona parada por toque e mantém o alvo acessível', async ({ page }) => {
+    await openStoppages(page);
+    await selectContext(page);
+    const openStop = await registerOpenStop(page);
+
+    await openStop.tap();
+
+    await expect(page.getByText('Finalizar Parada')).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Data da Finalização' })).toBeFocused();
+  });
+
+  test('distingue erro de consulta e permite retry até o estado vazio', async ({ page }) => {
+    await page.addInitScript(() => {
+      const original = IDBDatabase.prototype.transaction;
+      let failNextLocalRead = true;
+      IDBDatabase.prototype.transaction = function patchedTransaction(
+        storeNames: string | string[],
+        mode?: IDBTransactionMode,
+        options?: IDBTransactionOptions,
+      ): IDBTransaction {
+        const names = typeof storeNames === 'string' ? [storeNames] : Array.from(storeNames);
+        if (failNextLocalRead && mode === 'readonly' && names.includes('localRecords')) {
+          failNextLocalRead = false;
+          throw new DOMException('Falha E2E transitória', 'UnknownError');
+        }
+        return original.call(this, storeNames, mode, options);
+      };
+    });
+    await openStoppages(page);
+    await selectContext(page);
+
+    await expect(page.getByRole('alert')).toContainText('Não foi possível consultar');
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+
+    await expect(page.getByText('Nenhuma parada em andamento neste contexto.')).toBeVisible();
   });
 
   for (const viewport of [

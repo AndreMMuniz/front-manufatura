@@ -41,6 +41,8 @@ describe('ParadasEmAndamentoList', () => {
     const button = fixture.debugElement.query(By.css('button'));
     expect(button.nativeElement.getAttribute('aria-label')).toContain('Setup');
     expect(button.nativeElement.textContent).toContain('01:02:00');
+    expect(button.nativeElement.textContent).toContain('pendente');
+    expect(button.nativeElement.getAttribute('aria-label')).toContain('Sincronização pendente');
     button.triggerEventHandler('click');
 
     expect(selected).toEqual([42]);
