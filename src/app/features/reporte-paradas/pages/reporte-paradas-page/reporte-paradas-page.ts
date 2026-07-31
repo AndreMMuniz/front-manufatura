@@ -1,5 +1,6 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
   OnInit,
@@ -71,6 +72,7 @@ export class ReporteParadasPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly pwaWorkState = inject(PwaWorkStateService);
   private readonly idempotency = inject(IdempotencyService);
+  private readonly changeDetector = inject(ChangeDetectorRef);
 
   readonly view = signal<ReporteParadasWorkflowSnapshot>(this.workflow.snapshot());
   readonly areas = signal<ReadonlyArray<AreaProducao>>([]);
@@ -190,7 +192,8 @@ export class ReporteParadasPage implements OnInit {
       return;
     }
     this.syncView();
-    Promise.resolve().then(() => this.finishForm?.focusFirstField());
+    this.changeDetector.detectChanges();
+    this.finishForm?.focusFirstField();
   }
 
   finalizarParada(): void {

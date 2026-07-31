@@ -514,11 +514,15 @@ describe('ReportOperacaoPage', () => {
     expect(card.actionDisabled).toBe(true);
   });
 
-  it('renders only the start and report operation actions', () => {
+  it('renders the start, report and stoppage operation actions', () => {
     fixture.detectChanges();
 
     const actions = fixture.debugElement.queryAll(By.css('app-report-actions po-button'));
-    expect(actions.map(action => action.attributes['p-label'])).toEqual(['Iniciar', 'Reporte']);
+    expect(actions.map(action => action.attributes['p-label'])).toEqual([
+      'Iniciar',
+      'Reporte',
+      'Parada',
+    ]);
   });
 
   it('preserves a restored queue and exposes recovery when its Center is unavailable', () => {

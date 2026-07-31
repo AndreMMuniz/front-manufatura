@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { readOperationalOutbox } from './helpers/operational-outbox';
 
 async function login(page: Page): Promise<void> {
@@ -75,6 +75,43 @@ async function registerOpenStop(page: Page, startTime = '08:00') {
   }).getByRole('button').first();
 }
 
+async function finalizeOpenStop(page: Page, openStop: Locator): Promise<void> {
+  await openStop.click();
+  await selectToday(page, 'Data da Finalização');
+  await fillTime(page, 'Hora da Finalização', '09:00');
+  await page.getByRole('button', { name: 'Finalizar parada' }).click();
+}
+
+async function openOperationOrigin(page: Page): Promise<void> {
+  await login(page);
+  await page.getByRole('link', { name: 'Reporte Ordem' }).click();
+  await page.getByRole('combobox', { name: 'Área de Produção' }).selectOption('4001');
+  await page.getByRole('combobox', { name: 'Centro de Trabalho' }).selectOption('CT-EXT-01');
+  await page.getByRole('button', { name: 'Consultar ordens' }).click();
+  const order = page.getByRole('row').filter({ hasText: '450001' }).getByRole('checkbox');
+  await order.check();
+  await page.getByRole('button', { name: 'Abrir apontamento' }).click();
+  await page.getByRole('combobox', { name: 'Operador' }).selectOption('001');
+  await page.getByRole('button', { name: 'Iniciar' }).click();
+  await page.getByRole('button', { name: 'Parada' }).click();
+  await expect(page).toHaveURL(/\/stoppages$/);
+}
+
+async function openBatchOrigin(page: Page): Promise<void> {
+  await login(page);
+  await page.getByRole('link', { name: 'Reporte Batelada' }).click();
+  await page.getByRole('combobox', { name: 'Área de Produção' }).selectOption('4001');
+  await page.getByRole('combobox', { name: 'Centro de Trabalho' }).selectOption('CT-EXT-01');
+  await page.getByRole('button', { name: 'Consultar ordens' }).click();
+  await page.getByRole('row').filter({ hasText: '450001' }).getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Abrir batelada' }).click();
+  await page.getByRole('combobox', { name: 'Responsável' })
+    .selectOption({ label: 'Operador — OP-001 - Ana Silva' });
+  await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+  await page.getByRole('button', { name: 'Parada' }).click();
+  await expect(page).toHaveURL(/\/stoppages$/);
+}
+
 test.describe('registro de Paradas', () => {
   test.use({ hasTouch: true });
 
@@ -109,7 +146,8 @@ test.describe('registro de Paradas', () => {
     await expect(page.getByRole('textbox', { name: 'Data da Finalização' })).toBeFocused();
     await selectToday(page, 'Data da Finalização');
     await fillTime(page, 'Hora da Finalização', '07:59');
-    await expect(page.getByRole('alert')).toContainText('anterior ao início');
+    await expect(page.locator('.finish-stop__error[role="alert"]'))
+      .toContainText('anterior ao início');
     await fillTime(page, 'Hora da Finalização', '08:00');
     await page.getByRole('button', { name: 'Finalizar parada' }).click();
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
@@ -134,34 +172,58 @@ test.describe('registro de Paradas', () => {
 
     await openStop.tap();
 
-    await expect(page.getByText('Finalizar Parada')).toBeVisible();
+    await expect(page.getByText('Finalizar Parada', { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Data da Finalização' })).toBeFocused();
   });
 
   test('distingue erro de consulta e permite retry até o estado vazio', async ({ page }) => {
-    await page.addInitScript(() => {
-      const original = IDBDatabase.prototype.transaction;
-      let failNextLocalRead = true;
-      IDBDatabase.prototype.transaction = function patchedTransaction(
-        storeNames: string | string[],
-        mode?: IDBTransactionMode,
-        options?: IDBTransactionOptions,
-      ): IDBTransaction {
-        const names = typeof storeNames === 'string' ? [storeNames] : Array.from(storeNames);
-        if (failNextLocalRead && mode === 'readonly' && names.includes('localRecords')) {
-          failNextLocalRead = false;
-          throw new DOMException('Falha E2E transitória', 'UnknownError');
-        }
-        return original.call(this, storeNames, mode, options);
-      };
-    });
     await openStoppages(page);
+    await page.evaluate(() => {
+      const original = IDBObjectStore.prototype.index;
+      let failNextLocalRead = true;
+      Object.defineProperty(IDBObjectStore.prototype, 'index', {
+        configurable: true,
+        value(this: IDBObjectStore, name: string): IDBIndex {
+          if (failNextLocalRead && this.name === 'localRecords' && name === 'ownerId') {
+            failNextLocalRead = false;
+            throw new DOMException('Falha E2E transitória', 'UnknownError');
+          }
+          return original.call(this, name);
+        },
+      });
+    });
     await selectContext(page);
 
-    await expect(page.getByRole('alert')).toContainText('Não foi possível consultar');
+    await expect(page.locator('.open-stops__state--error[role="alert"]'))
+      .toContainText('Não foi possível consultar');
     await page.getByRole('button', { name: 'Tentar novamente' }).click();
 
     await expect(page.getByText('Nenhuma parada em andamento neste contexto.')).toBeVisible();
+  });
+
+  test('finaliza e restaura o snapshot de Reporte Ordem', async ({ page }) => {
+    await openOperationOrigin(page);
+    await expect(page.getByRole('combobox', { name: 'Área de Produção' })).toHaveValue(/4001/);
+    const openStop = await registerOpenStop(page);
+
+    await finalizeOpenStop(page, openStop);
+
+    await expect(page).toHaveURL(/\/operation-reporting$/);
+    await expect(page.getByText(/Ordem ativa 450001/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reporte', exact: true })).toBeEnabled();
+  });
+
+  test('finaliza e restaura composição de Reporte Batelada', async ({ page }) => {
+    await openBatchOrigin(page);
+    await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' })).toHaveValue(/CT-EXT-01/);
+    const openStop = await registerOpenStop(page);
+
+    await finalizeOpenStop(page, openStop);
+
+    await expect(page).toHaveURL(/\/batch-reporting$/);
+    await expect(page.getByRole('table', { name: 'Composição da batelada' })
+      .getByRole('row').filter({ hasText: '450001' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reporte', exact: true })).toBeEnabled();
   });
 
   for (const viewport of [

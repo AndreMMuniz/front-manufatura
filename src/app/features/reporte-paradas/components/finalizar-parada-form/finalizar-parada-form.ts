@@ -42,6 +42,7 @@ type FinalizarParadaControls = {
 export class FinalizarParadaForm implements OnChanges {
   private readonly destroyRef = inject(DestroyRef);
   private syncingInput = false;
+  private destroyed = false;
 
   @Input({ required: true }) stop!: StopEntry;
   @Input() draft: FinalizacaoDraft = { endDate: null, endTime: '' };
@@ -63,6 +64,9 @@ export class FinalizarParadaForm implements OnChanges {
   }, { validators: control => this.intervalValidator(control) });
 
   constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+    });
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
@@ -92,9 +96,17 @@ export class FinalizarParadaForm implements OnChanges {
     this.confirm.emit(this.form.getRawValue());
   }
 
-  focusFirstField(): void {
+  focusFirstField(remainingAttempts = 4): void {
     const input = this.endDateField?.nativeElement.querySelector('input');
-    (input ?? this.endDateField?.nativeElement)?.focus();
+    const target = input ?? this.endDateField?.nativeElement;
+    target?.focus();
+    if (target && remainingAttempts > 1) {
+      setTimeout(() => {
+        if (!this.destroyed && target.ownerDocument.activeElement !== target) {
+          this.focusFirstField(remainingAttempts - 1);
+        }
+      }, 50);
+    }
   }
 
   responsibleType(): string {
