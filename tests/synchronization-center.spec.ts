@@ -364,13 +364,20 @@ async function selectToday(page: Page, fieldName: string): Promise<void> {
   await datepicker.getByRole('button', { name: 'Open calendar' }).click();
   await datepicker.getByRole('button', { name: /Today|Hoje/ })
     .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(field).not.toHaveValue('');
 }
 
 async function fillTime(page: Page, fieldName: string, value: string): Promise<void> {
   const field = page.getByRole('textbox', { name: fieldName });
-  await field.fill(value);
-  await field.dispatchEvent('change');
-  await field.blur();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await field.fill(value);
+    await field.dispatchEvent('change');
+    await field.blur();
+    if (await field.inputValue() === value) {
+      return;
+    }
+  }
+  await expect(field).toHaveValue(value);
 }
 
 async function readSupersession(page: Page, originalLocalId: string): Promise<{
