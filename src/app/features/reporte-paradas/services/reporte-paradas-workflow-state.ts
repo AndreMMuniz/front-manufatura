@@ -52,6 +52,7 @@ export interface ReporteParadasWorkflowSnapshot {
   readonly openStops: ReadonlyArray<StopEntry>;
   readonly selectedStopId: StopId | null;
   readonly finishDraft: FinalizacaoDraft;
+  readonly finishDirty: boolean;
   readonly finishIdempotencyKey: string | null;
   readonly queryLoading: boolean;
   readonly queryError: string;
@@ -282,6 +283,7 @@ export class ReporteParadasWorkflowState {
       openStops,
       selectedStopId,
       finishDraft: selectedStopId ? this.view.finishDraft : this.emptyFinishDraft(),
+      finishDirty: selectedStopId ? this.view.finishDirty : false,
       finishIdempotencyKey: selectedStopId ? this.view.finishIdempotencyKey : null,
       queryLoading: false,
       queryError: '',
@@ -311,6 +313,7 @@ export class ReporteParadasWorkflowState {
         endDate: formatLocalDate(now),
         endTime: formatLocalTime(now),
       },
+      finishDirty: false,
       finishIdempotencyKey: null,
       finishError: '',
     };
@@ -322,6 +325,7 @@ export class ReporteParadasWorkflowState {
       ...this.view,
       selectedStopId: null,
       finishDraft: this.emptyFinishDraft(),
+      finishDirty: false,
       finishIdempotencyKey: null,
       finishError: '',
     };
@@ -335,6 +339,7 @@ export class ReporteParadasWorkflowState {
     this.view = {
       ...this.view,
       finishDraft: next,
+      finishDirty: changed ? true : this.view.finishDirty,
       finishIdempotencyKey: changed ? null : this.view.finishIdempotencyKey,
       finishError: changed ? '' : this.view.finishError,
     };
@@ -383,6 +388,7 @@ export class ReporteParadasWorkflowState {
         .map((stop) => this.cloneStop(stop)),
       selectedStopId: null,
       finishDraft: this.emptyFinishDraft(),
+      finishDirty: false,
       finishIdempotencyKey: null,
       finishing: false,
       finishError: '',
@@ -422,6 +428,7 @@ export class ReporteParadasWorkflowState {
       openStops: [],
       selectedStopId: null,
       finishDraft: this.emptyFinishDraft(),
+      finishDirty: false,
       finishIdempotencyKey: null,
       queryLoading: false,
       queryError: '',

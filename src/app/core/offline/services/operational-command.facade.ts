@@ -67,6 +67,7 @@ export class OperationalCommandFacade {
     this.syncTrigger.requestSync();
     return Object.freeze({
       localId: persisted.localId,
+      aggregateId: persisted.localRecord.aggregateId,
       idempotencyKey: persisted.idempotencyKey,
       payloadHash: persisted.payloadHash,
       committedAt: persisted.committedAt,
@@ -101,7 +102,9 @@ export class OperationalCommandFacade {
         payloadSchemaVersion: definition.payloadSchemaVersion,
         payload: request.payload,
         businessStatus: request.businessStatus,
+        ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
         ...(request.occurredAt ? { occurredAt: request.occurredAt } : {}),
+        ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
         ...(request.initialSyncStatus
           ? {
               initialSyncStatus: request.initialSyncStatus,
@@ -125,6 +128,7 @@ export class OperationalCommandFacade {
     this.syncTrigger.requestSync();
     return Object.freeze({
       localId: persisted.localId,
+      aggregateId: persisted.localRecord.aggregateId,
       idempotencyKey: persisted.idempotencyKey,
       payloadHash: persisted.payloadHash,
       committedAt: persisted.committedAt,

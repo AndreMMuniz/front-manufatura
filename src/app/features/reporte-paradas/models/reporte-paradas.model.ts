@@ -43,12 +43,20 @@ export interface ProductionContext {
 }
 
 export type ParadaStatus = 'EM_ANDAMENTO' | 'FINALIZADA';
-export type ParadaSyncStatus = 'PENDING' | 'SYNCING' | 'SYNCED' | 'BLOCKED_AUTH' | 'ERROR';
+export type ParadaSyncStatus =
+  | 'PENDING'
+  | 'SYNCING'
+  | 'RETRY_WAIT'
+  | 'SYNCED'
+  | 'BLOCKED_AUTH'
+  | 'BLOCKED_DEPENDENCY'
+  | 'ERROR';
 export type StopId = string | number;
 
 export interface StopEntry {
   readonly id: StopId;
   readonly localId?: string;
+  readonly aggregateId?: string;
   readonly creationCommandId?: string;
   readonly finishCommandId?: string;
   readonly context: ProductionContext;

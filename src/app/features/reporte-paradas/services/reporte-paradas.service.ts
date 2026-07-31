@@ -2,7 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, defer, delay, finalize, forkJoin, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
@@ -10,6 +12,7 @@ import { ProductionContextCatalogService } from '../../shop-floor/services/produ
 import { CreateStopRequest, FinishStopRequest } from '../interfaces/reporte-paradas.dto';
 import {
   ProductionContext,
+  ParadaSyncStatus,
   ResponsavelParada,
   StopEntry,
   StopReason,
@@ -28,6 +31,7 @@ export class ReporteParadasService {
   private readonly catalog = inject(ProductionContextCatalogService);
   private readonly commands = inject(OperationalCommandFacade);
   private readonly localRecords = inject(LocalRecordRepository);
+  private readonly outbox = inject(OutboxRepository);
   private readonly authSession = inject(AuthSessionService);
   private prefillContext: {
     readonly ownerId: string;
@@ -135,6 +139,7 @@ export class ReporteParadasService {
           const stop: StopEntry = {
             id: localId,
             localId,
+            aggregateId: localId,
             creationCommandId: command.idempotencyKey,
             context: {
               area: { ...area },
@@ -158,6 +163,9 @@ export class ReporteParadasService {
             idempotencyKey: command.idempotencyKey,
             syncStatus: 'PENDING',
           };
+          if (this.authSession.currentUser?.id.trim() !== ownerId || !ownerId) {
+            throw new Error('A sessão mudou antes da confirmação. Revise os dados e tente novamente.');
+          }
           return from(
             this.commands.capture({
               commandType: 'CREATE_STOP',
@@ -175,6 +183,9 @@ export class ReporteParadasService {
                 ...stored,
                 id: confirmation.localId,
                 localId: confirmation.localId,
+                aggregateId: confirmation.aggregateId,
+                creationCommandId: confirmation.localId,
+                idempotencyKey: confirmation.idempotencyKey,
                 syncStatus: confirmation.syncStatus,
               };
               const existingIndex = this.confirmedStops.findIndex(
@@ -210,19 +221,41 @@ export class ReporteParadasService {
         this.ensureOwnerCache('');
         return of([]);
       }
-      return from(this.localRecords.listByOwner(ownerId)).pipe(
-        map((records) => {
+      return forkJoin({
+        records: from(this.localRecords.listByOwner(ownerId)),
+        outboxEntries: from(this.outbox.listByOwner(ownerId)),
+      }).pipe(
+        map(({ records, outboxEntries }) => {
           this.ensureOwnerCache(ownerId);
+          this.confirmedStops.splice(0);
+          const outboxByLocalId = new Map(outboxEntries.map((entry) => [entry.localId, entry]));
           if (records.length > 0) {
-            this.confirmedStops.splice(0);
-            for (const record of records.filter((item) => item.commandType === 'CREATE_STOP')) {
-              const restored = this.stopFromPayload(record.payload, record.localId);
+            for (const record of records.filter(
+              (item) =>
+                item.commandType === 'CREATE_STOP' &&
+                deliveryDispositionOf(item.deliveryDisposition) === 'ACTIVE',
+            )) {
+              const restored = this.stopFromPayload(
+                record.payload,
+                record.localId,
+                record.idempotencyKey,
+                record.aggregateId,
+                this.syncStatusOf(outboxByLocalId.get(record.localId)?.status),
+              );
               if (restored) {
                 this.confirmedStops.push(restored);
               }
             }
-            for (const record of records.filter((item) => item.commandType === 'FINISH_STOP')) {
-              this.applyDurableFinish(record.payload, record.idempotencyKey);
+            for (const record of records.filter(
+              (item) =>
+                item.commandType === 'FINISH_STOP' &&
+                deliveryDispositionOf(item.deliveryDisposition) === 'ACTIVE',
+            )) {
+              this.applyDurableFinish(
+                record.payload,
+                record.idempotencyKey,
+                this.syncStatusOf(outboxByLocalId.get(record.localId)?.status),
+              );
             }
           }
           return this.openStopsForContext(area, workCenter);
@@ -245,17 +278,31 @@ export class ReporteParadasService {
       if (!end) {
         throw new Error('Informe Data da Finalização e Hora da Finalização válidas.');
       }
+      const ownerId = this.authSession.currentUser?.id.trim();
+      if (!ownerId) {
+        throw new Error('É necessária uma sessão autenticada para finalizar a parada.');
+      }
+      return from(this.restoreFinishByIdempotency(ownerId, stopId, command, end)).pipe(
+        switchMap((prior) => (prior ? of(prior) : this.finalizeNewStop(stopId, command, end))),
+      );
+    }).pipe(
+      finalize(() => {
+        this.finishInFlight = false;
+      }),
+    );
+  }
+
+  private finalizeNewStop(
+    stopId: string | number,
+    command: FinishStopRequest,
+    end: Date,
+  ): Observable<StopEntry> {
       const index = this.confirmedStops.findIndex((stop) => stop.id === stopId);
       const current = index >= 0 ? this.confirmedStops[index] : undefined;
       if (!current) {
         throw new Error('A parada não existe ou não está mais disponível.');
       }
       if (current.status !== 'EM_ANDAMENTO') {
-        if (current.finishCommandId === command.idempotencyKey) {
-          return from(this.captureFinish(current, command.idempotencyKey, end)).pipe(
-            map(() => this.cloneStop(current)),
-          );
-        }
         throw new Error('A parada já foi finalizada e não pode receber um novo comando.');
       }
       if (
@@ -275,31 +322,19 @@ export class ReporteParadasService {
         throw new Error('A finalização não pode ser anterior ao início da parada.');
       }
 
-      const finished: StopEntry = {
-        ...this.cloneStop(current),
-        finishCommandId: command.idempotencyKey,
-        endDate: new Date(
-          interval.end.getFullYear(),
-          interval.end.getMonth(),
-          interval.end.getDate(),
-        ),
-        endTime: command.endTime.trim(),
-        status: 'FINALIZADA',
-        durationMinutes: durationMinutes(interval.start, interval.end),
-        syncStatus: 'PENDING',
-      };
       return from(this.captureFinish(current, command.idempotencyKey, end)).pipe(
-        map(() => {
+        map((confirmation) => {
+          const finished = this.finishedStop(
+            current,
+            command.idempotencyKey,
+            interval.end,
+            confirmation.syncStatus,
+          );
           const stored = this.cloneStop(finished);
           this.confirmedStops[index] = stored;
           return this.cloneStop(stored);
         }),
       );
-    }).pipe(
-      finalize(() => {
-        this.finishInFlight = false;
-      }),
-    );
   }
 
   private cloneContext(context: ProductionContext): ProductionContext {
@@ -467,7 +502,13 @@ export class ReporteParadasService {
     } as const;
   }
 
-  private stopFromPayload(payload: unknown, creationCommandId: string): StopEntry | null {
+  private stopFromPayload(
+    payload: unknown,
+    creationCommandId: string,
+    idempotencyKey: string,
+    aggregateId: string,
+    syncStatus: ParadaSyncStatus,
+  ): StopEntry | null {
     if (!payload || typeof payload !== 'object') {
       return null;
     }
@@ -491,10 +532,10 @@ export class ReporteParadasService {
     ) {
       return null;
     }
-    const localId = String(value['localId'] ?? creationCommandId);
     return {
-      id: localId,
-      localId,
+      id: creationCommandId,
+      localId: creationCommandId,
+      aggregateId,
       creationCommandId,
       context: this.cloneContext(context),
       reason: { ...reason },
@@ -508,8 +549,8 @@ export class ReporteParadasService {
       ...(typeof value['durationMinutes'] === 'number'
         ? { durationMinutes: value['durationMinutes'] }
         : {}),
-      idempotencyKey: creationCommandId,
-      syncStatus: 'PENDING',
+      idempotencyKey,
+      syncStatus,
     };
   }
 
@@ -520,7 +561,11 @@ export class ReporteParadasService {
     this.cacheOwnerId = normalized || null;
   }
 
-  private applyDurableFinish(payload: unknown, finishCommandId: string): void {
+  private applyDurableFinish(
+    payload: unknown,
+    finishCommandId: string,
+    syncStatus: ParadaSyncStatus,
+  ): void {
     if (!payload || typeof payload !== 'object') {
       return;
     }
@@ -550,20 +595,18 @@ export class ReporteParadasService {
     if (!interval) {
       return;
     }
-    this.confirmedStops[index] = {
-      ...this.cloneStop(current),
+    this.confirmedStops[index] = this.finishedStop(
+      current,
       finishCommandId,
-      endDate: persistedEndDate ?? this.dateOnly(end),
-      endTime: persistedEndTime ?? formatLocalTime(end),
-      status: 'FINALIZADA',
-      durationMinutes: durationMinutes(interval.start, interval.end),
-    };
+      interval.end,
+      syncStatus,
+    );
   }
 
   private captureFinish(current: StopEntry, idempotencyKey: string, end: Date) {
     return this.commands.capture({
       commandType: 'FINISH_STOP',
-      aggregateId: current.localId ?? current.idempotencyKey,
+      aggregateId: current.aggregateId ?? current.localId ?? current.idempotencyKey,
       businessStatus: 'FINALIZADA',
       idempotencyKey,
       dependencyIds: [current.creationCommandId ?? current.idempotencyKey],
@@ -575,6 +618,92 @@ export class ReporteParadasService {
         endTime: formatLocalTime(end),
       },
     });
+  }
+
+  private async restoreFinishByIdempotency(
+    ownerId: string,
+    stopId: string | number,
+    command: FinishStopRequest,
+    end: Date,
+  ): Promise<StopEntry | null> {
+    const prior = await this.localRecords.getByIdempotencyKey(ownerId, command.idempotencyKey);
+    if (!prior) {
+      return null;
+    }
+    const payload = prior.payload;
+    const value = payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : null;
+    const sameFingerprint =
+      prior.commandType === 'FINISH_STOP' &&
+      value !== null &&
+      String(value['stopLocalId'] ?? '') === String(stopId) &&
+      value['endDate'] === formatLocalDate(end) &&
+      value['endTime'] === formatLocalTime(end);
+    if (!sameFingerprint) {
+      throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
+    }
+
+    let current = this.confirmedStops.find(
+      (stop) => stop.id === stopId || String(stop.localId ?? '') === String(stopId),
+    );
+    if (!current) {
+      const creationCommandId = prior.dependencyIds[0] ?? String(value['stopLocalId']);
+      const creation = await this.localRecords.getById(ownerId, creationCommandId);
+      if (!creation || creation.commandType !== 'CREATE_STOP') {
+        throw new Error('O registro original da parada não está mais disponível neste dispositivo.');
+      }
+      const creationOutbox = await this.outbox.getById(ownerId, creation.localId);
+      current = this.stopFromPayload(
+        creation.payload,
+        creation.localId,
+        creation.idempotencyKey,
+        creation.aggregateId,
+        this.syncStatusOf(creationOutbox?.status),
+      ) ?? undefined;
+    }
+    if (!current) {
+      throw new Error('O registro original da parada não está mais disponível neste dispositivo.');
+    }
+    const finishOutbox = await this.outbox.getById(ownerId, prior.localId);
+    return this.finishedStop(
+      current,
+      command.idempotencyKey,
+      end,
+      this.syncStatusOf(finishOutbox?.status),
+    );
+  }
+
+  private finishedStop(
+    current: StopEntry,
+    finishCommandId: string,
+    end: Date,
+    syncStatus: ParadaSyncStatus,
+  ): StopEntry {
+    const start = combineLocalDateTime(current.startDate, current.startTime)!;
+    return {
+      ...this.cloneStop(current),
+      finishCommandId,
+      endDate: this.dateOnly(end),
+      endTime: formatLocalTime(end),
+      status: 'FINALIZADA',
+      durationMinutes: durationMinutes(start, end),
+      syncStatus,
+    };
+  }
+
+  private syncStatusOf(status: string | undefined): ParadaSyncStatus {
+    switch (status) {
+      case 'SYNCING':
+      case 'RETRY_WAIT':
+      case 'SYNCED':
+      case 'BLOCKED_AUTH':
+      case 'BLOCKED_DEPENDENCY':
+      case 'ERROR':
+        return status;
+      default:
+        return 'PENDING';
+    }
   }
 
   private parsePersistedLocalDate(value: unknown): Date | null {

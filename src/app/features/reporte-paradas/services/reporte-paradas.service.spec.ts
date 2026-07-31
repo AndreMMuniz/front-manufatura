@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import {
   CreateStopRequest,
@@ -42,6 +43,8 @@ describe('ReporteParadasService', () => {
 
   function setup() {
     const captured = new Map<string, { readonly fingerprint: string; readonly result: object }>();
+    const durableRecords: Array<Record<string, unknown>> = [];
+    const durableOutbox: Array<Record<string, unknown>> = [];
     const authSession: { currentUser: { id: string } | null } = {
       currentUser: { id: 'operator-1' },
     };
@@ -53,11 +56,27 @@ describe('ReporteParadasService', () => {
       ),
     };
     const localRecords = {
-      listByOwner: vi.fn(async () => []),
-      getByIdempotencyKey: vi.fn(async () => null),
+      listByOwner: vi.fn(async () => structuredClone(durableRecords)),
+      getById: vi.fn(async (_ownerId: string, localId: string) =>
+        structuredClone(durableRecords.find((record) => record['localId'] === localId) ?? null)),
+      getByIdempotencyKey: vi.fn(async (_ownerId: string, key: string) =>
+        structuredClone(durableRecords.find((record) => record['idempotencyKey'] === key) ?? null)),
+    };
+    const outbox = {
+      listByOwner: vi.fn(async () => structuredClone(durableOutbox)),
+      getById: vi.fn(async (_ownerId: string, localId: string) =>
+        structuredClone(durableOutbox.find((entry) => entry['localId'] === localId) ?? null)),
     };
     const commands = {
-      capture: vi.fn(async (request: { idempotencyKey?: string; payload?: unknown }) => {
+      capture: vi.fn(async (request: {
+        aggregateId: string;
+        businessStatus: string;
+        commandType: string;
+        dependencyIds?: readonly string[];
+        idempotencyKey?: string;
+        occurredAt?: string;
+        payload?: unknown;
+      }) => {
         const key = request.idempotencyKey ?? globalThis.crypto.randomUUID();
         const fingerprint = JSON.stringify(request.payload);
         const prior = captured.get(key);
@@ -66,11 +85,28 @@ describe('ReporteParadasService', () => {
         }
         const result = prior?.result ?? {
           localId: key,
+          aggregateId: request.aggregateId,
           idempotencyKey: key,
           payloadHash: 'hash',
           committedAt: '2026-07-30T12:00:00.000Z',
           syncStatus: 'PENDING',
         };
+        if (!prior) {
+          const persisted = {
+            localId: key,
+            idempotencyKey: key,
+            aggregateId: request.aggregateId,
+            aggregateType: 'STOP',
+            commandType: request.commandType,
+            payload: structuredClone(request.payload),
+            ownerId: authSession.currentUser?.id ?? '',
+            businessStatus: request.businessStatus,
+            dependencyIds: [...(request.dependencyIds ?? [])],
+            deliveryDisposition: 'ACTIVE',
+          };
+          durableRecords.push(persisted);
+          durableOutbox.push({ ...persisted, status: 'PENDING' });
+        }
         captured.set(key, { fingerprint, result });
         return result;
       }),
@@ -88,6 +124,10 @@ describe('ReporteParadasService', () => {
           useValue: localRecords,
         },
         {
+          provide: OutboxRepository,
+          useValue: outbox,
+        },
+        {
           provide: OperationalCommandFacade,
           useValue: commands,
         },
@@ -97,6 +137,7 @@ describe('ReporteParadasService', () => {
       service: TestBed.inject(ReporteParadasService),
       catalog,
       localRecords,
+      outbox,
       commands,
       authSession,
     };

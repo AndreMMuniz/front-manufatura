@@ -87,19 +87,22 @@ export class ReporteParadasPage implements OnInit {
 
   private areasRequest = 0;
   private centersRequest = 0;
+  private pendingPrefill: ProductionContext | null = null;
 
   constructor() {
     effect(() => {
       const view = this.view();
-      this.pwaWorkState.setCaptureActive('stoppages', view.dirty || view.saving || view.finishing);
+      this.pwaWorkState.setCaptureActive(
+        'stoppages',
+        view.dirty || view.finishDirty || view.selectedStopId !== null || view.saving || view.finishing,
+      );
     });
     this.destroyRef.onDestroy(() => this.pwaWorkState.setCaptureActive('stoppages', false));
   }
 
   ngOnInit(): void {
-    const prefill = this.service.getPrefillContext();
-    this.service.clearPrefillContext();
-    this.loadAreas(prefill);
+    this.pendingPrefill = this.service.getPrefillContext();
+    this.loadAreas();
     this.now.set(new Date());
     timer(30_000, 30_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -171,7 +174,7 @@ export class ReporteParadasPage implements OnInit {
 
   retryAreas(): void {
     if (!this.view().saving && !this.loadingAreas()) {
-      this.loadAreas(null);
+      this.loadAreas();
     }
   }
 
@@ -333,7 +336,7 @@ export class ReporteParadasPage implements OnInit {
     ]);
   }
 
-  private loadAreas(prefill: ProductionContext | null): void {
+  private loadAreas(): void {
     const request = ++this.areasRequest;
     this.loadingAreas.set(true);
     this.pageError.set('');
@@ -347,8 +350,8 @@ export class ReporteParadasPage implements OnInit {
           }
           this.areas.set(areas.map((area) => ({ ...area })));
           this.loadingAreas.set(false);
-          if (prefill) {
-            this.loadPrefill(prefill, request);
+          if (this.pendingPrefill) {
+            this.loadPrefill(this.pendingPrefill, request);
           }
         },
         error: () => {
@@ -368,6 +371,7 @@ export class ReporteParadasPage implements OnInit {
       !prefill.workCenter.active ||
       !this.sameCode(prefill.workCenter.areaCode, area.code)
     ) {
+      this.clearPendingPrefill();
       return;
     }
     const request = ++this.centersRequest;
@@ -389,6 +393,7 @@ export class ReporteParadasPage implements OnInit {
               this.sameCode(item.areaCode, area.code),
           );
           if (!center) {
+            this.clearPendingPrefill();
             return;
           }
           forkJoin({
@@ -402,8 +407,10 @@ export class ReporteParadasPage implements OnInit {
                   return;
                 }
                 if (!this.workflow.applyPrefill(prefill, this.areas(), centers, responsibles)) {
+                  this.clearPendingPrefill();
                   return;
                 }
+                this.clearPendingPrefill();
                 const token = this.workflow.beginContextRequest(area.code, center.code);
                 this.workflow.acceptContextData(token, responsibles, reasons);
                 this.syncView();
@@ -426,6 +433,7 @@ export class ReporteParadasPage implements OnInit {
   }
 
   private applyArea(area: AreaProducao | null): void {
+    this.clearPendingPrefill();
     this.centersRequest += 1;
     this.centers.set([]);
     this.loadingCenters.set(false);
@@ -534,7 +542,7 @@ export class ReporteParadasPage implements OnInit {
   }
 
   private confirmDiscardIfNeeded(action: () => void): void {
-    if (!this.view().dirty) {
+    if (!this.view().dirty && !this.view().finishDirty) {
       action();
       return;
     }
@@ -567,5 +575,10 @@ export class ReporteParadasPage implements OnInit {
 
   private commandsBlocked(): boolean {
     return this.view().saving || this.view().finishing;
+  }
+
+  private clearPendingPrefill(): void {
+    this.pendingPrefill = null;
+    this.service.clearPrefillContext();
   }
 }

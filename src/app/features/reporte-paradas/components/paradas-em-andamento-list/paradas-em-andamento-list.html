@@ -37,6 +37,7 @@
             <span class="open-stops__reason">{{ stop.reason.code }} - {{ stop.reason.description }}</span>
             <span>Início: {{ startLabel(stop) }}</span>
             <span>{{ responsibleType(stop) }}: {{ stop.responsible.nome }}</span>
+            <span>Status de sincronização: {{ syncStatusLabel(stop) }}</span>
             <span class="open-stops__duration">Duração corrente: {{ duration(stop) }}</span>
           </button>
         </li>

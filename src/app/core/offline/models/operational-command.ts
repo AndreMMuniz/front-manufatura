@@ -65,6 +65,7 @@ export interface CaptureOperationalCommandRequest<
 
 export interface LocalCommandConfirmation {
   readonly localId: string;
+  readonly aggregateId: string;
   readonly idempotencyKey: string;
   readonly payloadHash: string;
   readonly committedAt: string;

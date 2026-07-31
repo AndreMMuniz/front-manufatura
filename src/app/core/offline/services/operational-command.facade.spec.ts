@@ -16,6 +16,7 @@ describe('OperationalCommandFacade', () => {
         events.push('commit');
         return {
           localId: UUID,
+          localRecord: { aggregateId: '450001|10|01' },
           idempotencyKey: UUID,
           payloadHash: 'hash',
           committedAt: '2026-07-30T12:00:00.000Z',
@@ -50,6 +51,7 @@ describe('OperationalCommandFacade', () => {
     );
     expect(confirmation).toEqual({
       localId: UUID,
+      aggregateId: '450001|10|01',
       idempotencyKey: UUID,
       payloadHash: 'hash',
       committedAt: '2026-07-30T12:00:00.000Z',
@@ -83,6 +85,7 @@ describe('OperationalCommandFacade', () => {
         events.push('commit');
         return {
           localId: UUID,
+          localRecord: { aggregateId: 'OP-1' },
           idempotencyKey: UUID,
           payloadHash: 'new-hash',
           committedAt: '2026-07-30T13:00:00.000Z',
@@ -100,6 +103,8 @@ describe('OperationalCommandFacade', () => {
       commandType: 'REPORT_OPERATION',
       aggregateId: 'OP-1',
       businessStatus: 'REPORTADA',
+      idempotencyKey: UUID,
+      dependencyIds: ['create-id'],
       payload: { ordem: '100', quantidadeAprovada: 5 },
     });
 
@@ -108,10 +113,12 @@ describe('OperationalCommandFacade', () => {
       ownerId: 'operator-1',
       actorId: 'operator-1',
       originalLocalId: 'original-id',
-      command: expect.objectContaining({
-        ownerId: 'operator-1',
-        commandType: 'REPORT_OPERATION',
-        aggregateType: 'OPERATION',
+        command: expect.objectContaining({
+          ownerId: 'operator-1',
+          commandType: 'REPORT_OPERATION',
+          aggregateType: 'OPERATION',
+          idempotencyKey: UUID,
+          dependencyIds: ['create-id'],
       }),
     });
     expect(result.payloadHash).toBe('new-hash');
@@ -121,6 +128,7 @@ describe('OperationalCommandFacade', () => {
     const repository = {
       persistSupersedingCommand: vi.fn(async () => ({
         localId: UUID,
+        localRecord: { aggregateId: 'ORIGINAL-AGGREGATE' },
         idempotencyKey: UUID,
         payloadHash: 'corrected-hash',
         committedAt: '2026-07-30T13:00:00.000Z',
@@ -173,6 +181,7 @@ describe('OperationalCommandFacade', () => {
       const repository = {
         persistConfirmedCommand: vi.fn(async (request: { initialSyncStatus?: string }) => ({
           localId: UUID,
+          localRecord: { aggregateId: `aggregate-${commandType}` },
           idempotencyKey: UUID,
           payloadHash: 'hash',
           committedAt: '2026-07-30T12:00:00.000Z',
