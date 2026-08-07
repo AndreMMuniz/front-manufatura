@@ -34,7 +34,7 @@ export class LoginPage {
   readonly emptyFieldsMessage = LoginPage.emptyFieldsMessage;
 
   get canSubmit(): boolean {
-    return Boolean(this.login.trim() && this.senha.trim());
+    return Boolean(this.login.trim() && this.senha.length);
   }
 
   get isAuthenticated(): boolean {
@@ -119,6 +119,10 @@ export class LoginPage {
 
     if (error instanceof LoginError && error.code === 'invalid-credentials') {
       return 'Usuário ou senha inválidos.';
+    }
+
+    if (error instanceof LoginError && error.code === 'access-denied') {
+      return 'Usuário sem permissão para acessar o Plano Controle CQ.';
     }
 
     return 'Ocorreu um erro inesperado.';

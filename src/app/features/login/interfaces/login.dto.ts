@@ -12,6 +12,7 @@ export interface UsuarioDTO {
 
 export interface LoginResponseDTO {
   token: string;
+  tokenExpiresAt: string;
   offlineSessionExpiresAt?: string;
   usuario: UsuarioDTO;
 }

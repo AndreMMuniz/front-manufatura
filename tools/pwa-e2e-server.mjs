@@ -63,6 +63,7 @@ createServer(async (request, response) => {
     }
     json(response, 200, {
       token: 'pwa-e2e-memory-token',
+      tokenExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
       offlineSessionExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
       usuario: {
         id: 'USR-PWA-E2E',

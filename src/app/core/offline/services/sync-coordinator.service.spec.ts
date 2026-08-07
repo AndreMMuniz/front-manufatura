@@ -173,6 +173,8 @@ describe('SyncCoordinatorService', () => {
     const onlineAuth = new AuthSessionService(sessionStorage, clock);
     onlineAuth.startSession(user(), 'memory-only', {
       expiresAt: '2026-07-29T21:00:00.000Z',
+    }, {
+      expiresAt: '2026-07-29T21:00:00.000Z',
     });
     auth = new AuthSessionService(sessionStorage, clock);
     await seed(database, [entry('offline-command')]);
@@ -287,7 +289,7 @@ describe('SyncCoordinatorService', () => {
 
     const processing = coordinator.requestSync();
     await started;
-    auth.startSession(user(), 'renewed-memory-token');
+    auth.startSession(user(), 'renewed-memory-token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     await processing;
     await eventually(() => sends === 2);
 
@@ -322,8 +324,8 @@ describe('SyncCoordinatorService', () => {
     const secondAuth = new AuthSessionService();
     firstAuth.logout();
     secondAuth.logout();
-    firstAuth.startSession(user(), 'first-memory-token');
-    secondAuth.startSession(user(), 'second-memory-token');
+    firstAuth.startSession(user(), 'first-memory-token', { expiresAt: '2099-01-01T00:00:00.000Z' });
+    secondAuth.startSession(user(), 'second-memory-token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     let sends = 0;
     const transport: SyncTransport = {
       send: async (request) => {
@@ -377,7 +379,7 @@ describe('SyncCoordinatorService', () => {
       status: 'BLOCKED_AUTH',
     });
 
-    auth.startSession(user(), 'renewed-memory-token');
+    auth.startSession(user(), 'renewed-memory-token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     await eventually(() => sends === 2);
 
     expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
@@ -587,7 +589,7 @@ describe('SyncCoordinatorService', () => {
   }
 
   function authenticate(): void {
-    auth.startSession(user(), 'token-memory-only');
+    auth.startSession(user(), 'token-memory-only', { expiresAt: '2099-01-01T00:00:00.000Z' });
   }
 });
 

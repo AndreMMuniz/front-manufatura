@@ -28,6 +28,8 @@ describe('AuthSessionService', () => {
   it('inicia uma sessão online com credencial somente em memória', () => {
     service.startSession(USER, 'token-123', {
       expiresAt: '2026-07-29T20:00:00.000Z',
+    }, {
+      expiresAt: '2026-07-29T20:00:00.000Z',
     });
 
     expect(service.isAuthenticated()).toBe(true);
@@ -50,6 +52,8 @@ describe('AuthSessionService', () => {
   it('should clear the session on logout', () => {
     service.startSession(USER, 'token-123', {
       expiresAt: '2026-07-29T20:00:00.000Z',
+    }, {
+      expiresAt: '2026-07-29T20:00:00.000Z',
     });
 
     service.logout();
@@ -61,6 +65,8 @@ describe('AuthSessionService', () => {
 
   it('restaura continuidade offline válida sem credencial remota', () => {
     service.startSession(USER, 'token-123', {
+      expiresAt: '2026-07-29T20:00:00.000Z',
+    }, {
       expiresAt: '2026-07-29T20:00:00.000Z',
     });
 
@@ -74,7 +80,9 @@ describe('AuthSessionService', () => {
   });
 
   it('não persiste continuidade sem expiração definida pelo contrato/política', () => {
-    service.startSession(USER, 'token-123');
+    service.startSession(USER, 'token-123', {
+      expiresAt: '2026-07-29T20:00:00.000Z',
+    });
 
     expect(service.isAuthenticated()).toBe(true);
     expect(service.mode).toBe('ONLINE');
@@ -161,6 +169,45 @@ describe('AuthSessionService', () => {
     expect(sessionStorage.getItem('plano-de-controle.auth-session')).toBeNull();
   });
 
+  it('expira sessão online por tokenExpiresAt mesmo sem continuidade offline', () => {
+    let expiryCallback: (() => void) | undefined;
+    const scheduler = vi.fn((callback: () => void) => {
+      expiryCallback = callback;
+      return vi.fn();
+    });
+    const scheduledService = new AuthSessionService(
+      sessionStorage,
+      () => new Date(now),
+      undefined,
+      scheduler,
+    );
+
+    scheduledService.startSession(
+      USER,
+      'token-123',
+      { expiresAt: '2026-07-29T12:01:00.000Z' },
+    );
+
+    expect(sessionStorage.getItem('plano-de-controle.auth-session')).toBeNull();
+    expect(scheduler).toHaveBeenLastCalledWith(expect.any(Function), 60_000);
+    now = new Date('2026-07-29T12:01:00.000Z');
+    expiryCallback?.();
+    expect(scheduledService.isAuthenticated()).toBe(false);
+    expect(scheduledService.token).toBeNull();
+  });
+
+  it('limita o snapshot offline ao prazo online', () => {
+    service.startSession(
+      USER,
+      'token-123',
+      { expiresAt: '2026-07-29T13:00:00.000Z' },
+      { expiresAt: '2026-07-29T20:00:00.000Z' },
+    );
+
+    expect(JSON.parse(sessionStorage.getItem('plano-de-controle.auth-session') ?? '{}'))
+      .toMatchObject({ expiresAt: '2026-07-29T13:00:00.000Z' });
+  });
+
   it('invalida formato legado que continha token sem tentar persistir o segredo', () => {
     sessionStorage.setItem('plano-de-controle.auth-session', JSON.stringify({
       user: USER,
@@ -176,6 +223,8 @@ describe('AuthSessionService', () => {
 
   it('should remove the persisted session on logout', () => {
     service.startSession(USER, 'token-123', {
+      expiresAt: '2026-07-29T20:00:00.000Z',
+    }, {
       expiresAt: '2026-07-29T20:00:00.000Z',
     });
 

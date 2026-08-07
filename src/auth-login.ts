@@ -1,7 +1,16 @@
-import { randomUUID } from 'node:crypto';
+import { createAppSessionToken } from './app-session-token';
+import { AuthLoginError } from './auth-login-error';
+import {
+  authenticateAndAuthorizeDatasul,
+  type DatasulAuthConfig,
+  type HttpTransport,
+} from './datasul-auth-client';
+
+export { AuthLoginError } from './auth-login-error';
 
 export interface AuthenticatedLogin {
   token: string;
+  tokenExpiresAt: string;
   offlineSessionExpiresAt?: string;
   usuario: {
     id: string;
@@ -18,55 +27,134 @@ export interface LoginInput {
   senha?: unknown;
 }
 
-function readConfig(env: LoginEnvironment) {
-  const offlineSessionTtlMs = Number(env['APP_OFFLINE_SESSION_TTL_MS']);
+export interface LoginDependencies {
+  transport?: HttpTransport;
+  now?: () => Date;
+  timeoutSignal?: (timeoutMs: number) => AbortSignal;
+  issueToken?: typeof createAppSessionToken;
+}
+
+interface AuthGatewayConfig extends DatasulAuthConfig {
+  tokenSecret: string;
+  tokenTtlMs: number;
+  offlineSessionTtlMs: number | null;
+}
+
+const PLACEHOLDER_SECRET = /(replace|example|change.?me|placeholder|mock)/i;
+const MAX_SAFE_TTL_MS = 2_147_483_647;
+
+function configurationError(): never {
+  throw new AuthLoginError(503, 'auth-gateway-not-configured');
+}
+
+function requiredPositiveInteger(value: string | undefined): number {
+  if (!value || !/^\d+$/.test(value)) {
+    return configurationError();
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > MAX_SAFE_TTL_MS) {
+    return configurationError();
+  }
+  return parsed;
+}
+
+function offlineTtl(value: string | undefined): number | null {
+  if (value === undefined || value === '') {
+    return null;
+  }
+  if (!/^-?\d+$/.test(value)) {
+    return configurationError();
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed > MAX_SAFE_TTL_MS) {
+    return configurationError();
+  }
+  return parsed <= 0 ? null : parsed;
+}
+
+function readConfig(env: LoginEnvironment): AuthGatewayConfig {
+  let url: URL;
+  try {
+    url = new URL(env['DATASUL_BASE_URL'] ?? '');
+  } catch {
+    return configurationError();
+  }
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:')
+    || url.username !== ''
+    || url.password !== '') {
+    return configurationError();
+  }
+
+  const securityProgram = env['DATASUL_SECURITY_PROGRAM'];
+  const tokenSecret = env['APP_AUTH_TOKEN_SECRET'];
+  if (securityProgram !== 'fcq-0001'
+    || !tokenSecret
+    || Buffer.byteLength(tokenSecret, 'utf8') < 32
+    || PLACEHOLDER_SECRET.test(tokenSecret)) {
+    return configurationError();
+  }
+
   return {
-    user: env['APP_LOGIN_USER']?.trim() || 'operador',
-    password: env['APP_LOGIN_PASSWORD']?.trim() || 'mock123',
-    name: env['APP_LOGIN_NAME']?.trim() || 'Operador Cortag',
-    offlineSessionTtlMs: Number.isFinite(offlineSessionTtlMs) && offlineSessionTtlMs > 0
-      ? offlineSessionTtlMs
-      : null,
+    baseUrl: url.toString(),
+    securityProgram,
+    requestTimeoutMs: requiredPositiveInteger(env['DATASUL_REQUEST_TIMEOUT_MS']),
+    tokenSecret,
+    tokenTtlMs: requiredPositiveInteger(env['APP_AUTH_TOKEN_TTL_MS']),
+    offlineSessionTtlMs: offlineTtl(env['APP_OFFLINE_SESSION_TTL_MS']),
   };
 }
 
-function createSessionToken() {
-  return `external-session-${randomUUID()}`;
+function readCredentials(input: LoginInput): { login: string; senha: string } {
+  const login = typeof input.login === 'string' ? input.login.trim() : '';
+  const senha = typeof input.senha === 'string' ? input.senha : '';
+  if (!login
+    || !senha
+    || login.includes(':')
+    || /[\u0000-\u001f\u007f]/u.test(login)) {
+    throw new AuthLoginError(401, 'invalid-credentials');
+  }
+  return { login, senha };
 }
 
-export function authenticateExternalLogin(
+export async function authenticateExternalLogin(
   input: LoginInput,
   env: LoginEnvironment,
-): AuthenticatedLogin | null {
-  const login = typeof input.login === 'string' ? input.login.trim() : '';
-  const senha = typeof input.senha === 'string' ? input.senha.trim() : '';
+  dependencies: LoginDependencies = {},
+): Promise<AuthenticatedLogin> {
+  const credentials = readCredentials(input);
   const config = readConfig(env);
-
-  if (!login || !senha || login !== config.user || senha !== config.password) {
-    return null;
-  }
-
-  const offlineSessionExpiresAt = validOfflineSessionExpiresAt(config.offlineSessionTtlMs);
+  const now = dependencies.now?.() ?? new Date();
+  const identity = await authenticateAndAuthorizeDatasul(
+    credentials.login,
+    credentials.senha,
+    config,
+    {
+      transport: dependencies.transport ?? fetch,
+      timeoutSignal: dependencies.timeoutSignal ?? (timeoutMs => AbortSignal.timeout(timeoutMs)),
+    },
+  );
+  const issued = await (dependencies.issueToken ?? createAppSessionToken)({
+    subject: identity.codUsuario,
+    secret: config.tokenSecret,
+    ttlMs: config.tokenTtlMs,
+    now,
+  });
+  const offlineSessionExpiresAt = config.offlineSessionTtlMs === null
+    ? undefined
+    : new Date(Math.min(
+      now.getTime() + config.offlineSessionTtlMs,
+      Date.parse(issued.tokenExpiresAt),
+    )).toISOString();
 
   return {
-    token: createSessionToken(),
+    token: issued.token,
+    tokenExpiresAt: issued.tokenExpiresAt,
     ...(offlineSessionExpiresAt ? { offlineSessionExpiresAt } : {}),
     usuario: {
-      id: 'USR-EXTERNAL',
-      nome: config.name,
-      login,
+      id: identity.codUsuario,
+      login: identity.codUsuario,
+      nome: identity.nomUsuario,
       permissoes: ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ'],
     },
   };
-}
-
-function validOfflineSessionExpiresAt(ttlMs: number | null): string | undefined {
-  if (ttlMs === null) {
-    return undefined;
-  }
-
-  const expiresAt = Date.now() + ttlMs;
-  return Number.isFinite(expiresAt) && expiresAt <= 8.64e15
-    ? new Date(expiresAt).toISOString()
-    : undefined;
 }
