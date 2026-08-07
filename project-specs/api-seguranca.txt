@@ -1,0 +1,29 @@
+API de Segurança
+
+Método: GET
+Endpoint: http://10.101.195.111:51080/api/fcq/v1/seguranca/mjocelio/fcq-0001
+
+Autenticação: Basic Auth
+Usuário:
+Senha: 
+
+Parâmetros de consulta:
+- pageSize: 40 (opcional/desmarcado na evidência)
+
+Resposta de exemplo (HTTP 200 OK):
+
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "codUsuario": "mjocelio",
+      "temAcesso": true,
+      "gruposLiberados": "FCQ",
+      "mensagem": "Acesso permitido",
+      "programa": "fcq-0001",
+      "nomUsuario": "Marcos Jocélio (Obliant)",
+      "descProgram": "Apontamento Plano de Controle CQ"
+    }
+  ]
+}
