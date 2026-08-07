@@ -1,10 +1,59 @@
-<div class="po-wrapper app-shell">
+<div class="app-shell" [class.po-wrapper]="showSideMenu">
   @if (isAuthenticated) {
-    <po-toolbar [p-title]="toolbarTitle"></po-toolbar>
+    <ng-template #sessionActionsIcon>
+      <button
+        type="button"
+        class="app-shell__session-actions-trigger"
+        aria-label="Abrir ações da sessão"
+      >
+        <po-icon p-icon="an an-sign-out" aria-hidden="true" />
+      </button>
+    </ng-template>
 
-    <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
-      <po-menu [p-menus]="menus"></po-menu>
-    </nav>
+    <po-toolbar
+      [p-title]="toolbarTitle"
+      [p-actions]="toolbarActions"
+      [p-actions-icon]="sessionActionsIcon"
+    ></po-toolbar>
+
+    <app-synchronization-indicator data-testid="synchronization-indicator" />
+
+    @if (showSideMenu) {
+      <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
+        <po-menu [p-menus]="menus"></po-menu>
+      </nav>
+    }
+  }
+
+  @if (showOfflineBanner) {
+    <div
+      class="app-shell__offline-banner"
+      role="status"
+      aria-live="polite"
+      data-testid="offline-banner"
+    >
+      <po-icon p-icon="an an-wifi-slash" aria-hidden="true" />
+      <span>Você está offline. Confirme cada registro salvo; consultas ao Datasul podem falhar.</span>
+    </div>
+  }
+
+  @if (showPwaUpdateNotice) {
+    <section
+      class="app-shell__update-notice"
+      role="status"
+      aria-live="polite"
+      data-testid="pwa-update-notice"
+    >
+      <span>{{ pwaUpdateMessage }}</span>
+      @if (canRequestPwaReload) {
+        <button type="button" class="app-shell__update-action" (click)="applyPwaUpdate()">
+          {{ pwaUpdateState().status === 'unrecoverable' ? 'Recarregar com conexão' : 'Atualizar agora' }}
+        </button>
+      }
+      @if (pwaUpdateFeedback()) {
+        <span data-testid="pwa-update-feedback">{{ pwaUpdateFeedback() }}</span>
+      }
+    </section>
   }
 
   <main class="app-shell__content" data-testid="app-content">

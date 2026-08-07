@@ -1,0 +1,53 @@
+<po-widget p-title="Informações Operacionais">
+  <div class="operacao-info">
+    <po-input name="ct" p-label="CT" [p-readonly]="true" [ngModel]="operacao?.ct ?? ''"></po-input>
+    <po-input
+      name="grupoMaquina"
+      p-label="Grupo Máquina"
+      [p-readonly]="true"
+      [ngModel]="operacao?.grupoMaquina ?? ''"
+    ></po-input>
+    <po-select
+      name="tipoResponsavel"
+      p-label="Reportar por"
+      [p-options]="tipoOptions"
+      [p-disabled]="responsavelDisabled"
+      [ngModel]="tipoResponsavel"
+      (ngModelChange)="changeTipoResponsavel($event)"
+    ></po-select>
+    <div class="operacao-info__responsavel-group">
+      <po-select
+        name="responsavelOperacao"
+        [p-label]="tipoResponsavel === 'OPERADOR' ? 'Operador' : 'Equipe'"
+        [p-options]="responsavelOptions"
+        [p-disabled]="responsavelDisabled || loadingResponsaveis"
+        [p-loading]="loadingResponsaveis"
+        [ngModel]="responsavelCodigo"
+        (ngModelChange)="changeResponsavel($event)"
+      ></po-select>
+      @if (tipoResponsavel === 'EQUIPE') {
+        <po-button
+          data-testid="gerenciar-equipe"
+          p-label="Criar equipe"
+          p-aria-label="Criar ou gerenciar equipe"
+          p-kind="secondary"
+          [p-disabled]="gerenciarEquipeDisabled || responsavelDisabled || loadingResponsaveis"
+          (p-click)="onGerenciarEquipe()"
+        ></po-button>
+      }
+    </div>
+    <po-input name="turno" p-label="Turno" [p-readonly]="true" [ngModel]="operacao?.turno ?? ''"></po-input>
+  </div>
+
+  @if (responsaveisError) {
+    <div class="operacao-info__responsaveis-error" role="alert">
+      <span>{{ responsaveisError }}</span>
+      <po-button
+        p-label="Tentar novamente"
+        p-kind="secondary"
+        [p-disabled]="loadingResponsaveis"
+        (p-click)="retryResponsaveis.emit()"
+      ></po-button>
+    </div>
+  }
+</po-widget>

@@ -5,8 +5,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { PoButtonModule, PoFieldModule, PoLoadingModule } from '@po-ui/ng-components';
 
-import { buildSafeReturnUrl } from '../../../../core/auth/safe-return-url';
 import { LoginError, LoginService } from '../../services/login.service';
+import { messageForOfflineAvailability } from '../../../../core/offline/models/offline-availability';
+import { buildSafeReturnUrl } from '../../../../core/auth/safe-return-url';
 
 @Component({
   selector: 'app-login-page',
@@ -86,8 +87,10 @@ export class LoginPage {
   }
 
   redirecionar(): void {
-    const target = this.safeReturnUrl;
-    this.router.navigateByUrl(target).then(
+    const returnUrl = buildSafeReturnUrl(
+      this.route.snapshot.queryParamMap.get('returnUrl'),
+    ) ?? LoginPage.fallbackUrl;
+    this.router.navigateByUrl(returnUrl).then(
       navigated => {
         if (!navigated) {
           this.submitting = false;
@@ -109,14 +112,9 @@ export class LoginPage {
     this.loginService.logout();
   }
 
-  private get safeReturnUrl(): string {
-    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    return buildSafeReturnUrl(returnUrl) ?? LoginPage.fallbackUrl;
-  }
-
   private messageForError(error: unknown): string {
     if (error instanceof LoginError && error.code === 'communication') {
-      return 'Não foi possível conectar ao servidor.';
+      return messageForOfflineAvailability('login');
     }
 
     if (error instanceof LoginError && error.code === 'invalid-credentials') {

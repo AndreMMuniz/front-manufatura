@@ -1,30 +1,26 @@
-import { Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 
-import { PoButtonModule, PoPageModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoIconModule, PoPageModule } from '@po-ui/ng-components';
 
-import { MenuGroup, MenuOption, SFC_MENU } from '../../../../core/navigation/app-menu';
+import { APP_MODULE_NAVIGATION } from '../../../../core/navigation/app-navigation';
 
 @Component({
   selector: 'app-main-menu',
-  imports: [PoButtonModule, PoPageModule, PoWidgetModule],
+  imports: [RouterLink, PoIconModule, PoPageModule],
   templateUrl: './main-menu.html',
   styleUrls: ['./main-menu.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MainMenuPage {
   private readonly router = inject(Router);
 
-  get groups(): ReadonlyArray<MenuGroup> {
-    return SFC_MENU;
+  get modules() {
+    return APP_MODULE_NAVIGATION;
   }
 
-  selectOption(option: MenuOption): void {
-    if (!option.implemented || !option.target) {
-      return;
-    }
-    void this.router.navigate([option.target]).catch(() => {
-      // Navigation may be cancelled by a concurrent navigation; the menu
-      // remains usable for the next click.
-    });
+  navigateWithSpace(event: KeyboardEvent, route: string): void {
+    event.preventDefault();
+    void this.router.navigateByUrl(route).catch(() => undefined);
   }
 }

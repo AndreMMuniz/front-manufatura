@@ -1,73 +1,41 @@
-import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { PRIMARY_OUTLET, Router, RouterOutlet } from '@angular/router';
 import { filter, skip } from 'rxjs';
 
-import { PoMenuItem, PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
+import {
+  PoIconModule,
+  PoMenuItem,
+  PoMenuModule,
+  PoToolbarAction,
+  PoToolbarModule,
+} from '@po-ui/ng-components';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
+import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
+import { ConnectivityService } from './core/offline/services/connectivity.service';
+import { PwaUpdateService } from './core/offline/pwa/pwa-update.service';
+import { SynchronizationIndicator } from './features/synchronization/components/synchronization-indicator/synchronization-indicator';
 
-const AUTHENTICATED_MENUS: ReadonlyArray<PoMenuItem> = [
-  {
-    label: 'Menu Principal',
-    shortLabel: 'Início',
-    icon: 'an an-house',
-    link: '/menu',
-  },
-  {
-    label: 'Plano Controle CQ',
-    shortLabel: 'CQ',
-    icon: 'an an-clipboard-text',
-    link: '/quality-control',
-  },
-  {
-    label: 'Ordens e Reportes',
-    shortLabel: 'Ordens',
-    icon: 'an an-factory',
-    link: '/operation-reporting',
-  },
-  {
-    label: 'Paradas',
-    shortLabel: 'Paradas',
-    icon: 'an an-warning',
-    link: '/stoppages',
-  },
-  {
-    label: 'Refugo / Retrabalho',
-    shortLabel: 'Refugo',
-    icon: 'an an-arrows-clockwise',
-    link: '/scrap-rework',
-  },
-  {
-    label: 'Consulta Item',
-    shortLabel: 'Item',
-    icon: 'an an-magnifying-glass',
-    link: '/item-consultation',
-  },
-  {
-    label: 'Centro de Trabalho',
-    shortLabel: 'Centro',
-    icon: 'an an-monitor',
-    link: '/work-center',
-  },
-  {
-    label: 'Operador',
-    shortLabel: 'Operador',
-    icon: 'an an-user',
-    link: '/operators',
-  },
-  {
-    label: 'Equipes',
-    shortLabel: 'Equipes',
-    icon: 'an an-users',
-    link: '/teams',
-  },
-];
+const APP_NAME = 'Apontamento Manufatura';
+
+const HOME_MENU: PoMenuItem = {
+  label: 'Menu Principal',
+  shortLabel: 'Home',
+  icon: 'an an-house-line',
+  link: '/menu',
+};
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, RouterOutlet, PoToolbarModule, PoMenuModule, PoPageModule],
+  imports: [
+    RouterOutlet,
+    PoIconModule,
+    PoMenuModule,
+    PoToolbarModule,
+    SynchronizationIndicator,
+  ],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,6 +44,34 @@ export class App {
   private readonly router = inject(Router);
   private readonly authSession = inject(AuthSessionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly connectivity = inject(ConnectivityService);
+  private readonly pwaUpdate = inject(PwaUpdateService);
+  private readonly onlineHint = toSignal(this.connectivity.changes$, {
+    initialValue: this.connectivity.onlineHint,
+  });
+  private readonly confirmPendingUpdate = signal(false);
+
+  readonly pwaUpdateState = this.pwaUpdate.state;
+  readonly pwaUpdateFeedback = signal('');
+
+  readonly toolbarActions: Array<PoToolbarAction> = [
+    {
+      label: 'Sair',
+      icon: 'an an-sign-out',
+      type: 'danger',
+      action: () => this.logout(),
+    },
+  ];
+
+  readonly menus: Array<PoMenuItem> = [
+    HOME_MENU,
+    ...APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({
+      label,
+      shortLabel,
+      icon,
+      link: route,
+    })),
+  ];
 
   constructor() {
     this.authSession.session$
@@ -104,26 +100,66 @@ export class App {
     return this.authSession.isAuthenticated();
   }
 
-  get toolbarTitle(): string {
-    const user = this.authSession.currentUser;
-    return user ? `Plano de Controle CQ - ${user.login}` : 'Plano de Controle CQ';
+  get showOfflineBanner(): boolean {
+    return this.connectivity.isBrowser && !this.onlineHint();
   }
 
-  get menus(): Array<PoMenuItem> {
-    if (!this.isAuthenticated) {
-      return [];
+  get showPwaUpdateNotice(): boolean {
+    return ['ready', 'install-failed', 'unrecoverable'].includes(this.pwaUpdateState().status);
+  }
+
+  get pwaUpdateMessage(): string {
+    const state = this.pwaUpdateState();
+    switch (state.status) {
+      case 'ready':
+        return this.confirmPendingUpdate()
+          ? 'Existem registros aguardando sincronização. Eles serão preservados após a atualização.'
+          : 'Uma nova versão está pronta. Atualize quando terminar a captura atual.';
+      case 'install-failed':
+        return state.message;
+      case 'unrecoverable':
+        return state.message;
+      default:
+        return '';
     }
+  }
 
-    const items: PoMenuItem[] = [...AUTHENTICATED_MENUS];
+  get canRequestPwaReload(): boolean {
+    return ['ready', 'unrecoverable'].includes(this.pwaUpdateState().status);
+  }
 
-    items.push({
-      label: 'Sair',
-      shortLabel: 'Sair',
-      icon: 'an an-sign-out',
-      action: () => this.logout(),
-    });
+  async applyPwaUpdate(): Promise<void> {
+    const result = await this.pwaUpdate.reloadWhenSafe(this.confirmPendingUpdate());
+    switch (result) {
+      case 'capture-active':
+        this.pwaUpdateFeedback.set('Conclua ou descarte a captura atual antes de atualizar.');
+        break;
+      case 'pending-outbox':
+        this.confirmPendingUpdate.set(true);
+        this.pwaUpdateFeedback.set(
+          'Confirme novamente para atualizar mantendo os registros pendentes no dispositivo.',
+        );
+        break;
+      case 'storage-unavailable':
+        this.pwaUpdateFeedback.set(
+          'Não foi possível verificar os registros locais. A atualização foi bloqueada por segurança.',
+        );
+        break;
+      case 'not-ready':
+        this.pwaUpdateFeedback.set('A atualização ainda não está pronta para aplicação.');
+        break;
+    }
+  }
 
-    return items;
+  get toolbarTitle(): string {
+    const user = this.authSession.currentUser;
+    return user ? `${APP_NAME} - ${user.login}` : APP_NAME;
+  }
+
+  get showSideMenu(): boolean {
+    const primaryRoute = this.router.parseUrl(this.router.url).root.children[PRIMARY_OUTLET];
+    const path = `/${primaryRoute?.segments.map(segment => segment.path).join('/') ?? ''}`;
+    return this.isAuthenticated && path !== '/' && path !== '/menu' && path !== '/login';
   }
 
   logout(): void {

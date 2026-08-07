@@ -1,0 +1,89 @@
+<po-page-default [p-title]="pageTitle">
+  <section class="report-operacao">
+    <app-operational-correction-notice />
+    <app-contexto-producao-selector
+      [areas]="areas"
+      [centers]="centers"
+      [areaCode]="areaCode"
+      [workCenterCode]="workCenterCode"
+      [loadingAreas]="loadingAreas"
+      [loadingCenters]="loadingCenters"
+      [loadingAction]="loadingOrders"
+      [disabled]="isBusy"
+      [consultBlocked]="hasActiveWorkflow"
+      [errorMessage]="contextError"
+      (areaChange)="onAreaChange($event)"
+      (workCenterChange)="onWorkCenterChange($event)"
+      (action)="consultOrders()"
+      (retry)="retryContext()"
+    ></app-contexto-producao-selector>
+
+    <app-ordens-centro-list
+      [orders]="orders"
+      [selectedIds]="selectedOrderIds"
+      [loading]="loadingOrders"
+      [disabled]="isBusy"
+      [showList]="showOrderList"
+      (selectionChange)="updateSelection($event)"
+      (open)="openSelectedOrders()"
+    ></app-ordens-centro-list>
+
+    @if (loadingOperation) {
+      <div class="report-operacao__loading" role="status">
+        <po-loading p-text="Carregando ordem selecionada..." p-size="md"></po-loading>
+      </div>
+    }
+
+    @if (operacao) {
+      <p class="report-operacao__queue" aria-live="polite">
+        Ordem ativa {{ operacao.ordem }} · {{ queueRemaining }} ordem(ns) na fila
+      </p>
+
+      <app-op-detalhes-card [operacao]="operacao"></app-op-detalhes-card>
+
+      <app-producao-form
+        [operacao]="operacao"
+      ></app-producao-form>
+
+      <app-operacao-info-card
+        [operacao]="operacao"
+        [responsaveis]="responsaveis"
+        [tipoResponsavel]="tipoResponsavel"
+        [responsavelCodigo]="responsavelCodigo"
+        [responsavelDisabled]="operacao.dataInicio !== undefined || isBusy"
+        [loadingResponsaveis]="loadingResponsaveis"
+        [responsaveisError]="responsaveisError"
+        [gerenciarEquipeDisabled]="!canManageTeam"
+        (tipoResponsavelChange)="alterarTipoResponsavel($event)"
+        (responsavelChange)="alterarResponsavel($event)"
+        (retryResponsaveis)="retryResponsaveis()"
+        (gerenciarEquipe)="abrirGerenciarEquipe($event)"
+      ></app-operacao-info-card>
+
+    }
+
+    <app-report-actions
+      [iniciarDisabled]="iniciarDisabled"
+      [iniciarLoading]="estado === 'Carregando' && !operacao?.dataInicio"
+      [reporteDisabled]="reporteDisabled"
+      [reporteLoading]="estado === 'Reportando' && !encerrando"
+      [paradaDisabled]="!canOpenAuxiliaryFlows"
+      (iniciar)="iniciarOperacao()"
+      (reporte)="abrirReporte()"
+      (parada)="abrirParada()"
+    ></app-report-actions>
+
+    <p class="report-operacao__feedback" role="status" aria-live="polite" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">
+      {{ feedback }}
+    </p>
+
+    <app-reporte-slide
+      [ordem]="operacao?.ordem ?? ''"
+      (reporteSolicitado)="salvarReporte($event)"
+    ></app-reporte-slide>
+
+    <app-gerenciar-equipe-slide
+      (equipeSalva)="onEquipeSalva($event)"
+    ></app-gerenciar-equipe-slide>
+  </section>
+</po-page-default>

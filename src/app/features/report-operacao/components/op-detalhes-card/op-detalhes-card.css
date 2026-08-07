@@ -1,0 +1,15 @@
+.op-detalhes {
+  display: grid;
+  gap: var(--app-space-md);
+}
+
+@media (min-width: 760px) {
+  .op-detalhes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .op-detalhes po-input:nth-child(2),
+  .op-detalhes po-input:nth-child(7) {
+    grid-column: span 2;
+  }
+}

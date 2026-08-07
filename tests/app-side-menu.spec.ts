@@ -1,11 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const credentials = {
   user: 'operador',
   password: 'mock123',
 };
 
-async function login(page: import('@playwright/test').Page) {
+const modules = [
+  { label: 'Plano Controle CQ', route: '/quality-control' },
+  { label: 'Reporte Ordem', route: '/operation-reporting' },
+  { label: 'Reporte Batelada', route: '/batch-reporting' },
+  { label: 'Paradas', route: '/stoppages' },
+] as const;
+
+async function login(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
   await page.getByRole('textbox', { name: 'Senha' }).fill(credentials.password);
@@ -13,70 +20,148 @@ async function login(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/menu$/);
 }
 
-test.describe('menu lateral principal', () => {
-  test('não aparece na tela de login antes da autenticação', async ({ page }) => {
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+  ).toBe(true);
+}
+
+async function expectHomeFullWidth(page: Page): Promise<void> {
+  const dimensions = await page.evaluate(() => {
+    const contentBox = document.querySelector<HTMLElement>('[data-testid="app-content"]')?.getBoundingClientRect();
+    const toolbarBox = document.querySelector<HTMLElement>('po-toolbar .po-toolbar')?.getBoundingClientRect();
+
+    if (!contentBox || !toolbarBox) {
+      throw new Error('Shell autenticado não encontrado.');
+    }
+
+    return {
+      contentLeft: contentBox.left,
+      contentRight: contentBox.right,
+      toolbarLeft: toolbarBox.left,
+      toolbarRight: toolbarBox.right,
+      viewportWidth: document.documentElement.clientWidth,
+    };
+  });
+
+  expect(dimensions.contentLeft).toBe(0);
+  expect(Math.abs(dimensions.contentRight - dimensions.viewportWidth)).toBeLessThanOrEqual(1);
+  expect(dimensions.toolbarLeft).toBe(0);
+  expect(Math.abs(dimensions.toolbarRight - dimensions.viewportWidth)).toBeLessThanOrEqual(1);
+  await expectNoHorizontalOverflow(page);
+}
+
+test.describe('menu lateral contextual', () => {
+  test('não aparece no login nem na Home, que usa toda a largura', async ({ page }) => {
     await page.goto('/login');
+    await expect(page.locator('po-menu')).toHaveCount(0);
 
+    await login(page);
     await expect(page.getByTestId('app-side-menu')).toHaveCount(0);
-    await expect(page.getByRole('menuitem')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+    await expect(page.locator('po-menu')).toHaveCount(0);
+    await expectHomeFullWidth(page);
   });
 
-  test('renderiza as opções principais uma abaixo da outra no desktop', async ({ page }) => {
+  test('mostra Menu Principal e somente os módulos aprovados em ordem nas telas internas', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await login(page);
-
-    const expectedItems = [
-      'Menu Principal',
-      'Plano Controle CQ',
-      'Ordens e Reportes',
-      'Paradas',
-      'Refugo / Retrabalho',
-      'Consulta Item',
-      'Centro de Trabalho',
-      'Operador',
-      'Equipes',
-      'Sair',
-    ];
-
-    for (const label of expectedItems) {
-      await expect(page.getByRole('menuitem', { name: label })).toBeVisible();
-    }
-
-    const boxes = await Promise.all(
-      expectedItems.slice(0, 5).map(async label => {
-        const box = await page.getByRole('menuitem', { name: label }).boundingBox();
-        expect(box).not.toBeNull();
-        return box!;
-      }),
-    );
-
-    for (let index = 1; index < boxes.length; index += 1) {
-      expect(boxes[index].y).toBeGreaterThan(boxes[index - 1].y);
-    }
-
-    const menuBox = await page.getByRole('menuitem', { name: 'Menu Principal' }).boundingBox();
-    const contentBox = await page.getByRole('heading', { name: 'Menu Principal' }).boundingBox();
-
-    expect(menuBox).not.toBeNull();
-    expect(contentBox).not.toBeNull();
-    expect(contentBox!.x).toBeGreaterThanOrEqual(menuBox!.x + menuBox!.width - 1);
-  });
-
-  test('navega pelo menu e mantém o item selecionado distinguível', async ({ page }) => {
-    await login(page);
-
-    await page.getByRole('menuitem', { name: 'Plano Controle CQ' }).click();
+    await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
 
     await expect(page).toHaveURL(/\/quality-control$/);
-    await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Plano Controle CQ/i })).toBeVisible();
+    await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
+
+    const expectedItems = ['Menu Principal', ...modules.map(module => module.label)];
+    const menuItems = page.getByTestId('app-side-menu').getByRole('menuitem');
+    await expect(menuItems).toHaveCount(expectedItems.length);
+    for (const [index, label] of expectedItems.entries()) {
+      await expect(menuItems.nth(index)).toContainText(label);
+    }
+    await expect(page.getByTestId('app-side-menu').getByText('Sair', { exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('main-menu-return')).toHaveCount(0);
+
+    const layout = await page.evaluate(() => {
+      const menu = document.querySelector<HTMLElement>('[data-testid="app-side-menu"] .po-menu');
+      const pageElement = document.querySelector<HTMLElement>('.po-page');
+
+      if (!menu || !pageElement) {
+        throw new Error('Shell contextual não encontrado.');
+      }
+
+      const menuBox = menu.getBoundingClientRect();
+      const pageBox = pageElement.getBoundingClientRect();
+      return {
+        menuRight: menuBox.right,
+        pageLeft: pageBox.left,
+      };
+    });
+
+    expect(layout.pageLeft).toBeGreaterThanOrEqual(layout.menuRight - 1);
+    await expect.poll(async () => page.evaluate(() => {
+      const menu = document.querySelector<HTMLElement>('[data-testid="app-side-menu"] .po-menu');
+      const toolbar = document.querySelector<HTMLElement>('po-toolbar .po-toolbar');
+
+      if (!menu || !toolbar) {
+        throw new Error('Menu ou toolbar contextual não encontrado.');
+      }
+
+      return toolbar.getBoundingClientRect().left - menu.getBoundingClientRect().right;
+    })).toBeGreaterThanOrEqual(-1);
+    await expectNoHorizontalOverflow(page);
   });
 
-  test('mantém o menu acessível em viewport de tablet', async ({ page }) => {
-    await page.setViewportSize({ width: 768, height: 1024 });
+  test('navega entre módulos e retorna à Home pelo primeiro item', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page);
+    await page.getByRole('link', { name: modules[0].label }).click();
+
+    for (const module of modules) {
+      await page.getByTestId('app-side-menu').getByRole('menuitem', { name: module.label }).click();
+      await expect(page).toHaveURL(new RegExp(`${module.route.replace('/', '\\/')}$`));
+      await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
+    }
+
+    await page.getByTestId('app-side-menu').getByRole('menuitem', { name: 'Menu Principal' }).click();
+    await expect(page).toHaveURL(/\/menu$/);
+    await expect(page.getByTestId('app-side-menu')).toHaveCount(0);
+    await expectHomeFullWidth(page);
+  });
+
+  for (const viewport of [
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'celular', width: 375, height: 812 },
+  ]) {
+    test(`mantém a navegação contextual utilizável em ${viewport.name}`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await login(page);
+      await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
+
+      await expect(page.getByTestId('app-side-menu')).toBeVisible();
+      await page.getByTestId('app-side-menu').locator('.po-menu-mobile').click();
+      const homeItem = page.getByTestId('app-side-menu').getByRole('menuitem', { name: 'Menu Principal' });
+      await expect(homeItem).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+
+      await homeItem.click();
+      await expect(page).toHaveURL(/\/menu$/);
+      await expect(page.getByTestId('app-side-menu')).toHaveCount(0);
+      await expectHomeFullWidth(page);
+    });
+  }
+
+  test('encerra a sessão pela ação Sair do toolbar na Home', async ({ page }) => {
     await login(page);
 
-    await expect(page.getByRole('menuitem', { name: 'Menu Principal' })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: 'Plano Controle CQ' })).toBeVisible();
+    const sessionActions = page.getByRole('button', { name: 'Abrir ações da sessão' });
+    await sessionActions.focus();
+    await expect(sessionActions).toBeFocused();
+    await page.keyboard.press('Enter');
+    const logoutAction = page.getByText('Sair', { exact: true });
+    await expect(logoutAction).toBeVisible();
+    await logoutAction.click();
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole('heading', { name: 'Apontamento Manufatura' })).toBeVisible();
+    await expect(page.locator('po-toolbar')).toHaveCount(0);
+    await expect(page.locator('po-menu')).toHaveCount(0);
   });
 });

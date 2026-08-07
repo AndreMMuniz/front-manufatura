@@ -1,0 +1,52 @@
+<po-widget p-title="Produção">
+  <div class="producao-form">
+    <po-datepicker
+      name="dataInicio"
+      p-label="Data Início"
+      [p-disabled]="true"
+      [ngModel]="operacao?.dataInicio"
+    ></po-datepicker>
+
+    <po-input
+      name="horaInicio"
+      p-label="Hora Início"
+      [p-readonly]="true"
+      [ngModel]="operacao?.horaInicio ?? ''"
+    ></po-input>
+
+    <po-datepicker
+      name="dataFim"
+      p-label="Data Fim"
+      [p-disabled]="true"
+      [ngModel]="operacao?.dataFim"
+    ></po-datepicker>
+
+    <po-input
+      name="horaFim"
+      p-label="Hora Fim"
+      [p-readonly]="true"
+      [ngModel]="operacao?.horaFim ?? ''"
+    ></po-input>
+
+    <po-number
+      name="quantidadeAprovada"
+      p-label="Qtde Aprovada"
+      [p-disabled]="true"
+      [ngModel]="operacao?.quantidadeAprovada ?? 0"
+    ></po-number>
+
+    <po-number
+      name="quantidadeRetrabalho"
+      p-label="Qtde Retrabalho"
+      [p-disabled]="true"
+      [ngModel]="operacao?.quantidadeRetrabalho ?? 0"
+    ></po-number>
+
+    <po-number
+      name="quantidadeRefugo"
+      p-label="Qtde Refugo"
+      [p-disabled]="true"
+      [ngModel]="operacao?.quantidadeRefugo ?? 0"
+    ></po-number>
+  </div>
+</po-widget>

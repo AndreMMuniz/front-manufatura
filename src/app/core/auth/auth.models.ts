@@ -7,6 +7,17 @@ export interface User {
 
 export interface AuthSession {
   user: User;
-  token: string;
+  mode: 'ONLINE' | 'OFFLINE';
+  token?: string;
   authenticatedAt: Date;
+  lastValidatedAt: Date;
+  expiresAt?: Date;
+}
+
+export interface OfflineContinuityMetadata {
+  /**
+   * Expiração absoluta definida pelo contrato de autenticação/política de
+   * segurança. Sem este valor, a sessão online não ganha continuidade.
+   */
+  expiresAt: string;
 }

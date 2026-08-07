@@ -95,9 +95,22 @@ describe('LoginPage', () => {
     expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
   });
 
-  it('navigates to a safe internal returnUrl after valid credentials', () => {
+  it('informa que um novo login exige conexão com o Datasul', () => {
+    vi.mocked(loginServiceMock.login).mockReturnValue(
+      throwError(() => new LoginError('communication')),
+    );
+    component.login = 'operador';
+    component.senha = 'mock123';
+
+    component.entrar();
+
+    expect(component.feedback).toBe('A autenticação exige conexão com o Datasul.');
+    expect(component.senha).toBe('');
+  });
+
+  it('returns to a safe internal returnUrl after valid credentials', () => {
     vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
-    setReturnUrl('/menu');
+    setReturnUrl('/quality-control');
     component.login = 'operador';
     component.senha = 'mock123';
 
@@ -105,18 +118,18 @@ describe('LoginPage', () => {
 
     expect(loginServiceMock.login).toHaveBeenCalledWith('operador', 'mock123');
     expect(component.senha).toBe('');
-    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu');
+    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/quality-control');
   });
 
-  it('decodes encoded returnUrl before navigating', () => {
+  it('decodes and validates an encoded returnUrl after valid credentials', () => {
     vi.mocked(loginServiceMock.login).mockReturnValue(of(LOGIN_RESULT));
-    setReturnUrl('/menu%2Freports');
+    setReturnUrl('/quality-control%2Freports');
     component.login = 'operador';
     component.senha = 'mock123';
 
     component.entrar();
 
-    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/menu/reports');
+    expect(routerMock.navigateByUrl).toHaveBeenCalledWith('/quality-control/reports');
   });
 
   it('falls back to /menu without returnUrl', () => {
@@ -130,12 +143,12 @@ describe('LoginPage', () => {
   });
 
   it.each([
-    'https://datasul.example/menu',
-    '//datasul.example/menu',
+    'https://datasul.example/quality-control',
+    '//datasul.example/quality-control',
     '/login',
     '/Login',
     '/login?returnUrl=/quality-control',
-    'menu',
+    'quality-control',
     '/%2F%2Fevil.com',
     '/%252F%252Fevil.com',
     '/login/foo',

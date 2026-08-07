@@ -1,0 +1,5 @@
+.quality-workspace { display: grid; gap: 24px; margin: 0 auto; max-width: 1224px; min-width: 0; width: 100%; }
+.quality-workspace__execution { border-top: 1px solid var(--app-color-border, #dadedf); display: grid; gap: 24px; margin-inline: auto; min-width: 0; padding-top: 24px; width: 100%; }
+.quality-workspace__actions { border-top: 1px solid var(--app-color-border, #dadedf); display: flex; gap: 12px; justify-content: space-between; margin-inline: auto; min-width: 0; padding-top: 16px; width: 100%; }
+@media (min-width: 1100px) { .quality-workspace__execution--editing { align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 1224px; } }
+@media (max-width: 520px) { .quality-workspace__actions { align-items: stretch; flex-direction: column; } }

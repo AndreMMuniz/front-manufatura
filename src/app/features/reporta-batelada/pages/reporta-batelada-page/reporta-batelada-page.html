@@ -1,0 +1,102 @@
+<po-page-default p-title="Reporta Batelada">
+  <section class="reporta-batelada">
+    <app-operational-correction-notice />
+    <app-gerenciar-equipe-slide
+      (equipeSalva)="onEquipeSalva($event)"
+    ></app-gerenciar-equipe-slide>
+
+    <app-contexto-producao-selector
+      [areas]="areas"
+      [centers]="centers"
+      [areaCode]="view.area?.code ?? ''"
+      [workCenterCode]="view.workCenter?.code ?? ''"
+      [loadingAreas]="loadingAreas"
+      [loadingCenters]="loadingCenters"
+      [loadingAction]="view.estado === 'ConsultandoOrdens'"
+      [disabled]="contextLocked"
+      [errorMessage]="view.asyncState === 'erro' && view.estado === 'OrdensDisponiveis' ? view.errorMessage : ''"
+      (areaChange)="selecionarArea($event)"
+      (workCenterChange)="selecionarCentro($event)"
+      (action)="consultarOrdens()"
+      (retry)="consultarOrdens()"
+    ></app-contexto-producao-selector>
+
+    <app-ordens-centro-batelada-list
+      [orders]="view.orders"
+      [selectedIds]="selectedIds"
+      [loading]="view.estado === 'ConsultandoOrdens'"
+      [disabled]="contextLocked"
+      [showList]="view.asyncState !== 'ocioso'"
+      (selectionChange)="atualizarSelecao($event)"
+      (prepare)="prepararBatelada()"
+    ></app-ordens-centro-batelada-list>
+
+    @if (view.composition.length > 0) {
+      <app-ordens-selecionadas-batelada
+        [orders]="view.composition"
+        [totals]="workflowTotals"
+        [batchTotals]="workflowBatchTotals"
+        [locked]="started"
+      ></app-ordens-selecionadas-batelada>
+
+      <app-informacoes-batelada
+        [workCenter]="view.workCenter"
+        [responsaveis]="view.responsaveis"
+        [responsavel]="view.responsavel"
+        [disabled]="!canManageTeam"
+        [startedAt]="view.inicio?.iniciadoEm ?? null"
+        (responsavelChange)="selecionarResponsavel($event)"
+        (gerenciarEquipe)="abrirGerenciarEquipe($event)"
+      ></app-informacoes-batelada>
+    }
+
+    @if (responsaveisErrorMessage) {
+      <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">
+        {{ responsaveisErrorMessage }}
+        <button type="button" (click)="tentarCarregarResponsaveisNovamente()">Tentar novamente</button>
+      </p>
+    } @else if (view.errorMessage && view.estado !== 'OrdensDisponiveis') {
+      <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">
+        {{ view.errorMessage }}
+      </p>
+    } @else if (view.estado === 'Iniciando') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Iniciando todas as ordens da batelada...
+      </p>
+    } @else if (view.estado === 'BateladaIniciada') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Batelada iniciada com sucesso.
+      </p>
+    } @else if (view.estado === 'ReportandoParcial') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Salvando reporte parcial...
+      </p>
+    } @else if (view.estado === 'Encerrando') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Encerrando todas as ordens da batelada...
+      </p>
+    } @else if (view.composition.length > 0 && !view.responsavel) {
+      <p class="reporta-batelada__feedback" role="status">
+        Selecione um operador elegível para habilitar Iniciar.
+      </p>
+    }
+
+    <app-footer-acoes-batelada
+      [startDisabled]="!canStart"
+      [startLoading]="view.estado === 'Iniciando'"
+      [reportDisabled]="!canReport"
+      [reportLoading]="view.reportAsyncState === 'carregando'"
+      [stopDisabled]="!canReport"
+      (start)="iniciarBatelada()"
+      (report)="abrirReporte()"
+      (stop)="abrirParada()"
+      (sair)="sair()"
+    ></app-footer-acoes-batelada>
+
+    <app-reporte-batelada-slide
+      (rascunhoAlterado)="atualizarRascunho($event)"
+      (reporteSolicitado)="salvarReporte($event)"
+    ></app-reporte-batelada-slide>
+
+  </section>
+</po-page-default>

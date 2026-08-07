@@ -1,0 +1,210 @@
+.synchronization-center {
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--app-space-lg);
+  width: 100%;
+  max-width: 1200px;
+  min-width: 0;
+}
+
+.synchronization-center__summary,
+.synchronization-center__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-md);
+  align-items: center;
+  padding: var(--app-space-md);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  background: var(--app-color-surface);
+}
+
+.synchronization-center__filters label {
+  display: grid;
+  flex: 1 1 150px;
+  gap: var(--app-space-xs);
+  min-width: 0;
+  font-weight: 600;
+}
+
+.synchronization-center__filters input,
+.synchronization-center__filters select,
+.synchronization-center button {
+  box-sizing: border-box;
+  min-height: 48px;
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  padding: 0 var(--app-space-sm);
+  background: var(--color-neutral-light-00);
+  color: var(--app-color-text);
+  font: inherit;
+}
+
+.synchronization-center button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.synchronization-center input:focus-visible,
+.synchronization-center select:focus-visible,
+.synchronization-center button:focus-visible {
+  outline: 2px solid var(--color-action-focus);
+  outline-offset: 2px;
+}
+
+.synchronization-center__identification {
+  flex-basis: 240px;
+}
+
+.synchronization-center__filter-actions {
+  display: flex;
+  flex: 1 1 240px;
+  gap: var(--app-space-sm);
+  align-self: end;
+}
+
+.synchronization-center__state {
+  margin: 0;
+  padding: var(--app-space-lg);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  overflow-wrap: anywhere;
+}
+
+.synchronization-center__feedback {
+  margin: 0;
+  padding: var(--app-space-md);
+  border: 1px solid var(--color-action-default);
+  border-radius: var(--app-radius);
+  background: var(--color-brand-01-lightest);
+}
+
+.synchronization-center__records {
+  display: grid;
+  gap: var(--app-space-md);
+}
+
+.synchronization-record {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(360px, 2fr) auto;
+  gap: var(--app-space-md);
+  align-items: center;
+  min-width: 0;
+  padding: var(--app-space-md);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  background: var(--app-color-surface);
+}
+
+.synchronization-record h2 {
+  margin: var(--app-space-xs) 0;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-lg);
+}
+
+.synchronization-record__module {
+  color: var(--app-color-text-muted);
+  font-weight: 600;
+}
+
+.synchronization-record dl,
+.synchronization-detail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--app-space-sm);
+  margin: 0;
+}
+
+.synchronization-record dl div,
+.synchronization-detail dl div {
+  min-width: 0;
+}
+
+dt {
+  color: var(--app-color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+dd {
+  margin: var(--app-space-xs) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.synchronization-record__sync {
+  display: flex;
+  gap: var(--app-space-xs);
+  align-items: center;
+}
+
+.synchronization-record__actions {
+  display: grid;
+  gap: var(--app-space-sm);
+  grid-column: 1 / -1;
+}
+
+.synchronization-detail__backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--app-space-md);
+  background: rgb(0 0 0 / 45%);
+}
+
+.synchronization-detail {
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--app-space-lg);
+  width: min(680px, 100%);
+  max-height: calc(100vh - 2 * var(--app-space-md));
+  overflow: auto;
+  padding: var(--app-space-lg);
+  border-radius: var(--app-radius);
+  background: var(--app-color-surface);
+}
+
+.synchronization-detail h2 {
+  margin: 0;
+}
+
+.synchronization-abandon textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: var(--app-space-sm);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  font: inherit;
+}
+
+.synchronization-abandon__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--app-space-sm);
+}
+
+@media (max-width: 900px) {
+  .synchronization-record {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .synchronization-center {
+    gap: var(--app-space-md);
+  }
+
+  .synchronization-center__filter-actions,
+  .synchronization-record dl,
+  .synchronization-detail dl {
+    grid-template-columns: 1fr;
+  }
+
+  .synchronization-center__filter-actions {
+    display: grid;
+  }
+}

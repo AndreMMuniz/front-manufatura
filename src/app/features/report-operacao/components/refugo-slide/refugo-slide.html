@@ -1,0 +1,84 @@
+<po-page-slide #pageSlide p-title="Registrar Refugo" p-size="sm" [p-click-out]="false">
+  <section class="refugo-slide">
+    <div class="refugo-slide__entry">
+      <po-combo
+        #motivoCombo
+        name="motivoRefugo"
+        p-label="Motivo"
+        p-placeholder="Selecione o motivo"
+        p-required="true"
+        [p-options]="motivoOptions"
+        [ngModel]="motivoCodigo"
+        (ngModelChange)="atualizarMotivo($event ?? '')"
+      ></po-combo>
+
+      <po-number
+        name="quantidadeRefugoSlide"
+        p-label="Quantidade"
+        p-required="true"
+        [ngModel]="quantidade"
+        (ngModelChange)="atualizarQuantidade($event ?? 0)"
+      ></po-number>
+
+      <po-button
+        p-label="Adicionar"
+        p-kind="secondary"
+        [p-disabled]="!canAdicionar"
+        (p-click)="adicionarRefugo()"
+      ></po-button>
+    </div>
+
+    @if (validationMessage || motivoErrorMessage || adicionarFeedback) {
+      <div class="refugo-slide__feedback" aria-live="polite">
+        @if (validationMessage) {
+          <span class="refugo-slide__feedback-error">{{ validationMessage }}</span>
+        }
+        @if (motivoErrorMessage) {
+          <span class="refugo-slide__feedback-error">{{ motivoErrorMessage }}</span>
+        }
+        @if (adicionarFeedback && !validationMessage && !motivoErrorMessage) {
+          <span>{{ adicionarFeedback }}</span>
+        }
+      </div>
+    }
+
+    <div class="refugo-slide__list" aria-label="Refugos adicionados">
+      <div class="refugo-slide__row refugo-slide__row--header">
+        <span>Código</span>
+        <span>Descrição</span>
+        <span>Quantidade</span>
+      </div>
+
+      @for (item of itens; track item.codigo + item.descricao + item.quantidade + $index) {
+        <div class="refugo-slide__row">
+          <span>{{ item.codigo }}</span>
+          <span>{{ item.descricao }}</span>
+          <span>{{ formatQuantidade(item.quantidade) }}</span>
+          <po-button
+            p-label="Remover"
+            p-kind="tertiary"
+            [p-danger]="true"
+            (p-click)="removerRefugo($index)"
+          ></po-button>
+        </div>
+      } @empty {
+        <p class="refugo-slide__empty">Nenhum refugo adicionado.</p>
+      }
+    </div>
+
+    <po-number
+      name="totalRefugo"
+      p-label="Total Refugo"
+      [p-disabled]="true"
+      [ngModel]="totalRefugo"
+    ></po-number>
+  </section>
+
+  <po-page-slide-footer>
+    <div class="refugo-slide__footer">
+      <po-button p-label="Salvar" p-kind="primary" [p-disabled]="!canSalvar" (p-click)="salvar()"></po-button>
+      <po-button p-label="Voltar" p-kind="secondary" (p-click)="voltar()"></po-button>
+      <po-button p-label="Sair" p-kind="tertiary" (p-click)="sair()"></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>

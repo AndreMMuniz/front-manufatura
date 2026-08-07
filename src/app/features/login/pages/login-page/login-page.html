@@ -1,8 +1,10 @@
 <section class="login-page" aria-labelledby="login-title">
   <div class="login-page__panel">
     <header class="login-page__header">
-      <div class="login-page__logo" aria-label="Cortag">CORTAG</div>
-      <h1 id="login-title">Login</h1>
+      <div class="login-page__logo">
+        <img src="assets/logo-cortag.png" alt="Cortag — Revolution Tools" />
+      </div>
+      <h1 id="login-title">Apontamento Manufatura</h1>
     </header>
 
     @if (isAuthenticated) {
@@ -34,7 +36,7 @@
           [(ngModel)]="senha"
         ></po-password>
 
-        @if (submitted && !canSubmit) {
+        @if (submitted && !canSubmit && !feedback) {
           <p class="login-page__message" role="alert">{{ emptyFieldsMessage }}</p>
         }
 

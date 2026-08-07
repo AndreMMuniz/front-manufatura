@@ -13,6 +13,9 @@ export function mapUsuarioResponse(dto: UsuarioDTO): Usuario {
 export function mapLoginResponse(dto: LoginResponseDTO): LoginAutenticado {
   return {
     token: dto.token,
+    ...(dto.offlineSessionExpiresAt
+      ? { offlineSessionExpiresAt: dto.offlineSessionExpiresAt }
+      : {}),
     usuario: mapUsuarioResponse(dto.usuario),
   };
 }

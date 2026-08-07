@@ -1,0 +1,185 @@
+<po-page-slide
+  #pageSlide
+  p-title="Criar/Gerenciar Equipe"
+  p-size="lg"
+  [p-click-out]="false"
+  (p-close)="onPageSlideClose()"
+>
+  <section class="gerenciar-equipe" aria-labelledby="gerenciar-equipe-contexto">
+    <div class="gerenciar-equipe__contexto">
+      <h2 id="gerenciar-equipe-contexto">Contexto produtivo</h2>
+      <dl>
+        <div>
+          <dt>Área de Produção</dt>
+          <dd>{{ contexto()?.areaLabel || contexto()?.areaCode }}</dd>
+        </div>
+        <div>
+          <dt>Centro de Trabalho</dt>
+          <dd>{{ contexto()?.workCenterLabel || contexto()?.workCenterCode }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="gerenciar-equipe__modes" role="group" aria-label="Modo de gerenciamento">
+      <button
+        #firstControl
+        class="gerenciar-equipe__mode-button"
+        type="button"
+        [class.gerenciar-equipe__mode-button--active]="modo() === 'nova'"
+        [attr.aria-pressed]="modo() === 'nova'"
+        [disabled]="state() === 'saving'"
+        (click)="onModoChange('nova')"
+      >
+        Nova equipe
+      </button>
+      <button
+        class="gerenciar-equipe__mode-button"
+        type="button"
+        [class.gerenciar-equipe__mode-button--active]="modo() === 'existente'"
+        [attr.aria-pressed]="modo() === 'existente'"
+        [disabled]="state() === 'saving'"
+        (click)="onModoChange('existente')"
+      >
+        Existente
+      </button>
+    </div>
+
+    @if (state() === 'loading') {
+      <div class="gerenciar-equipe__loading">
+        <po-loading p-text="Carregando equipes e operadores..." p-size="md"></po-loading>
+      </div>
+    } @else if (state() === 'error' && errorKind() === 'load') {
+      <div class="gerenciar-equipe__load-error" role="alert">
+        <p>{{ feedback() }}</p>
+        <po-button p-label="Tentar novamente" (p-click)="onTentarNovamente()"></po-button>
+      </div>
+    } @else {
+      @if (modo() === 'existente') {
+        <po-select
+          name="equipeExistente"
+          p-label="Equipe"
+          p-placeholder="Selecione uma equipe"
+          [p-options]="equipesOptions()"
+          [ngModel]="equipeSelecionadaCodigo()"
+          [p-disabled]="state() === 'saving'"
+          (ngModelChange)="onSelecionarEquipe($event)"
+        ></po-select>
+
+        @if (equipeSelecionadaCodigo()) {
+          <div class="gerenciar-equipe__existing-data">
+            <div>
+              <span>Código</span><strong>{{ codigo() }}</strong>
+            </div>
+            <div>
+              <span>Descrição</span><strong>{{ descricao() }}</strong>
+            </div>
+            <div>
+              <span>Turno</span><strong>{{ turno() }}</strong>
+            </div>
+          </div>
+        }
+      } @else {
+        <div class="gerenciar-equipe__fields">
+          <po-input
+            name="codigoEquipe"
+            p-label="Código"
+            p-required
+            [ngModel]="codigo()"
+            [p-disabled]="state() === 'saving'"
+            (ngModelChange)="onCodigoChange($event)"
+          ></po-input>
+          <po-input
+            name="descricaoEquipe"
+            p-label="Descrição"
+            p-required
+            [ngModel]="descricao()"
+            [p-disabled]="state() === 'saving'"
+            (ngModelChange)="onDescricaoChange($event)"
+          ></po-input>
+          <po-input
+            name="turnoEquipe"
+            p-label="Turno"
+            p-required
+            [ngModel]="turno()"
+            [p-disabled]="state() === 'saving'"
+            (ngModelChange)="onTurnoChange($event)"
+          ></po-input>
+        </div>
+      }
+
+      <div class="gerenciar-equipe__operators">
+        <po-input
+          name="pesquisarOperadorEquipe"
+          p-label="Pesquisar Operadores"
+          p-placeholder="Código ou nome"
+          [ngModel]="termoPesquisa()"
+          [p-disabled]="state() === 'saving'"
+          (ngModelChange)="onPesquisarOperador($event)"
+        ></po-input>
+
+        <po-checkbox
+          name="selecionarTodosEquipe"
+          p-label="Todos"
+          p-size="large"
+          [ngModel]="todosVisiveisSelecionados()"
+          [p-disabled]="state() === 'saving' || operadoresFiltrados().length === 0"
+          (ngModelChange)="onSelecionarTodos($event)"
+        ></po-checkbox>
+
+        <div
+          class="gerenciar-equipe__operator-list"
+          role="group"
+          aria-label="Operadores disponíveis"
+        >
+          @for (operador of operadoresFiltrados(); track operador.codigo) {
+            <div class="gerenciar-equipe__operator">
+              <po-checkbox
+                [name]="'gerenciar-operador-' + operador.codigo"
+                [p-label]="operador.codigo + ' ' + operador.nome"
+                p-size="large"
+                [ngModel]="isSelecionado(operador)"
+                [p-disabled]="state() === 'saving'"
+                (ngModelChange)="onSelecionarOperador(operador, $event)"
+              ></po-checkbox>
+            </div>
+          } @empty {
+            <p class="gerenciar-equipe__empty">Nenhum operador encontrado.</p>
+          }
+        </div>
+      </div>
+    }
+
+    <p
+      class="gerenciar-equipe__feedback"
+      aria-live="assertive"
+      aria-atomic="true"
+      [attr.role]="feedback() ? 'alert' : null"
+    >
+      @if (!(state() === 'error' && errorKind() === 'load')) {
+        {{ feedback() }}
+      }
+    </p>
+  </section>
+
+  <po-page-slide-footer>
+    <div class="gerenciar-equipe__footer">
+      <po-button
+        p-label="Salvar"
+        p-kind="primary"
+        [p-loading]="state() === 'saving'"
+        [p-disabled]="
+          state() === 'closed' ||
+          state() === 'loading' ||
+          (state() === 'error' && errorKind() === 'load')
+        "
+        (p-click)="onSalvar()"
+      ></po-button>
+      <po-button
+        p-label="Voltar"
+        p-kind="secondary"
+        [p-disabled]="state() === 'saving'"
+        (p-click)="onVoltar()"
+      ></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>

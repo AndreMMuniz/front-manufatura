@@ -1,0 +1,36 @@
+<dl class="ordem-info-card" aria-label="Dados da ordem retornados pelo Datasul">
+  <div>
+    <dt>Roteiro</dt>
+    <dd>{{ route?.routeNumber || '-' }}</dd>
+  </div>
+
+  <div>
+    <dt>Processo</dt>
+    <dd>{{ route?.processDescription || '-' }}</dd>
+  </div>
+
+  <div>
+    <dt>Ordem Atual</dt>
+    <dd>{{ route?.currentOrder || '-' }}</dd>
+  </div>
+
+  <div>
+    <dt>Operação</dt>
+    <dd>{{ route?.operationDescription || '-' }}</dd>
+  </div>
+
+  <div>
+    <dt>Split</dt>
+    <dd>{{ route?.split || '-' }}</dd>
+  </div>
+
+  <div>
+    <dt>Item</dt>
+    <dd>{{ route?.itemCode || '-' }}</dd>
+  </div>
+
+  <div>
+    <dt>Descrição</dt>
+    <dd>{{ route?.itemDescription || '-' }}</dd>
+  </div>
+</dl>

@@ -1,0 +1,47 @@
+<section class="open-stops" aria-labelledby="open-stops-title">
+  <div class="open-stops__header">
+    <h2 id="open-stops-title">Paradas em andamento</h2>
+    @if (loading) {
+      <span class="open-stops__badge" aria-hidden="true">Consultando</span>
+    }
+  </div>
+
+  @if (loading) {
+    <p class="open-stops__state" role="status" aria-live="polite">
+      Consultando paradas em andamento...
+    </p>
+  } @else if (errorMessage) {
+    <div class="open-stops__state open-stops__state--error" role="alert">
+      <p>{{ errorMessage }}</p>
+      <button type="button" class="open-stops__retry" [disabled]="disabled" (click)="retry.emit()">
+        Tentar novamente
+      </button>
+    </div>
+  } @else if (stops.length === 0) {
+    <p class="open-stops__state" role="status">Nenhuma parada em andamento neste contexto.</p>
+  } @else {
+    <ul class="open-stops__list" aria-label="Paradas elegíveis para finalização">
+      @for (stop of stops; track stop.id) {
+        <li>
+          <button
+            #stopButton
+            type="button"
+            class="open-stops__item"
+            [class.open-stops__item--selected]="selectedStopId === stop.id"
+            [attr.data-stop-id]="stop.id"
+            [attr.aria-pressed]="selectedStopId === stop.id"
+            [attr.aria-label]="accessibleName(stop)"
+            [disabled]="disabled"
+            (click)="selectStop.emit(stop.id)"
+          >
+            <span class="open-stops__reason">{{ stop.reason.code }} - {{ stop.reason.description }}</span>
+            <span>Início: {{ startLabel(stop) }}</span>
+            <span>{{ responsibleType(stop) }}: {{ stop.responsible.nome }}</span>
+            <span>Status de sincronização: {{ syncStatusLabel(stop) }}</span>
+            <span class="open-stops__duration">Duração corrente: {{ duration(stop) }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</section>

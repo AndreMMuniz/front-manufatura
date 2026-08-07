@@ -1,0 +1,29 @@
+.ordens-centro-list__table {
+  max-width: 100%;
+  overflow: auto;
+}
+
+.ordens-centro-list__loading {
+  min-height: 96px;
+}
+
+.ordens-centro-list__empty {
+  margin: var(--app-space-lg) 0;
+  color: var(--app-color-text);
+  font-weight: 600;
+}
+
+.ordens-centro-list__footer {
+  display: flex;
+  gap: var(--app-space-md);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--app-space-md);
+}
+
+@media (max-width: 640px) {
+  .ordens-centro-list__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

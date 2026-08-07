@@ -1,0 +1,57 @@
+.informacoes-batelada__context {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: var(--app-space-md);
+  margin: 0 0 var(--app-space-md);
+}
+
+.informacoes-batelada__context div {
+  min-width: 0;
+}
+
+dt {
+  color: var(--app-color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+dd {
+  margin: var(--app-space-xs) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.informacoes-batelada__error {
+  color: var(--app-color-error);
+  font-weight: 600;
+  margin: 0;
+}
+
+.informacoes-batelada__responsavel {
+  align-items: end;
+  display: grid;
+  gap: var(--app-space-sm);
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.informacoes-batelada__responsavel > div {
+  min-width: 0;
+}
+
+.informacoes-batelada__responsavel > po-button {
+  transform: translateY(calc(-1 * var(--app-space-sm)));
+}
+
+@media (max-width: 640px) {
+  .informacoes-batelada__context {
+    grid-template-columns: 1fr;
+  }
+
+  .informacoes-batelada__responsavel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .informacoes-batelada__responsavel > po-button {
+    transform: none;
+  }
+}

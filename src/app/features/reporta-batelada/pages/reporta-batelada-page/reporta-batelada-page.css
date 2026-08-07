@@ -1,0 +1,16 @@
+.reporta-batelada {
+  display: grid;
+  gap: var(--app-space-lg);
+  width: min(100%, 1180px);
+  min-width: 0;
+}
+
+.reporta-batelada__feedback {
+  color: var(--app-color-text);
+  font-weight: 600;
+  margin: 0;
+}
+
+.reporta-batelada__feedback--error {
+  color: var(--app-color-error);
+}

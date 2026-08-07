@@ -1,32 +1,47 @@
+import { By } from '@angular/platform-browser';
+import { signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject } from 'rxjs';
 import { vi } from 'vitest';
 
-import { PoMenuModule, PoPageModule, PoToolbarModule } from '@po-ui/ng-components';
+import { PoPageModule, PoToolbarComponent, PoToolbarModule } from '@po-ui/ng-components';
 
 import { App } from './app';
 import { routes } from './app.routes';
 import { AuthSessionService } from './core/auth/auth-session.service';
 import { User } from './core/auth/auth.models';
+import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
 import { LoginPage } from './features/login/pages/login-page/login-page';
 import { EquipesPage } from './features/equipes/pages/equipes-page/equipes-page';
-import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
 import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-center';
 import { OperatorsPage } from './features/shop-floor/pages/operators/operators';
 import { SfcPlaceholderPage } from './features/shop-floor/pages/sfc-placeholder/sfc-placeholder';
-import { QualityControlHome } from './features/quality-control/pages/quality-control-home/quality-control-home';
+import { MainMenuPage } from './features/shop-floor/pages/main-menu/main-menu';
+import { QualityControlWorkspacePage } from './features/quality-control/pages/quality-control-workspace/quality-control-workspace';
+import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
+import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
+import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
+import { ConnectivityService } from './core/offline/services/connectivity.service';
+import { PwaUpdateService, PwaUpdateState } from './core/offline/pwa/pwa-update.service';
+import { SynchronizationCenterPage } from './features/synchronization/pages/synchronization-center/synchronization-center';
 
 describe('App', () => {
   let authSessionMock: AuthSessionService;
   let currentUserValue: User | null;
   let sessionSubject: BehaviorSubject<unknown>;
+  let connectivitySubject: BehaviorSubject<boolean>;
+  let pwaState: WritableSignal<PwaUpdateState>;
+  let reloadWhenSafe: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     currentUserValue = null;
 
     sessionSubject = new BehaviorSubject<unknown>(null);
+    connectivitySubject = new BehaviorSubject<boolean>(true);
+    pwaState = signal<PwaUpdateState>({ status: 'disabled' });
+    reloadWhenSafe = vi.fn().mockResolvedValue('reloaded');
 
     authSessionMock = {
       logout: vi.fn(() => sessionSubject.next(null)),
@@ -40,8 +55,23 @@ describe('App', () => {
     } as unknown as AuthSessionService;
 
     await TestBed.configureTestingModule({
-      imports: [PoToolbarModule, PoMenuModule, PoPageModule, App],
-      providers: [provideRouter(routes), { provide: AuthSessionService, useValue: authSessionMock }],
+      imports: [PoToolbarModule, PoPageModule, App],
+      providers: [
+        provideRouter(routes),
+        { provide: AuthSessionService, useValue: authSessionMock },
+        {
+          provide: PwaUpdateService,
+          useValue: { state: pwaState.asReadonly(), reloadWhenSafe },
+        },
+        {
+          provide: ConnectivityService,
+          useValue: {
+            isBrowser: true,
+            onlineHint: true,
+            changes$: connectivitySubject.asObservable(),
+          },
+        },
+      ],
     }).compileComponents();
   });
 
@@ -63,22 +93,40 @@ describe('App', () => {
       currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
     });
 
-    it('should route quality-control to the quality control home page', async () => {
+    it('should route quality-control to the unified workspace', async () => {
       const harness = await RouterTestingHarness.create();
 
-      const component = await harness.navigateByUrl('/quality-control', QualityControlHome);
+      const component = await harness.navigateByUrl('/quality-control', QualityControlWorkspacePage);
 
-      expect(component).toBeInstanceOf(QualityControlHome);
+      expect(component).toBeInstanceOf(QualityControlWorkspacePage);
       expect(TestBed.inject(Router).url).toBe('/quality-control');
     });
 
-    it('should route menu to the main menu page', async () => {
+    it('should route menu to the authenticated main menu page', async () => {
       const harness = await RouterTestingHarness.create();
 
       const component = await harness.navigateByUrl('/menu', MainMenuPage);
 
       expect(component).toBeInstanceOf(MainMenuPage);
       expect(TestBed.inject(Router).url).toBe('/menu');
+    });
+
+    it('should return direct inspection access to route generation when no route was generated', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/quality-control/inspection', QualityControlWorkspacePage);
+
+      expect(component).toBeInstanceOf(QualityControlWorkspacePage);
+      expect(TestBed.inject(Router).url).toBe('/quality-control');
+    });
+
+    it('should return direct exam entry access to route generation when no exam was selected', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/quality-control/exam-entry', QualityControlWorkspacePage);
+
+      expect(component).toBeInstanceOf(QualityControlWorkspacePage);
+      expect(TestBed.inject(Router).url).toBe('/quality-control');
     });
 
     it('should route work-center to the work center page', async () => {
@@ -108,19 +156,64 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/teams');
     });
 
-    it.each([
-      ['/operation-reporting', 'Reporte de Operações'],
-      ['/stoppages', 'Paradas'],
-      ['/scrap-rework', 'Refugo / Retrabalho'],
-      ['/item-consultation', 'Consulta Item'],
-    ])('should route %s to the SFC placeholder page', async (url, title) => {
+    it('should route operation-reporting to the report operation page', async () => {
       const harness = await RouterTestingHarness.create();
 
-      const component = await harness.navigateByUrl(url, SfcPlaceholderPage);
+      const component = await harness.navigateByUrl('/operation-reporting', ReportOperacaoPage);
+
+      expect(component).toBeInstanceOf(ReportOperacaoPage);
+      expect(TestBed.inject(Router).url).toBe('/operation-reporting');
+    });
+
+    it('should route batch-reporting to the batch report page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/batch-reporting', ReportaBateladaPage);
+
+      expect(component).toBeInstanceOf(ReportaBateladaPage);
+      expect(TestBed.inject(Router).url).toBe('/batch-reporting');
+    });
+
+    it('should route stoppages to the stoppage reporting page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/stoppages', ReporteParadasPage);
+
+      expect(component).toBeInstanceOf(ReporteParadasPage);
+      expect(TestBed.inject(Router).url).toBe('/stoppages');
+    });
+
+    it('carrega a Central por rota lazy protegida sem adicioná-la aos módulos', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl(
+        '/synchronization',
+        SynchronizationCenterPage,
+      );
+
+      expect(component).toBeInstanceOf(SynchronizationCenterPage);
+      expect(APP_MODULE_NAVIGATION.some(item => item.route === '/synchronization')).toBe(false);
+    });
+
+    it('should route scrap-rework to the operation page in scrap entry mode', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/scrap-rework', ReportOperacaoPage);
+
+      expect(component).toBeInstanceOf(ReportOperacaoPage);
+      expect(component.pageTitle).toBe('Refugo / Retrabalho');
+      expect(component.feedback).toBe('Selecione a Área de Produção e o Centro de Trabalho para consultar as ordens.');
+      expect(TestBed.inject(Router).url).toBe('/scrap-rework');
+    });
+
+    it('should route item-consultation to the SFC placeholder page', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl('/item-consultation', SfcPlaceholderPage);
 
       expect(component).toBeInstanceOf(SfcPlaceholderPage);
-      expect(component.title).toBe(title);
-      expect(TestBed.inject(Router).url).toBe(url);
+      expect(component.title).toBe('Consulta Item');
+      expect(TestBed.inject(Router).url).toBe('/item-consultation');
     });
 
     it('should route login to the login page', async () => {
@@ -160,7 +253,20 @@ describe('App', () => {
       expect(returnUrlFrom(router)).toBe('/quality-control');
     });
 
-    it('should redirect menu to login with returnUrl=/menu when not authenticated', async () => {
+    it.each(['/quality-control/inspection', '/quality-control/exam-entry'])(
+      'should protect legacy CQ redirect %s through the effective workspace target',
+      async url => {
+        const harness = await RouterTestingHarness.create();
+        const router = TestBed.inject(Router);
+
+        await harness.navigateByUrl(url);
+
+        expect(router.url.startsWith('/login')).toBe(true);
+        expect(returnUrlFrom(router)).toBe('/quality-control');
+      },
+    );
+
+    it('should protect the main menu with returnUrl=/menu when not authenticated', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
@@ -190,7 +296,7 @@ describe('App', () => {
       expect(returnUrlFrom(router)).toBe('/operators');
     });
 
-    it.each(['/teams', '/operation-reporting', '/stoppages', '/scrap-rework', '/item-consultation'])(
+    it.each(['/teams', '/operation-reporting', '/batch-reporting', '/stoppages', '/scrap-rework', '/item-consultation'])(
       'should redirect %s to login with the exact returnUrl when not authenticated',
       async url => {
         const harness = await RouterTestingHarness.create();
@@ -203,6 +309,16 @@ describe('App', () => {
       },
     );
 
+    it('protege a Central preservando returnUrl=/synchronization', async () => {
+      const harness = await RouterTestingHarness.create();
+      const router = TestBed.inject(Router);
+
+      await harness.navigateByUrl('/synchronization');
+
+      expect(router.url.startsWith('/login')).toBe(true);
+      expect(returnUrlFrom(router)).toBe('/synchronization');
+    });
+
     it('should keep login accessible', async () => {
       const harness = await RouterTestingHarness.create();
 
@@ -212,7 +328,7 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/login');
     });
 
-    it('should redirect root to login with returnUrl=/menu via /menu redirect', async () => {
+    it('should redirect root to login with returnUrl=/menu via default redirect', async () => {
       const harness = await RouterTestingHarness.create();
       const router = TestBed.inject(Router);
 
@@ -233,83 +349,141 @@ describe('App', () => {
     });
   });
 
-  it('should not expose shell navigation when anonymous', () => {
+  it('should not render authenticated shell navigation when anonymous', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(false);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    const app = fixture.componentInstance;
 
-    expect(app.menus).toEqual([]);
+    expect(fixture.nativeElement.querySelector('po-toolbar')).toBeNull();
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="synchronization-indicator"]'))
+      .toBeNull();
   });
 
-  it('should show shell navigation with logout when authenticated', () => {
+  it('exibe banner offline acessível sem bloquear o conteúdo', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    connectivitySubject.next(false);
+    fixture.detectChanges();
+
+    const banner = fixture.nativeElement.querySelector('[data-testid="offline-banner"]');
+    expect(banner).not.toBeNull();
+    expect(banner.getAttribute('aria-live')).toBe('polite');
+    expect(banner.textContent).toContain('Você está offline');
+    expect(fixture.nativeElement.querySelector('[data-testid="app-content"]')).not.toBeNull();
+  });
+
+  it('comunica update pronto e exige confirmação para Outbox pendente', async () => {
+    reloadWhenSafe
+      .mockResolvedValueOnce('pending-outbox')
+      .mockResolvedValueOnce('reloaded');
+    pwaState.set({
+      status: 'ready',
+      currentVersionHash: 'v1',
+      versionHash: 'v2',
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const notice = fixture.nativeElement.querySelector('[data-testid="pwa-update-notice"]');
+    expect(notice.textContent).toContain('Uma nova versão está pronta');
+
+    notice.querySelector('button').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="pwa-update-feedback"]').textContent)
+      .toContain('Confirme novamente');
+
+    fixture.nativeElement.querySelector('[data-testid="pwa-update-notice"] button').click();
+    await fixture.whenStable();
+    expect(reloadWhenSafe).toHaveBeenNthCalledWith(1, false);
+    expect(reloadWhenSafe).toHaveBeenNthCalledWith(2, true);
+  });
+
+  it('should render the app name in the authenticated Home toolbar without a side menu', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-      currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    await TestBed.inject(Router).navigateByUrl('/menu');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const app = fixture.componentInstance;
+    const toolbar = fixture.debugElement.query(By.directive(PoToolbarComponent))
+      .componentInstance as PoToolbarComponent;
+
+    expect(app.toolbarTitle).toBe('Apontamento Manufatura - operador');
+    expect(toolbar.title).toBe('Apontamento Manufatura - operador');
+    expect(fixture.nativeElement.querySelector('po-toolbar')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="synchronization-indicator"]'))
+      .not.toBeNull();
+  });
+
+  it('should keep the side menu hidden during the root redirect and with Home matrix parameters', async () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    expect(app.toolbarTitle).toBe('Plano de Controle CQ - operador');
-    expect(app.menus.map(item => item.label)).toEqual([
-      'Menu Principal',
-      'Plano Controle CQ',
-      'Ordens e Reportes',
-      'Paradas',
-      'Refugo / Retrabalho',
-      'Consulta Item',
-      'Centro de Trabalho',
-      'Operador',
-      'Equipes',
-      'Sair',
-    ]);
-  });
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(app.showSideMenu).toBe(false);
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
 
-  it('should expose a direct lateral navigation item for every implemented SFC destination', () => {
-    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    const fixture = TestBed.createComponent(App);
+    await TestBed.inject(Router).navigateByUrl('/menu;origin=toolbar');
     fixture.detectChanges();
-    const app = fixture.componentInstance;
-    const menuLabels = app.menus.map(item => item.label);
 
-    expect(menuLabels).toContain('Ordens e Reportes');
-    expect(menuLabels).toContain('Paradas');
-    expect(menuLabels).toContain('Refugo / Retrabalho');
-    expect(menuLabels).toContain('Consulta Item');
-    expect(menuLabels).toContain('Centro de Trabalho');
-    expect(menuLabels).toContain('Operador');
-    expect(menuLabels).toContain('Equipes');
+    expect(app.showSideMenu).toBe(false);
+    expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
   });
 
-  it('should use PO-UI icon-capable menu items so the side menu can collapse cleanly', () => {
+  it('should render contextual navigation on module routes with Home first and shared modules in order', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    await TestBed.inject(Router).navigateByUrl('/quality-control');
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    for (const item of app.menus) {
-      expect(item.icon).toBeTruthy();
-      expect(item.shortLabel).toBeTruthy();
-    }
+    expect(app.showSideMenu).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-testid="app-side-menu"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('po-menu')).not.toBeNull();
+    expect(app.menus[0]).toMatchObject({
+      label: 'Menu Principal',
+      shortLabel: 'Home',
+      icon: 'an an-house-line',
+      link: '/menu',
+    });
+    expect(app.menus.slice(1).map(({ label, shortLabel, icon, link }) => ({
+      label,
+      shortLabel,
+      icon,
+      route: link,
+    }))).toEqual(APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({
+      label,
+      shortLabel,
+      icon,
+      route,
+    })));
+    expect(app.menus.some(item => item.label === 'Sair')).toBe(false);
+    expect(fixture.nativeElement.querySelector('[data-testid="main-menu-return"]')).toBeNull();
   });
 
-  it('should expose main menu as a direct shell menu link', async () => {
-    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const app = fixture.componentInstance;
-
-    expect(app.menus[0].label).toBe('Menu Principal');
-    expect(app.menus[0].link).toBe('/menu');
-  });
-
-  it('should keep the shell menu entry linking to quality-control', async () => {
+  it('should expose Sair as the only toolbar action using the installed PO-UI API', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const app = fixture.componentInstance;
 
-    expect(app.menus[1].label).toBe('Plano Controle CQ');
-    expect(app.menus[1].link).toBe('/quality-control');
+    expect(app.toolbarActions).toHaveLength(1);
+    expect(app.toolbarActions[0]).toMatchObject({
+      label: 'Sair',
+      icon: 'an an-sign-out',
+      type: 'danger',
+    });
+    expect(fixture.nativeElement.querySelector('po-toolbar-actions')).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('button[aria-label="Abrir ações da sessão"]'),
+    ).not.toBeNull();
   });
 
   it('should redirect to login when the shell logout clears the session', async () => {
@@ -322,7 +496,7 @@ describe('App', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-    app.logout();
+    app.toolbarActions[0].action?.();
     await Promise.resolve();
 
     expect(authSessionMock.logout).toHaveBeenCalled();

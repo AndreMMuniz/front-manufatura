@@ -1,0 +1,146 @@
+<po-page-slide #pageSlide p-title="Reporte da Ordem" p-size="sm" [p-click-out]="false" [p-hide-close]="true">
+  <section class="reporte-slide">
+    <div class="reporte-slide__entry">
+      <po-number
+        name="reporteQuantidadeAprovada"
+        p-label="Qtde Aprovada"
+        [p-min]="0"
+        [p-disabled]="salvando"
+        [ngModel]="quantidadeAprovada"
+        (ngModelChange)="atualizarQuantidade('quantidadeAprovada', $event)"
+      ></po-number>
+
+      <po-number
+        name="reporteQuantidadeRetrabalho"
+        p-label="Qtde Retrabalho"
+        [p-min]="0"
+        [p-disabled]="salvando"
+        [ngModel]="quantidadeRetrabalho"
+        (ngModelChange)="atualizarQuantidade('quantidadeRetrabalho', $event)"
+      ></po-number>
+
+      <po-number
+        name="reporteQuantidadeRefugo"
+        p-label="Qtde Refugo"
+        [p-min]="0"
+        [p-disabled]="salvando"
+        [ngModel]="quantidadeRefugo"
+        (ngModelChange)="atualizarQuantidade('quantidadeRefugo', $event)"
+      ></po-number>
+    </div>
+
+    <po-button
+      p-label="Editar Motivo do Retrabalho/Ordem"
+      p-kind="secondary"
+      [p-disabled]="salvando || carregandoMotivos"
+      (p-click)="editarRefugo()"
+    ></po-button>
+
+    @if (editingRefugo) {
+      <div class="reporte-slide__reason-editor">
+        <po-select
+          name="reporteMotivoRefugo"
+          [p-label]="'Motivo' + ordemLabel"
+          [p-options]="motivoOptions"
+          [p-disabled]="salvando || carregandoMotivos"
+          [ngModel]="motivoCodigo"
+          (ngModelChange)="atualizarMotivo($event)"
+        ></po-select>
+        <po-number
+          name="reporteQuantidadeMotivo"
+          [p-label]="'Quantidade do motivo' + ordemLabel"
+          [p-min]="0"
+          [p-disabled]="salvando || carregandoMotivos"
+          [ngModel]="quantidadeMotivo"
+          (ngModelChange)="atualizarQuantidadeMotivo($event)"
+        ></po-number>
+        <po-button
+          p-label="Adicionar motivo"
+          p-kind="tertiary"
+          [p-disabled]="salvando || carregandoMotivos"
+          (p-click)="adicionarMotivo()"
+        ></po-button>
+      </div>
+    }
+
+    @if (refugoItens.length > 0) {
+      <ul class="reporte-slide__draft-reasons" [attr.aria-label]="'Motivos de refugo' + ordemLabel">
+        @for (item of refugoItens; track item.codigo + $index) {
+          <li>
+            <span>
+              {{ item.codigo }} — {{ item.descricao }}:
+              {{ formatQuantidade(item.quantidade) }}
+            </span>
+            <po-button
+              [p-label]="'Remover motivo ' + item.codigo + ordemLabel"
+              p-kind="tertiary"
+              [p-disabled]="salvando"
+              (p-click)="removerMotivo($index)"
+            ></po-button>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (validationMessage) {
+      <p class="reporte-slide__feedback" role="alert">{{ validationMessage }}</p>
+    }
+
+    <div class="reporte-slide__total" aria-live="polite">
+      Total deste reporte: <strong>{{ formatQuantidade(totalInformado) }}</strong>
+    </div>
+
+    <section class="reporte-slide__history" aria-label="Reportes anteriores">
+      <h3>Reportes anteriores</h3>
+
+      <div class="reporte-slide__row reporte-slide__row--header">
+        <span>Data/Hora</span>
+        <span>Aprovada</span>
+        <span>Retrabalho</span>
+        <span>Refugo</span>
+      </div>
+
+      @for (reporte of historico; track reporte.id) {
+        <div class="reporte-slide__row">
+          <span><small>Data/Hora</small>{{ formatDataHora(reporte.registradoEm) }}</span>
+          <span><small>Aprovada</small>{{ formatQuantidade(reporte.quantidadeAprovada) }}</span>
+          <span><small>Retrabalho</small>{{ formatQuantidade(reporte.quantidadeRetrabalho) }}</span>
+          <span
+            [attr.title]="reporte.refugoItens.length
+              ? 'Motivos: ' + reporte.refugoItens.length
+              : reporte.quantidadeRefugo > 0
+                ? 'Refugo informado diretamente'
+                : 'Sem refugo'"
+          >
+            <small>Refugo</small>{{ formatQuantidade(reporte.quantidadeRefugo) }}
+          </span>
+        </div>
+        @if (reporte.refugoItens.length > 0) {
+          <div class="reporte-slide__reasons">
+            @for (item of reporte.refugoItens; track item.codigo + $index) {
+              <span>
+                {{ item.codigo }} - {{ item.descricao }}:
+                {{ formatQuantidade(item.quantidade) }}
+              </span>
+            }
+          </div>
+        }
+      } @empty {
+        <p class="reporte-slide__empty">Nenhum reporte realizado nesta operação.</p>
+      }
+    </section>
+  </section>
+
+  <po-page-slide-footer>
+    <div class="reporte-slide__footer">
+      <po-button
+        p-label="Salvar reporte"
+        p-kind="primary"
+        [p-loading]="salvando"
+        [p-disabled]="!canSave"
+        (p-click)="salvar()"
+      ></po-button>
+      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="salvando" (p-click)="voltar()"></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>

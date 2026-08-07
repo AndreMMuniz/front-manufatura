@@ -41,6 +41,7 @@
           },
           "configurations": {
             "production": {
+              "serviceWorker": "ngsw-config.json",
               "budgets": [
                 {
                   "type": "initial",
@@ -59,6 +60,45 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "e2e": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/offline/testing/offline-test.routes.ts",
+                  "with": "src/app/core/offline/testing/offline-test.routes.e2e.ts"
+                }
+              ]
+            },
+            "pwa-e2e-a": {
+              "serviceWorker": "ngsw-config.json",
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/offline/testing/offline-test.routes.ts",
+                  "with": "src/app/core/offline/testing/offline-test.routes.e2e.ts"
+                },
+                {
+                  "replace": "src/app/core/offline/testing/pwa-build-version.ts",
+                  "with": "src/app/core/offline/testing/pwa-build-version.a.ts"
+                }
+              ]
+            },
+            "pwa-e2e-b": {
+              "serviceWorker": "ngsw-config.json",
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/offline/testing/offline-test.routes.ts",
+                  "with": "src/app/core/offline/testing/offline-test.routes.e2e.ts"
+                },
+                {
+                  "replace": "src/app/core/offline/testing/pwa-build-version.ts",
+                  "with": "src/app/core/offline/testing/pwa-build-version.b.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -71,12 +111,18 @@
             },
             "development": {
               "buildTarget": "plano-de-controle:build:development"
+            },
+            "e2e": {
+              "buildTarget": "plano-de-controle:build:e2e"
             }
           },
           "defaultConfiguration": "development"
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "runnerConfig": "vitest.config.ts"
+          }
         }
       }
     }

@@ -1,0 +1,37 @@
+import { Injectable } from '@angular/core';
+
+import { User } from '../../../core/auth/auth.models';
+import { SYNC_UNSYNCHRONIZED_ABANDON } from '../../../core/offline/models/command-abandonment';
+
+export { SYNC_UNSYNCHRONIZED_ABANDON };
+
+export type NormalizedAbandonReason =
+  | { readonly ok: true; readonly value: string }
+  | { readonly ok: false; readonly reason: 'length' | 'secret' };
+
+@Injectable({ providedIn: 'root' })
+export class SynchronizationPermissionPolicy {
+  canAbandon(user: User | null): boolean {
+    return user?.permissoes.some(
+      permission => permission.trim() === SYNC_UNSYNCHRONIZED_ABANDON,
+    ) ?? false;
+  }
+}
+
+export function normalizeAbandonReason(value: string): NormalizedAbandonReason {
+  const normalized = value
+    .normalize('NFC')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (normalized.length < 10 || normalized.length > 500) {
+    return { ok: false, reason: 'length' };
+  }
+  if (
+    /\b(?:senha|password|passphrase|token|bearer|api[_ -]?key|secret|credencial)\b\s*[:=]?\s*\S+/iu
+      .test(normalized)
+  ) {
+    return { ok: false, reason: 'secret' };
+  }
+  return { ok: true, value: normalized };
+}

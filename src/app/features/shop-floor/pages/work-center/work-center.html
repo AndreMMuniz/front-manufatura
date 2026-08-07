@@ -1,54 +1,128 @@
 <po-page-default p-title="Centro de Trabalho">
   <section class="work-center">
-    <po-widget p-title="Consulta">
-      <form class="work-center__search" (ngSubmit)="search()">
-        <po-input
-          name="searchTerm"
-          p-label="Centro de Trabalho"
-          p-placeholder="Código ou descrição"
-          [(ngModel)]="searchTerm"
-        ></po-input>
+    <po-widget>
+      <form class="work-center__form" (ngSubmit)="validateWorkCenter()">
+        <div class="work-center__lookup-row">
+          <po-input
+            name="workCenterCode"
+            p-label="Código"
+            p-placeholder="Informe o Centro de Trabalho"
+            [p-loading]="isLoadingWorkCenter"
+            [ngModel]="workCenterCode"
+            (ngModelChange)="onWorkCenterCodeChange($event)"
+            (p-blur)="validateWorkCenter()"
+          ></po-input>
 
-        <div class="work-center__actions">
+          <po-button
+            p-label="Scanner"
+            p-kind="secondary"
+            p-type="button"
+            (p-click)="showScannerUnavailable()"
+          ></po-button>
+
           <po-button p-label="Consultar" p-kind="primary" p-type="submit"></po-button>
-          <po-button p-label="Voltar ao Menu" p-kind="secondary" p-type="button" (p-click)="backToMenu()"></po-button>
+        </div>
+
+        <div class="work-center__readonly-grid">
+          <po-input
+            name="workCenterDescription"
+            p-label="Descrição"
+            [p-readonly]="true"
+            [ngModel]="selectedWorkCenter?.description ?? ''"
+          ></po-input>
+          <po-input
+            name="workCenterMachineGroup"
+            p-label="Grupo Máquina"
+            [p-readonly]="true"
+            [ngModel]="selectedWorkCenter?.machineGroup ?? ''"
+          ></po-input>
+          <po-input
+            name="workCenterEstablishment"
+            p-label="Estabelecimento"
+            [p-readonly]="true"
+            [ngModel]="selectedWorkCenter?.establishment ?? ''"
+          ></po-input>
         </div>
       </form>
     </po-widget>
 
-    <po-widget p-title="Centros disponíveis">
-      <ul class="work-center__list">
-        @for (workCenter of workCenters; track workCenter.code) {
-          <li class="work-center__item">
-            <div>
-              <strong>{{ workCenter.code }}</strong>
-              <span>{{ workCenter.description }}</span>
-              <small>{{ workCenter.area }} - {{ statusLabel(workCenter) }}</small>
-            </div>
-
-            <po-button
-              p-label="Selecionar"
-              [p-disabled]="!workCenter.active"
-              (p-click)="selectWorkCenter(workCenter)"
-            ></po-button>
-          </li>
-        } @empty {
-          <li class="work-center__empty">Nenhum centro encontrado.</li>
-        }
-      </ul>
+    <po-widget p-title="Reporte">
+      <po-select
+        name="reportType"
+        p-label="Reporte por"
+        [p-options]="reportTypeOptions"
+        [p-disabled]="!canUseReportType"
+        [ngModel]="reportType"
+        (ngModelChange)="onReportTypeChange($event)"
+      ></po-select>
     </po-widget>
 
-    <po-widget p-title="Centro selecionado">
-      @if (selectedWorkCenter) {
-        <div class="work-center__summary">
-          <strong>{{ selectedWorkCenter.code }}</strong>
-          <span>{{ selectedWorkCenter.description }}</span>
-          <small>{{ selectedWorkCenter.area }} - {{ statusLabel(selectedWorkCenter) }}</small>
-          <po-button p-label="Limpar seleção" p-kind="secondary" (p-click)="clearSelection()"></po-button>
+    <po-widget p-title="Operador">
+      <form class="work-center__form" (ngSubmit)="validateOperator()">
+        <div class="work-center__lookup-row">
+          <po-input
+            name="operatorCode"
+            p-label="Operador"
+            p-placeholder="Informe o Operador"
+            [p-disabled]="!canUseOperatorField"
+            [p-loading]="isLoadingOperator"
+            [ngModel]="operatorCode"
+            (ngModelChange)="onOperatorCodeChange($event)"
+            (p-blur)="validateOperator()"
+          ></po-input>
+
+          <po-button
+            p-label="Scanner"
+            p-kind="secondary"
+            p-type="button"
+            [p-disabled]="!canUseOperatorField"
+            (p-click)="showScannerUnavailable()"
+          ></po-button>
+
+          <po-button
+            p-label="Validar"
+            p-kind="primary"
+            p-type="submit"
+            [p-disabled]="!canUseOperatorField"
+          ></po-button>
         </div>
-      } @else {
-        <p class="work-center__empty">Nenhum centro de trabalho selecionado.</p>
-      }
+
+        <div class="work-center__readonly-grid">
+          <po-input
+            name="operatorName"
+            p-label="Nome do Operador"
+            [p-readonly]="true"
+            [ngModel]="selectedOperator?.name ?? ''"
+          ></po-input>
+          <po-input
+            name="validity"
+            p-label="Validade"
+            p-placeholder="Informe a validade"
+            p-required="true"
+            [p-disabled]="!selectedOperator"
+            [ngModel]="validity"
+            (ngModelChange)="onValidityChange($event)"
+          ></po-input>
+        </div>
+      </form>
     </po-widget>
+
+    @if (feedback) {
+      <p class="work-center__feedback">{{ feedback }}</p>
+    }
+
+    <div class="work-center__actions" aria-label="Ações Centro de Trabalho">
+      <po-button
+        p-label="Report"
+        p-kind="primary"
+        (p-click)="goToReport()"
+      ></po-button>
+      <po-button
+        p-label="Inspeção"
+        p-kind="secondary"
+        [p-disabled]="!canContinueToInspection"
+        (p-click)="goToInspection()"
+      ></po-button>
+    </div>
   </section>
 </po-page-default>

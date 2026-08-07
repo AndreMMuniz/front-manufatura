@@ -1,0 +1,43 @@
+<po-widget p-title="Finalizar Parada">
+  <section class="finish-stop__summary" aria-label="Resumo da parada selecionada">
+    <p><strong>Motivo:</strong> {{ stop.reason.code }} - {{ stop.reason.description }}</p>
+    <p><strong>Início:</strong> {{ stop.startDate | date:'dd/MM/yyyy' }} {{ stop.startTime }}</p>
+    <p><strong>{{ responsibleType() }}:</strong> {{ stop.responsible.nome }}</p>
+  </section>
+
+  <form class="finish-stop__form" [formGroup]="form" (ngSubmit)="submit()">
+    <po-datepicker
+      #endDateField
+      name="dataFinalizacao"
+      p-label="Data da Finalização"
+      [p-required]="true"
+      formControlName="endDate"
+    ></po-datepicker>
+
+    <po-input
+      name="horaFinalizacao"
+      p-label="Hora da Finalização"
+      p-placeholder="HH:mm"
+      [p-required]="true"
+      formControlName="endTime"
+    ></po-input>
+
+    @if (form.hasError('interval') && (form.touched || form.dirty)) {
+      <p class="finish-stop__error" role="alert">
+        A finalização não pode ser anterior ao início da parada.
+      </p>
+    }
+    @if (externalError) {
+      <p class="finish-stop__error" role="alert">{{ externalError }}</p>
+    }
+
+    <button
+      class="finish-stop__submit"
+      type="submit"
+      [disabled]="form.disabled || loading"
+      [attr.aria-busy]="loading"
+    >
+      {{ loading ? 'Finalizando...' : 'Finalizar parada' }}
+    </button>
+  </form>
+</po-widget>
