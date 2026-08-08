@@ -7,7 +7,11 @@ import { LoginRequestDTO, LoginResponseDTO } from '../interfaces/login.dto';
 import { mapLoginResponse } from '../mappers/login.mapper';
 import { LoginAutenticado, Usuario } from '../models/usuario';
 
-export type LoginErrorCode = 'invalid-credentials' | 'communication' | 'unexpected';
+export type LoginErrorCode =
+  | 'invalid-credentials'
+  | 'access-denied'
+  | 'communication'
+  | 'unexpected';
 
 export class LoginError extends Error {
   constructor(readonly code: LoginErrorCode) {
@@ -23,10 +27,10 @@ export class LoginService {
   login(login: string, senha: string): Observable<LoginAutenticado> {
     const request: LoginRequestDTO = {
       login: login.trim(),
-      senha: senha.trim(),
+      senha,
     };
 
-    if (!request.login || !request.senha) {
+    if (!request.login || !request.senha.length) {
       return throwError(() => new LoginError('invalid-credentials'));
     }
 
@@ -35,6 +39,7 @@ export class LoginService {
       tap(result => this.authSession.startSession(
         result.usuario,
         result.token,
+        { expiresAt: result.tokenExpiresAt },
         result.offlineSessionExpiresAt
           ? { expiresAt: result.offlineSessionExpiresAt }
           : undefined,
@@ -61,6 +66,12 @@ export class LoginService {
         return 'invalid-credentials';
       }
 
+      if (error.status === 403
+        && isRecord(error.error)
+        && error.error['code'] === 'access-denied') {
+        return 'access-denied';
+      }
+
       if (error.status === 0 || error.status >= 500) {
         return 'communication';
       }
@@ -68,4 +79,8 @@ export class LoginService {
 
     return 'unexpected';
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

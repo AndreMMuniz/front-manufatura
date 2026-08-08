@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { mockAuthentication } from './helpers/auth';
+
+test.beforeEach(async ({ context }) => mockAuthentication(context));
 
 async function openInspection(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/login');

@@ -71,6 +71,8 @@ _bmad/
 _bmad-output/
 **/_bmad/
 **/_bmad-output/
+.rtk/
+project-specs/
 
 # OpenCode configuration
 opencode.json

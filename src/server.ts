@@ -6,7 +6,7 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import { join } from 'node:path';
-import { authenticateExternalLogin } from './auth-login';
+import { installAuthLoginEndpoint } from './auth-http-endpoint';
 import {
   PWA_REVALIDATE_CACHE_CONTROL,
   cacheControlForStaticAsset,
@@ -17,18 +17,7 @@ const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-app.use(express.json({ limit: '16kb' }));
-
-app.post('/api/auth/login', (req, res) => {
-  const loginResult = authenticateExternalLogin(req.body, process.env);
-
-  if (!loginResult) {
-    res.status(401).json({ code: 'invalid-credentials' });
-    return;
-  }
-
-  res.json(loginResult);
-});
+installAuthLoginEndpoint(app, { env: process.env });
 
 app.head('/api/health', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');

@@ -4,6 +4,7 @@ import { BehaviorSubject, Observable, distinctUntilChanged } from 'rxjs';
 import {
   AuthSession,
   OfflineContinuityMetadata,
+  SessionExpirationMetadata,
   User,
 } from './auth.models';
 
@@ -119,6 +120,7 @@ export class AuthSessionService {
   startSession(
     user: User,
     token: string,
+    online: SessionExpirationMetadata,
     continuity?: OfflineContinuityMetadata,
   ): void {
     if (!token.trim()) {
@@ -126,7 +128,16 @@ export class AuthSessionService {
     }
 
     const now = validDate(this.clock());
-    const expiresAt = continuity ? this.validFutureDate(continuity.expiresAt, now) : null;
+    const expiresAt = this.validFutureDate(online.expiresAt, now);
+    if (!expiresAt) {
+      throw new Error('Expiração online inválida.');
+    }
+    const requestedOfflineExpiry = continuity
+      ? this.validFutureDate(continuity.expiresAt, now)
+      : null;
+    const offlineExpiresAt = requestedOfflineExpiry
+      ? new Date(Math.min(requestedOfflineExpiry.getTime(), expiresAt.getTime()))
+      : null;
     const session: AuthSession = {
       user: copyUser(user),
       mode: 'ONLINE',
@@ -136,14 +147,14 @@ export class AuthSessionService {
       ...(expiresAt ? { expiresAt } : {}),
     };
 
-    if (expiresAt) {
+    if (offlineExpiresAt) {
       this.persistSession({
         version: AUTH_SESSION_SNAPSHOT_VERSION,
         ownerId: user.id,
         user: copyUser(user),
         authenticatedAt: now.toISOString(),
         lastValidatedAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString(),
+        expiresAt: offlineExpiresAt.toISOString(),
       });
     } else {
       this.removePersistedSession();

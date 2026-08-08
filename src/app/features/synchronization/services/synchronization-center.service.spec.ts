@@ -20,9 +20,9 @@ describe('SynchronizationCenterService', () => {
     const auth = new AuthSessionService(null);
     const service = new SynchronizationCenterService(outbox, auth, true);
 
-    auth.startSession(user('owner-1'), 'token-1');
+    auth.startSession(user('owner-1'), 'token-1', { expiresAt: '2099-01-01T00:00:00.000Z' });
     await tick();
-    auth.startSession(user('owner-2'), 'token-2');
+    auth.startSession(user('owner-2'), 'token-2', { expiresAt: '2099-01-01T00:00:00.000Z' });
 
     expect(service.snapshot).toMatchObject({ ownerId: 'owner-2', items: [] });
     await tick();
@@ -45,7 +45,7 @@ describe('SynchronizationCenterService', () => {
       }),
     } as unknown as OutboxRepository;
     const auth = new AuthSessionService(null);
-    auth.startSession(user('owner-1'), 'token');
+    auth.startSession(user('owner-1'), 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     const service = new SynchronizationCenterService(outbox, auth, true);
 
     service.setFilters({
@@ -75,7 +75,7 @@ describe('SynchronizationCenterService', () => {
       summarizeOwner: vi.fn(),
     } as unknown as OutboxRepository;
     const auth = new AuthSessionService(null);
-    auth.startSession(user('owner-1'), 'token');
+    auth.startSession(user('owner-1'), 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
 
     const service = new SynchronizationCenterService(outbox, auth, false);
     await service.refresh();

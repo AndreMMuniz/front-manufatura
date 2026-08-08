@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { readOperationalOutbox } from './helpers/operational-outbox';
+import { mockAuthentication } from './helpers/auth';
+
+test.beforeEach(async ({ context }) => mockAuthentication(context));
 
 const credentials = {
   user: 'operador',

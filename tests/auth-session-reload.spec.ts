@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { mockAuthentication } from './helpers/auth';
+
+test.beforeEach(async ({ context }) => mockAuthentication(context));
 
 test('mantém a sessão e a rota atual ao recarregar uma página protegida', async ({ page }) => {
   await page.goto('/login');
-  await page.getByRole('textbox', { name: 'Login' }).fill(process.env['APP_LOGIN_USER'] ?? 'operador');
-  await page.getByRole('textbox', { name: 'Senha' }).fill(process.env['APP_LOGIN_PASSWORD'] ?? 'mock123');
+  await page.getByRole('textbox', { name: 'Login' }).fill('operador-e2e');
+  await page.getByRole('textbox', { name: 'Senha' }).fill('senha-e2e');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/menu$/);
 

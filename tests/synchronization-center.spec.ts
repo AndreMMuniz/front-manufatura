@@ -255,6 +255,7 @@ async function mockAuthentication(context: BrowserContext): Promise<void> {
       status: 200,
       json: {
         token: `e2e-token-${ownerId}`,
+        tokenExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
         offlineSessionExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
         usuario: {
           id: ownerId,

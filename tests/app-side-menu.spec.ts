@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockAuthentication } from './helpers/auth';
+
+test.beforeEach(async ({ context }) => mockAuthentication(context));
 
 const credentials = {
   user: 'operador',

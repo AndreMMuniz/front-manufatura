@@ -7,6 +7,7 @@ export interface Usuario {
 
 export interface LoginAutenticado {
   token: string;
+  tokenExpiresAt: string;
   offlineSessionExpiresAt?: string;
   usuario: Usuario;
 }

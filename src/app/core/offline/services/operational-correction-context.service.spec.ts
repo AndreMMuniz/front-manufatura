@@ -6,7 +6,7 @@ import { OperationalCorrectionContextService } from './operational-correction-co
 describe('OperationalCorrectionContextService', () => {
   it('mantém draft efêmero owner-scoped e limpa imediatamente na troca de sessão', () => {
     const auth = new AuthSessionService(null);
-    auth.startSession(user('owner-1'), 'token-1');
+    auth.startSession(user('owner-1'), 'token-1', { expiresAt: '2099-01-01T00:00:00.000Z' });
     const context = new OperationalCorrectionContextService(auth);
 
     expect(context.activate({
@@ -23,7 +23,7 @@ describe('OperationalCorrectionContextService', () => {
       draft: { reason: { id: 10 } },
     });
 
-    auth.startSession(user('owner-2'), 'token-2');
+    auth.startSession(user('owner-2'), 'token-2', { expiresAt: '2099-01-01T00:00:00.000Z' });
     expect(context.current('owner-1')).toBeNull();
     expect(context.current('owner-2')).toBeNull();
   });

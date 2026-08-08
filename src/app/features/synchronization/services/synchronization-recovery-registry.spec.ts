@@ -63,7 +63,7 @@ describe('SynchronizationRecoveryRegistry', () => {
       }),
     } as unknown as OutboxRepository;
     const auth = new AuthSessionService(null);
-    auth.startSession({ id: 'owner-1', nome: 'Owner', login: 'owner', permissoes: [] }, 'token');
+    auth.startSession({ id: 'owner-1', nome: 'Owner', login: 'owner', permissoes: [] }, 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     const correctionContext = new OperationalCorrectionContextService(auth);
     const registry = new SynchronizationRecoveryRegistry(
       outbox,
@@ -98,7 +98,7 @@ describe('SynchronizationRecoveryRegistry', () => {
   it('não cria editor/draft para tipo desconhecido, retry-only ou item stale', async () => {
     const navigateByUrl = vi.fn();
     const auth = new AuthSessionService(null);
-    auth.startSession({ id: 'owner-1', nome: 'Owner', login: 'owner', permissoes: [] }, 'token');
+    auth.startSession({ id: 'owner-1', nome: 'Owner', login: 'owner', permissoes: [] }, 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     const outbox = {
       getById: vi.fn()
         .mockResolvedValueOnce({

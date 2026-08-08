@@ -1,9 +1,12 @@
 import { expect, Page, test } from '@playwright/test';
+import { mockAuthentication } from './helpers/auth';
+
+test.beforeEach(async ({ context }) => mockAuthentication(context));
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
-  await page.getByRole('textbox', { name: 'Login' }).fill(process.env['APP_LOGIN_USER'] ?? 'operador');
-  await page.getByRole('textbox', { name: 'Senha' }).fill(process.env['APP_LOGIN_PASSWORD'] ?? 'mock123');
+  await page.getByRole('textbox', { name: 'Login' }).fill('operador-e2e');
+  await page.getByRole('textbox', { name: 'Senha' }).fill('senha-e2e');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/menu$/);
 }

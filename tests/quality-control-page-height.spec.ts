@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { mockAuthentication } from './helpers/auth';
+
+test.beforeEach(async ({ context }) => mockAuthentication(context));
 
 test('exibe as ações do Plano Controle CQ sem cortá-las no contêiner da página', async ({ page }) => {
   await page.setViewportSize({ width: 1587, height: 857 });

@@ -12,7 +12,7 @@ describe('SynchronizationAbandonmentService', () => {
   it('nega por default antes do repository e diferencia motivo inválido/segredo', async () => {
     const repository = { abandonCommand: vi.fn() } as unknown as LocalCommandRepository;
     const auth = new AuthSessionService(null);
-    auth.startSession(user([]), 'token');
+    auth.startSession(user([]), 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     const service = new SynchronizationAbandonmentService(
       repository,
       auth,
@@ -23,7 +23,7 @@ describe('SynchronizationAbandonmentService', () => {
     expect(await service.abandon('local-1', 'Justificativa operacional válida')).toBe('denied');
     expect(repository.abandonCommand).not.toHaveBeenCalled();
 
-    auth.startSession(user([SYNC_UNSYNCHRONIZED_ABANDON]), 'token');
+    auth.startSession(user([SYNC_UNSYNCHRONIZED_ABANDON]), 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     expect(await service.abandon('local-1', 'curta')).toBe('invalid-reason');
     expect(await service.abandon('local-1', 'Token: abcdefghijklmnop')).toBe('secret-detected');
     expect(repository.abandonCommand).not.toHaveBeenCalled();
@@ -39,7 +39,7 @@ describe('SynchronizationAbandonmentService', () => {
       }),
     } as unknown as LocalCommandRepository;
     const auth = new AuthSessionService(null);
-    auth.startSession(user([SYNC_UNSYNCHRONIZED_ABANDON], ' owner-1 '), 'token');
+    auth.startSession(user([SYNC_UNSYNCHRONIZED_ABANDON], ' owner-1 '), 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
     const service = new SynchronizationAbandonmentService(
       repository,
       auth,
@@ -58,7 +58,7 @@ describe('SynchronizationAbandonmentService', () => {
       now: '2026-07-30T12:00:00.000Z',
     }));
 
-    auth.startSession(user([SYNC_UNSYNCHRONIZED_ABANDON], 'owner-2'), 'other');
+    auth.startSession(user([SYNC_UNSYNCHRONIZED_ABANDON], 'owner-2'), 'other', { expiresAt: '2099-01-01T00:00:00.000Z' });
     expect(capturedCurrent()).toBe(false);
     service.ngOnDestroy();
   });

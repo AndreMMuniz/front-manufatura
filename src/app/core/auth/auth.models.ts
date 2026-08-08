@@ -14,10 +14,12 @@ export interface AuthSession {
   expiresAt?: Date;
 }
 
-export interface OfflineContinuityMetadata {
+export interface SessionExpirationMetadata {
   /**
    * Expiração absoluta definida pelo contrato de autenticação/política de
    * segurança. Sem este valor, a sessão online não ganha continuidade.
    */
   expiresAt: string;
 }
+
+export type OfflineContinuityMetadata = SessionExpirationMetadata;

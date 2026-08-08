@@ -19,6 +19,7 @@ const USUARIO: Usuario = {
 
 const LOGIN_RESULT: LoginAutenticado = {
   token: 'token-123',
+  tokenExpiresAt: '2026-08-07T12:01:00.000Z',
   usuario: USUARIO,
 };
 
@@ -106,6 +107,33 @@ describe('LoginPage', () => {
 
     expect(component.feedback).toBe('A autenticação exige conexão com o Datasul.');
     expect(component.senha).toBe('');
+  });
+
+  it('preserva login, limpa senha e não navega quando o acesso é negado', () => {
+    vi.mocked(loginServiceMock.login).mockReturnValue(
+      throwError(() => new LoginError('access-denied')),
+    );
+    component.login = ' operador ';
+    component.senha = ' senha literal ';
+
+    component.entrar();
+
+    expect(loginServiceMock.login).toHaveBeenCalledWith(' operador ', ' senha literal ');
+    expect(component.login).toBe(' operador ');
+    expect(component.senha).toBe('');
+    expect(component.feedback).toBe('Usuário sem permissão para acessar o Plano Controle CQ.');
+    expect(routerMock.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('considera senha composta por espaços como não vazia e bloqueia submit concorrente', () => {
+    component.login = 'operador';
+    component.senha = '   ';
+
+    component.entrar();
+    component.entrar();
+
+    expect(loginServiceMock.login).toHaveBeenCalledTimes(1);
+    expect(loginServiceMock.login).toHaveBeenCalledWith('operador', '   ');
   });
 
   it('returns to a safe internal returnUrl after valid credentials', () => {
