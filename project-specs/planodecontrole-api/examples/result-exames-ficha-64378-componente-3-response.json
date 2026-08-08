@@ -1,0 +1,27 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "observacao": "",
+      "componentesSalvos": 6,
+      "resultado": 0.0,
+      "dtResultado": "2026-08-08",
+      "resultadoMinDefinido": 0.0,
+      "dentroFaixa": false,
+      "codResponsavel": "Mjocelio",
+      "nrTabela": 8,
+      "codComponente": 3,
+      "seqComp": 1,
+      "componentesTotal": 6,
+      "resultadoMax": 0.0,
+      "nrFicha": 64378,
+      "laudo": "",
+      "resultadoMaxDefinido": 0.0,
+      "numeroTeste": 1,
+      "tipoResultado": 2,
+      "codItem": "30907",
+      "codExame": 1845
+    }
+  ]
+}
