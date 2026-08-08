@@ -61,7 +61,7 @@ describe('authenticateExternalLogin', () => {
     );
 
     expect(transport).toHaveBeenCalledTimes(2);
-    expect(transport.mock.calls[0]?.[0]).toBe('https://datasul.example.test/api/btb/v1/usuarios');
+    expect(transport.mock.calls[0]?.[0]).toBe('https://datasul.example.test/api/gtb/v1/usuarios');
     expect(transport.mock.calls[1]?.[0]).toBe(
       'https://datasul.example.test/api/fcq/v1/seguranca/operador/fcq-0001',
     );
