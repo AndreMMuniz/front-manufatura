@@ -87,6 +87,12 @@ ai-docs/
 generated-docs/
 token-usage-output.txt
 
+# Keep Plano de Controle CQ API documentation versioned
+!project-specs/
+project-specs/*
+!project-specs/planodecontrole-api/
+!project-specs/planodecontrole-api/**
+
 # Local skills
 skills/
 skill/
