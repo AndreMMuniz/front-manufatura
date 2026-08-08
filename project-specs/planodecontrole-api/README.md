@@ -7,6 +7,7 @@ Esta pasta reúne as chamadas da API utilizadas pela tela **Plano de Controle CQ
 | Recurso | Método | Endpoint | Documentação |
 | --- | --- | --- | --- |
 | Ordens de produção | `GET` | `/api/fcq/v1/ordens/{numeroOrdem}` | [ordens.md](./ordens.md) |
+| Roteiros de inspeção | `POST` | `/api/fcq/v1/roteiros?companyid={companyId}` | [roteiros.md](./roteiros.md) |
 
 ## Autenticação
 

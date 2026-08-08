@@ -1,0 +1,154 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "nrFicha": 64379,
+      "ds-roteiro": {
+        "exames": [
+          {
+            "componentes": [
+              {
+                "resultadoMin": 23.8,
+                "unidade": "mm",
+                "nrTabela": 0,
+                "codComponente": 1,
+                "descricao": "COTA 24,0mm (B4)",
+                "referenciaTecnica": "",
+                "resultadoMax": 24.2,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "PAQUÍMETRO",
+                "tipoResultado": 4,
+                "metodo": "",
+                "numeroDecimais": 2,
+                "codExame": 1845
+              },
+              {
+                "resultadoMin": 9.02,
+                "unidade": "mm",
+                "nrTabela": 0,
+                "codComponente": 2,
+                "descricao": "COTA Ø9,02 / 9,09mm (C4)",
+                "referenciaTecnica": "",
+                "resultadoMax": 9.09,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "MICRÔMETRO",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 3,
+                "codExame": 1845
+              },
+              {
+                "resultadoMin": 0.0,
+                "opcoesResultado": [
+                  {
+                    "nrTabela": 8,
+                    "seqOpcao": 1,
+                    "codComponente": 3,
+                    "codExame": 1845,
+                    "descricao": "SIM"
+                  },
+                  {
+                    "nrTabela": 8,
+                    "seqOpcao": 2,
+                    "codComponente": 3,
+                    "codExame": 1845,
+                    "descricao": "NÃO"
+                  }
+                ],
+                "unidade": "",
+                "nrTabela": 8,
+                "codComponente": 3,
+                "descricao": "CHANFRO 1,5 x 45º (C7)",
+                "referenciaTecnica": "",
+                "resultadoMax": 0.0,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "VISUAL.",
+                "tipoResultado": 2,
+                "metodo": "",
+                "numeroDecimais": 0,
+                "codExame": 1845
+              },
+              {
+                "resultadoMin": 0.0,
+                "unidade": "mm",
+                "nrTabela": 0,
+                "codComponente": 4,
+                "descricao": "CONCENTRICIDADE MAX 0,1mm (C8)",
+                "referenciaTecnica": "",
+                "resultadoMax": 0.1,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "RELÓGIO COMPARADOR",
+                "tipoResultado": 4,
+                "metodo": "",
+                "numeroDecimais": 2,
+                "codExame": 1845
+              },
+              {
+                "resultadoMin": 0.0,
+                "opcoesResultado": [
+                  {
+                    "nrTabela": 8,
+                    "seqOpcao": 1,
+                    "codComponente": 5,
+                    "codExame": 1845,
+                    "descricao": "SIM"
+                  },
+                  {
+                    "nrTabela": 8,
+                    "seqOpcao": 2,
+                    "codComponente": 5,
+                    "codExame": 1845,
+                    "descricao": "NÃO"
+                  }
+                ],
+                "unidade": "",
+                "nrTabela": 8,
+                "codComponente": 5,
+                "descricao": "TESTE FACEAMENTO (NOTA)",
+                "referenciaTecnica": "",
+                "resultadoMax": 0.0,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "DISPO.  CQ 30907",
+                "tipoResultado": 2,
+                "metodo": "",
+                "numeroDecimais": 0,
+                "codExame": 1845
+              },
+              {
+                "resultadoMin": 346.0,
+                "unidade": "mm",
+                "nrTabela": 0,
+                "codComponente": 6,
+                "descricao": "COMPRIMENTO 346 + 2 mm (B3)",
+                "referenciaTecnica": "",
+                "resultadoMax": 348.0,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "PAQUÍMETRO",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 2,
+                "codExame": 1845
+              }
+            ],
+            "observacao": "",
+            "frequencia": 60,
+            "nivel": 0,
+            "responsavel": "RPEREIRA",
+            "amostra": 2,
+            "versao": 1,
+            "codExame": 1845,
+            "descricao": "30907 - ALAVANCA MASTER",
+            "nqa": 0.0
+          }
+        ]
+      }
+    }
+  ]
+}
