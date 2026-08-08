@@ -94,7 +94,7 @@ export async function authenticateAndAuthorizeDatasul(
 ): Promise<DatasulIdentity> {
   const authorization = basicAuthorization(login, senha);
   const users = await getJson(
-    new URL('/api/gtb/v1/usuarios', config.baseUrl).toString(),
+    new URL('/api/btb/v1/usuarios', config.baseUrl).toString(),
     authorization,
     config,
     dependencies,
