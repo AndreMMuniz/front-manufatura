@@ -70,7 +70,7 @@ describe('QualityControlWorkspacePage', () => {
         { id: 'c2', code: '020', description: 'C2', reference: '0 - 1', minValue: 0, maxValue: 1, unit: 'mm', sequence: 20, status: 'PENDING' },
       ],
     }]);
-    state.updateDraft('c2', { minimum: '0' });
+    state.updateDraft('c2', { result: '0' });
     expect(state.isDirty()).toBe(true);
     expect(state.isBusy()).toBe(false);
 

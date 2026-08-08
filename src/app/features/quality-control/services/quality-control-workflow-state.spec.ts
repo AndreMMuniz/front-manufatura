@@ -78,14 +78,13 @@ describe('QualityControlWorkflowState', () => {
 
   it('computes dirty across all normalized drafts and clears only a saved draft', () => {
     const state = loadedState();
-    state.updateDraft('a-10', { minimum: ' 1,0 ', maximum: '2.00', observation: ' ok ' });
+    state.updateDraft('a-10', { result: ' 1,0 ', observation: ' ok ' });
     state.selectComponent('a-20');
 
     expect(state.isDirty()).toBe(true);
 
     state.applyMeasurement('exam-a', 'a-10', {
-      minimum: 1,
-      maximum: 2,
+      result: 1,
       observation: 'ok',
       status: 'APPROVED',
       operatorId: 'OP-001',
@@ -103,7 +102,7 @@ describe('QualityControlWorkflowState', () => {
     const previousExams = first.exams();
 
     first.applyMeasurement('exam-a', 'a-10', {
-      minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
+      result: 1, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
     });
 
     expect(first.exams()).not.toBe(previousExams);
@@ -112,12 +111,13 @@ describe('QualityControlWorkflowState', () => {
     expect(second.componentById('a-10')?.measurement).toBeUndefined();
   });
 
-  it('counts rejected API measurements as completed and continues with the next pending component', () => {
+  it('counts a remotely rejected result as completed and continues with the next pending component', () => {
     const state = loadedState();
     state.applyMeasurement('exam-a', 'a-10', {
-      minimum: -1,
-      maximum: 2,
+      result: -1,
       status: 'REJECTED',
+      deliveryStatus: 'SYNCED',
+      withinRange: false,
       operatorId: 'OP-001',
       savedAt: new Date(),
     });
@@ -147,7 +147,7 @@ describe('QualityControlWorkflowState', () => {
   it('moves to the next pending component across exams and skips completed components', () => {
     const state = loadedState();
     state.applyMeasurement('exam-a', 'a-20', {
-      minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
+      result: 1, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
     });
     state.openPanel('a-10');
 
@@ -162,7 +162,7 @@ describe('QualityControlWorkflowState', () => {
     const state = loadedState();
     state.openPanel('b-10');
     state.applyMeasurement('exam-b', 'b-10', {
-      minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
+      result: 1, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
     });
 
     state.moveToNextPending('b-10');
@@ -179,7 +179,7 @@ describe('QualityControlWorkflowState', () => {
     expect(state.isComponentOutOfRange('a-20')).toBe(false);
 
     state.applyMeasurement('exam-a', 'a-10', {
-      minimum: 1, maximum: 2, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
+      result: 1, status: 'APPROVED', operatorId: 'OP-001', savedAt: new Date(),
     });
 
     expect(state.isComponentOutOfRange('a-10')).toBe(false);

@@ -24,6 +24,11 @@ import { SyncCoordinatorService } from './core/offline/services/sync-coordinator
 import { provideServiceWorker } from '@angular/service-worker';
 import { PwaUpdateService } from './core/offline/pwa/pwa-update.service';
 import { StorageHealthService } from './core/offline/services/storage-health.service';
+import { SYNC_COMMAND_HANDLERS } from './core/offline/services/command-transport-router';
+import {
+  FinalizeQualityRouteSyncHandler,
+  SaveQualityResultSyncHandler,
+} from './core/offline/services/quality-control-sync.handlers';
 
 export type AfterRenderScheduler = (callback: () => void) => void;
 
@@ -55,6 +60,8 @@ export const appConfig: ApplicationConfig = {
       registrationStrategy: 'registerWhenStable:30000',
     }),
     { provide: PoNotificationService, useClass: TopNotificationService },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: SaveQualityResultSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: FinalizeQualityRouteSyncHandler, multi: true },
     provideAppInitializer(() => {
       const coordinator = inject(SyncCoordinatorService);
       const pwaUpdate = inject(PwaUpdateService);

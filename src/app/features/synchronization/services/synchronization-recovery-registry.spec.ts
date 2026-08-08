@@ -24,6 +24,8 @@ describe('SynchronizationRecoveryRegistry', () => {
       ['FINISH_EXAM', 'RETRY_ONLY', '/quality-control'],
       ['STOP_INSPECTION_ROUTE', 'INTERVENTION', '/quality-control'],
       ['SAVE_INSPECTION', 'CORRECTABLE', '/quality-control'],
+      ['SAVE_QUALITY_RESULT', 'CORRECTABLE', '/quality-control'],
+      ['FINALIZE_QUALITY_ROUTE', 'RETRY_ONLY', '/quality-control'],
       ['START_OPERATION', 'CORRECTABLE', '/operation-reporting'],
       ['REPORT_OPERATION', 'CORRECTABLE', '/operation-reporting'],
       ['END_OPERATION', 'RETRY_ONLY', '/operation-reporting'],

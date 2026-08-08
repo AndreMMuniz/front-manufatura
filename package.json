@@ -12,7 +12,7 @@
     "build:pwa:e2e:b": "ng build --configuration pwa-e2e-b --output-path dist/pwa-e2e-b",
     "e2e:pwa": "npm run build:pwa:e2e:a && npm run build:pwa:e2e:b && playwright test --config=playwright.pwa.config.ts",
     "test:pwa:artifacts": "node tools/check-pwa-artifacts.mjs",
-    "serve:ssr:plano-de-controle": "node dist/plano-de-controle/server/server.mjs"
+    "serve:ssr:plano-de-controle": "node --env-file-if-exists=.env dist/plano-de-controle/server/server.mjs"
   },
   "private": true,
   "packageManager": "npm@11.13.0",

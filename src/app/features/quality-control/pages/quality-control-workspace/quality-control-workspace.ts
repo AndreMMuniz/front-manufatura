@@ -55,7 +55,7 @@ export class QualityControlWorkspacePage {
       catchError(() => of(null)),
       switchMap(restored => restored
         ? this.qualityControl
-            .getQualityExams(restored.route.itemCode, restored.route.operationCode)
+            .getQualityExams(restored.route)
             .pipe(map(exams => ({ restored, exams })))
         : of(null)),
       takeUntilDestroyed(this.destroyRef),

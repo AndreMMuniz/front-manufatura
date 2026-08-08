@@ -7,6 +7,7 @@ import {
 import express from 'express';
 import { join } from 'node:path';
 import { installAuthLoginEndpoint } from './auth-http-endpoint';
+import { installQualityControlEndpoints } from './quality-control-http-endpoint';
 import {
   PWA_REVALIDATE_CACHE_CONTROL,
   cacheControlForStaticAsset,
@@ -18,6 +19,7 @@ const app = express();
 const angularApp = new AngularNodeAppEngine();
 
 installAuthLoginEndpoint(app, { env: process.env });
+installQualityControlEndpoints(app, { env: process.env });
 
 app.head('/api/health', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');

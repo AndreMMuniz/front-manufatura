@@ -49,8 +49,7 @@
                 <span>{{ statusLabel(component) }}</span>
                 @if (component.measurement) {
                   <span class="inspection-process__component-measurements">
-                    <span>Mín: {{ formatMeasurementValue(component.measurement!.minimum) }}</span>
-                    <span>Máx: {{ formatMeasurementValue(component.measurement!.maximum) }}</span>
+                    <span>Resultado: {{ measurementResult(component) ?? '-' }}</span>
                   </span>
                 }
                 @if (measurementSavedAt(component); as savedAt) {

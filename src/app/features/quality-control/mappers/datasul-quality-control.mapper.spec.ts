@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest';
+
+import { mapInspectionRouteEnvelope, mapProductionOrderEnvelope } from './datasul-quality-control.mapper';
+
+describe('Datasul quality-control mapper', () => {
+  it('mapeia ordem, operações e splits na ordem recebida', () => {
+    expect(mapProductionOrderEnvelope({
+      total: 1, hasNext: false, items: [{
+        'ds-ordem-producao': { ordem: [{
+          nrOrdemProducao: 372562, codItem: '30907', operacoes: [{
+            codOperacao: 20, descricaoOperacao: 'USINAR', codItem: '30907',
+            centroTrabalho: 'GL-170', codGrupoMaquina: 'TOR-004',
+            splits: [{ numSplit: 2 }],
+          }],
+        }] },
+      }],
+    })).toMatchObject({
+      orderNumber: '372562',
+      operations: [{ operationCode: '20', split: '2', operationDescription: 'USINAR' }],
+    });
+  });
+
+  it('mantém nrFicha, resultado único, decimais e opções tabeladas', () => {
+    const result = mapInspectionRouteEnvelope({
+      total: 1, hasNext: false, items: [{ nrFicha: 64379, 'ds-roteiro': { exames: [{
+        codExame: 1845, descricao: 'ALAVANCA', versao: 1, frequencia: 60,
+        amostra: 2, nivel: 0, nqa: 0, responsavel: 'RPEREIRA', observacao: '',
+        componentes: [{
+          codExame: 1845, codComponente: 3, descricao: 'CHANFRO',
+          referenciaTecnica: '', metodo: '', equipamento: 'VISUAL', tipoResultado: 2,
+          unidade: '', numeroDecimais: 0, resultadoMin: 0, resultadoMax: 0,
+          nrTabela: 8, opcoesResultado: [
+            { nrTabela: 8, seqOpcao: 1, codComponente: 3, codExame: 1845, descricao: 'SIM' },
+            { nrTabela: 8, seqOpcao: 2, codComponente: 3, codExame: 1845, descricao: 'NÃO' },
+          ],
+        }],
+      }] } }],
+    }, {
+      orderNumber: '372562',
+      operation: {
+        operationCode: '20', operationDescription: 'USINAR', itemCode: '30907',
+        itemDescription: '30907', processDescription: 'USINAR', split: '1',
+      },
+    });
+
+    expect(result.route.nrFicha).toBe(64379);
+    expect(result.route.exams).toHaveLength(1);
+    expect(result.exams[0].components[0]).toMatchObject({
+      componentCode: 3, decimalPlaces: 0, tableNumber: 8,
+      resultOptions: [{ sequence: 1, description: 'SIM' }, { sequence: 2, description: 'NÃO' }],
+    });
+  });
+
+  it('rejeita envelope vazio ou desconhecido', () => {
+    expect(() => mapProductionOrderEnvelope({ total: 0, hasNext: false, items: [] }))
+      .toThrow('invalid-upstream-response');
+  });
+
+  it('rejeita opção tabelada pertencente a outro componente', () => {
+    expect(() => mapInspectionRouteEnvelope({
+      total: 1, hasNext: false, items: [{ nrFicha: 64379, 'ds-roteiro': { exames: [{
+        codExame: 1845, descricao: 'E', versao: 1, frequencia: 1, amostra: 1,
+        nivel: 0, nqa: 0, responsavel: '', observacao: '', componentes: [{
+          codExame: 1845, codComponente: 3, descricao: 'C', referenciaTecnica: '',
+          metodo: '', equipamento: '', tipoResultado: 2, unidade: '', numeroDecimais: 0,
+          resultadoMin: 0, resultadoMax: 0, nrTabela: 8, opcoesResultado: [{
+            nrTabela: 8, seqOpcao: 1, codComponente: 99, codExame: 1845, descricao: 'SIM',
+          }],
+        }],
+      }] } }],
+    }, {
+      orderNumber: '372562',
+      operation: { operationCode: '20', operationDescription: 'USINAR', itemCode: '30907',
+        itemDescription: '', processDescription: 'USINAR', split: '1' },
+    })).toThrow('invalid-upstream-response');
+  });
+});

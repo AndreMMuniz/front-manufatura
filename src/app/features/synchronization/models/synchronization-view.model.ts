@@ -108,6 +108,8 @@ const COMMAND_PRESENTATIONS: Readonly<Record<OperationalCommandType, CommandPres
     FINISH_EXAM: quality('Finalizar exame', 'RETRY_ONLY'),
     STOP_INSPECTION_ROUTE: quality('Parar roteiro', 'INTERVENTION'),
     SAVE_INSPECTION: quality('Salvar inspeção', 'CORRECTABLE'),
+    SAVE_QUALITY_RESULT: quality('Registrar resultado CQ', 'CORRECTABLE'),
+    FINALIZE_QUALITY_ROUTE: quality('Finalizar roteiro CQ', 'RETRY_ONLY'),
     START_OPERATION: operation('Iniciar operação', 'CORRECTABLE'),
     REPORT_OPERATION: operation('Reportar operação', 'CORRECTABLE'),
     END_OPERATION: operation('Encerrar operação', 'RETRY_ONLY'),

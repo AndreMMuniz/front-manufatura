@@ -1,3 +1,5 @@
+import type { QualityExam } from './quality-exam';
+
 export interface ProductionOrderOperation {
   operationCode: string;
   operationDescription: string;
@@ -20,6 +22,7 @@ export interface GenerateInspectionRouteRequest {
 }
 
 export interface ProductionOrderRoute {
+  nrFicha?: number;
   localId?: string;
   creationCommandId?: string;
   routeNumber: string;
@@ -30,4 +33,5 @@ export interface ProductionOrderRoute {
   split: string;
   itemCode: string;
   itemDescription: string;
+  exams?: readonly QualityExam[];
 }

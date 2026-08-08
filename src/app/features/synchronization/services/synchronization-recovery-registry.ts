@@ -35,6 +35,11 @@ const RECOVERY_DEFINITIONS: Readonly<Record<OperationalCommandType, RecoveryDefi
       'opNumber', 'operation', 'split', 'routeNumber', 'examCode',
       'measurements', 'status', 'createdAt',
     ]),
+    SAVE_QUALITY_RESULT: correctable('/quality-control', [
+      'nrFicha', 'codExame', 'codComponente', 'resultado', 'nrTabela',
+      'seqOpcao', 'observation', 'operatorId', 'savedAt',
+    ]),
+    FINALIZE_QUALITY_ROUTE: retryOnly('/quality-control'),
     START_OPERATION: correctable('/operation-reporting', [
       'ordem', 'op', 'split', 'areaCode', 'workCenterCode', 'area',
       'workCenter', 'operation', 'operador', 'equipe', 'tipoResponsavel',
