@@ -9,6 +9,7 @@ Esta pasta reúne as chamadas da API utilizadas pela tela **Plano de Controle CQ
 | Ordens de produção | `GET` | `/api/fcq/v1/ordens/{numeroOrdem}` | [ordens.md](./ordens.md) |
 | Roteiros de inspeção | `POST` | `/api/fcq/v1/roteiros?companyid={companyId}` | [roteiros.md](./roteiros.md) |
 | Resultados de exames | `PUT` | `/api/fcq/v1/resultexames?companyId={companyId}` | [result-exames.md](./result-exames.md) |
+| Finalização de roteiros | `PUT` | `/api/fcq/v1/FinalizaRoteiros?companyId={companyId}` | [finaliza-roteiros.md](./finaliza-roteiros.md) |
 
 ## Autenticação
 

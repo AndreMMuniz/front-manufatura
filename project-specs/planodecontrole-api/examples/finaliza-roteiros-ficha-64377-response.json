@@ -1,0 +1,31 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "ds-finaliza": {
+        "roteiro": [
+          {
+            "componentesTotal": 6,
+            "situacao": 2,
+            "componentesSalvos": 0,
+            "nrFicha": 64377,
+            "mensagem": "Roteiro 64377 ainda tem 6 componente(s) pendente(s) em 1 exame(s)",
+            "inspecionado": false,
+            "finalizado": false,
+            "componentesPendentes": 6,
+            "exames": [
+              {
+                "componentesTotal": 6,
+                "componentesSalvos": 0,
+                "nrFicha": 64377,
+                "componentesPendentes": 6,
+                "codExame": 1845
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
