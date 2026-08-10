@@ -58,14 +58,16 @@ export class SynchronizationIndicator {
 
   readonly pending = computed(() => this.state().counts.pending);
   readonly errors = computed(() => this.state().counts.error);
+  readonly issueCount = computed(() => this.pending() + this.errors());
+  readonly countsLabel = computed(() => {
+    const pending = this.pending();
+    const errors = this.errors();
+    return `${pending} ${pending === 1 ? 'pendência' : 'pendências'} · ${errors} ${errors === 1 ? 'erro' : 'erros'}`;
+  });
 
-  open(): void {
+  open(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
     void this.router.navigateByUrl('/synchronization');
-  }
-
-  handleKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    this.open();
   }
 }

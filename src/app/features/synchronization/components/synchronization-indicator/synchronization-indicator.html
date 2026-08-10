@@ -1,13 +1,30 @@
-<button
-  type="button"
-  class="synchronization-indicator"
-  [attr.aria-label]="accessibleName()"
-  (click)="open()"
-  (keydown)="handleKeydown($event)"
->
-  <po-icon [p-icon]="icon()" aria-hidden="true" />
-  <span class="synchronization-indicator__message" aria-live="polite">{{ message() }}</span>
-  <span class="synchronization-indicator__counts" aria-hidden="true">
-    {{ pending() }} pendências · {{ errors() }} erros
-  </span>
-</button>
+<span class="synchronization-indicator">
+  <button
+    type="button"
+    class="synchronization-indicator__trigger"
+    [attr.aria-label]="accessibleName()"
+    (click)="open($event)"
+  >
+    <po-icon p-icon="an an-magnifying-glass" aria-hidden="true" />
+    @if (issueCount() > 0) {
+      <span class="synchronization-indicator__badge" aria-hidden="true">
+        {{ issueCount() > 99 ? '99+' : issueCount() }}
+      </span>
+    }
+  </button>
+
+  <a
+    class="synchronization-indicator__popover"
+    href="/synchronization"
+    aria-label="Abrir a Central de Sincronização"
+    (click)="open($event)"
+  >
+    <span class="synchronization-indicator__popover-title">Logs de sincronização</span>
+    <span class="synchronization-indicator__status">
+      <po-icon [p-icon]="icon()" aria-hidden="true" />
+      <span class="synchronization-indicator__message" aria-live="polite">{{ message() }}</span>
+    </span>
+    <span class="synchronization-indicator__counts">{{ countsLabel() }}</span>
+    <span class="synchronization-indicator__link-label">Ver Central de Sincronização</span>
+  </a>
+</span>
