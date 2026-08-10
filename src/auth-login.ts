@@ -85,10 +85,8 @@ function readConfig(env: LoginEnvironment): AuthGatewayConfig {
     return configurationError();
   }
 
-  const securityProgram = env['DATASUL_SECURITY_PROGRAM'];
   const tokenSecret = env['APP_AUTH_TOKEN_SECRET'];
-  if (securityProgram !== 'fcq-0001'
-    || !tokenSecret
+  if (!tokenSecret
     || Buffer.byteLength(tokenSecret, 'utf8') < 32
     || PLACEHOLDER_SECRET.test(tokenSecret)) {
     return configurationError();
@@ -96,7 +94,6 @@ function readConfig(env: LoginEnvironment): AuthGatewayConfig {
 
   return {
     baseUrl: url.toString(),
-    securityProgram,
     requestTimeoutMs: requiredPositiveInteger(env['DATASUL_REQUEST_TIMEOUT_MS']),
     tokenSecret,
     tokenTtlMs: requiredPositiveInteger(env['APP_AUTH_TOKEN_TTL_MS']),
@@ -135,6 +132,7 @@ export async function authenticateExternalLogin(
   );
   const issued = await (dependencies.issueToken ?? createAppSessionToken)({
     subject: identity.codUsuario,
+    permissions: identity.permissoes,
     secret: config.tokenSecret,
     ttlMs: config.tokenTtlMs,
     now,
@@ -154,7 +152,7 @@ export async function authenticateExternalLogin(
       id: identity.codUsuario,
       login: identity.codUsuario,
       nome: identity.nomUsuario,
-      permissoes: ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ'],
+      permissoes: [...identity.permissoes],
     },
   };
 }

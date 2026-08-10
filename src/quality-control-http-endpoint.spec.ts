@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAppSessionToken } from './app-session-token';
+import { APP_PERMISSIONS } from './app-permissions';
 import {
   buildQualityResultPayload,
   installQualityControlEndpoints,
@@ -94,6 +95,7 @@ describe('gateway Plano Controle CQ', () => {
     const now = new Date('2026-08-08T12:00:00.000Z');
     const issued = await createAppSessionToken({
       subject: 'OPERADOR1',
+      permissions: [APP_PERMISSIONS.qualityControl],
       secret: ENV.APP_AUTH_TOKEN_SECRET,
       ttlMs: 60_000,
       now,
@@ -103,6 +105,20 @@ describe('gateway Plano Controle CQ', () => {
       .resolves.toBe('OPERADOR1');
     await expect(resolveQualityControlUserId('Bearer token-invalido', ENV, now))
       .rejects.toMatchObject({ status: 401, code: 'invalid-session' });
+  });
+
+  it('bloqueia token válido sem permissão do Plano Controle CQ', async () => {
+    const now = new Date('2026-08-08T12:00:00.000Z');
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1',
+      permissions: [APP_PERMISSIONS.operationReporting],
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      ttlMs: 60_000,
+      now,
+    });
+
+    await expect(resolveQualityControlUserId(`Bearer ${issued.token}`, ENV, now))
+      .rejects.toMatchObject({ status: 403, code: 'access-denied' });
   });
 
   it('ignora codUsuario do browser e usa exclusivamente o subject validado', () => {
@@ -131,6 +147,7 @@ describe('gateway Plano Controle CQ', () => {
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
       subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl],
       ttlMs: 60_000, now: new Date(),
     });
 

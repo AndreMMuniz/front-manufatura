@@ -1,4 +1,10 @@
 import { AuthLoginError } from './auth-login-error';
+import {
+  APP_PERMISSIONS,
+  DATASUL_SECURITY_PROGRAMS,
+  type AppPermission,
+  type DatasulSecurityProgram,
+} from './app-permissions';
 
 export type HttpTransport = (
   input: string | URL | globalThis.Request,
@@ -7,13 +13,13 @@ export type HttpTransport = (
 
 export interface DatasulAuthConfig {
   baseUrl: string;
-  securityProgram: 'fcq-0001';
   requestTimeoutMs: number;
 }
 
 export interface DatasulIdentity {
   codUsuario: string;
   nomUsuario: string;
+  permissoes: AppPermission[];
 }
 
 export interface DatasulAuthClientDependencies {
@@ -99,9 +105,43 @@ export async function authenticateAndAuthorizeDatasul(
     config,
     dependencies,
   );
-  validateEnvelope(users);
+  const userItems = validateEnvelope(users);
+  const matchingUsers = userItems.filter(item => isRecord(item) && item['codUsuario'] === login);
+  if (matchingUsers.length !== 1) {
+    throw new AuthLoginError(502, 'invalid-upstream-response');
+  }
+  const user = matchingUsers[0];
+  if (!isRecord(user)
+    || typeof user['nomUsuario'] !== 'string'
+    || user['nomUsuario'].trim().length === 0) {
+    throw new AuthLoginError(502, 'invalid-upstream-response');
+  }
 
-  const securityPath = [login, config.securityProgram]
+  const access = await Promise.all(DATASUL_SECURITY_PROGRAMS.map(async definition => {
+    return getProgramAccess(login, authorization, definition.program, config, dependencies);
+  }));
+  const permissoes: AppPermission[] = [APP_PERMISSIONS.mainMenu];
+  DATASUL_SECURITY_PROGRAMS.forEach((definition, index) => {
+    if (access[index]) {
+      permissoes.push(definition.permission);
+    }
+  });
+
+  return {
+    codUsuario: login,
+    nomUsuario: user['nomUsuario'],
+    permissoes,
+  };
+}
+
+async function getProgramAccess(
+  login: string,
+  authorization: string,
+  program: DatasulSecurityProgram,
+  config: DatasulAuthConfig,
+  dependencies: DatasulAuthClientDependencies,
+): Promise<boolean> {
+  const securityPath = [login, program]
     .map(segment => encodeURIComponent(segment))
     .join('/');
   const security = await getJson(
@@ -117,15 +157,11 @@ export async function authenticateAndAuthorizeDatasul(
 
   const item = items[0];
   if (item['codUsuario'] !== login
-    || item['programa'] !== config.securityProgram
+    || item['programa'] !== program
     || typeof item['nomUsuario'] !== 'string'
     || item['nomUsuario'].length === 0
     || typeof item['temAcesso'] !== 'boolean') {
     throw new AuthLoginError(502, 'invalid-upstream-response');
   }
-  if (item['temAcesso'] === false) {
-    throw new AuthLoginError(403, 'access-denied');
-  }
-
-  return { codUsuario: login, nomUsuario: item['nomUsuario'] };
+  return item['temAcesso'];
 }

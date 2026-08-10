@@ -6,6 +6,7 @@ import express, {
 } from 'express';
 
 import { verifyAppSessionToken } from './app-session-token';
+import { APP_PERMISSIONS } from './app-permissions';
 import {
   QualityControlDatasulClient,
   QualityControlGatewayError,
@@ -161,19 +162,27 @@ export async function resolveQualityControlUserId(
   }
   const match = /^Bearer ([^\s]+)$/i.exec(authorization);
   if (!match) throw new QualityControlGatewayError(401, 'invalid-session');
+  let payload: Awaited<ReturnType<typeof verifyAppSessionToken>>;
   try {
-    const payload = await verifyAppSessionToken(match[1], secret, now);
-    const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
-    if (
-      !subject
-      || subject.length > 256
-      || subject.includes(':')
-      || /[\u0000-\u001f\u007f]/u.test(subject)
-    ) throw new Error('invalid-subject');
-    return subject;
+    payload = await verifyAppSessionToken(match[1], secret, now);
   } catch {
     throw new QualityControlGatewayError(401, 'invalid-session');
   }
+  const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
+  if (
+    !subject
+    || subject.length > 256
+    || subject.includes(':')
+    || /[\u0000-\u001f\u007f]/u.test(subject)
+  ) throw new QualityControlGatewayError(401, 'invalid-session');
+  if (!Array.isArray(payload['permissions'])
+    || !payload['permissions'].every(permission => typeof permission === 'string')) {
+    throw new QualityControlGatewayError(401, 'invalid-session');
+  }
+  if (!payload['permissions'].includes(APP_PERMISSIONS.qualityControl)) {
+    throw new QualityControlGatewayError(403, 'access-denied');
+  }
+  return subject;
 }
 
 function installMethodGuard(app: Application, path: string, allow: string): void {

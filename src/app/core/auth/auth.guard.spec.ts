@@ -4,11 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from './auth-session.service';
 import { authGuard } from './auth.guard';
+import { APP_PERMISSIONS } from '../../../app-permissions';
 
 describe('authGuard', () => {
-  function setup(authenticated: boolean) {
+  function setup(authenticated: boolean, permissions: string[] = []) {
     const sessionService = {
       isAuthenticated: vi.fn().mockReturnValue(authenticated),
+      currentUser: authenticated
+        ? { id: 'operador', nome: 'Operador', login: 'operador', permissoes: permissions }
+        : null,
     } as unknown as AuthSessionService;
 
     const router = {
@@ -27,8 +31,10 @@ describe('authGuard', () => {
     return { sessionService, router };
   }
 
-  async function runGuard(url: string): Promise<boolean | UrlTree> {
-    const routeSnapshot = {} as never;
+  async function runGuard(url: string, requiredPermission?: string): Promise<boolean | UrlTree> {
+    const routeSnapshot = {
+      data: requiredPermission ? { requiredPermission } : {},
+    } as never;
     const state = { url } as never;
 
     return TestBed.runInInjectionContext(() => authGuard(routeSnapshot, state)) as Promise<boolean | UrlTree>;
@@ -40,6 +46,23 @@ describe('authGuard', () => {
     const result = await runGuard('/quality-control');
 
     expect(result).toBe(true);
+  });
+
+  it('permite somente rota de módulo autorizada', async () => {
+    setup(true, [APP_PERMISSIONS.operationReporting]);
+
+    expect(await runGuard('/operation-reporting', APP_PERMISSIONS.operationReporting)).toBe(true);
+  });
+
+  it('bloqueia deep link de módulo sem permissão e volta ao menu', async () => {
+    const { router } = setup(true, [APP_PERMISSIONS.operationReporting]);
+
+    const result = await runGuard('/quality-control', APP_PERMISSIONS.qualityControl);
+
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/menu'], {
+      queryParams: { accessDenied: '1' },
+    });
+    expect(result).toBe(vi.mocked(router.createUrlTree).mock.results[0].value);
   });
 
   it('redirects to /login with returnUrl when the user is not authenticated', async () => {
