@@ -49,7 +49,7 @@ describe('SynchronizationIndicator', () => {
     expect(popover.textContent).toContain('5 pendências');
     expect(popover.getAttribute('href')).toBe('/synchronization');
     expect(button.classList).toContain('synchronization-indicator__trigger');
-    expect(button.querySelector('[p-icon="an an-magnifying-glass"]')).not.toBeNull();
+    expect(button.querySelector('[p-icon="an an-eye"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('.synchronization-indicator__badge').textContent)
       .toContain('5');
 

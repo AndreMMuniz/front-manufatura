@@ -5,7 +5,7 @@
     [attr.aria-label]="accessibleName()"
     (click)="open($event)"
   >
-    <po-icon p-icon="an an-magnifying-glass" aria-hidden="true" />
+    <po-icon p-icon="an an-eye" aria-hidden="true" />
     @if (issueCount() > 0) {
       <span class="synchronization-indicator__badge" aria-hidden="true">
         {{ issueCount() > 99 ? '99+' : issueCount() }}
