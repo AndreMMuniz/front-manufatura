@@ -9,12 +9,12 @@ const credentials = {
   password: 'mock123',
 };
 
-async function login(page: import('@playwright/test').Page) {
-  await page.goto('/login');
+async function login(page: import('@playwright/test').Page, returnUrl = '/menu') {
+  await page.goto(returnUrl === '/menu' ? '/login' : returnUrl);
   await page.getByRole('textbox', { name: 'Login' }).fill(credentials.user);
   await page.getByRole('textbox', { name: 'Senha' }).fill(credentials.password);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/\/menu$/);
+  await expect(page).toHaveURL(new RegExp(`${returnUrl.replace('/', '\\/')}$`));
 }
 
 async function selectProductionContext(page: import('@playwright/test').Page) {
@@ -277,8 +277,7 @@ test.describe('fluxo de Reporte Ordem', () => {
   });
 
   test('mantém o botão Report visível no Centro de Trabalho e navega após contexto completo', async ({ page }) => {
-    await login(page);
-    await page.goto('/work-center');
+    await login(page, '/work-center');
 
     await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Report' })).toBeVisible();
@@ -406,8 +405,7 @@ test.describe('fluxo de Reporte Batelada', () => {
   });
 
   test('entra pelo Centro de Trabalho com contexto BATCH preenchido', async ({ page }) => {
-    await login(page);
-    await page.goto('/work-center');
+    await login(page, '/work-center');
     await page.getByRole('textbox', { name: 'Código' }).fill('CT-EXT-01');
     await page.getByRole('button', { name: 'Consultar' }).click();
     await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('OP-001');

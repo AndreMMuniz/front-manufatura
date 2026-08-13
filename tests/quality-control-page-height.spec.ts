@@ -10,7 +10,7 @@ test('exibe as ações do Plano Controle CQ sem cortá-las no contêiner da pág
   await page.getByRole('textbox', { name: 'Senha' }).fill('mock123');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/menu$/);
-  await page.goto('/quality-control');
+  await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
   await expect(page).toHaveURL(/\/quality-control$/);
   await expect(page.locator('.quality-workspace__actions')).toBeVisible();
 
@@ -49,10 +49,14 @@ test('permite rolar até as ações após consultar uma ordem', async ({ page })
   await page.getByRole('textbox', { name: 'Senha' }).fill('mock123');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/menu$/);
-  await page.goto('/quality-control');
+  await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
+  await expect(page).toHaveURL(/\/quality-control$/);
 
   await page.getByRole('textbox', { name: 'Ordem' }).fill('325571');
+  const orderResponse = page.waitForResponse(response =>
+    response.url().endsWith('/api/quality-control/orders/325571'));
   await page.getByRole('button', { name: 'Consultar Ordem' }).click();
+  expect((await orderResponse).ok()).toBe(true);
   await expect(page.getByRole('option', { name: /30.*Soldar/ })).toBeVisible();
 
   const actions = page.locator('.quality-workspace__actions');

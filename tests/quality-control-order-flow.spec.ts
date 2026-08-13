@@ -45,7 +45,7 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     ).toBeVisible();
     await expect(page.getByText('500517')).toBeVisible();
     await expect(page.getByText('Frequência: 00:02 h')).toBeVisible();
-    await expect(page.getByText('Amostra: 1 pc')).toBeVisible();
+    await expect(page.getByText('Amostra: 1')).toBeVisible();
     await expect(page.getByText('325571', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Digitar medição' }).click();
@@ -53,31 +53,23 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await expect(page.getByRole('heading', { name: 'Execução do roteiro de inspeção' })).toBeVisible();
     await expect(page).toHaveURL(/\/quality-control$/);
 
-    const minimum = page.getByRole('textbox', { name: 'Min' });
-    const maximum = page.getByRole('textbox', { name: 'Max' });
-    await minimum.fill('484');
-    await maximum.fill('490');
+    const result = page.getByRole('textbox', { name: 'Resultado' });
+    await result.fill('484');
     await page.getByRole('button', { name: 'Salvar' }).click();
-    await expect(
-      page.getByRole('button', { name: /010.*Valores fora da variação permitida/ }),
-    ).toBeVisible();
+    await expect(page.getByText('Salvo neste dispositivo — envio pendente.')).toBeVisible();
     await expect(page.getByText('1 de 3 componentes concluídos')).toBeVisible();
     await expect(page.getByText('Característica 2 / 3')).toBeVisible();
 
-    await minimum.fill('254,5');
-    await maximum.fill('255,5');
+    await result.fill('255');
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByText('Salvo neste dispositivo — envio pendente.')).toBeVisible();
     await expect(page.getByText('2 de 3 componentes concluídos')).toBeVisible();
     await expect(page).toHaveURL(/\/quality-control$/);
 
     const outbox = await readOperationalOutbox(page);
-    const route = outbox.find(entry => entry.commandType === 'GENERATE_INSPECTION_ROUTE');
-    const measurements = outbox.filter(entry => entry.commandType === 'SAVE_MEASUREMENT');
-    expect(route).toBeDefined();
+    const measurements = outbox.filter(entry => entry.commandType === 'SAVE_QUALITY_RESULT');
     expect(measurements).toHaveLength(2);
     expect(new Set(measurements.map(entry => entry.idempotencyKey)).size).toBe(2);
-    expect(measurements.every(entry => entry.dependencyIds.includes(route!.localId))).toBe(true);
   });
 
   for (const viewport of [

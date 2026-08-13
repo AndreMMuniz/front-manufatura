@@ -24,14 +24,12 @@ for (const viewport of [
     await openInspection(page);
 
     await page.getByRole('button', { name: 'Digitar medição' }).click();
-    await page.getByRole('textbox', { name: 'Min' }).fill('485,5');
-    await page.getByRole('textbox', { name: 'Max' }).fill('490,75');
+    await page.getByRole('textbox', { name: 'Resultado' }).fill('490,75');
     await page.getByRole('button', { name: 'Salvar' }).click();
 
     const approvedComponent = page.locator('.inspection-process__component').first();
-    await expect(approvedComponent).toContainText('Aprovado');
-    await expect(approvedComponent).toContainText('Mín: 485,5');
-    await expect(approvedComponent).toContainText('Máx: 490,75');
+    await expect(approvedComponent).toContainText('Registrado');
+    await expect(approvedComponent).toContainText('Resultado: 490,75');
     await expect(approvedComponent).toContainText(/Apontado em \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
 
     const layout = await approvedComponent.evaluate(element => {

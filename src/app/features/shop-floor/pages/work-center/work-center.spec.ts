@@ -133,6 +133,17 @@ describe('WorkCenterPage', () => {
     expect(validateSpy).toHaveBeenCalled();
   });
 
+  it('validates the work center without submitting and reloading the page', () => {
+    const validateSpy = vi.spyOn(component, 'validateWorkCenter');
+    const button = fixture.debugElement.queryAll(By.css('po-button'))
+      .find(item => item.componentInstance.label() === 'Consultar');
+
+    expect(button?.componentInstance.type()).toBe('button');
+    button?.triggerEventHandler('p-click');
+
+    expect(validateSpy).toHaveBeenCalled();
+  });
+
   it('blocks continuation for an inactive or unknown work center', () => {
     component.workCenterCode = 'CT-MNT-01';
 
@@ -189,6 +200,21 @@ describe('WorkCenterPage', () => {
     expect(component.isLoadingWorkCenter).toBe(false);
   });
 
+  it('keeps a pending work center validation when the field emits the same code', () => {
+    const result = new Subject<WorkCenter | null>();
+    vi.mocked(serviceMock.selectWorkCenter).mockReturnValue(result.asObservable());
+    component.workCenterCode = 'CT-EXT-01';
+
+    component.validateWorkCenter();
+    component.onWorkCenterCodeChange('CT-EXT-01');
+    result.next(centers[0]);
+
+    expect(component.selectedWorkCenter).toEqual(centers[0]);
+    expect(component.canUseOperatorField).toBe(true);
+    expect(component.isLoadingWorkCenter).toBe(false);
+    expect(component.feedback).toBe('Centro de Trabalho carregado.');
+  });
+
   it('clears loading and dependent state when work center validation fails', () => {
     vi.mocked(serviceMock.selectWorkCenter).mockReturnValue(throwError(() => new Error('network')));
     component.selectedWorkCenter = centers[0];
@@ -233,6 +259,17 @@ describe('WorkCenterPage', () => {
     expect(validateSpy).toHaveBeenCalled();
   });
 
+  it('validates the operator without submitting and reloading the page', () => {
+    const validateSpy = vi.spyOn(component, 'validateOperator');
+    const button = fixture.debugElement.queryAll(By.css('po-button'))
+      .find(item => item.componentInstance.label() === 'Validar');
+
+    expect(button?.componentInstance.type()).toBe('button');
+    button?.triggerEventHandler('p-click');
+
+    expect(validateSpy).toHaveBeenCalled();
+  });
+
   it('blocks actions for an inactive or unknown operator', () => {
     component.selectedWorkCenter = centers[0];
     component.operatorCode = 'OP-004';
@@ -257,6 +294,21 @@ describe('WorkCenterPage', () => {
     expect(component.selectedOperator).toBeNull();
     expect(component.operatorCode).toBe('OP-002');
     expect(component.isLoadingOperator).toBe(false);
+  });
+
+  it('keeps a pending operator validation when the field emits the same code', () => {
+    const result = new Subject<Operator | null>();
+    vi.mocked(operatorServiceMock.selectOperator).mockReturnValue(result.asObservable());
+    component.selectedWorkCenter = centers[0];
+    component.operatorCode = 'OP-001';
+
+    component.validateOperator();
+    component.onOperatorCodeChange('OP-001');
+    result.next(operators[0]);
+
+    expect(component.selectedOperator).toEqual(operators[0]);
+    expect(component.isLoadingOperator).toBe(false);
+    expect(component.feedback).toBe('Operador validado.');
   });
 
   it('clears loading and operator state when operator validation fails', () => {

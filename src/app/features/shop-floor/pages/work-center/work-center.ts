@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
@@ -23,6 +23,7 @@ export class WorkCenterPage implements OnInit {
   private readonly workCenterService = inject(WorkCenterService);
   private readonly operatorService = inject(OperatorService);
   private readonly operationalContextService = inject(OperationalContextService);
+  private readonly changeDetectorRef = inject(ChangeDetectorRef);
   private workCenterLookupVersion = 0;
   private operatorLookupVersion = 0;
 
@@ -81,7 +82,10 @@ export class WorkCenterPage implements OnInit {
     this.isLoadingWorkCenter = true;
     this.workCenterService.selectWorkCenter(code).subscribe({
       next: workCenter => {
-        if (lookupVersion !== this.workCenterLookupVersion || this.workCenterCode.trim() !== code) {
+        if (
+          lookupVersion !== this.workCenterLookupVersion ||
+          this.normalizeCode(this.workCenterCode) !== this.normalizeCode(code)
+        ) {
           return;
         }
 
@@ -91,6 +95,7 @@ export class WorkCenterPage implements OnInit {
         if (!workCenter) {
           this.resetWorkCenterContext(false);
           this.feedback = 'Centro de Trabalho não encontrado.';
+          this.changeDetectorRef.markForCheck();
           return;
         }
 
@@ -102,6 +107,7 @@ export class WorkCenterPage implements OnInit {
         }
 
         this.feedback = 'Centro de Trabalho carregado.';
+        this.changeDetectorRef.markForCheck();
       },
       error: () => {
         if (lookupVersion !== this.workCenterLookupVersion) {
@@ -111,6 +117,7 @@ export class WorkCenterPage implements OnInit {
         this.isLoadingWorkCenter = false;
         this.resetWorkCenterContext(false);
         this.feedback = 'Não foi possível validar o Centro de Trabalho.';
+        this.changeDetectorRef.markForCheck();
       },
     });
   }
@@ -134,7 +141,10 @@ export class WorkCenterPage implements OnInit {
     this.isLoadingOperator = true;
     this.operatorService.selectOperator(code).subscribe({
       next: operator => {
-        if (lookupVersion !== this.operatorLookupVersion || this.operatorCode.trim() !== code) {
+        if (
+          lookupVersion !== this.operatorLookupVersion ||
+          this.normalizeCode(this.operatorCode) !== this.normalizeCode(code)
+        ) {
           return;
         }
 
@@ -144,6 +154,7 @@ export class WorkCenterPage implements OnInit {
         if (!operator) {
           this.resetOperatorContext(false);
           this.feedback = 'Operador não encontrado ou inativo.';
+          this.changeDetectorRef.markForCheck();
           return;
         }
 
@@ -151,6 +162,7 @@ export class WorkCenterPage implements OnInit {
         this.validity = '';
         this.operationalContextService.clearContext();
         this.feedback = 'Operador validado.';
+        this.changeDetectorRef.markForCheck();
       },
       error: () => {
         if (lookupVersion !== this.operatorLookupVersion) {
@@ -160,15 +172,17 @@ export class WorkCenterPage implements OnInit {
         this.isLoadingOperator = false;
         this.resetOperatorContext(false);
         this.feedback = 'Não foi possível validar o Operador.';
+        this.changeDetectorRef.markForCheck();
       },
     });
   }
 
   onWorkCenterCodeChange(code: string): void {
+    const codeChanged = this.normalizeCode(this.workCenterCode) !== this.normalizeCode(code);
     this.workCenterCode = code;
 
     if (
-      this.isLoadingWorkCenter ||
+      (this.isLoadingWorkCenter && codeChanged) ||
       (this.selectedWorkCenter && this.normalizeCode(this.selectedWorkCenter.code) !== this.normalizeCode(code))
     ) {
       this.workCenterLookupVersion++;
@@ -178,10 +192,11 @@ export class WorkCenterPage implements OnInit {
   }
 
   onOperatorCodeChange(code: string): void {
+    const codeChanged = this.normalizeCode(this.operatorCode) !== this.normalizeCode(code);
     this.operatorCode = code;
 
     if (
-      this.isLoadingOperator ||
+      (this.isLoadingOperator && codeChanged) ||
       (this.selectedOperator && this.normalizeCode(this.selectedOperator.code) !== this.normalizeCode(code))
     ) {
       this.operatorLookupVersion++;
