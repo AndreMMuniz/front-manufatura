@@ -28,9 +28,9 @@ function json(status: number, body: unknown): Response {
 
 function userResponse(login = 'operador', nome = 'Operador Cortag'): Response {
   return json(200, {
-    total: 1,
-    hasNext: false,
-    items: [{ codUsuario: login, nomUsuario: nome }],
+    total: 20,
+    hasNext: true,
+    items: [{ companyId: '1', code: login, name: nome, dialect: 'PT', email: '' }],
   });
 }
 
@@ -111,7 +111,7 @@ describe('authenticateExternalLogin', () => {
     expect(result.usuario).toEqual({
       id: 'operador',
       login: 'operador',
-      nome: 'Operador Cortag',
+      nome: 'Nome retornado pela segurança',
       permissoes: [APP_PERMISSIONS.mainMenu, APP_PERMISSIONS.qualityControl],
     });
     expect(result.tokenExpiresAt).toBe('2026-08-07T12:01:00.000Z');
@@ -171,15 +171,20 @@ describe('authenticateExternalLogin', () => {
     )).rejects.toMatchObject({ status: 502, code: 'invalid-upstream-response' });
   });
 
-  it('exige que /usuarios retorne exatamente a identidade autenticada', async () => {
-    const transport = vi.fn().mockResolvedValue(json(200, {
-      total: 1, hasNext: false, items: [{ codUsuario: 'outro', nomUsuario: 'Outro' }],
-    }));
+  it('não exige que o usuário esteja na primeira página do catálogo /usuarios', async () => {
+    const transport = vi.fn().mockResolvedValueOnce(userResponse('outro', 'Outro usuário'));
+    for (const { program } of DATASUL_SECURITY_PROGRAMS) {
+      transport.mockResolvedValueOnce(securityResponse(program, program === 'fcq-0001'));
+    }
 
-    await expect(authenticateExternalLogin(
+    const result = await authenticateExternalLogin(
       { login: 'operador', senha: 'literal' }, ENV, dependencies(transport),
-    )).rejects.toMatchObject({ status: 502, code: 'invalid-upstream-response' });
-    expect(transport).toHaveBeenCalledTimes(1);
+    );
+
+    expect(result.usuario).toMatchObject({
+      login: 'operador',
+      nome: 'Nome retornado pela segurança',
+    });
   });
 
   it('codifica individualmente usuário e programa no path', async () => {

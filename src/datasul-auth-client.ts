@@ -27,6 +27,11 @@ export interface DatasulAuthClientDependencies {
   timeoutSignal: (timeoutMs: number) => AbortSignal;
 }
 
+interface DatasulProgramAccess {
+  readonly allowed: boolean;
+  readonly userName: string;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -105,31 +110,30 @@ export async function authenticateAndAuthorizeDatasul(
     config,
     dependencies,
   );
-  const userItems = validateEnvelope(users);
-  const matchingUsers = userItems.filter(item => isRecord(item) && item['codUsuario'] === login);
-  if (matchingUsers.length !== 1) {
-    throw new AuthLoginError(502, 'invalid-upstream-response');
-  }
-  const user = matchingUsers[0];
-  if (!isRecord(user)
-    || typeof user['nomUsuario'] !== 'string'
-    || user['nomUsuario'].trim().length === 0) {
-    throw new AuthLoginError(502, 'invalid-upstream-response');
-  }
+  // A API de usuários é um catálogo paginado com campos `code`/`name`.
+  // O sucesso autenticado valida as credenciais, mas a primeira página não
+  // necessariamente contém o próprio usuário. A identidade canônica deste
+  // login vem da API de segurança, que é consultada pelo código informado.
+  validateEnvelope(users);
 
   const access = await Promise.all(DATASUL_SECURITY_PROGRAMS.map(async definition => {
     return getProgramAccess(login, authorization, definition.program, config, dependencies);
   }));
   const permissoes: AppPermission[] = [APP_PERMISSIONS.mainMenu];
   DATASUL_SECURITY_PROGRAMS.forEach((definition, index) => {
-    if (access[index]) {
+    if (access[index]?.allowed) {
       permissoes.push(definition.permission);
     }
   });
 
+  const userName = access[0]?.userName;
+  if (!userName) {
+    throw new AuthLoginError(502, 'invalid-upstream-response');
+  }
+
   return {
     codUsuario: login,
-    nomUsuario: user['nomUsuario'],
+    nomUsuario: userName,
     permissoes,
   };
 }
@@ -140,7 +144,7 @@ async function getProgramAccess(
   program: DatasulSecurityProgram,
   config: DatasulAuthConfig,
   dependencies: DatasulAuthClientDependencies,
-): Promise<boolean> {
+): Promise<DatasulProgramAccess> {
   const securityPath = [login, program]
     .map(segment => encodeURIComponent(segment))
     .join('/');
@@ -163,5 +167,8 @@ async function getProgramAccess(
     || typeof item['temAcesso'] !== 'boolean') {
     throw new AuthLoginError(502, 'invalid-upstream-response');
   }
-  return item['temAcesso'];
+  return {
+    allowed: item['temAcesso'],
+    userName: item['nomUsuario'],
+  };
 }
