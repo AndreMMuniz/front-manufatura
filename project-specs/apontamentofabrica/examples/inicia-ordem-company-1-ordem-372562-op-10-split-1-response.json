@@ -1,0 +1,19 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "inicioOrdem": [
+        {
+          "dataInicioReporte": "2026-07-21",
+          "opCodigo": 10,
+          "horaInicioReporte": "0935",
+          "nrOrdemProducao": 372562,
+          "mensagem": "Reporte iniciado com sucesso",
+          "codCtrab": "PRE-006-02",
+          "numSplitOperac": 1
+        }
+      ]
+    }
+  ]
+}

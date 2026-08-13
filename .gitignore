@@ -93,6 +93,10 @@ project-specs/*
 !project-specs/planodecontrole-api/
 !project-specs/planodecontrole-api/**
 
+# Keep Apontamento de Fabrica API documentation versioned
+!project-specs/apontamentofabrica/
+!project-specs/apontamentofabrica/**
+
 # Local skills
 skills/
 skill/

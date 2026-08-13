@@ -1,0 +1,32 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "dadosApontamento": [
+        {
+          "desOperacao": "CORTAR / REMACHAR ALAVANCA",
+          "qtdOrdem": 1000.0,
+          "qtdAprovada": 0.0,
+          "opCodigo": 10,
+          "itCodigo": "30907",
+          "desGrupoMaquina": "PRENSA 45T",
+          "desModelTurno": "SEG ~ SÁB 2T - SABÁDO SIM",
+          "numSplitOperac": 1,
+          "indReporteMod": 2,
+          "qtdRefugo": 0.0,
+          "qtdSaldo": 1000.0,
+          "nrOrdemProducao": 372562,
+          "un": "UN",
+          "codCtrab": "PRE-006-02",
+          "codModelTurno": "MTZ-02",
+          "descItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
+          "codGrupoMaquina": "PRE-006",
+          "qtdRetrabalho": 0.0,
+          "numOperacSfc": 1,
+          "desCtrab": "PRENSA 45T SENSITIVE 2"
+        }
+      ]
+    }
+  ]
+}

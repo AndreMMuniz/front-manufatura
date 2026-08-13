@@ -1,0 +1,90 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "centrosTrabalho": [
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "99999-01",
+          "desCtrab": "PARADA CT GENERICO MTZ - 1"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "99999-02",
+          "desCtrab": "PARADA CT GENERICO MTZ - 2"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "BAN-012-01",
+          "desCtrab": "BANCADA DE APOIO ESTAMPARIA"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "CORT-001-01",
+          "desCtrab": "MÁQ CORTE/CURVA E DOBRA ALETA"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "CUR-001-01",
+          "desCtrab": "MÁQUINA CURVADORA DE TUBOS ELÉTRICA CT-5"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "END-01-01",
+          "desCtrab": "ENDIREITADOR VINCO PRIME"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "LIX-001-01",
+          "desCtrab": "LIXADEIRA FITA 1"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "LIX-001-02",
+          "desCtrab": "LIXADEIRA FITA 2"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PERF-01-01",
+          "desCtrab": "PERFILADEIRA"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PRE-001-01",
+          "desCtrab": "PRENSA DHALMAR"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PRE-006-01",
+          "desCtrab": "PRENSA 45T SENSITIVE 1"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PRE-006-02",
+          "desCtrab": "PRENSA 45T SENSITIVE 2"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PRE-007-01",
+          "desCtrab": "PRENSA EXCÊNTRICA 200T JUNDIAI"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PRE-008-01",
+          "desCtrab": "PRENSA EXCÊNTRICA 400T JUNDIAI"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PRE-009-01",
+          "desCtrab": "PRENSA EXCÊNTRICA JUNDIAI 110T"
+        },
+        {
+          "codAreaProduc": "4104",
+          "codCtrab": "PRE-010-01",
+          "desCtrab": "PRENSA EXCÊNTRICA 15T PROVINC"
+        }
+      ]
+    }
+  ]
+}
