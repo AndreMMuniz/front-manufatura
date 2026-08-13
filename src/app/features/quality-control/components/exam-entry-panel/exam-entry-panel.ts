@@ -16,7 +16,6 @@ import { catchError, concatMap, Observable, of, tap } from 'rxjs';
 import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
 
 import { SaveMeasurementResponse } from '../../models/inspection-record';
-import { QualityMeasurementStatus } from '../../models/quality-exam';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 import { OperatorService } from '../../../shop-floor/services/operator';
@@ -44,6 +43,7 @@ export class ExamEntryPanel implements AfterViewInit {
   stopReason = '';
   stopValidationMessage = '';
   private validationIsOutOfRange = false;
+  private finalizationQueued = false;
 
   ngAfterViewInit(): void {
     this.panelTitle?.nativeElement.focus();
@@ -55,8 +55,15 @@ export class ExamEntryPanel implements AfterViewInit {
   get currentIndex(): number {
     return this.characteristics.findIndex(component => component.id === this.currentCharacteristic?.id);
   }
-  get minimum(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).minimum : ''; }
-  get maximum(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).maximum : ''; }
+  get result(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).result : ''; }
+  get selectedOptionKey(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).selectedOptionKey : ''; }
+  get resultOptions(): readonly { label: string; value: string }[] {
+    return (this.currentCharacteristic?.resultOptions ?? []).map(option => ({
+      label: option.description,
+      value: `${option.tableNumber}:${option.sequence}`,
+    }));
+  }
+  get hasResultOptions(): boolean { return this.resultOptions.length > 0; }
   get observation(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).observation : ''; }
   set observation(value: string) {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
@@ -73,16 +80,20 @@ export class ExamEntryPanel implements AfterViewInit {
       && !this.workflow.isBusy();
   }
   get isExamComplete(): boolean {
-    return this.characteristics.length > 0 && this.completedCount === this.characteristics.length;
+    return this.workflow.components().length > 0
+      && this.workflow.completedCount() === this.workflow.components().length;
   }
   get hasRejectedMeasurement(): boolean {
-    return this.characteristics.some(item => item.measurement?.status === 'REJECTED');
+    return this.workflow.components().some(item => item.measurement?.withinRange === false);
   }
   get showStopRoute(): boolean {
     return this.isExamComplete && this.hasRejectedMeasurement;
   }
   get canCompleteExam(): boolean {
-    return this.isExamComplete && !this.hasRejectedMeasurement && !this.workflow.isBusy();
+    return this.isExamComplete
+      && !this.hasRejectedMeasurement
+      && !this.finalizationQueued
+      && !this.workflow.isBusy();
   }
   get canStopRoute(): boolean {
     return this.showStopRoute && !this.workflow.isBusy();
@@ -90,11 +101,11 @@ export class ExamEntryPanel implements AfterViewInit {
   get isCurrentMeasurementLocked(): boolean { return Boolean(this.currentCharacteristic?.measurement); }
   get hasOutOfRangeAlert(): boolean {
     return this.validationIsOutOfRange
-      || this.currentCharacteristic?.measurement?.status === 'REJECTED';
+      || this.currentCharacteristic?.measurement?.withinRange === false;
   }
   get outOfRangeMessage(): string {
-    return this.currentCharacteristic?.measurement?.status === 'REJECTED'
-      ? 'Valores fora da variação permitida'
+    return this.currentCharacteristic?.measurement?.withinRange === false
+      ? 'Resultado fora da faixa segundo o Datasul'
       : this.validationMessage;
   }
   get currentMeasurementReference(): string {
@@ -103,17 +114,17 @@ export class ExamEntryPanel implements AfterViewInit {
       : '-';
   }
 
-  updateMinimum(value: string): void {
+  updateResult(value: string): void {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
       this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
-      this.workflow.updateDraft(this.currentCharacteristic.id, { minimum: this.sanitizeNumericInput(value) });
+      this.workflow.updateDraft(this.currentCharacteristic.id, { result: this.sanitizeNumericInput(value) });
     }
   }
 
-  updateMaximum(value: string): void {
+  updateSelectedOption(value: string): void {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
       this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
-      this.workflow.updateDraft(this.currentCharacteristic.id, { maximum: this.sanitizeNumericInput(value) });
+      this.workflow.updateDraft(this.currentCharacteristic.id, { selectedOptionKey: value });
     }
   }
 
@@ -125,25 +136,23 @@ export class ExamEntryPanel implements AfterViewInit {
     }
     this.clearValidation();
     const draft = this.workflow.draftFor(characteristic.id);
-    const minimum = this.parseNumber(draft.minimum);
-    const maximum = this.parseNumber(draft.maximum);
-    if (minimum === null || maximum === null) {
-      this.validationMessage = 'Informe valores numéricos para Min e Max.';
+    const selectedOption = characteristic.resultOptions?.find(
+      option => `${option.tableNumber}:${option.sequence}` === draft.selectedOptionKey,
+    );
+    const result = this.hasResultOptions ? null : this.parseNumber(draft.result);
+    if (this.hasResultOptions ? !selectedOption : result === null) {
+      this.validationMessage = this.hasResultOptions
+        ? 'Selecione uma opção de resultado.'
+        : 'Informe um resultado numérico.';
       return of(null);
     }
-
-    const validation = this.qualityControlService.validateMeasurementRange(characteristic, { minimum, maximum });
-    let status: QualityMeasurementStatus = 'APPROVED';
-    if (validation.valid === false) {
-      this.validationMessage = validation.message;
-      if (validation.reason === 'OUT_OF_RANGE') {
-        this.validationIsOutOfRange = true;
-        this.workflow.markComponentOutOfRange(characteristic.id);
-        status = 'REJECTED';
-      } else {
-        this.workflow.clearComponentOutOfRange(characteristic.id);
-        return of(null);
-      }
+    if (result !== null && !this.hasSupportedPrecision(draft.result, characteristic.decimalPlaces)) {
+      this.validationMessage = `Informe no máximo ${characteristic.decimalPlaces} casa(s) decimal(is).`;
+      return of(null);
+    }
+    if (result !== null && (result < characteristic.minValue || result > characteristic.maxValue)) {
+      this.validationMessage = 'Resultado fora da referência; a decisão final será retornada pelo Datasul.';
+      this.validationIsOutOfRange = true;
     }
 
     this.workflow.isSaving.set(true);
@@ -155,10 +164,9 @@ export class ExamEntryPanel implements AfterViewInit {
       return of(null);
     }
     const fingerprint = JSON.stringify({
-      minimum,
-      maximum,
+      result,
+      selectedOptionKey: draft.selectedOptionKey,
       observation: draft.observation.trim(),
-      status,
       operatorId: this.operatorService.selectedOperator?.code ?? '',
     });
     const idempotencyKey = this.workflow.ensureMeasurementCommandId(
@@ -174,22 +182,46 @@ export class ExamEntryPanel implements AfterViewInit {
     return this.qualityControlService.saveMeasurement({
       examId: exam.id,
       componentId: characteristic.id,
-      routeNumber: route.localId ?? route.creationCommandId ?? route.routeNumber,
+      routeNumber: route.routeNumber,
+      nrFicha: route.nrFicha ?? Number(route.routeNumber),
+      examCode: characteristic.examCode ?? Number(exam.code),
+      componentCode: characteristic.componentCode ?? Number(characteristic.code),
+      ...(selectedOption ? {
+        tableNumber: selectedOption.tableNumber,
+        optionSequence: selectedOption.sequence,
+      } : {}),
       idempotencyKey,
       dependencyIds,
       measurement: {
-        minimum,
-        maximum,
+        ...(result !== null ? { result } : {}),
+        ...(selectedOption ? { selectedOption } : {}),
         observation: draft.observation.trim() || undefined,
-        status,
+        status: 'RECORDED',
       },
       operatorId: this.operatorService.selectedOperator?.code ?? '',
     }).pipe(
       tap(response => {
         this.workflow.applyMeasurement(exam.id, characteristic.id, response.measurement);
+        if (response.idempotencyKey) {
+          this.qualityControlService.watchMeasurementDelivery(response.idempotencyKey)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(update => {
+              const current = this.workflow.componentById(characteristic.id)?.measurement;
+              if (!current) return;
+              this.workflow.applyMeasurement(exam.id, characteristic.id, {
+                ...current,
+                ...update,
+                status: update.withinRange === true
+                  ? 'APPROVED'
+                  : update.withinRange === false
+                    ? 'REJECTED'
+                    : 'RECORDED',
+              });
+            });
+        }
         this.workflow.isSaving.set(false);
         this.workflow.examFeedback.set('Salvo neste dispositivo — envio pendente.');
-        this.clearValidation();
+        this.validationIsOutOfRange = false;
         if (!this.showStopRoute) {
           this.workflow.moveToNextPending(characteristic.id);
         }
@@ -233,32 +265,40 @@ export class ExamEntryPanel implements AfterViewInit {
     if (!exam || !route?.routeNumber || !this.canCompleteExam) return;
     this.workflow.isFinishing.set(true);
     this.workflow.examFeedback.set('Concluindo exame...');
-    const measurementCommandIds = this.workflow.measurementCommandIds(exam.id);
+    const measurementCommandIds = this.workflow.exams()
+      .flatMap(item => this.workflow.measurementCommandIds(item.id));
     const finishCommandId =
-      this.workflow.ensureFinishCommandId(exam.id, () => this.idempotency.resolve());
-    const inspectionCommandId =
-      this.workflow.ensureInspectionCommandId(exam.id, () => this.idempotency.resolve());
+      this.workflow.ensureFinishCommandId(route.routeNumber, () => this.idempotency.resolve());
     this.qualityControlService.finishExam({
-      examId: exam.id,
-      routeNumber: route.localId ?? route.creationCommandId ?? route.routeNumber,
+      examId: `route-${route.routeNumber}`,
+      routeNumber: route.routeNumber,
       idempotencyKey: finishCommandId,
       dependencyIds: [
-        ...(route.creationCommandId ? [route.creationCommandId] : []),
         ...measurementCommandIds,
       ],
     })
       .pipe(
-        concatMap(() => this.captureInspection(
-          this.inspectionPayload(exam, route, inspectionCommandId, [finishCommandId]),
-        )),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: () => {
           this.workflow.isFinishing.set(false);
-          this.workflow.examFeedback.set('Salvo neste dispositivo — envio pendente.');
-          const nextComponentId = this.workflow.selectNextPendingAndClose();
-          this.panelClosed.emit(nextComponentId);
+          this.finalizationQueued = true;
+          this.workflow.examFeedback.set('Finalização registrada — aguardando sincronização dos resultados.');
+          this.qualityControlService.watchFinalizationDelivery(finishCommandId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(update => {
+              if (update.deliveryStatus === 'PENDING') return;
+              if (update.deliveryStatus === 'SYNCED' && update.finalizado === true) {
+                const detail = update.mensagem?.trim();
+                this.workflow.examFeedback.set(detail || 'Ficha finalizada e confirmada pelo Datasul.');
+                return;
+              }
+              this.workflow.examFeedback.set(
+                update.mensagem?.trim()
+                  || 'A finalização não foi confirmada pelo Datasul. Consulte a Central de Sincronização.',
+              );
+            });
         },
         error: () => {
           this.workflow.isFinishing.set(false);
@@ -335,12 +375,11 @@ export class ExamEntryPanel implements AfterViewInit {
         componentId: component.id,
         componentCode: component.code,
         description: component.description,
-        measuredMinimum: measurement.minimum,
-        measuredMaximum: measurement.maximum,
+        measuredValue: measurement.result,
         expectedMin: component.minValue,
         expectedMax: component.maxValue,
         unit: component.unit,
-        status: measurement.status,
+        status: measurement.withinRange === false ? 'REJECTED' as const : 'APPROVED' as const,
         ...(measurement.observation ? { observation: measurement.observation } : {}),
       }];
     });
@@ -387,8 +426,14 @@ export class ExamEntryPanel implements AfterViewInit {
     let hasSeparator = false;
     for (const char of value) {
       if (/\d/.test(char)) result += char;
+      else if (char === '-' && result.length === 0) result = '-';
       else if ((char === ',' || char === '.') && !hasSeparator) { result += char; hasSeparator = true; }
     }
     return result;
+  }
+
+  private hasSupportedPrecision(value: string, decimalPlaces: number): boolean {
+    const separatorIndex = Math.max(value.lastIndexOf(','), value.lastIndexOf('.'));
+    return separatorIndex < 0 || value.length - separatorIndex - 1 <= decimalPlaces;
   }
 }

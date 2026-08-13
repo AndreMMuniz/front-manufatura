@@ -27,7 +27,7 @@ export class InspectionSection {
 
   get canOpenExamEntry(): boolean {
     const selected = this.workflow.selectedComponent();
-    return Boolean(selected && selected.measurement?.status !== 'APPROVED' && !this.workflow.isBusy());
+    return Boolean(selected && !this.workflow.isBusy());
   }
 
   selectComponent(component: QualityExamComponent): void {
@@ -81,17 +81,27 @@ export class InspectionSection {
   }
 
   isApproved(component: QualityExamComponent): boolean {
-    return component.measurement?.status === 'APPROVED';
+    return component.measurement?.withinRange === true;
   }
 
   isRejected(component: QualityExamComponent): boolean {
-    return component.measurement?.status === 'REJECTED';
+    return component.measurement?.withinRange === false;
   }
 
   statusLabel(component: QualityExamComponent): string {
     if (this.isApproved(component)) return 'Aprovado';
-    if (this.workflow.isComponentOutOfRange(component.id)) return 'Valores fora da variação permitida';
+    if (this.isRejected(component)) return 'Reprovado pelo Datasul';
+    if (component.measurement?.deliveryStatus === 'SYNCED') return 'Sincronizado — aguardando decisão funcional';
+    if (component.measurement) return 'Registrado localmente — envio pendente';
+    if (this.workflow.isComponentOutOfRange(component.id)) return 'Resultado fora da referência local';
     return this.isSelected(component) ? 'Em inspeção' : 'Pendente';
+  }
+
+  measurementResult(component: QualityExamComponent): string | null {
+    const measurement = component.measurement;
+    if (!measurement) return null;
+    if (measurement.selectedOption) return measurement.selectedOption.description;
+    return measurement.result === undefined ? null : this.formatMeasurementValue(measurement.result);
   }
 
   formatMeasurementValue(value: number): string {

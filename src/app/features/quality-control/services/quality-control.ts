@@ -1,5 +1,6 @@
 import { Inject, Injectable, InjectionToken, Optional } from '@angular/core';
-import { Observable, from, map, of, switchMap, throwError } from 'rxjs';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable, from, map, of, startWith, switchMap, throwError } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
@@ -7,6 +8,7 @@ import { LocalRecordRepository } from '../../../core/offline/repositories/local-
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { SupervisorProofVault } from '../../../core/offline/services/supervisor-proof-vault';
 import { SyncTriggerService } from '../../../core/offline/services/sync-trigger.service';
+import { OutboxActivityService } from '../../../core/offline/services/outbox-activity.service';
 
 import {
   GenerateInspectionRouteRequest,
@@ -26,6 +28,10 @@ import {
   SaveInspectionPayload,
   SaveInspectionResult,
 } from '../models/inspection-record';
+import {
+  mapInspectionRouteEnvelope,
+  mapProductionOrderEnvelope,
+} from '../mappers/datasul-quality-control.mapper';
 
 export interface StopInspectionRouteRequest {
   routeNumber: string;
@@ -66,6 +72,19 @@ export interface RestoredQualityWorkflow {
   readonly inspectionCommandIds: Readonly<Record<string, string>>;
 }
 
+export interface QualityMeasurementDeliveryUpdate {
+  readonly deliveryStatus: 'PENDING' | 'SYNCED' | 'ERROR';
+  readonly withinRange?: boolean;
+}
+
+export interface QualityRouteFinalizationDeliveryUpdate {
+  readonly deliveryStatus: 'PENDING' | 'SYNCED' | 'ERROR';
+  readonly finalizado?: boolean;
+  readonly inspecionado?: boolean;
+  readonly componentesPendentes?: number;
+  readonly mensagem?: string;
+}
+
 export const REACTION_PLAN_AUTHORIZER =
   new InjectionToken<ReactionPlanAuthorizationAdapter>('REACTION_PLAN_AUTHORIZER');
 
@@ -81,135 +100,44 @@ export class QualityControlService {
     @Optional() private readonly outbox?: OutboxRepository,
     @Optional() private readonly syncTrigger?: SyncTriggerService,
     @Optional() private readonly localRecords?: LocalRecordRepository,
+    @Optional() private readonly http: HttpClient | null = null,
+    @Optional() private readonly outboxActivity: OutboxActivityService | null = null,
   ) {}
 
-  // API facade: keep the UI bound to these contracts while Datasul endpoints are unavailable.
   getProductionOrderOperations(orderNumber: string): Observable<ProductionOrderOperationsResult> {
-    return of({
-      orderNumber,
-      operations: [
-        {
-          operationCode: '10',
-          operationDescription: 'Cortar chapa',
-          split: '1',
-          itemCode: '30907',
-          itemDescription: 'Alavanca Master 75 OP10',
-          processDescription: 'Corte de chapa',
-        },
-        {
-          operationCode: '20',
-          operationDescription: 'Dobrar chapa',
-          split: '1',
-          itemCode: '30907',
-          itemDescription: 'Alavanca Master 75 OP10',
-          processDescription: 'Dobra de chapa',
-        },
-        {
-          operationCode: '30',
-          operationDescription: 'Soldar',
-          split: '1',
-          itemCode: '30907',
-          itemDescription: 'Alavanca Master 75 OP10',
-          processDescription: 'Soldagem',
-        },
-      ],
-    });
+    const numeric = Number(orderNumber);
+    if (!Number.isSafeInteger(numeric) || numeric <= 0) {
+      return throwError(() => new Error('invalid-order-number'));
+    }
+    return this.httpClient().get<unknown>(
+      `/api/quality-control/orders/${numeric}`,
+      { headers: this.authHeaders() },
+    ).pipe(map(mapProductionOrderEnvelope));
   }
 
   generateInspectionRoute(
     request: GenerateInspectionRouteRequest,
   ): Observable<ProductionOrderRoute> {
-    const aggregateId =
-      request.idempotencyKey
-      ?? `${request.orderNumber}-${request.operation.operationCode}-${request.operation.split?.trim() || '1'}`;
-    const routeNumber = '475.956';
-    const occurredAt = new Date().toISOString();
-    return from(this.commands.capture({
-      commandType: 'GENERATE_INSPECTION_ROUTE',
-      aggregateId,
-      businessStatus: 'GERADO',
-      ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
-      occurredAt,
-      payload: {
-        routeNumber,
-        orderNumber: request.orderNumber,
-        operationCode: request.operation.operationCode,
-        operationDescription: request.operation.operationDescription,
-        processDescription: request.operation.processDescription,
-        split: request.operation.split?.trim() || '1',
-        itemCode: request.operation.itemCode,
-        itemDescription: request.operation.itemDescription,
-        moveBalance: request.moveBalance,
-        generatedAt: occurredAt,
-      },
-    })).pipe(map(confirmation => ({
-      localId: confirmation.localId,
-      creationCommandId: confirmation.idempotencyKey,
-      routeNumber,
-      processDescription: request.operation.processDescription,
-      currentOrder: request.orderNumber,
-      operationCode: request.operation.operationCode,
-      operationDescription: `${request.operation.operationCode} - ${request.operation.operationDescription}`,
-      split: request.operation.split?.trim() || '1',
-      itemCode: request.operation.itemCode,
-      itemDescription: request.operation.itemDescription,
-    })));
+    const orderNumber = Number(request.orderNumber);
+    const operationCode = Number(request.operation.operationCode);
+    if (
+      !Number.isSafeInteger(orderNumber) || orderNumber <= 0
+      || !Number.isSafeInteger(operationCode) || operationCode <= 0
+    ) {
+      return throwError(() => new Error('invalid-route-request'));
+    }
+    return this.httpClient().post<unknown>(
+      '/api/quality-control/routes',
+      { nrOrdemProducao: orderNumber, codOperacao: operationCode },
+      { headers: this.authHeaders() },
+    ).pipe(map(value => mapInspectionRouteEnvelope(value, {
+      orderNumber: request.orderNumber,
+      operation: request.operation,
+    }).route));
   }
 
-  getQualityExams(itemCode: string, operationCode: string): Observable<QualityExam[]> {
-    return of([
-      {
-        id: `${itemCode}-${operationCode}-500517`,
-        code: '500517',
-        description: 'Filmes e Mangueiras',
-        version: '1',
-        frequency: '2',
-        sample: '1 pc',
-        unit: 'pc',
-        nqa: '0,000',
-        level: '1',
-        responsible: 'BUENO',
-        observation: 'Visual 100% do corte !',
-        components: [
-          {
-            id: '500517-010',
-            code: '010',
-            description: 'Cota 488,0 +/- 3,0mm',
-            reference: '485 - 491',
-            measurementMethod: 'Régua',
-            minValue: 485,
-            maxValue: 491,
-            unit: 'mm',
-            sequence: 10,
-            status: 'PENDING',
-          },
-          {
-            id: '500517-020',
-            code: '020',
-            description: 'Cota 255,0 +/- 0,5mm',
-            reference: '254,5 - 255,5',
-            measurementMethod: 'Paquímetro',
-            minValue: 254.5,
-            maxValue: 255.5,
-            unit: 'mm',
-            sequence: 20,
-            status: 'PENDING',
-          },
-          {
-            id: '500517-030',
-            code: '030',
-            description: 'Cota 380,0 +/- 5,0mm',
-            reference: '375 - 385',
-            measurementMethod: 'Régua',
-            minValue: 375,
-            maxValue: 385,
-            unit: 'mm',
-            sequence: 30,
-            status: 'PENDING',
-          },
-        ],
-      },
-    ]);
+  getQualityExams(route: ProductionOrderRoute): Observable<QualityExam[]> {
+    return of([...(route.exams ?? [])]);
   }
 
   restoreLatestConfirmedRoute(): Observable<RestoredQualityWorkflow | null> {
@@ -252,27 +180,28 @@ export class QualityControlService {
       };
       const measurements = records
         .filter(record =>
-          record.commandType === 'SAVE_MEASUREMENT'
+          (record.commandType === 'SAVE_QUALITY_RESULT' || record.commandType === 'SAVE_MEASUREMENT')
           && (record.aggregateId === generated.localId
             || record.dependencyIds.includes(generated.idempotencyKey)))
         .flatMap(record => {
           const value = record.payload as Record<string, unknown>;
-          if (
-            !nonEmptyText(value['examId'])
-            || !nonEmptyText(value['componentId'])
-            || typeof value['minimum'] !== 'number'
-            || typeof value['maximum'] !== 'number'
-            || (value['status'] !== 'APPROVED' && value['status'] !== 'REJECTED')
-          ) {
+          if (!nonEmptyText(value['examId']) || !nonEmptyText(value['componentId'])) {
             return [];
           }
+          const result = typeof value['resultado'] === 'number' ? value['resultado'] : undefined;
+          const tableNumber = typeof value['nrTabela'] === 'number' ? value['nrTabela'] : undefined;
+          const optionSequence = typeof value['seqOpcao'] === 'number' ? value['seqOpcao'] : undefined;
+          if (result === undefined && (tableNumber === undefined || optionSequence === undefined)) return [];
           return [{
             examId: value['examId'],
             componentId: value['componentId'],
             measurement: {
-              minimum: value['minimum'],
-              maximum: value['maximum'],
-              status: value['status'] as QualityMeasurement['status'],
+              ...(result !== undefined ? { result } : {}),
+              ...(tableNumber !== undefined && optionSequence !== undefined
+                ? { selectedOption: { tableNumber, sequence: optionSequence, description: textOr(value['optionDescription'], '') } }
+                : {}),
+              status: 'RECORDED' as const,
+              deliveryStatus: 'PENDING' as const,
               ...(nonEmptyText(value['observation'])
                 ? { observation: value['observation'] }
                 : {}),
@@ -284,7 +213,7 @@ export class QualityControlService {
         });
       const finishCommandIds = Object.fromEntries(records
         .filter(record =>
-          record.commandType === 'FINISH_EXAM'
+          record.commandType === 'FINALIZE_QUALITY_ROUTE'
           && record.aggregateId === generated.localId)
         .flatMap(record => {
           const value = record.payload as Record<string, unknown>;
@@ -349,21 +278,42 @@ export class QualityControlService {
 
   saveMeasurement(request: SaveMeasurementRequest): Observable<SaveMeasurementResponse> {
     const savedAt = new Date();
+    const nrFicha = request.nrFicha ?? Number(request.routeNumber);
+    const codExame = request.examCode;
+    const codComponente = request.componentCode;
+    if (
+      !Number.isSafeInteger(nrFicha) || nrFicha <= 0
+      || !Number.isSafeInteger(codExame) || codExame <= 0
+      || !Number.isSafeInteger(codComponente) || codComponente <= 0
+    ) {
+      return throwError(() => new Error('invalid-quality-result-identity'));
+    }
+    const hasNumericResult = typeof request.measurement.result === 'number'
+      && Number.isFinite(request.measurement.result);
+    const option = request.measurement.selectedOption;
+    if (hasNumericResult === Boolean(option)) {
+      return throwError(() => new Error('invalid-quality-result'));
+    }
     return from(this.commands.capture({
-      commandType: 'SAVE_MEASUREMENT',
-      aggregateId: request.examId,
-      businessStatus: request.measurement.status,
+      commandType: 'SAVE_QUALITY_RESULT',
+      aggregateId: String(nrFicha),
+      businessStatus: 'REGISTRADO_LOCALMENTE',
       ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
       ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
       occurredAt: savedAt.toISOString(),
       payload: {
-        routeNumber: request.routeNumber ?? '',
+        nrFicha,
+        codExame,
+        codComponente,
         examId: request.examId,
         componentId: request.componentId,
-        minimum: request.measurement.minimum,
-        maximum: request.measurement.maximum,
+        ...(hasNumericResult ? { resultado: request.measurement.result! } : {}),
+        ...(option ? {
+          nrTabela: option.tableNumber,
+          seqOpcao: option.sequence,
+          optionDescription: option.description,
+        } : {}),
         observation: request.measurement.observation ?? '',
-        status: request.measurement.status,
         operatorId: request.operatorId,
         savedAt: savedAt.toISOString(),
       },
@@ -372,11 +322,78 @@ export class QualityControlService {
       idempotencyKey: confirmation.idempotencyKey,
       measurement: {
         ...request.measurement,
+        status: 'RECORDED',
+        deliveryStatus: 'PENDING',
         operatorId: request.operatorId,
         savedAt,
         commandId: confirmation.idempotencyKey,
       },
     })));
+  }
+
+  watchMeasurementDelivery(idempotencyKey: string): Observable<QualityMeasurementDeliveryUpdate> {
+    const ownerId = this.authSession?.currentUser?.id.trim();
+    if (!ownerId || !this.outbox || !this.outboxActivity) {
+      return of({ deliveryStatus: 'PENDING' });
+    }
+    return this.outboxActivity.invalidations$.pipe(
+      startWith({ type: 'invalidate' as const, version: 0, origin: 'initial' }),
+      switchMap(() => from(this.outbox!.getByIdempotencyKey(ownerId, idempotencyKey))),
+      map(entry => {
+        if (entry?.status === 'SYNCED') {
+          const business = entry.receipt?.businessResult;
+          const withinRange = business && typeof business === 'object' && !Array.isArray(business)
+            && typeof business['dentroFaixa'] === 'boolean'
+            ? business['dentroFaixa']
+            : undefined;
+          return {
+            deliveryStatus: 'SYNCED' as const,
+            ...(withinRange !== undefined ? { withinRange } : {}),
+          };
+        }
+        if (entry?.status === 'ERROR' || entry?.status === 'BLOCKED_DEPENDENCY') {
+          return { deliveryStatus: 'ERROR' as const };
+        }
+        return { deliveryStatus: 'PENDING' as const };
+      }),
+    );
+  }
+
+  watchFinalizationDelivery(
+    idempotencyKey: string,
+  ): Observable<QualityRouteFinalizationDeliveryUpdate> {
+    const ownerId = this.authSession?.currentUser?.id.trim();
+    if (!ownerId || !this.outbox || !this.outboxActivity) {
+      return of({ deliveryStatus: 'PENDING' });
+    }
+    return this.outboxActivity.invalidations$.pipe(
+      startWith({ type: 'invalidate' as const, version: 0, origin: 'initial' }),
+      switchMap(() => from(this.outbox!.getByIdempotencyKey(ownerId, idempotencyKey))),
+      map(entry => {
+        if (entry?.status === 'SYNCED') {
+          const business = entry.receipt?.businessResult;
+          if (!business || typeof business !== 'object' || Array.isArray(business)) {
+            return { deliveryStatus: 'ERROR' as const, mensagem: 'Resposta funcional do Datasul indisponível.' };
+          }
+          return {
+            deliveryStatus: 'SYNCED' as const,
+            ...(typeof business['finalizado'] === 'boolean' ? { finalizado: business['finalizado'] } : {}),
+            ...(typeof business['inspecionado'] === 'boolean' ? { inspecionado: business['inspecionado'] } : {}),
+            ...(typeof business['componentesPendentes'] === 'number'
+              ? { componentesPendentes: business['componentesPendentes'] }
+              : {}),
+            ...(typeof business['mensagem'] === 'string' ? { mensagem: business['mensagem'] } : {}),
+          };
+        }
+        if (entry?.status === 'ERROR' || entry?.status === 'BLOCKED_DEPENDENCY') {
+          return {
+            deliveryStatus: 'ERROR' as const,
+            ...(entry.lastError?.userMessage ? { mensagem: entry.lastError.userMessage } : {}),
+          };
+        }
+        return { deliveryStatus: 'PENDING' as const };
+      }),
+    );
   }
 
   finishExam(request: {
@@ -392,19 +409,34 @@ export class QualityControlService {
   }> {
     const finishedAt = new Date();
     return from(this.commands.capture({
-      commandType: 'FINISH_EXAM',
+      commandType: 'FINALIZE_QUALITY_ROUTE',
       aggregateId: request.routeNumber,
-      businessStatus: 'FINALIZADO',
+      businessStatus: 'FINALIZACAO_PENDENTE',
       ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
       ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
       occurredAt: finishedAt.toISOString(),
-      payload: { examId: request.examId, finishedAt: finishedAt.toISOString() },
+      payload: {
+        nrFicha: positiveIntegerFrom(request.routeNumber),
+        examId: request.examId,
+        finishedAt: finishedAt.toISOString(),
+      },
     })).pipe(map(confirmation => ({
       examId: request.examId,
       success: true,
       finishedAt,
       idempotencyKey: confirmation.idempotencyKey,
     })));
+  }
+
+  private httpClient(): HttpClient {
+    if (!this.http) throw new Error('quality-control-http-not-configured');
+    return this.http;
+  }
+
+  private authHeaders(): HttpHeaders {
+    const token = this.authSession?.token;
+    if (!token) throw new Error('quality-control-auth-required');
+    return new HttpHeaders({ Authorization: `Bearer ${token}` });
   }
 
   stopInspectionRoute(
@@ -535,4 +567,12 @@ function nonEmptyText(value: unknown): value is string {
 
 function textOr(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function positiveIntegerFrom(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error('invalid-quality-route-identity');
+  }
+  return parsed;
 }

@@ -7,8 +7,8 @@ import {
 import { QualityExam, QualityExamComponent, QualityMeasurement } from '../models/quality-exam';
 
 export interface MeasurementDraft {
-  minimum: string;
-  maximum: string;
+  result: string;
+  selectedOptionKey: string;
   observation: string;
 }
 
@@ -296,7 +296,7 @@ export class QualityControlWorkflowState {
   }
 
   isComponentOutOfRange(componentId: string): boolean {
-    return this.componentById(componentId)?.measurement?.status === 'REJECTED'
+    return this.componentById(componentId)?.measurement?.withinRange === false
       || Boolean(this.outOfRangeComponents()[componentId]);
   }
 
@@ -334,7 +334,11 @@ export class QualityControlWorkflowState {
       components: exam.components.map(component => component.id !== componentId ? component : ({
         ...component,
         measurement: { ...measurement },
-        status: measurement.status,
+        status: measurement.status === 'APPROVED'
+          ? 'APPROVED'
+          : measurement.status === 'REJECTED'
+            ? 'REJECTED'
+            : 'IN_PROGRESS',
         inspectedAt: measurement.savedAt,
         operatorId: measurement.operatorId,
       })),
@@ -420,22 +424,23 @@ export class QualityControlWorkflowState {
   }
 
   private isCompleted(component: QualityExamComponent): boolean {
-    return component.measurement?.status === 'APPROVED'
-      || component.measurement?.status === 'REJECTED';
+    return Boolean(component.measurement);
   }
 
   private draftFromMeasurement(measurement?: QualityMeasurement): MeasurementDraft {
     return {
-      minimum: measurement?.minimum?.toString() ?? '',
-      maximum: measurement?.maximum?.toString() ?? '',
+      result: measurement?.result?.toString() ?? '',
+      selectedOptionKey: measurement?.selectedOption
+        ? `${measurement.selectedOption.tableNumber}:${measurement.selectedOption.sequence}`
+        : '',
       observation: measurement?.observation ?? '',
     };
   }
 
   private sameDraft(draft: MeasurementDraft, measurement?: QualityMeasurement): boolean {
     const saved = this.draftFromMeasurement(measurement);
-    return this.normalizeNumber(draft.minimum) === this.normalizeNumber(saved.minimum)
-      && this.normalizeNumber(draft.maximum) === this.normalizeNumber(saved.maximum)
+    return this.normalizeNumber(draft.result) === this.normalizeNumber(saved.result)
+      && draft.selectedOptionKey === saved.selectedOptionKey
       && draft.observation.trim() === saved.observation.trim();
   }
 

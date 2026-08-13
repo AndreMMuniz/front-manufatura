@@ -33,6 +33,11 @@ export type MeasurementValidationResult =
     };
 
 export interface SaveMeasurementRequest {
+  nrFicha?: number;
+  examCode?: number;
+  componentCode?: number;
+  tableNumber?: number;
+  optionSequence?: number;
   examId: string;
   componentId: string;
   measurement: QualityMeasurement;

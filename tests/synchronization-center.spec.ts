@@ -73,7 +73,8 @@ test('indicador abre a Central owner-scoped, preserva reload, teclado, foco e vi
   await invalidateProjection(page);
 
   const indicator = page.getByTestId('synchronization-indicator').getByRole('button');
-  await expect(indicator).toContainText('1 pendências · 1 erros');
+  await indicator.hover();
+  await expect(page.getByText('1 pendência · 1 erro', { exact: true })).toBeVisible();
   await expect(page.getByTestId('sync-status-error-a')).toContainText(
     'Registro preservado — precisa de atenção',
   );

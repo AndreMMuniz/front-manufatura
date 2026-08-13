@@ -16,7 +16,14 @@ export async function mockAuthentication(context: BrowserContext): Promise<void>
           id: `E2E-${login}`,
           nome: 'Operador E2E',
           login,
-          permissoes: ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ'],
+          permissoes: [
+            'MENU_PRINCIPAL',
+            'PLANO_CONTROLE_CQ',
+            'AUTORIZACAO_ROTEIRO_DIVERGENCIA',
+            'REPORTE_ORDEM',
+            'REPORTE_BATELADA',
+            'REPORTE_PARADAS',
+          ],
         },
       },
     });

@@ -22,6 +22,7 @@ export interface CommandResult {
   readonly duplicate: boolean;
   readonly correlationId?: string;
   readonly orderResults?: readonly OrderCommandResult[];
+  readonly businessResult?: JsonValue;
 }
 
 export interface OrderCommandResult {

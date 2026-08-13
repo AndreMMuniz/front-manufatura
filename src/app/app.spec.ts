@@ -27,6 +27,8 @@ import { ConnectivityService } from './core/offline/services/connectivity.servic
 import { PwaUpdateService, PwaUpdateState } from './core/offline/pwa/pwa-update.service';
 import { SynchronizationCenterPage } from './features/synchronization/pages/synchronization-center/synchronization-center';
 
+const ALL_MODULE_PERMISSIONS = APP_MODULE_NAVIGATION.map(item => item.permission);
+
 describe('App', () => {
   let authSessionMock: AuthSessionService;
   let currentUserValue: User | null;
@@ -90,7 +92,7 @@ describe('App', () => {
   describe('when authenticated', () => {
     beforeEach(() => {
       vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-      currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+      currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: ALL_MODULE_PERMISSIONS };
     });
 
     it('should route quality-control to the unified workspace', async () => {
@@ -403,7 +405,7 @@ describe('App', () => {
 
   it('should render the app name in the authenticated Home toolbar without a side menu', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: ALL_MODULE_PERMISSIONS };
     await TestBed.inject(Router).navigateByUrl('/menu');
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
@@ -438,7 +440,7 @@ describe('App', () => {
 
   it('should render contextual navigation on module routes with Home first and shared modules in order', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: ALL_MODULE_PERMISSIONS };
     await TestBed.inject(Router).navigateByUrl('/quality-control');
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
@@ -488,7 +490,7 @@ describe('App', () => {
 
   it('should redirect to login when the shell logout clears the session', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: ALL_MODULE_PERMISSIONS };
     sessionSubject.next({ user: currentUserValue, token: 'token-123', authenticatedAt: new Date() });
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
@@ -505,7 +507,7 @@ describe('App', () => {
 
   it('should keep login visible when login-page logout clears the session while already on login', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
-    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] };
+    currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: ALL_MODULE_PERMISSIONS };
     sessionSubject.next({ user: currentUserValue, token: 'token-123', authenticatedAt: new Date() });
     const appFixture = TestBed.createComponent(App);
     appFixture.detectChanges();

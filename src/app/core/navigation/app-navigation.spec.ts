@@ -1,4 +1,5 @@
-import { APP_MODULE_NAVIGATION } from './app-navigation';
+import { APP_MODULE_NAVIGATION, navigationForPermissions } from './app-navigation';
+import { APP_PERMISSIONS } from '../../../app-permissions';
 
 describe('APP_MODULE_NAVIGATION', () => {
   const expected = [
@@ -8,6 +9,7 @@ describe('APP_MODULE_NAVIGATION', () => {
       shortLabel: 'CQ',
       icon: 'an an-flask',
       route: '/quality-control',
+      permission: APP_PERMISSIONS.qualityControl,
     },
     {
       id: 'operation-reporting',
@@ -15,6 +17,7 @@ describe('APP_MODULE_NAVIGATION', () => {
       shortLabel: 'Reporte',
       icon: 'an an-factory',
       route: '/operation-reporting',
+      permission: APP_PERMISSIONS.operationReporting,
     },
     {
       id: 'batch-reporting',
@@ -22,6 +25,7 @@ describe('APP_MODULE_NAVIGATION', () => {
       shortLabel: 'Batelada',
       icon: 'an an-stack',
       route: '/batch-reporting',
+      permission: APP_PERMISSIONS.batchReporting,
     },
     {
       id: 'stoppages',
@@ -29,6 +33,7 @@ describe('APP_MODULE_NAVIGATION', () => {
       shortLabel: 'Paradas',
       icon: 'an an-warning',
       route: '/stoppages',
+      permission: APP_PERMISSIONS.stoppages,
     },
   ];
 
@@ -42,6 +47,17 @@ describe('APP_MODULE_NAVIGATION', () => {
 
     expect(new Set(ids).size).toBe(APP_MODULE_NAVIGATION.length);
     expect(new Set(routes).size).toBe(APP_MODULE_NAVIGATION.length);
+  });
+
+  it('filtra módulos pela permissão Datasul sem alterar a ordem', () => {
+    expect(navigationForPermissions([
+      APP_PERMISSIONS.stoppages,
+      APP_PERMISSIONS.qualityControl,
+    ])).toEqual([
+      APP_MODULE_NAVIGATION[0],
+      APP_MODULE_NAVIGATION[3],
+    ]);
+    expect(navigationForPermissions([APP_PERMISSIONS.mainMenu])).toEqual([]);
   });
 
   it('excludes structural, session, and removed module entries', () => {

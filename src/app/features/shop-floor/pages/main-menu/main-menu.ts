@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { PoIconModule, PoPageModule } from '@po-ui/ng-components';
 
-import { APP_MODULE_NAVIGATION } from '../../../../core/navigation/app-navigation';
+import { navigationForPermissions } from '../../../../core/navigation/app-navigation';
+import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 
 @Component({
   selector: 'app-main-menu',
@@ -14,9 +15,15 @@ import { APP_MODULE_NAVIGATION } from '../../../../core/navigation/app-navigatio
 })
 export class MainMenuPage {
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly authSession = inject(AuthSessionService);
 
   get modules() {
-    return APP_MODULE_NAVIGATION;
+    return navigationForPermissions(this.authSession.currentUser?.permissoes ?? []);
+  }
+
+  get accessDenied(): boolean {
+    return this.route.snapshot.queryParamMap.get('accessDenied') === '1';
   }
 
   navigateWithSpace(event: KeyboardEvent, route: string): void {

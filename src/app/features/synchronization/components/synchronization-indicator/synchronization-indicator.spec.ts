@@ -11,7 +11,7 @@ import {
 import { SynchronizationIndicator } from './synchronization-indicator';
 
 describe('SynchronizationIndicator', () => {
-  it('expõe conectividade, contagens, atividade, nome acessível e navegação por teclado', async () => {
+  it('expõe conectividade, contagens, atividade, nome acessível e navegação', async () => {
     const state = new BehaviorSubject<SynchronizationCenterState>({
       ownerId: 'operator-1',
       readState: 'ready',
@@ -44,13 +44,17 @@ describe('SynchronizationIndicator', () => {
     const button = fixture.nativeElement.querySelector('button');
 
     expect(button.getAttribute('aria-label')).toContain('Sincronização');
-    expect(button.textContent).toContain('Sincronizando — 2 de 5 ativos');
-    expect(button.textContent).toContain('5 pendências');
-    expect(button.classList).toContain('synchronization-indicator');
+    const popover = fixture.nativeElement.querySelector('.synchronization-indicator__popover');
+    expect(popover.textContent).toContain('Sincronizando — 2 de 5 ativos');
+    expect(popover.textContent).toContain('5 pendências');
+    expect(popover.getAttribute('href')).toBe('/synchronization');
+    expect(button.classList).toContain('synchronization-indicator__trigger');
+    expect(button.querySelector('[p-icon="an an-eye"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.synchronization-indicator__badge').textContent)
+      .toContain('5');
 
-    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-    expect(navigateByUrl).toHaveBeenCalledTimes(2);
+    button.click();
+    expect(navigateByUrl).toHaveBeenCalledTimes(1);
     expect(navigateByUrl).toHaveBeenCalledWith('/synchronization');
   });
 
@@ -82,16 +86,18 @@ describe('SynchronizationIndicator', () => {
     const fixture = TestBed.createComponent(SynchronizationIndicator);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain(
-      'Offline — 3 registros aguardando envio',
-    );
+    expect(
+      fixture.nativeElement.querySelector('.synchronization-indicator__popover').textContent,
+    ).toContain('Offline — 3 registros aguardando envio');
     const live = fixture.nativeElement.querySelector('[aria-live="polite"]');
     expect(live).not.toBeNull();
 
     connectivity.next(true);
     state.next({ ...state.value, counts: { pending: 0, error: 0, syncing: 0, receipts: 1 } });
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Datasul atualizado');
+    expect(fixture.nativeElement.querySelector('.synchronization-indicator__popover').textContent)
+      .toContain('Datasul atualizado');
+    expect(fixture.nativeElement.querySelector('.synchronization-indicator__badge')).toBeNull();
     expect(fixture.nativeElement.querySelector('po-icon')).not.toBeNull();
   });
 });

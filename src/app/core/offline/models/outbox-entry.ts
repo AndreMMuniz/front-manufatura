@@ -22,6 +22,7 @@ export interface RemoteCommandReceipt {
     readonly serverRecordId?: string;
     readonly errorCode?: string;
   }[];
+  readonly businessResult?: JsonValue;
 }
 
 export interface OutboxEntry<TPayload = JsonValue> {

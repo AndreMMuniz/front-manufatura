@@ -1,4 +1,9 @@
 <po-page-default p-title="Menu Principal">
+  @if (accessDenied) {
+    <p class="main-menu__feedback" role="alert">
+      Você não possui permissão para acessar o módulo solicitado.
+    </p>
+  }
   <nav aria-label="Módulos disponíveis">
     <ul class="main-menu__grid">
       @for (module of modules; track module.id) {
@@ -14,5 +19,10 @@
         </li>
       }
     </ul>
+    @if (modules.length === 0) {
+      <p class="main-menu__empty" role="status">
+        Nenhum módulo foi liberado para o seu usuário. Solicite acesso ao administrador do Datasul.
+      </p>
+    }
   </nav>
 </po-page-default>

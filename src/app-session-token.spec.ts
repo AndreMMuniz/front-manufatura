@@ -4,6 +4,7 @@ import { decodeProtectedHeader, decodeJwt, SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 
 import { createAppSessionToken, verifyAppSessionToken } from './app-session-token';
+import { APP_PERMISSIONS } from './app-permissions';
 
 const SECRET = '0123456789abcdef0123456789abcdef';
 const NOW = new Date('2026-08-07T12:00:00.000Z');
@@ -11,7 +12,8 @@ const NOW = new Date('2026-08-07T12:00:00.000Z');
 describe('app session token', () => {
   it('emite e verifica JWT HS256 com claims fechadas e expiração compartilhada', async () => {
     const issued = await createAppSessionToken({
-      subject: 'operador', secret: SECRET, ttlMs: 60_000, now: NOW,
+      subject: 'operador', permissions: [APP_PERMISSIONS.qualityControl],
+      secret: SECRET, ttlMs: 60_000, now: NOW,
     });
 
     expect(decodeProtectedHeader(issued.token)).toEqual({ alg: 'HS256', typ: 'JWT' });
@@ -19,6 +21,7 @@ describe('app session token', () => {
       iss: 'plano-de-controle',
       aud: 'plano-de-controle-api',
       sub: 'operador',
+      permissions: [APP_PERMISSIONS.qualityControl],
       iat: 1786104000,
       exp: 1786104060,
     });
@@ -32,7 +35,7 @@ describe('app session token', () => {
 
   it('rejeita assinatura adulterada, expiração e claims/algoritmo inesperados', async () => {
     const issued = await createAppSessionToken({
-      subject: 'operador', secret: SECRET, ttlMs: 1000, now: NOW,
+      subject: 'operador', permissions: [], secret: SECRET, ttlMs: 1000, now: NOW,
     });
     const altered = `${issued.token.slice(0, -1)}${issued.token.endsWith('a') ? 'b' : 'a'}`;
     const wrongClaims = await new SignJWT({})

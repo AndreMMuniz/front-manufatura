@@ -13,6 +13,8 @@ describe('operational command contract', () => {
       'FINISH_EXAM',
       'STOP_INSPECTION_ROUTE',
       'SAVE_INSPECTION',
+      'SAVE_QUALITY_RESULT',
+      'FINALIZE_QUALITY_ROUTE',
       'START_OPERATION',
       'REPORT_OPERATION',
       'END_OPERATION',

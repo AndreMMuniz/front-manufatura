@@ -1,13 +1,16 @@
 <div class="app-shell" [class.po-wrapper]="showSideMenu">
   @if (isAuthenticated) {
     <ng-template #sessionActionsIcon>
-      <button
-        type="button"
-        class="app-shell__session-actions-trigger"
-        aria-label="Abrir ações da sessão"
-      >
-        <po-icon p-icon="an an-sign-out" aria-hidden="true" />
-      </button>
+      <span class="app-shell__session-actions">
+        <app-synchronization-indicator data-testid="synchronization-indicator" />
+        <button
+          type="button"
+          class="app-shell__session-actions-trigger"
+          aria-label="Abrir ações da sessão"
+        >
+          <po-icon p-icon="an an-sign-out" aria-hidden="true" />
+        </button>
+      </span>
     </ng-template>
 
     <po-toolbar
@@ -15,8 +18,6 @@
       [p-actions]="toolbarActions"
       [p-actions-icon]="sessionActionsIcon"
     ></po-toolbar>
-
-    <app-synchronization-indicator data-testid="synchronization-indicator" />
 
     @if (showSideMenu) {
       <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">

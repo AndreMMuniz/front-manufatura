@@ -5,6 +5,7 @@ const TOKEN_AUDIENCE = 'plano-de-controle-api';
 
 export interface CreateAppSessionTokenInput {
   subject: string;
+  permissions: readonly string[];
   secret: string;
   ttlMs: number;
   now: Date;
@@ -24,7 +25,7 @@ export async function createAppSessionToken(
 ): Promise<IssuedAppSessionToken> {
   const issuedAt = Math.floor(input.now.getTime() / 1000);
   const expiresAt = issuedAt + Math.ceil(input.ttlMs / 1000);
-  const token = await new SignJWT({})
+  const token = await new SignJWT({ permissions: [...input.permissions] })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuer(TOKEN_ISSUER)
     .setAudience(TOKEN_AUDIENCE)

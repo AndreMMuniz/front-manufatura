@@ -3,6 +3,7 @@ import { provideRouter, Router } from '@angular/router';
 import { vi } from 'vitest';
 
 import { APP_MODULE_NAVIGATION } from '../../../../core/navigation/app-navigation';
+import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { MainMenuPage } from './main-menu';
 
 describe('MainMenuPage', () => {
@@ -13,7 +14,18 @@ describe('MainMenuPage', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [MainMenuPage],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthSessionService,
+          useValue: {
+            currentUser: {
+              id: 'operador', nome: 'Operador', login: 'operador',
+              permissoes: APP_MODULE_NAVIGATION.map(item => item.permission),
+            },
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(MainMenuPage);
@@ -24,7 +36,7 @@ describe('MainMenuPage', () => {
 
   it('creates and exposes the shared module navigation', () => {
     expect(component).toBeTruthy();
-    expect(component.modules).toBe(APP_MODULE_NAVIGATION);
+    expect(component.modules).toEqual(APP_MODULE_NAVIGATION);
   });
 
   it('renders the heading and only the approved semantic links in order', () => {

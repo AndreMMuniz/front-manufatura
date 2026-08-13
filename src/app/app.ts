@@ -13,7 +13,7 @@ import {
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
-import { APP_MODULE_NAVIGATION } from './core/navigation/app-navigation';
+import { navigationForPermissions } from './core/navigation/app-navigation';
 import { ConnectivityService } from './core/offline/services/connectivity.service';
 import { PwaUpdateService } from './core/offline/pwa/pwa-update.service';
 import { SynchronizationIndicator } from './features/synchronization/components/synchronization-indicator/synchronization-indicator';
@@ -63,15 +63,28 @@ export class App {
     },
   ];
 
-  readonly menus: Array<PoMenuItem> = [
-    HOME_MENU,
-    ...APP_MODULE_NAVIGATION.map(({ label, shortLabel, icon, route }) => ({
-      label,
-      shortLabel,
-      icon,
-      link: route,
-    })),
-  ];
+  private menuPermissionsKey = '';
+  private resolvedMenus: Array<PoMenuItem> = [HOME_MENU];
+
+  get menus(): Array<PoMenuItem> {
+    const permissions = this.authSession.currentUser?.permissoes ?? [];
+    const permissionsKey = permissions.join('\u0000');
+    if (permissionsKey === this.menuPermissionsKey) {
+      return this.resolvedMenus;
+    }
+    const modules = navigationForPermissions(permissions);
+    this.menuPermissionsKey = permissionsKey;
+    this.resolvedMenus = [
+      HOME_MENU,
+      ...modules.map(({ label, shortLabel, icon, route }) => ({
+        label,
+        shortLabel,
+        icon,
+        link: route,
+      })),
+    ];
+    return this.resolvedMenus;
+  }
 
   constructor() {
     this.authSession.session$

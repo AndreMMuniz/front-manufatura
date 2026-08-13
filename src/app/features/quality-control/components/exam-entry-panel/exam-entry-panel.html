@@ -28,8 +28,11 @@
       </div>
     }
     <form class="exam-entry__form" (ngSubmit)="saveCurrentMeasurement().subscribe()">
-      <po-input name="minimum" p-label="Min" p-placeholder="Ex.: 485" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="minimum" (ngModelChange)="updateMinimum($event)"></po-input>
-      <po-input name="maximum" p-label="Max" p-placeholder="Ex.: 491" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="maximum" (ngModelChange)="updateMaximum($event)"></po-input>
+      @if (hasResultOptions) {
+        <po-select name="resultOption" p-label="Resultado" p-placeholder="Selecione uma opção" p-required="true" [p-options]="resultOptions" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="selectedOptionKey" (ngModelChange)="updateSelectedOption($event)"></po-select>
+      } @else {
+        <po-input name="result" p-label="Resultado" [p-placeholder]="currentCharacteristic ? 'Ex.: ' + currentCharacteristic.minValue : 'Informe o resultado'" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="result" (ngModelChange)="updateResult($event)"></po-input>
+      }
       <po-input name="observation" p-label="Observação" p-placeholder="Observação da medição" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [(ngModel)]="observation"></po-input>
       @if (validationMessage && !hasOutOfRangeAlert) { <p class="exam-entry__validation" aria-live="polite">{{ validationMessage }}</p> }
       <div class="exam-entry__navigation">
@@ -64,7 +67,7 @@
 
   <footer class="exam-entry__footer" [class.exam-entry__footer--with-stop]="showStopRoute">
     <po-button p-label="Fechar" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="closePanel()"></po-button>
-    <po-button p-label="Concluir exame" p-kind="primary" [p-disabled]="!canCompleteExam" (p-click)="completeExam()"></po-button>
+    <po-button p-label="Finalizar ficha" p-kind="primary" [p-disabled]="!canCompleteExam" (p-click)="completeExam()"></po-button>
     @if (showStopRoute) {
       <po-button p-label="Parar roteiro" p-kind="secondary" [p-danger]="true" [p-disabled]="!canStopRoute" (p-click)="stopRoute()"></po-button>
     }

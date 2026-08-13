@@ -11,32 +11,43 @@ import { WorkCenterPage } from './features/shop-floor/pages/work-center/work-cen
 import { ReportOperacaoPage } from './features/report-operacao/pages/report-operacao-page/report-operacao-page';
 import { ReportaBateladaPage } from './features/reporta-batelada/pages/reporta-batelada-page/reporta-batelada-page';
 import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-paradas-page/reporte-paradas-page';
+import { APP_PERMISSIONS } from '../app-permissions';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage },
   ...OFFLINE_TEST_ROUTES,
   { path: 'menu', component: MainMenuPage, canActivate: [authGuard] },
-  { path: 'work-center', component: WorkCenterPage, canActivate: [authGuard] },
-  { path: 'operators', component: OperatorsPage, canActivate: [authGuard] },
+  {
+    path: 'work-center', component: WorkCenterPage, canActivate: [authGuard],
+    data: { requiredPermission: APP_PERMISSIONS.operationReporting },
+  },
+  {
+    path: 'operators', component: OperatorsPage, canActivate: [authGuard],
+    data: { requiredPermission: APP_PERMISSIONS.operationReporting },
+  },
   {
     path: 'teams',
     component: EquipesPage,
     canActivate: [authGuard],
+    data: { requiredPermission: APP_PERMISSIONS.operationReporting },
   },
   {
     path: 'operation-reporting',
     component: ReportOperacaoPage,
     canActivate: [authGuard],
+    data: { requiredPermission: APP_PERMISSIONS.operationReporting },
   },
   {
     path: 'batch-reporting',
     component: ReportaBateladaPage,
     canActivate: [authGuard],
+    data: { requiredPermission: APP_PERMISSIONS.batchReporting },
   },
   {
     path: 'stoppages',
     component: ReporteParadasPage,
     canActivate: [authGuard],
+    data: { requiredPermission: APP_PERMISSIONS.stoppages },
   },
   {
     path: 'scrap-rework',
@@ -44,6 +55,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     data: {
       auxiliaryFlow: 'refugo',
+      requiredPermission: APP_PERMISSIONS.operationReporting,
     },
   },
   {
@@ -63,6 +75,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/quality-control/pages/quality-control-workspace/quality-control-workspace')
       .then(module => module.QualityControlWorkspacePage),
     canActivate: [authGuard],
+    data: { requiredPermission: APP_PERMISSIONS.qualityControl },
   },
   {
     path: 'synchronization',

@@ -2,6 +2,26 @@
   display: block;
 }
 
+.main-menu__feedback,
+.main-menu__empty {
+  max-width: 1120px;
+  margin: 0 auto var(--app-space-md);
+  padding: var(--app-space-md);
+  border-radius: var(--app-radius);
+}
+
+.main-menu__feedback {
+  border: 1px solid var(--color-feedback-negative-base);
+  background: var(--color-feedback-negative-lightest);
+  color: var(--color-feedback-negative-darkest);
+}
+
+.main-menu__empty {
+  border: 1px solid var(--app-color-border);
+  background: var(--app-color-surface);
+  color: var(--app-color-text);
+}
+
 .main-menu__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
