@@ -1,97 +1,45 @@
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { OperatorService } from './operator';
 
 describe('OperatorService', () => {
-  let service: OperatorService;
+  const operators = [
+    { code: 'OP-001', name: 'Ana Silva', role: 'Operador', active: true },
+  ];
 
-  beforeEach(() => {
-    service = new OperatorService();
+  it('loads and searches active operators through the API', async () => {
+    const get = vi.fn().mockReturnValue(of(operators));
+    const service = new OperatorService(
+      { get } as unknown as AuthenticatedApiService,
+    );
+
+    await expect(firstValueFrom(service.listOperators())).resolves.toEqual(operators);
+    await firstValueFrom(service.searchOperators('Ana'));
+
+    expect(get).toHaveBeenNthCalledWith(1, '/api/operators', { active: true });
+    expect(get).toHaveBeenNthCalledWith(2, '/api/operators', { term: 'ana', active: true });
   });
 
-  it('returns deterministic mock operators', async () => {
-    const operators = await firstValueFrom(service.listOperators());
+  it('selects the exact active operator and clears it on logout', async () => {
+    const session = new BehaviorSubject<unknown>({ user: { id: '1' } });
+    const service = new OperatorService(
+      { get: vi.fn().mockReturnValue(of(operators)) } as unknown as AuthenticatedApiService,
+      { session$: session.asObservable() } as unknown as AuthSessionService,
+    );
 
-    expect(operators.map(operator => operator.code)).toEqual(['OP-001', 'OP-002', 'OP-003', 'OP-004']);
-    expect(operators[0]).toMatchObject({
-      code: 'OP-001',
-      name: 'Ana Silva',
-      role: 'Operador',
-      active: true,
-    });
-  });
-
-  it('searches operators by code and name case-insensitively', async () => {
-    await expect(firstValueFrom(service.searchOperators('silva'))).resolves.toEqual([
-      expect.objectContaining({ code: 'OP-001' }),
-    ]);
-
-    await expect(firstValueFrom(service.searchOperators('OP-003'))).resolves.toEqual([
-      expect.objectContaining({ code: 'OP-003' }),
-    ]);
-  });
-
-  it('searches operators by role', async () => {
-    await expect(firstValueFrom(service.searchOperators('supervisor'))).resolves.toEqual([
-      expect.objectContaining({ code: 'OP-003' }),
-    ]);
-  });
-
-  it('searches operators with accented Portuguese input', async () => {
-    await expect(firstValueFrom(service.searchOperators('ánã silva'))).resolves.toEqual([
-      expect.objectContaining({ code: 'OP-001' }),
-    ]);
-
-    await expect(firstValueFrom(service.searchOperators('diogo souza'))).resolves.toEqual([]);
-  });
-
-  it('returns every operator for an empty search term', async () => {
-    const operators = await firstValueFrom(service.searchOperators('   '));
-
-    expect(operators).toHaveLength(4);
-  });
-
-  it('selects an active operator and exposes the current selection', async () => {
-    const selected = await firstValueFrom(service.selectOperator('OP-001'));
-
-    expect(selected).toMatchObject({ code: 'OP-001', active: true });
-    expect(service.selectedOperator).toEqual(selected);
-  });
-
-  it('does not select inactive or unknown operators', async () => {
-    await expect(firstValueFrom(service.selectOperator('OP-004'))).resolves.toBeNull();
-    expect(service.selectedOperator).toBeNull();
-
-    await expect(firstValueFrom(service.selectOperator('OP-UNKNOWN'))).resolves.toBeNull();
+    await expect(firstValueFrom(service.selectOperator('OP-001'))).resolves.toEqual(operators[0]);
+    expect(service.selectedOperator).toEqual(operators[0]);
+    session.next(null);
     expect(service.selectedOperator).toBeNull();
   });
 
-  it('clears the selected operator', async () => {
-    await firstValueFrom(service.selectOperator('OP-002'));
-
-    service.clearSelection();
-
-    expect(service.selectedOperator).toBeNull();
-  });
-
-  it('clears the selected operator when the auth session is cleared', async () => {
-    const sessionSubject = new BehaviorSubject<unknown>({
-      user: { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] },
-      token: 'token-123',
-      authenticatedAt: new Date(),
-    });
-    service = new OperatorService({
-      session$: sessionSubject.asObservable(),
-    } as unknown as AuthSessionService);
-    await firstValueFrom(service.selectOperator('OP-003'));
-
-    sessionSubject.next(null);
-
-    expect(service.selectedOperator).toBeNull();
-  });
-
-  it('reports operator as required by default', () => {
+  it('keeps operator selection required', () => {
+    const service = new OperatorService(
+      { get: vi.fn().mockReturnValue(of([])) } as unknown as AuthenticatedApiService,
+    );
     expect(service.isOperatorRequired()).toBe(true);
   });
 });

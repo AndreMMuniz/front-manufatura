@@ -1,21 +1,17 @@
-import { firstValueFrom } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { firstValueFrom, of } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { MotivoRefugoService } from './motivo-refugo.service';
 
 describe('MotivoRefugoService', () => {
-  const service = new MotivoRefugoService();
+  it('loads scrap reasons from the authenticated API with the search term', async () => {
+    const get = vi.fn().mockReturnValue(of([{ codigo: '35', descricao: 'Setup' }]));
+    const service = new MotivoRefugoService({ get } as unknown as AuthenticatedApiService);
 
-  it('filters scrap reasons by code, description or partial text', async () => {
-    await expect(firstValueFrom(service.buscarMotivos('05'))).resolves.toEqual([
-      { codigo: '05', descricao: 'Borra' },
-    ]);
-    await expect(firstValueFrom(service.buscarMotivos('varr'))).resolves.toEqual([
-      { codigo: '32', descricao: 'Varredura' },
-    ]);
     await expect(firstValueFrom(service.buscarMotivos('setup'))).resolves.toEqual([
       { codigo: '35', descricao: 'Setup' },
-      { codigo: '41', descricao: 'Setup de maquina' },
     ]);
+    expect(get).toHaveBeenCalledWith('/api/scrap-reasons', { term: 'setup' });
   });
 });

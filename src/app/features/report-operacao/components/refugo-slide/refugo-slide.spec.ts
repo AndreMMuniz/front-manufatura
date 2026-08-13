@@ -245,6 +245,15 @@ describe('RefugoSlide', () => {
       motivoService as never,
       refugoService as never,
     );
+    component.motivos = [
+      { codigo: '05', descricao: 'Borra' },
+      { codigo: '32', descricao: 'Varredura' },
+      { codigo: '35', descricao: 'Setup' },
+    ];
+    component.motivoOptions = component.motivos.map(item => ({
+      label: `${item.codigo} - ${item.descricao}`,
+      value: item.codigo,
+    }));
     Object.defineProperty(component, 'pageSlide', { value: pageSlide });
 
     return { component, dialog, pageSlide };

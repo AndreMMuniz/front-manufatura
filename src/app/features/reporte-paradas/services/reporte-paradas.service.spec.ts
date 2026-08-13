@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
@@ -29,6 +30,10 @@ describe('ReporteParadasService', () => {
     active: true,
   };
   const reason: StopReason = { id: 2, code: '02', description: 'Almoço' };
+  const apiReasons: ReadonlyArray<StopReason> = [
+    { id: 1, code: '01', description: 'Setup' },
+    reason,
+  ];
   const context: ProductionContext = {
     area: { code: '4001', description: 'Produção' },
     workCenter: center,
@@ -131,6 +136,10 @@ describe('ReporteParadasService', () => {
           provide: OperationalCommandFacade,
           useValue: commands,
         },
+        {
+          provide: AuthenticatedApiService,
+          useValue: { get: vi.fn(() => of(apiReasons)) },
+        },
       ],
     });
     return {
@@ -171,7 +180,7 @@ describe('ReporteParadasService', () => {
     expect(response.syncStatus).toBe('BLOCKED_AUTH');
   });
 
-  it('mantém motivos mockados exclusivamente no service e devolve cópias defensivas', async () => {
+  it('carrega motivos pela API e devolve cópias defensivas', async () => {
     const { service } = setup();
 
     const first = await firstValueFrom(service.listarMotivos('4001', 'CT-EXT-01'));

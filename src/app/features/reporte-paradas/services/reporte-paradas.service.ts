@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, defer, delay, finalize, forkJoin, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
@@ -33,6 +34,7 @@ export class ReporteParadasService {
   private readonly localRecords = inject(LocalRecordRepository);
   private readonly outbox = inject(OutboxRepository);
   private readonly authSession = inject(AuthSessionService);
+  private readonly api = inject(AuthenticatedApiService);
   private prefillContext: {
     readonly ownerId: string;
     readonly context: ProductionContext;
@@ -43,15 +45,6 @@ export class ReporteParadasService {
   private finishInFlight = false;
   private activeStopContext: { readonly areaCode: string; readonly workCenterCode: string } | null =
     null;
-
-  private readonly reasons: ReadonlyArray<StopReason> = Object.freeze([
-    { id: 1, code: '01', description: 'Setup' },
-    { id: 2, code: '02', description: 'Almoço' },
-    { id: 5, code: '05', description: 'Reunião' },
-    { id: 8, code: '08', description: 'Manutenção' },
-    { id: 12, code: '12', description: 'Falta de material' },
-    { id: 15, code: '15', description: 'Troca Turno' },
-  ]);
 
   listarAreas(): Observable<ReadonlyArray<AreaProducao>> {
     return this.catalog.listarAreas().pipe(map((areas) => areas.map((area) => ({ ...area }))));
@@ -72,8 +65,11 @@ export class ReporteParadasService {
       .pipe(map((responsaveis) => responsaveis.map((responsavel) => ({ ...responsavel }))));
   }
 
-  listarMotivos(_areaCode: string, _workCenterCode: string): Observable<ReadonlyArray<StopReason>> {
-    return of(this.reasons.map((reason) => ({ ...reason }))).pipe(delay(150));
+  listarMotivos(areaCode: string, workCenterCode: string): Observable<ReadonlyArray<StopReason>> {
+    return this.api.get<ReadonlyArray<StopReason>>('/api/stop-reasons', {
+      areaCode: areaCode.trim(),
+      workCenterCode: workCenterCode.trim(),
+    }).pipe(map(reasons => reasons.map(reason => ({ ...reason }))));
   }
 
   setPrefillContext(context: ProductionContext): void {
@@ -108,8 +104,9 @@ export class ReporteParadasService {
         areas: this.listarAreas(),
         centers: this.pesquisarCentros(command.areaCode),
         responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
+        reasons: this.listarMotivos(command.areaCode, command.workCenterCode),
       }).pipe(
-        switchMap(({ areas, centers, responsibles }) => {
+        switchMap(({ areas, centers, responsibles, reasons }) => {
           const area = areas.find((item) => this.sameCode(item.code, command.areaCode));
           const center = centers.find(
             (item) =>
@@ -131,6 +128,8 @@ export class ReporteParadasService {
               'Selecione um responsável elegível para a Área e o Centro de Trabalho.',
             );
           }
+          const reason = reasons.find(item => item.id === command.reasonId);
+          if (!reason) throw new Error('Selecione um motivo corporativo válido.');
 
           const derivedDuration = validated.end
             ? durationMinutes(validated.start, validated.end)
@@ -151,7 +150,7 @@ export class ReporteParadasService {
                 machineGroup: center.machineGroup,
               },
             },
-            reason: { ...validated.reason },
+            reason: { ...reason },
             responsible: { ...responsible, codigo: this.normalizeCode(responsible.codigo) },
             startDate: this.dateOnly(validated.start),
             startTime: command.startTime.trim(),
@@ -389,7 +388,6 @@ export class ReporteParadasService {
   }
 
   private validateCommand(command: CreateStopRequest): {
-    readonly reason: StopReason;
     readonly start: Date;
     readonly end: Date | null;
   } {
@@ -403,8 +401,7 @@ export class ReporteParadasService {
       throw new Error('A chave de idempotência é obrigatória.');
     }
 
-    const reason = this.reasons.find((item) => item.id === command.reasonId);
-    if (!reason) {
+    if (!Number.isSafeInteger(command.reasonId) || command.reasonId <= 0) {
       throw new Error('Selecione um motivo corporativo válido.');
     }
 
@@ -440,7 +437,7 @@ export class ReporteParadasService {
       }
     }
 
-    return { reason: { ...reason }, start, end };
+    return { start, end };
   }
 
   private isValidTime(value: string): boolean {

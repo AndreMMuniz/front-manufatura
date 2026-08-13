@@ -3,7 +3,7 @@ import { signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { PoPageModule, PoToolbarComponent, PoToolbarModule } from '@po-ui/ng-components';
@@ -26,6 +26,7 @@ import { ReporteParadasPage } from './features/reporte-paradas/pages/reporte-par
 import { ConnectivityService } from './core/offline/services/connectivity.service';
 import { PwaUpdateService, PwaUpdateState } from './core/offline/pwa/pwa-update.service';
 import { SynchronizationCenterPage } from './features/synchronization/pages/synchronization-center/synchronization-center';
+import { AuthenticatedApiService } from './core/http/authenticated-api.service';
 
 const ALL_MODULE_PERMISSIONS = APP_MODULE_NAVIGATION.map(item => item.permission);
 
@@ -61,6 +62,29 @@ describe('App', () => {
       providers: [
         provideRouter(routes),
         { provide: AuthSessionService, useValue: authSessionMock },
+        {
+          provide: AuthenticatedApiService,
+          useValue: {
+            get: vi.fn((url: string) => {
+              if (url === '/api/production-areas') {
+                return of([{ code: '4001', description: 'Produção' }]);
+              }
+              if (url === '/api/work-centers') {
+                return of([{
+                  code: 'CT-EXT-01', description: 'Extrusão', areaCode: '4001',
+                  area: 'Produção', machineGroup: 'Extrusoras', establishment: '101', active: true,
+                }]);
+              }
+              if (url === '/api/operators') {
+                return of([{ code: 'OP-001', name: 'Ana Silva', role: 'Operador', active: true }]);
+              }
+              if (url === '/api/operational-responsibles') {
+                return of([{ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }]);
+              }
+              return of([]);
+            }),
+          },
+        },
         {
           provide: PwaUpdateService,
           useValue: { state: pwaState.asReadonly(), reloadWhenSafe },
