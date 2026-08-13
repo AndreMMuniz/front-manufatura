@@ -1,21 +1,18 @@
 import { Injectable, Optional } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { Operator } from '../models/operator';
-
-const OPERATORS: ReadonlyArray<Operator> = Object.freeze([
-  { code: 'OP-001', name: 'Ana Silva', role: 'Operador', active: true },
-  { code: 'OP-002', name: 'Bruno Costa', role: 'Operador', active: true },
-  { code: 'OP-003', name: 'Carla Dias', role: 'Supervisor', active: true },
-  { code: 'OP-004', name: 'Diego Souza', role: 'Inspetor', active: false },
-]);
 
 @Injectable({ providedIn: 'root' })
 export class OperatorService {
   private selected: Operator | null = null;
 
-  constructor(@Optional() authSession?: AuthSessionService) {
+  constructor(
+    private readonly api: AuthenticatedApiService,
+    @Optional() authSession?: AuthSessionService,
+  ) {
     authSession?.session$.subscribe(session => {
       if (session === null) {
         this.clearSelection();
@@ -32,7 +29,7 @@ export class OperatorService {
   }
 
   listOperators(): Observable<ReadonlyArray<Operator>> {
-    return of(OPERATORS);
+    return this.api.get<ReadonlyArray<Operator>>('/api/operators', { active: true });
   }
 
   searchOperators(term: string): Observable<ReadonlyArray<Operator>> {
@@ -42,17 +39,21 @@ export class OperatorService {
       return this.listOperators();
     }
 
-    return of(
-      OPERATORS.filter(operator =>
-        this.normalize(`${operator.code} ${operator.name} ${operator.role}`).includes(normalizedTerm),
-      ),
-    );
+    return this.api.get<ReadonlyArray<Operator>>('/api/operators', {
+      term: normalizedTerm,
+      active: true,
+    });
   }
 
   selectOperator(code: string): Observable<Operator | null> {
-    const selected = OPERATORS.find(operator => operator.code === code && operator.active) ?? null;
-    this.selected = selected;
-    return of(selected);
+    return this.api.get<ReadonlyArray<Operator>>('/api/operators', {
+      term: code,
+      active: true,
+    }).pipe(map(operators => {
+      const selected = operators.find(operator => operator.code === code && operator.active) ?? null;
+      this.selected = selected;
+      return selected;
+    }));
   }
 
   clearSelection(): void {
