@@ -25,6 +25,10 @@ export interface FmaEndpointDependencies {
 type JsonObject = Record<string, unknown>;
 
 export function installFmaEndpoints(app: Application, dependencies: FmaEndpointDependencies): void {
+  const startRequests = new Map<string, {
+    readonly canonical: string;
+    readonly promise: Promise<ReturnType<typeof receipt>>;
+  }>();
   const roots = [
     '/api/production-areas', '/api/work-centers', '/api/operators',
     '/api/operational-responsibles', '/api/teams', '/api/scrap-reasons',
@@ -38,9 +42,9 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
   app.use('/api', express.json({ limit: '64kb' }));
 
   app.get('/api/work-centers', (req, res) => handle(req, res, dependencies, async client => {
-    const areaCode = requiredText(req.query['areaCode']);
+    const areaCode = optionalText(req.query['areaCode']);
     const upstream = await client.request('GET', '/api/fma/v1/centrostrabalho', undefined, {
-      codAreaProduc: areaCode,
+      ...(areaCode ? { codAreaProduc: areaCode } : {}),
     });
     const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
     return dataset(upstream, 'centrosTrabalho').map(row => {
@@ -110,7 +114,10 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     const body = objectOf(req.body);
     const responsibleType = requiredText(body['tipoResponsavel']);
     const responsibleCode = requiredText(body['codigoResponsavel']);
-    const upstream = await client.request('POST', '/api/fma/v1/iniciaordem', {
+    if (responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE') {
+      throw new QualityControlGatewayError(400, 'invalid-request');
+    }
+    const command = {
       codAreaProduc: requiredText(body['areaCode']),
       codCtrab: requiredText(body['workCenterCode']),
       nrOrdemProducao: positiveInteger(body['ordem']),
@@ -121,9 +128,33 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
       codOperador: responsibleType === 'OPERADOR' ? responsibleCode : '',
       codEquipe: responsibleType === 'EQUIPE' ? responsibleCode : '',
       codFerramenta: '', dataInicioSetup: '', horaInicioSetup: '', dataFimSetup: '', horaFimSetup: '',
-    });
-    const result = objectOf(single(dataset(upstream, 'inicioOrdem')));
-    return receipt(req, `datasul:operation:${integerText(result['nrOrdemProducao'])}:${integerText(result['opCodigo'])}:${integerText(result['numSplitOperac'])}`);
+    };
+    const idempotencyKey = safeId(req.header('idempotency-key'));
+    const cacheKey = `${client.subject}\u0000${idempotencyKey}`;
+    const canonical = JSON.stringify(command);
+    const existing = startRequests.get(cacheKey);
+    if (existing) {
+      if (existing.canonical !== canonical) {
+        throw new QualityControlGatewayError(409, 'idempotency-conflict');
+      }
+      return { ...(await existing.promise), duplicate: true };
+    }
+    const promise = (async () => {
+      const upstream = await client.request('POST', '/api/fma/v1/iniciaordem', command);
+      const result = objectOf(single(dataset(upstream, 'inicioOrdem')));
+      return receipt(
+        idempotencyKey,
+        `datasul:operation:${integerText(result['nrOrdemProducao'])}:${integerText(result['opCodigo'])}:${integerText(result['numSplitOperac'])}`,
+        dependencies.now?.() ?? new Date(),
+      );
+    })();
+    startRequests.set(cacheKey, { canonical, promise });
+    try {
+      return await promise;
+    } catch (error) {
+      startRequests.delete(cacheKey);
+      throw error;
+    }
   }));
 
   installTransparentRoutes(app, dependencies);
@@ -151,11 +182,13 @@ function installTransparentRoutes(app: Application, dependencies: FmaEndpointDep
 }
 
 class FmaClient {
-  private readonly config = readQualityControlDatasulConfig(this.dependencies.env);
+  private readonly config;
   constructor(
-    private readonly userId: string,
+    readonly subject: string,
     private readonly dependencies: FmaEndpointDependencies,
-  ) {}
+  ) {
+    this.config = readQualityControlDatasulConfig(dependencies.env);
+  }
 
   async request(
     method: 'GET' | 'POST' | 'PUT',
@@ -165,7 +198,7 @@ class FmaClient {
   ): Promise<unknown> {
     const url = new URL(path, this.config.baseUrl);
     url.searchParams.set('companyId', String(this.config.companyId));
-    url.searchParams.set('codUsuario', this.userId);
+    url.searchParams.set('codUsuario', this.subject);
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, String(value));
     const authorization = Buffer.from(`${this.config.integrationUser}:${this.config.integrationPassword}`, 'utf8').toString('base64');
     let response: globalThis.Response;
@@ -195,7 +228,7 @@ async function handle(
   operation: (client: FmaClient) => Promise<unknown>,
 ): Promise<void> {
   try {
-    const userId = await resolveUser(req.header('authorization') ?? '', dependencies);
+    const userId = await resolveUser(req.header('authorization') ?? '', dependencies, req.path);
     res.status(200).json(await operation(new FmaClient(userId, dependencies)));
   } catch (error) {
     if (error instanceof QualityControlGatewayError) {
@@ -206,7 +239,11 @@ async function handle(
   }
 }
 
-async function resolveUser(header: string, dependencies: FmaEndpointDependencies): Promise<string> {
+async function resolveUser(
+  header: string,
+  dependencies: FmaEndpointDependencies,
+  path: string,
+): Promise<string> {
   const secret = dependencies.env['APP_AUTH_TOKEN_SECRET'];
   const match = /^Bearer ([^\s]+)$/i.exec(header);
   if (!secret || Buffer.byteLength(secret, 'utf8') < 32 || !match) {
@@ -217,15 +254,30 @@ async function resolveUser(header: string, dependencies: FmaEndpointDependencies
   catch { throw new QualityControlGatewayError(401, 'invalid-session'); }
   const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
   const permissions = Array.isArray(payload['permissions']) ? payload['permissions'] : [];
-  if (!subject || !FMA_PERMISSIONS.some(permission => permissions.includes(permission))) {
+  if (!subject) {
+    throw new QualityControlGatewayError(403, 'access-denied');
+  }
+  if (!hasPermissionForPath(path, permissions)) {
     throw new QualityControlGatewayError(403, 'access-denied');
   }
   return subject;
 }
 
-function receipt(req: Request, serverRecordId: string) {
-  const idempotencyKey = requiredText(req.header('idempotency-key'));
-  const now = new Date().toISOString();
+function hasPermissionForPath(path: string, permissions: readonly unknown[]): boolean {
+  if (path.startsWith('/api/operations')) {
+    return permissions.includes(APP_PERMISSIONS.operationReporting);
+  }
+  if (path.startsWith('/api/production-orders')) {
+    return permissions.includes(APP_PERMISSIONS.operationReporting)
+      || permissions.includes(APP_PERMISSIONS.batchReporting);
+  }
+  if (path.startsWith('/api/batches')) return permissions.includes(APP_PERMISSIONS.batchReporting);
+  if (path.startsWith('/api/production-stops')) return permissions.includes(APP_PERMISSIONS.stoppages);
+  return FMA_PERMISSIONS.some(permission => permissions.includes(permission));
+}
+
+function receipt(idempotencyKey: string, serverRecordId: string, current: Date) {
+  const now = current.toISOString();
   return { serverRecordId, idempotencyKey, receivedAt: now, processedAt: now, duplicate: false };
 }
 
@@ -267,6 +319,12 @@ function isoDate(value: unknown): string {
   const date = typeof value === 'string' ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) throw new QualityControlGatewayError(400, 'invalid-request');
   return date.toISOString().slice(0, 10);
+}
+function safeId(value: unknown): string {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._:/-]{1,160}$/.test(value)) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return value;
 }
 function concretePath(req: Request): string { return req.path; }
 function queryObject(req: Request): Record<string, string> {

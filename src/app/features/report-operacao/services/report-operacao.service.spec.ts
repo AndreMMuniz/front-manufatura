@@ -1,18 +1,18 @@
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, firstValueFrom, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSession } from '../../../core/auth/auth.models';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
-import { EquipesService } from '../../equipes/services/equipes.service';
 import { ReportOperacao } from '../models/report-operacao.model';
 
 import { ReportOperacaoService } from './report-operacao.service';
 
 describe('ReportOperacaoService', () => {
   let service: ReportOperacaoService;
-  let equipesService: EquipesService;
+  let apiGet: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     const session$ = new BehaviorSubject<AuthSession | null>({
@@ -22,9 +22,39 @@ describe('ReportOperacaoService', () => {
       authenticatedAt: new Date(),
       lastValidatedAt: new Date(),
     });
+    const center = {
+      code: 'CT-EXT-01', description: 'Extrusão', areaCode: '4001', area: 'Produção',
+      machineGroup: 'Extrusoras', establishment: '101', active: true,
+    };
+    const orders = [
+      { id: '450001|OP-10458|10|01', ordem: '450001', itemOp: 'PERFIL-100 / OP-10458', operacao: '10', split: '01', areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      { id: '450002|OP-10459|20|01', ordem: '450002', itemOp: 'PERFIL-200 / OP-10459', operacao: '20', split: '01', areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+    ];
+    apiGet = vi.fn((url: string, query?: Record<string, unknown>) => {
+      if (url === '/api/production-areas') return of([
+        { code: '4001', description: 'Produção' }, { code: '4002', description: 'Qualidade' },
+      ]);
+      if (url === '/api/work-centers') {
+        return of(query?.['areaCode'] === '4001' && (!query?.['term'] || query['term'] === 'ext') ? [center] : []);
+      }
+      if (url === '/api/production-orders') return of(query?.['areaCode'] === '4001' ? orders : []);
+      if (url.startsWith('/api/production-orders/450001/')) return of({
+        ordem: '450001', op: 'OP-10458', split: '01', item: 'PERFIL-100',
+        descricao: 'Perfil', unidade: 'PC', roteiro: '10 - Extrusão', quantidadeOrdem: 500,
+        quantidadeSaldo: 320, linha: 'Extrusão', ct: 'CT-EXT-01', grupoMaquina: 'Extrusoras',
+        operador: 'Ana Silva', equipe: '', turno: '1º Turno',
+      });
+      if (url.startsWith('/api/production-orders/')) return throwError(() => new Error('OP não encontrada'));
+      if (url === '/api/operational-responsibles') return of(query?.['areaCode'] === '4001' ? [
+        { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+        { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem' },
+      ] : []);
+      return of([]);
+    });
     TestBed.configureTestingModule({
       providers: [
         { provide: AuthSessionService, useValue: { session$ } },
+        { provide: AuthenticatedApiService, useValue: { get: apiGet } },
         {
           provide: OperationalCommandFacade,
           useValue: {
@@ -44,10 +74,9 @@ describe('ReportOperacaoService', () => {
       ],
     });
     service = TestBed.inject(ReportOperacaoService);
-    equipesService = TestBed.inject(EquipesService);
   });
 
-  it('loads a valid operation from the mock Datasul boundary', async () => {
+  it('loads a valid operation from the Datasul HTTP boundary', async () => {
     const orders = await firstValueFrom(service.listarOrdensPorCentro('4001', 'CT-EXT-01'));
     const result = await firstValueFrom(service.carregarOrdemSelecionada(orders[0]));
 
@@ -56,8 +85,8 @@ describe('ReportOperacaoService', () => {
     expect(result.operacao?.quantidadeSaldo).toBe(320);
   });
 
-  it('rejects an unknown operation', async () => {
-    const result = await firstValueFrom(
+  it('propagates an unknown operation API error', async () => {
+    await expect(firstValueFrom(
       service.carregarOrdemSelecionada({
         id: 'removed-order',
         ordem: '999999',
@@ -65,10 +94,7 @@ describe('ReportOperacaoService', () => {
         operacao: '999',
         split: '01',
       }),
-    );
-
-    expect(result.sucesso).toBe(false);
-    expect(result.mensagem).toContain('OP não encontrada');
+    )).rejects.toThrow('OP não encontrada');
   });
 
   it('lists deterministic production areas with fresh immutable values', async () => {
@@ -102,6 +128,8 @@ describe('ReportOperacaoService', () => {
       itemOp: 'PERFIL-100 / OP-10458',
       operacao: '10',
       split: '01',
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
     });
   });
 
@@ -180,41 +208,15 @@ describe('ReportOperacaoService', () => {
 
     expect(responsaveis).toEqual(expect.arrayContaining([
       expect.objectContaining({ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }),
-      expect.objectContaining({ tipo: 'OPERADOR', codigo: '001' }),
-      expect.objectContaining({ tipo: 'OPERADOR', codigo: '002' }),
-      expect.objectContaining({ tipo: 'OPERADOR', codigo: '003' }),
       expect.objectContaining({ tipo: 'EQUIPE', codigo: 'MONT03' }),
-      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'CORTE01' }),
     ]));
-    expect(responsaveis).toHaveLength(6);
-    await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([
-      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'EMB02' }),
-    ]);
+    expect(responsaveis).toHaveLength(2);
+    await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([]);
     await expect(firstValueFrom(service.listarResponsaveis('', 'CT-CQ-01'))).resolves.toEqual([]);
   });
 
-  it('reflete equipes criadas na sessão e preserva colisão de código entre tipos', async () => {
-    await firstValueFrom(equipesService.criarEquipe({
-      areaCode: '4001',
-      workCenterCode: 'CT-EXT-01',
-      codigo: ' op-001 ',
-      descricao: 'Equipe homônima',
-      turno: 'T1',
-      operadores: ['001'],
-    }));
-
-    const responsaveis = await firstValueFrom(service.listarResponsaveis(' 4001 ', ' ct-ext-01 '));
-
-    expect(responsaveis.filter(item => item.codigo === 'OP-001')).toEqual([
-      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
-      { tipo: 'EQUIPE', codigo: 'OP-001', nome: 'Equipe homônima' },
-    ]);
-  });
-
   it('não esconde falha do catálogo canônico', async () => {
-    vi.spyOn(equipesService, 'listarOperadores')
-      .mockReturnValue(throwError(() => new Error('catálogo indisponível')));
-
+    apiGet.mockReturnValueOnce(throwError(() => new Error('catálogo indisponível')));
     await expect(firstValueFrom(service.listarResponsaveis('4001', 'CT-EXT-01')))
       .rejects.toThrow('catálogo indisponível');
   });

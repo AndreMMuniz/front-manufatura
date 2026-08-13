@@ -62,16 +62,12 @@ export class ReportOperacaoService {
   }
 
   carregarOrdemSelecionada(ordem: OrdemCentroTrabalho): Observable<ResultadoConsultaOP> {
-    const context = ordem as OrdemCentroTrabalho & {
-      readonly areaCode?: string;
-      readonly workCenterCode?: string;
-    };
     return this.api.get<ReportOperacaoResponseDTO>(
       `/api/production-orders/${encodeURIComponent(ordem.ordem)}/operations/${encodeURIComponent(ordem.operacao)}`,
       {
         split: ordem.split,
-        areaCode: context.areaCode,
-        workCenterCode: context.workCenterCode,
+        areaCode: ordem.areaCode,
+        workCenterCode: ordem.workCenterCode,
       },
     ).pipe(
       map(operation => ({ sucesso: true, operacao: this.mapOperacao(operation) })),

@@ -17,6 +17,8 @@ export interface OrdemCentroTrabalho {
   readonly itemOp: string;
   readonly operacao: string;
   readonly split: string;
+  readonly areaCode?: string;
+  readonly workCenterCode?: string;
 }
 
 export type EstadoConsultaOrdens =

@@ -3,6 +3,10 @@ import { of, throwError } from 'rxjs';
 
 import { ReporteSlide } from './reporte-slide';
 
+const scrapReasonService = {
+  buscarMotivos: vi.fn(() => of([{ codigo: '05', descricao: 'Borra' }])),
+};
+
 describe('ReporteSlide', () => {
   it('sums only approved and scrap quantities in the displayed total', () => {
     const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
@@ -40,7 +44,7 @@ describe('ReporteSlide', () => {
   });
 
   it('keeps the draft on failure and resets it after a successful report', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     component.quantidadeAprovada = 3;
     component.salvando = true;
 
@@ -68,7 +72,7 @@ describe('ReporteSlide', () => {
   });
 
   it('reuses the idempotency key when retrying the same preserved draft', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     const emitted: Array<{ idempotencyKey?: string }> = [];
     component.reporteSolicitado.subscribe(draft => emitted.push(draft));
     component.quantidadeAprovada = 1;
@@ -129,7 +133,7 @@ describe('ReporteSlide', () => {
   });
 
   it('adds, consolidates and removes scrap reasons', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     component.editarRefugo();
 
     component.atualizarMotivo('05');
@@ -149,7 +153,7 @@ describe('ReporteSlide', () => {
   });
 
   it('emits a defensive copy of valid reasons and preserves it after a failed request', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     const emitted: Array<{ idempotencyKey?: string; refugoItens?: ReadonlyArray<{ codigo: string }> }> = [];
     component.reporteSolicitado.subscribe(draft => emitted.push(draft));
     component.atualizarQuantidade('quantidadeRefugo', 2);
@@ -180,6 +184,7 @@ describe('ReporteSlide', () => {
     const component = new ReporteSlide(
       { markForCheck: vi.fn() } as never,
       { confirm } as never,
+      scrapReasonService as never,
     );
     component.editarRefugo();
     component.atualizarMotivo('05');
@@ -230,7 +235,7 @@ describe('ReporteSlide', () => {
   });
 
   it('blocks saving while a reason entry has not been added', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     const emitted = vi.fn();
     component.reporteSolicitado.subscribe(emitted);
     component.quantidadeAprovada = 1;
@@ -247,7 +252,7 @@ describe('ReporteSlide', () => {
   });
 
   it('rejects reason quantities that round to zero', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     component.editarRefugo();
     component.atualizarMotivo('05');
     component.atualizarQuantidadeMotivo(0.0004);
@@ -259,7 +264,7 @@ describe('ReporteSlide', () => {
   });
 
   it('emits the same three-decimal values used by reason validation', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     const emitted = vi.fn();
     component.reporteSolicitado.subscribe(emitted);
     component.quantidadeRefugo = 1.2344;

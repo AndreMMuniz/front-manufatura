@@ -111,4 +111,54 @@ describe('gateway FMA', () => {
     expect(invalid.status).toBe(400);
     expect(transport).not.toHaveBeenCalled();
   });
+
+  it('não permite iniciar operação apenas com permissão de Paradas', async () => {
+    const transport = vi.fn<typeof fetch>();
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/operations/start`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': '123e4567-e89b-42d3-a456-426614174000',
+      },
+      body: JSON.stringify({}),
+    });
+
+    expect(result.status).toBe(403);
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it('deduplica retry de iniciaordem e rejeita a mesma chave com outro comando', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('inicioOrdem', [{
+      dataInicioReporte: '2026-07-21', horaInicioReporte: '0935', nrOrdemProducao: 372562,
+      opCodigo: 10, numSplitOperac: 1, mensagem: 'Reporte iniciado com sucesso', codCtrab: 'PRE-006-02',
+    }]));
+    const root = await startGateway(transport);
+    const authorization = `Bearer ${await token()}`;
+    const headers = {
+      authorization, 'content-type': 'application/json',
+      'idempotency-key': '123e4567-e89b-42d3-a456-426614174000',
+    };
+    const body = {
+      ordem: '372562', op: '10', split: '1', areaCode: '4104', workCenterCode: 'PRE-006-02',
+      tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570',
+      dataInicio: '2026-07-21T12:35:00.000Z', horaInicio: '09:35',
+    };
+
+    const first = await fetch(`${root}/api/operations/start`, {
+      method: 'POST', headers, body: JSON.stringify(body),
+    });
+    const retry = await fetch(`${root}/api/operations/start`, {
+      method: 'POST', headers, body: JSON.stringify(body),
+    });
+    const conflict = await fetch(`${root}/api/operations/start`, {
+      method: 'POST', headers, body: JSON.stringify({ ...body, ordem: '372563' }),
+    });
+
+    expect(first.status).toBe(200);
+    await expect(retry.json()).resolves.toEqual(expect.objectContaining({ duplicate: true }));
+    expect(conflict.status).toBe(409);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
 });
