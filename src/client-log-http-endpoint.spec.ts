@@ -8,7 +8,7 @@ import { installClientLogEndpoint } from './client-log-http-endpoint';
 import type { ApplicationLogger } from './logging/log-contracts';
 import { requestObservabilityMiddleware } from './server-observability';
 
-type RunningServer = ReturnType<ReturnType<typeof express>['listen'];
+type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
 afterEach(async () => {
@@ -47,8 +47,11 @@ const EVENT = {
 
 async function start(options: { clock?: () => number; loggerThrows?: boolean } = {}) {
   const sink = logger(options.loggerThrows);
+  const accessSink = logger();
   const app = express();
-  app.use(requestObservabilityMiddleware(sink.value, { createId: () => 'generated-correlation' }));
+  app.use(requestObservabilityMiddleware(accessSink.value, {
+    createId: () => 'generated-correlation',
+  }));
   installClientLogEndpoint(app, { logger: sink.value, clock: options.clock });
   let server!: RunningServer;
   await new Promise<void>((resolve, reject) => {
@@ -56,6 +59,7 @@ async function start(options: { clock?: () => number; loggerThrows?: boolean } =
   });
   servers.push(server);
   return {
+    accessSink,
     sink,
     url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/client-logs`,
   };
@@ -63,7 +67,10 @@ async function start(options: { clock?: () => number; loggerThrows?: boolean } =
 
 async function send(url: string, body: string, init: RequestInit = {}) {
   return fetch(url, {
-    method: 'POST', headers: { 'content-type': 'application/json', ...init.headers }, body, ...init,
+    ...init,
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...init.headers },
+    body,
   });
 }
 
@@ -88,6 +95,12 @@ describe('/api/client-logs', () => {
       }),
     });
     expect(JSON.stringify(endpoint.sink.writes)).not.toContain('segredo');
+    expect(endpoint.accessSink.writes).toContainEqual(expect.objectContaining({
+      event: 'api_request_completed',
+      metadata: expect.objectContaining({
+        correlationId: EVENT.correlationId, route: '/api/client-logs', status: 204,
+      }),
+    }));
   });
 
   it('rejeita método, JSON inválido, schema aberto e payload acima de 16 KB sem eco', async () => {

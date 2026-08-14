@@ -7,6 +7,7 @@ import {
 import express from 'express';
 import { join } from 'node:path';
 import { installAuthLoginEndpoint } from './auth-http-endpoint';
+import { installClientLogEndpoint } from './client-log-http-endpoint';
 import { installQualityControlEndpoints } from './quality-control-http-endpoint';
 import { installFmaEndpoints } from './fma-http-endpoint';
 import { createServerLogger } from './server-logger';
@@ -24,6 +25,7 @@ const angularApp = new AngularNodeAppEngine();
 const logger = createServerLogger(process.env);
 
 app.use(requestObservabilityMiddleware(logger));
+installClientLogEndpoint(app, { logger });
 installAuthLoginEndpoint(app, { env: process.env, logger });
 installQualityControlEndpoints(app, { env: process.env, logger });
 installFmaEndpoints(app, { env: process.env, logger });
