@@ -169,12 +169,19 @@ export class ExamEntryPanel implements AfterViewInit {
       observation: draft.observation.trim(),
       operatorId: this.operatorService.selectedOperator?.code ?? '',
     });
-    const idempotencyKey = this.workflow.ensureMeasurementCommandId(
-      exam.id,
-      characteristic.id,
-      fingerprint,
-      () => this.idempotency.resolve(),
-    );
+    let idempotencyKey: string;
+    try {
+      idempotencyKey = this.workflow.ensureMeasurementCommandId(
+        exam.id,
+        characteristic.id,
+        fingerprint,
+        () => this.idempotency.resolve(),
+      );
+    } catch {
+      this.workflow.isSaving.set(false);
+      this.workflow.examFeedback.set('Não foi possível gerar a identidade segura do resultado.');
+      return of(null);
+    }
     const dependencyIds = [
       ...(route.creationCommandId ? [route.creationCommandId] : []),
       ...this.workflow.measurementCommandIds(exam.id).slice(-1),

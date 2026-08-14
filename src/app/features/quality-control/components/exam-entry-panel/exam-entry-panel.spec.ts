@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PoDialogService } from '@po-ui/ng-components';
 
 import { OperationalCommandFacade } from '../../../../core/offline/services/operational-command.facade';
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import { OperatorService } from '../../../shop-floor/services/operator';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
@@ -14,6 +15,7 @@ describe('ExamEntryPanel resultado único', () => {
   let component: ExamEntryPanel;
   let state: QualityControlWorkflowState;
   let capture: ReturnType<typeof vi.fn>;
+  let idempotency: { resolve: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     capture = vi.fn(async (request: { idempotencyKey?: string }) => ({
@@ -21,9 +23,11 @@ describe('ExamEntryPanel resultado único', () => {
       idempotencyKey: request.idempotencyKey ?? 'idem', payloadHash: 'hash',
       committedAt: new Date().toISOString(), syncStatus: 'PENDING',
     }));
+    idempotency = { resolve: vi.fn(() => 'idempotency-key') };
     await TestBed.configureTestingModule({ imports: [ExamEntryPanel], providers: [
       QualityControlWorkflowState, QualityControlService, OperatorService,
       { provide: OperationalCommandFacade, useValue: { capture } },
+      { provide: IdempotencyService, useValue: idempotency },
       { provide: PoDialogService, useValue: { confirm: vi.fn() } },
     ] }).compileComponents();
     state = TestBed.inject(QualityControlWorkflowState);
@@ -118,6 +122,19 @@ describe('ExamEntryPanel resultado único', () => {
     await expect(firstValueFrom(component.saveCurrentMeasurement())).resolves.toBeNull();
     expect(component.result).toBe('24,1');
     expect(state.componentById('numeric')?.measurement).toBeUndefined();
+  });
+
+  it('libera o formulário quando a identidade não pode ser gerada', async () => {
+    idempotency.resolve.mockImplementationOnce(() => {
+      throw new Error('identity-unavailable');
+    });
+    component.updateResult('24');
+
+    await expect(firstValueFrom(component.saveCurrentMeasurement())).resolves.toBeNull();
+
+    expect(state.isSaving()).toBe(false);
+    expect(state.examFeedback()).toContain('identidade segura');
+    expect(capture).not.toHaveBeenCalled();
   });
 
   it('bloqueia finalização e exige motivo quando há reprovação remota', () => {
