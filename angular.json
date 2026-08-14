@@ -72,6 +72,17 @@
                 }
               ]
             },
+            "http-test": {
+              "optimization": true,
+              "extractLicenses": true,
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/runtime/insecure-http-test-mode.ts",
+                  "with": "src/app/core/runtime/insecure-http-test-mode.http-test.ts"
+                }
+              ]
+            },
             "pwa-e2e-a": {
               "serviceWorker": "ngsw-config.json",
               "outputHashing": "all",

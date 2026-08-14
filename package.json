@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:http-test": "ng build --configuration http-test",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:coverage": "ng test --configuration coverage",
