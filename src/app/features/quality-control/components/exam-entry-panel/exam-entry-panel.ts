@@ -56,6 +56,7 @@ export class ExamEntryPanel implements AfterViewInit {
     return this.characteristics.findIndex(component => component.id === this.currentCharacteristic?.id);
   }
   get result(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).result : ''; }
+  get report(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).report : ''; }
   get selectedOptionKey(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).selectedOptionKey : ''; }
   get resultOptions(): readonly { label: string; value: string }[] {
     return (this.currentCharacteristic?.resultOptions ?? []).map(option => ({
@@ -64,6 +65,7 @@ export class ExamEntryPanel implements AfterViewInit {
     }));
   }
   get hasResultOptions(): boolean { return this.resultOptions.length > 0; }
+  get isReportResult(): boolean { return this.currentCharacteristic?.resultType === 3; }
   get observation(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).observation : ''; }
   set observation(value: string) {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
@@ -110,7 +112,7 @@ export class ExamEntryPanel implements AfterViewInit {
   }
   get currentMeasurementReference(): string {
     return this.currentCharacteristic
-      ? `${this.currentCharacteristic.reference} ${this.currentCharacteristic.unit}`.trim()
+      ? `${this.currentCharacteristic.reference} ${this.currentCharacteristic.unit}`.trim() || '-'
       : '-';
   }
 
@@ -118,6 +120,12 @@ export class ExamEntryPanel implements AfterViewInit {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
       this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
       this.workflow.updateDraft(this.currentCharacteristic.id, { result: this.sanitizeNumericInput(value) });
+    }
+  }
+
+  updateReport(value: string): void {
+    if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
+      this.workflow.updateDraft(this.currentCharacteristic.id, { report: value });
     }
   }
 
@@ -139,11 +147,16 @@ export class ExamEntryPanel implements AfterViewInit {
     const selectedOption = characteristic.resultOptions?.find(
       option => `${option.tableNumber}:${option.sequence}` === draft.selectedOptionKey,
     );
-    const result = this.hasResultOptions ? null : this.parseNumber(draft.result);
-    if (this.hasResultOptions ? !selectedOption : result === null) {
+    const report = this.isReportResult ? draft.report.trim() : null;
+    const result = this.hasResultOptions || this.isReportResult
+      ? null
+      : this.parseNumber(draft.result);
+    if (this.hasResultOptions ? !selectedOption : this.isReportResult ? !report : result === null) {
       this.validationMessage = this.hasResultOptions
         ? 'Selecione uma opção de resultado.'
-        : 'Informe um resultado numérico.';
+        : this.isReportResult
+          ? 'Informe o laudo.'
+          : 'Informe um resultado numérico.';
       return of(null);
     }
     if (result !== null && !this.hasSupportedPrecision(draft.result, characteristic.decimalPlaces)) {
@@ -165,6 +178,7 @@ export class ExamEntryPanel implements AfterViewInit {
     }
     const fingerprint = JSON.stringify({
       result,
+      report,
       selectedOptionKey: draft.selectedOptionKey,
       observation: draft.observation.trim(),
       operatorId: this.operatorService.selectedOperator?.code ?? '',
@@ -187,6 +201,7 @@ export class ExamEntryPanel implements AfterViewInit {
       ...this.workflow.measurementCommandIds(exam.id).slice(-1),
     ];
     return this.qualityControlService.saveMeasurement({
+      orderNumber: route.currentOrder,
       examId: exam.id,
       componentId: characteristic.id,
       routeNumber: route.routeNumber,
@@ -201,6 +216,7 @@ export class ExamEntryPanel implements AfterViewInit {
       dependencyIds,
       measurement: {
         ...(result !== null ? { result } : {}),
+        ...(report ? { report } : {}),
         ...(selectedOption ? { selectedOption } : {}),
         observation: draft.observation.trim() || undefined,
         status: 'RECORDED',
@@ -383,6 +399,7 @@ export class ExamEntryPanel implements AfterViewInit {
         componentCode: component.code,
         description: component.description,
         measuredValue: measurement.result,
+        ...(measurement.report ? { report: measurement.report } : {}),
         expectedMin: component.minValue,
         expectedMax: component.maxValue,
         unit: component.unit,

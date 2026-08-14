@@ -189,14 +189,17 @@ export class QualityControlService {
             return [];
           }
           const result = typeof value['resultado'] === 'number' ? value['resultado'] : undefined;
+          const report = nonEmptyText(value['laudo']) ? value['laudo'] : undefined;
           const tableNumber = typeof value['nrTabela'] === 'number' ? value['nrTabela'] : undefined;
           const optionSequence = typeof value['seqOpcao'] === 'number' ? value['seqOpcao'] : undefined;
-          if (result === undefined && (tableNumber === undefined || optionSequence === undefined)) return [];
+          if (result === undefined && report === undefined
+            && (tableNumber === undefined || optionSequence === undefined)) return [];
           return [{
             examId: value['examId'],
             componentId: value['componentId'],
             measurement: {
               ...(result !== undefined ? { result } : {}),
+              ...(report !== undefined ? { report } : {}),
               ...(tableNumber !== undefined && optionSequence !== undefined
                 ? { selectedOption: { tableNumber, sequence: optionSequence, description: textOr(value['optionDescription'], '') } }
                 : {}),
@@ -290,8 +293,9 @@ export class QualityControlService {
     }
     const hasNumericResult = typeof request.measurement.result === 'number'
       && Number.isFinite(request.measurement.result);
+    const report = request.measurement.report?.trim() ?? '';
     const option = request.measurement.selectedOption;
-    if (hasNumericResult === Boolean(option)) {
+    if ([hasNumericResult, Boolean(report), Boolean(option)].filter(Boolean).length !== 1) {
       return throwError(() => new Error('invalid-quality-result'));
     }
     return from(this.commands.capture({
@@ -302,12 +306,14 @@ export class QualityControlService {
       ...(request.dependencyIds ? { dependencyIds: request.dependencyIds } : {}),
       occurredAt: savedAt.toISOString(),
       payload: {
+        ...(nonEmptyText(request.orderNumber) ? { orderNumber: request.orderNumber.trim() } : {}),
         nrFicha,
         codExame,
         codComponente,
         examId: request.examId,
         componentId: request.componentId,
         ...(hasNumericResult ? { resultado: request.measurement.result! } : {}),
+        ...(report ? { laudo: report } : {}),
         ...(option ? {
           nrTabela: option.tableNumber,
           seqOpcao: option.sequence,

@@ -11,6 +11,7 @@ import {
   type LoginEnvironment,
   type LoginInput,
 } from './auth-login';
+import type { ApplicationLogger } from './logging/log-contracts';
 
 const LOGIN_PATH = '/api/auth/login';
 
@@ -20,6 +21,8 @@ export interface AuthLoginEndpointDependencies {
     input: LoginInput,
     env: LoginEnvironment,
   ) => Promise<AuthenticatedLogin>;
+  logger?: ApplicationLogger;
+  clock?: () => number;
 }
 
 function isBodyObject(value: unknown): value is LoginInput {
@@ -53,10 +56,12 @@ export function installAuthLoginEndpoint(
     }
 
     try {
-      const result = await (dependencies.authenticate ?? authenticateExternalLogin)(
-        req.body,
-        dependencies.env,
-      );
+      const result = dependencies.authenticate
+        ? await dependencies.authenticate(req.body, dependencies.env)
+        : await authenticateExternalLogin(req.body, dependencies.env, {
+          logger: dependencies.logger,
+          clock: dependencies.clock,
+        });
       res.status(200).json(result);
     } catch (error) {
       if (error instanceof AuthLoginError) {

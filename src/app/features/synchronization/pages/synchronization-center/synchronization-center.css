@@ -169,6 +169,18 @@ dd {
   margin: 0;
 }
 
+.synchronization-detail__identification {
+  margin: 0;
+}
+
+.synchronization-detail__identification h3 {
+  margin: 0 0 var(--app-space-md);
+}
+
+.synchronization-detail__identification dd {
+  font-weight: 600;
+}
+
 .synchronization-abandon textarea {
   box-sizing: border-box;
   width: 100%;

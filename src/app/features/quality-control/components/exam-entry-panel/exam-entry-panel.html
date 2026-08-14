@@ -30,6 +30,8 @@
     <form class="exam-entry__form" (ngSubmit)="saveCurrentMeasurement().subscribe()">
       @if (hasResultOptions) {
         <po-select name="resultOption" p-label="Resultado" p-placeholder="Selecione uma opção" p-required="true" [p-options]="resultOptions" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="selectedOptionKey" (ngModelChange)="updateSelectedOption($event)"></po-select>
+      } @else if (isReportResult) {
+        <po-input name="report" p-label="Laudo" p-placeholder="Informe o laudo" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="report" (ngModelChange)="updateReport($event)"></po-input>
       } @else {
         <po-input name="result" p-label="Resultado" [p-placeholder]="currentCharacteristic ? 'Ex.: ' + currentCharacteristic.minValue : 'Informe o resultado'" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="result" (ngModelChange)="updateResult($event)"></po-input>
       }

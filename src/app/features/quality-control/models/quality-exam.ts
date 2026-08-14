@@ -49,6 +49,7 @@ export interface QualityExam {
 
 export interface QualityMeasurement {
   result?: number;
+  report?: string;
   selectedOption?: QualityResultOption;
   observation?: string;
   status: QualityMeasurementStatus;

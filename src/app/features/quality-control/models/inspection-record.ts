@@ -33,6 +33,7 @@ export type MeasurementValidationResult =
     };
 
 export interface SaveMeasurementRequest {
+  orderNumber?: string;
   nrFicha?: number;
   examCode?: number;
   componentCode?: number;
@@ -58,6 +59,7 @@ export interface InspectionMeasurementPayload {
   componentCode: string;
   description: string;
   measuredValue?: number;
+  report?: string;
   measuredMinimum?: number;
   measuredMaximum?: number;
   expectedMin: number;

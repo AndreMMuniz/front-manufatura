@@ -62,6 +62,22 @@ describe('SynchronizationCenterPage', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it('destaca os quatro dados do resultado CQ ainda não enviado', async () => {
+    const qualityItem = { ...item(), operationalDetails: [
+      { label: 'Ordem', value: '372562' }, { label: 'Exame', value: '1845' },
+      { label: 'Componente', value: '1' }, { label: 'Resultado', value: '24,01' },
+    ] };
+    const test = await setup(state({ readState: 'ready', items: [qualityItem] }));
+
+    test.fixture.nativeElement.querySelector('[data-testid="sync-detail-local-1"]').click();
+    test.fixture.detectChanges();
+    const details = test.fixture.nativeElement.querySelector('[data-testid="sync-operational-details"]');
+    expect(details.textContent).toMatch(/Ordem\s*372562/);
+    expect(details.textContent).toMatch(/Exame\s*1845/);
+    expect(details.textContent).toMatch(/Componente\s*1/);
+    expect(details.textContent).toMatch(/Resultado\s*24,01/);
+  });
+
   it('combina filtros e permite limpá-los com controles acessíveis', async () => {
     const test = await setup(state({ readState: 'ready', items: [item()] }));
     const identification = test.fixture.nativeElement.querySelector('#sync-identification');
@@ -216,6 +232,7 @@ function item() {
     moduleLabel: 'Reporte de Operação',
     commandLabel: 'Reportar operação',
     operationalIdentification: 'OP 100 · Operação 10 · Split 1',
+    operationalDetails: [],
     occurredAt: '2026-07-30T12:00:00.000Z',
     createdAt: '2026-07-30T12:00:01.000Z',
     ownerId: 'operator-1',

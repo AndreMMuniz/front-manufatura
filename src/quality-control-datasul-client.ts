@@ -1,3 +1,10 @@
+import { noopLogger, type ApplicationLogger } from './logging/log-contracts';
+import {
+  observeUpstreamFetch,
+  reportInvalidUpstreamResponse,
+  type UpstreamRequestDetails,
+} from './server-upstream-observability';
+
 export type QualityControlEnvironment = Record<string, string | undefined>;
 
 export interface QualityControlDatasulConfig {
@@ -62,22 +69,28 @@ export class QualityControlDatasulClient {
     private readonly config: QualityControlDatasulConfig,
     private readonly transport: QualityControlTransport = fetch,
     private readonly timeoutSignal: (timeoutMs: number) => AbortSignal = AbortSignal.timeout,
+    private readonly logger: ApplicationLogger = noopLogger,
+    private readonly clock: () => number = () => performance.now(),
   ) {}
 
   getOrder(orderNumber: number): Promise<unknown> {
-    return this.request('GET', `/api/fcq/v1/ordens/${orderNumber}`);
+    return this.request('GET', `/api/fcq/v1/ordens/${orderNumber}`, undefined, undefined,
+      'get_quality_order', '/api/fcq/v1/ordens/:id');
   }
 
   getRoute(body: { readonly nrOrdemProducao: number; readonly codOperacao: number }): Promise<unknown> {
-    return this.request('POST', '/api/fcq/v1/roteiros', body, 'companyid');
+    return this.request('POST', '/api/fcq/v1/roteiros', body, 'companyid',
+      'get_quality_route', '/api/fcq/v1/roteiros');
   }
 
   saveResult(body: Record<string, number | string>): Promise<unknown> {
-    return this.request('PUT', '/api/fcq/v1/resultexames', body, 'companyId');
+    return this.request('PUT', '/api/fcq/v1/resultexames', body, 'companyId',
+      'save_quality_result', '/api/fcq/v1/resultexames');
   }
 
   finalizeRoute(body: { readonly nrFicha: number; readonly codUsuario: string }): Promise<unknown> {
-    return this.request('PUT', '/api/fcq/v1/FinalizaRoteiros', body, 'companyId');
+    return this.request('PUT', '/api/fcq/v1/FinalizaRoteiros', body, 'companyId',
+      'finalize_quality_route', '/api/fcq/v1/FinalizaRoteiros');
   }
 
   private async request(
@@ -85,6 +98,8 @@ export class QualityControlDatasulClient {
     path: string,
     body?: object,
     companyParameter?: 'companyid' | 'companyId',
+    operation = 'quality_control_request',
+    observableRoute = '/api/fcq/v1',
   ): Promise<unknown> {
     const url = new URL(path, this.config.baseUrl);
     if (companyParameter) url.searchParams.set(companyParameter, String(this.config.companyId));
@@ -92,18 +107,23 @@ export class QualityControlDatasulClient {
       `${this.config.integrationUser}:${this.config.integrationPassword}`,
       'utf8',
     ).toString('base64');
+    const observation: UpstreamRequestDetails = {
+      system: 'datasul', operation, method, route: observableRoute,
+      protocol: this.config.baseUrl.protocol as 'http:' | 'https:',
+      destinationHost: this.config.baseUrl.host,
+    };
     let response: Response;
     try {
-      response = await this.transport(url, {
-        method,
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Basic ${authorization}`,
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-        signal: this.timeoutSignal(this.config.requestTimeoutMs),
-      });
+      response = await observeUpstreamFetch(this.logger, observation, () => this.transport(url, {
+          method,
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Basic ${authorization}`,
+            ...(body ? { 'Content-Type': 'application/json' } : {}),
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+          signal: this.timeoutSignal(this.config.requestTimeoutMs),
+        }), this.clock);
     } catch (error) {
       if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
         throw new QualityControlGatewayError(504, 'datasul-timeout');
@@ -119,6 +139,7 @@ export class QualityControlDatasulClient {
     try {
       return await response.json() as unknown;
     } catch (error) {
+      reportInvalidUpstreamResponse(this.logger, observation, response.status);
       if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
         throw new QualityControlGatewayError(504, 'datasul-timeout');
       }

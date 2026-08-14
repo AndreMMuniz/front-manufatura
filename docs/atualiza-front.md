@@ -11,7 +11,7 @@ O script executa as etapas abaixo em sequência:
 | 1. Acessar o projeto     | `cd /d C:\node\front-manufatura`                                | Define o diretório de trabalho no servidor.                                 |
 | 2. Atualizar o código    | `git pull origin main`                                          | Baixa e integra a versão mais recente da branch `main`.                     |
 | 3. Instalar dependências | `npm install`                                                   | Atualiza as dependências do projeto conforme o `package.json` e o lockfile. |
-| 4. Gerar o build         | `npm run build`                                                 | Gera a aplicação Angular/SSR em `dist/plano-de-controle`.                   |
+| 4. Gerar o build         | `npm run build:http-test`                                       | Gera temporariamente a aplicação Angular/SSR para acesso HTTP por IP.       |
 | 5. Iniciar o servidor    | `node --env-file=.env dist/plano-de-controle/server/server.mjs` | Inicia o servidor Node com as variáveis do `.env`.                          |
 
 Se uma etapa falhar, o script mostra uma mensagem de erro, interrompe a execução e retorna o código de saída `1`. A etapa seguinte não é executada.
@@ -47,6 +47,25 @@ O arquivo `.env` é obrigatório para esse script. Não publique seu conteúdo n
 
 Uma execução bem-sucedida exibe a mensagem `[4/4] Iniciando servidor com .env...` e mantém o processo Node ativo no terminal. O script só continua para o `pause` final quando o servidor é encerrado ou falha.
 
+## Logs do servidor e das APIs
+
+O servidor mostra no próprio terminal os eventos de startup, shutdown, chamadas recebidas e integrações com o Datasul. Os mesmos eventos são gravados como JSON Lines em `C:\node\front-manufatura\logs` por padrão. Cada linha do arquivo é um JSON independente, facilitando busca e diagnóstico.
+
+Os arquivos seguem o nome `application-AAAA-MM-DD.log`, giram diariamente ou ao atingir 20 MB e são mantidos por 14 dias. O arquivo `.application-log-audit.json` dentro da mesma pasta controla a retenção e não deve ser editado manualmente.
+
+O `.env` aceita estas configurações opcionais:
+
+| Variável                 | Padrão | Finalidade                                      |
+| ------------------------ | ------ | ----------------------------------------------- |
+| `APP_LOG_LEVEL`          | `info` | Nível mínimo: `debug`, `info`, `warn` ou `error`. |
+| `APP_LOG_DIR`            | `logs` | Pasta absoluta ou relativa à raiz de execução.  |
+| `APP_LOG_RETENTION_DAYS` | `14`   | Quantidade de dias de retenção.                 |
+| `APP_LOG_MAX_SIZE`       | `20m`  | Tamanho máximo antes de criar outro arquivo.    |
+
+Para usar outra pasta, configure somente o caminho no `.env`, por exemplo `APP_LOG_DIR=D:\logs\front-manufatura`. Não inclua credenciais no caminho e não mostre o conteúdo completo do `.env` durante o diagnóstico.
+
+Se a gravação em arquivo falhar por permissão ou disco indisponível, a aplicação continua atendendo e mostra no terminal o aviso `server_log_file_unavailable`. Corrija a pasta e reinicie o processo para restabelecer os arquivos.
+
 ## Diagnóstico de falhas
 
 ### `ERRO no git pull`
@@ -65,12 +84,15 @@ O código foi atualizado e as dependências foram instaladas, mas o build não f
 
 Verifique se o `.env` existe e possui as configurações esperadas, se o build gerou `dist/plano-de-controle/server/server.mjs` e se a porta da aplicação já está em uso.
 
+Valores inválidos nas variáveis `APP_LOG_*` também interrompem o startup com mensagem explícita. Já uma pasta sem permissão produz fallback somente para o terminal, sem interromper as APIs.
+
 ## Limites operacionais
 
 - A ferramenta publica exclusivamente a branch remota `origin/main`.
 - O caminho `C:\node\front-manufatura` está definido diretamente no arquivo.
 - O script não cria backup nem desfaz automaticamente uma atualização com falha.
 - O servidor Node roda em primeiro plano; fechar a janela encerra a aplicação.
+- O modo `build:http-test` e o acesso HTTP por IP são temporários. Ao disponibilizar HTTPS, restaure `call npm run build` no `.bat`, conforme o comentário existente no próprio arquivo.
 - O script não gerencia o processo como serviço do Windows e não reinicia a aplicação automaticamente após reinicializações do servidor.
 - Alterações locais no servidor podem impedir o `git pull` ou ser combinadas com a versão publicada. Mantenha o clone de produção sem edições manuais.
 

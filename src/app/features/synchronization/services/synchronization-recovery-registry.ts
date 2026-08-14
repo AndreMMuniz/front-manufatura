@@ -36,7 +36,7 @@ const RECOVERY_DEFINITIONS: Readonly<Record<OperationalCommandType, RecoveryDefi
       'measurements', 'status', 'createdAt',
     ]),
     SAVE_QUALITY_RESULT: correctable('/quality-control', [
-      'nrFicha', 'codExame', 'codComponente', 'resultado', 'nrTabela',
+      'orderNumber', 'nrFicha', 'codExame', 'codComponente', 'resultado', 'nrTabela',
       'seqOpcao', 'observation', 'operatorId', 'savedAt',
     ]),
     FINALIZE_QUALITY_ROUTE: retryOnly('/quality-control'),

@@ -14,6 +14,7 @@ import {
   type QualityControlEnvironment,
   type QualityControlTransport,
 } from './quality-control-datasul-client';
+import type { ApplicationLogger } from './logging/log-contracts';
 
 const ROOT = '/api/quality-control';
 
@@ -22,6 +23,8 @@ export interface QualityControlEndpointDependencies {
   readonly transport?: QualityControlTransport;
   readonly timeoutSignal?: (timeoutMs: number) => AbortSignal;
   readonly now?: () => Date;
+  readonly logger?: ApplicationLogger;
+  readonly clock?: () => number;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -109,12 +112,17 @@ export function buildQualityResultPayload(
   const hasTableNumber = body['nrTabela'] !== undefined;
   const hasOptionSequence = body['seqOpcao'] !== undefined;
   const hasCompleteOption = hasTableNumber && hasOptionSequence;
-  if (hasResult === hasCompleteOption || hasTableNumber !== hasOptionSequence) {
+  const report = typeof body['laudo'] === 'string' ? body['laudo'].trim() : '';
+  if (
+    hasTableNumber !== hasOptionSequence
+    || [hasResult, hasCompleteOption, Boolean(report)].filter(Boolean).length !== 1
+  ) {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
   if (hasResult) {
     return { ...common, resultado: finiteNumber(body['resultado']) };
   }
+  if (report) return { ...common, laudo: report };
   return {
     ...common,
     nrTabela: positiveInteger(body['nrTabela']),
@@ -140,6 +148,8 @@ async function handle(
       config,
       dependencies.transport,
       dependencies.timeoutSignal,
+      dependencies.logger,
+      dependencies.clock,
     );
     res.status(200).json(await operation(client, subject));
   } catch (error) {

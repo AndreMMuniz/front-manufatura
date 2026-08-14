@@ -8,6 +8,13 @@ import {
   type QualityControlEnvironment,
   type QualityControlTransport,
 } from './quality-control-datasul-client';
+import { noopLogger, type ApplicationLogger } from './logging/log-contracts';
+import { normalizedRoute } from './server-observability';
+import {
+  observeUpstreamFetch,
+  reportInvalidUpstreamResponse,
+  type UpstreamRequestDetails,
+} from './server-upstream-observability';
 
 const FMA_PERMISSIONS = [
   APP_PERMISSIONS.operationReporting,
@@ -20,6 +27,8 @@ export interface FmaEndpointDependencies {
   readonly transport?: QualityControlTransport;
   readonly timeoutSignal?: (timeoutMs: number) => AbortSignal;
   readonly now?: () => Date;
+  readonly logger?: ApplicationLogger;
+  readonly clock?: () => number;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -166,11 +175,11 @@ function installTransparentRoutes(app: Application, dependencies: FmaEndpointDep
     '/api/teams', '/api/teams/:code', '/api/scrap-reasons', '/api/stop-reasons',
   ];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
-    client.request('GET', concretePath(req), undefined, queryObject(req))));
+    client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));
   app.post('/api/teams', (req, res) => handle(req, res, dependencies, client =>
-    client.request('POST', '/api/teams', objectOf(req.body))));
+    client.request('POST', '/api/teams', objectOf(req.body), {}, normalizedRoute(req))));
   app.put('/api/teams/:code', (req, res) => handle(req, res, dependencies, client =>
-    client.request('PUT', concretePath(req), objectOf(req.body))));
+    client.request('PUT', concretePath(req), objectOf(req.body), {}, normalizedRoute(req))));
 
   const commands = [
     '/api/operations/report', '/api/operations/end', '/api/batches/start',
@@ -178,7 +187,7 @@ function installTransparentRoutes(app: Application, dependencies: FmaEndpointDep
     '/api/production-stops/:id/finish',
   ];
   for (const path of commands) app.post(path, (req, res) => handle(req, res, dependencies, client =>
-    client.request('POST', concretePath(req), objectOf(req.body), queryObject(req))));
+    client.request('POST', concretePath(req), objectOf(req.body), queryObject(req), normalizedRoute(req))));
 }
 
 class FmaClient {
@@ -195,29 +204,50 @@ class FmaClient {
     path: string,
     body?: object,
     query: Record<string, string | number> = {},
+    observableRoute = path,
   ): Promise<unknown> {
     const url = new URL(path, this.config.baseUrl);
     url.searchParams.set('companyId', String(this.config.companyId));
     url.searchParams.set('codUsuario', this.subject);
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, String(value));
     const authorization = Buffer.from(`${this.config.integrationUser}:${this.config.integrationPassword}`, 'utf8').toString('base64');
+    const observation: UpstreamRequestDetails = {
+      system: 'datasul',
+      operation: operationName(method, observableRoute),
+      method,
+      route: observableRoute,
+      protocol: this.config.baseUrl.protocol as 'http:' | 'https:',
+      destinationHost: this.config.baseUrl.host,
+    };
     let response: globalThis.Response;
     try {
-      response = await (this.dependencies.transport ?? fetch)(url, {
-        method,
-        headers: {
-          Accept: 'application/json', Authorization: `Basic ${authorization}`,
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-        signal: (this.dependencies.timeoutSignal ?? AbortSignal.timeout)(this.config.requestTimeoutMs),
-      });
+      response = await observeUpstreamFetch(
+        this.dependencies.logger ?? noopLogger,
+        observation,
+        () => (this.dependencies.transport ?? fetch)(url, {
+          method,
+          headers: {
+            Accept: 'application/json', Authorization: `Basic ${authorization}`,
+            ...(body ? { 'Content-Type': 'application/json' } : {}),
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+          signal: (this.dependencies.timeoutSignal ?? AbortSignal.timeout)(this.config.requestTimeoutMs),
+        }),
+        this.dependencies.clock,
+      );
     } catch {
       throw new QualityControlGatewayError(502, 'datasul-unavailable');
     }
     if (!response.ok) throw new QualityControlGatewayError(response.status, 'datasul-request-failed');
     try { return await response.json() as unknown; }
-    catch { throw new QualityControlGatewayError(502, 'invalid-upstream-response'); }
+    catch {
+      reportInvalidUpstreamResponse(
+        this.dependencies.logger ?? noopLogger,
+        observation,
+        response.status,
+      );
+      throw new QualityControlGatewayError(502, 'invalid-upstream-response');
+    }
   }
 }
 
@@ -330,4 +360,12 @@ function concretePath(req: Request): string { return req.path; }
 function queryObject(req: Request): Record<string, string> {
   return Object.fromEntries(Object.entries(req.query).flatMap(([key, value]) =>
     typeof value === 'string' ? [[key, value]] : []));
+}
+
+function operationName(method: string, route: string): string {
+  return `fma_${method.toLocaleLowerCase('en-US')}_${route}`
+    .replace(/:[^/]+/g, 'resource')
+    .replace(/[^a-z0-9]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 120);
 }

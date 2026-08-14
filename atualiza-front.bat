@@ -45,6 +45,13 @@ if errorlevel 1 (
 
 echo.
 echo [4/4] Iniciando servidor com .env...
+REM LOGS DO SERVIDOR:
+REM Por padrao, os eventos de API e do Datasul ficam em C:\node\front-manufatura\logs.
+REM Se APP_LOG_DIR estiver definido no .env, consulte esse valor para localizar os arquivos.
+REM Nao exiba o conteudo do .env no terminal, pois ele possui credenciais e segredos.
+REM Para voltar ao comportamento sem arquivos no futuro, remova as variaveis APP_LOG_ do .env
+REM somente depois de remover/reverter a instrumentacao de logging no codigo.
+echo Logs do servidor: pasta logs ^(ou APP_LOG_DIR configurado no .env^)
 node --env-file=.env dist/plano-de-controle/server/server.mjs
 
 if errorlevel 1 (

@@ -65,6 +65,7 @@ export interface SynchronizationEntryView {
   readonly moduleLabel: string;
   readonly commandLabel: string;
   readonly operationalIdentification: string;
+  readonly operationalDetails: readonly SynchronizationOperationalDetail[];
   readonly occurredAt: string;
   readonly createdAt: string;
   readonly ownerId: string;
@@ -83,6 +84,11 @@ export interface SynchronizationEntryView {
   readonly nextAttemptAt?: string;
   readonly supersedesLocalId?: string;
   readonly supersededByLocalId?: string;
+}
+
+export interface SynchronizationOperationalDetail {
+  readonly label: string;
+  readonly value: string;
 }
 
 export type SynchronizationModule =
@@ -172,6 +178,7 @@ export function mapSynchronizationEntry(
     operationalIdentification: command
       ? command.identify(payload, source.aggregateId)
       : `Registro ${safeIdentifier(source.aggregateId, 'não identificado')}`,
+    operationalDetails: operationalDetails(source.commandType, payload),
     occurredAt: source.occurredAt,
     createdAt: source.createdAt,
     ownerId: source.ownerId,
@@ -266,6 +273,40 @@ function quality(
       ], aggregateId);
     },
   };
+}
+
+function operationalDetails(
+  commandType: string,
+  payload: Readonly<Record<string, unknown>>,
+): readonly SynchronizationOperationalDetail[] {
+  if (commandType !== 'SAVE_QUALITY_RESULT') return Object.freeze([]);
+  return Object.freeze([
+    detail('Ordem', text(payload, 'orderNumber', 'currentOrder'), 'Não informada'),
+    detail('Exame', scalar(payload['codExame']) || text(payload, 'examCode'), 'Não informado'),
+    detail(
+      'Componente',
+      scalar(payload['codComponente']) || text(payload, 'componentCode'),
+      'Não informado',
+    ),
+    detail('Resultado', resultValue(payload), 'Não informado'),
+  ]);
+}
+
+function detail(label: string, value: string, fallback: string): SynchronizationOperationalDetail {
+  return Object.freeze({ label, value: value || fallback });
+}
+
+function resultValue(payload: Readonly<Record<string, unknown>>): string {
+  const numericResult = payload['resultado'];
+  if (typeof numericResult === 'number' && Number.isFinite(numericResult)) {
+    return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 }).format(numericResult);
+  }
+  return text(payload, 'optionDescription', 'resultado');
+}
+
+function scalar(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return typeof value === 'string' ? safeText(value, '') : '';
 }
 
 function operation(

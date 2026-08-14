@@ -164,6 +164,36 @@ describe('ExamEntryPanel resultado único', () => {
     }));
   });
 
+  it('envia tipoResultado 3 como laudo textual, inclusive quando informado 0', async () => {
+    state.setGeneratedRoute({ nrFicha: 64391, routeNumber: '64391', processDescription: 'CORTE',
+      currentOrder: '372569', operationCode: '10', operationDescription: '10 - CORTE',
+      split: '1', itemCode: 'ITEM', itemDescription: 'ITEM' });
+    const token = state.beginExamLoad()!;
+    state.completeExamLoad(token, [{
+      id: '64391-2000', code: '2000', description: 'CORTE LASER', version: '1',
+      frequency: '60', sample: '2', unit: '', nqa: '0', level: '0', components: [{
+        id: '64391-2000-10', code: '10', examCode: 2000, componentCode: 10,
+        tableNumber: 0, resultType: 3, decimalPlaces: 0,
+        description: 'ESPESSURA CHAPA CONF. DESENHO', reference: '',
+        minValue: 0, maxValue: 0, unit: '', measurementMethod: 'PAQUÍMETRO',
+        sequence: 1, status: 'PENDING',
+      }],
+    }]);
+    state.openPanel('64391-2000-10');
+
+    component.updateReport('0');
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(state.componentById('64391-2000-10')?.measurement).toMatchObject({
+      report: '0', status: 'RECORDED', deliveryStatus: 'PENDING',
+    });
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      commandType: 'SAVE_QUALITY_RESULT',
+      payload: expect.objectContaining({ laudo: '0' }),
+    }));
+    expect(capture.mock.calls.at(-1)?.[0].payload).not.toHaveProperty('resultado');
+  });
+
   it('finaliza a ficha somente após todos os exames e depende de todos os resultados', async () => {
     state.applyMeasurement('e1', 'numeric', { result: 24, status: 'RECORDED', commandId: 'r1' });
     expect(component.canCompleteExam).toBe(false);

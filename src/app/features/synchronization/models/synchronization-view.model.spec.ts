@@ -73,6 +73,35 @@ describe('synchronization view model', () => {
     expect(JSON.stringify(view)).not.toMatch(/secret|img src|token/i);
   });
 
+  it('separa Ordem, Exame, Componente e Resultado do apontamento CQ', () => {
+    const view = mapSynchronizationEntry(entry({
+      commandType: 'SAVE_QUALITY_RESULT', aggregateType: 'QUALITY_EXAM', aggregateId: '64379',
+      payload: { orderNumber: '372562', nrFicha: 64379, codExame: 1845,
+        codComponente: 1, resultado: 24.01 },
+    }));
+
+    expect(view.operationalDetails).toEqual([
+      { label: 'Ordem', value: '372562' },
+      { label: 'Exame', value: '1845' },
+      { label: 'Componente', value: '1' },
+      { label: 'Resultado', value: '24,01' },
+    ]);
+  });
+
+  it('explicita campos ausentes em registros CQ antigos', () => {
+    const view = mapSynchronizationEntry(entry({
+      commandType: 'SAVE_QUALITY_RESULT',
+      payload: { codExame: 1845, codComponente: 1, resultado: 0 },
+    }));
+
+    expect(view.operationalDetails).toEqual([
+      { label: 'Ordem', value: 'Não informada' },
+      { label: 'Exame', value: '1845' },
+      { label: 'Componente', value: '1' },
+      { label: 'Resultado', value: '0' },
+    ]);
+  });
+
   it('aplica a precedência determinística das mensagens e exclui ERROR do progresso', () => {
     expect(buildSynchronizationIndicatorMessage({
       readState: 'error',

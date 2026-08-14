@@ -5,6 +5,12 @@ import {
   type AppPermission,
   type DatasulSecurityProgram,
 } from './app-permissions';
+import { noopLogger, type ApplicationLogger } from './logging/log-contracts';
+import {
+  observeUpstreamFetch,
+  reportInvalidUpstreamResponse,
+  type UpstreamRequestDetails,
+} from './server-upstream-observability';
 
 export type HttpTransport = (
   input: string | URL | globalThis.Request,
@@ -25,6 +31,8 @@ export interface DatasulIdentity {
 export interface DatasulAuthClientDependencies {
   transport: HttpTransport;
   timeoutSignal: (timeoutMs: number) => AbortSignal;
+  logger?: ApplicationLogger;
+  clock?: () => number;
 }
 
 interface DatasulProgramAccess {
@@ -74,16 +82,29 @@ async function getJson(
   authorization: string,
   config: DatasulAuthConfig,
   dependencies: DatasulAuthClientDependencies,
+  operation: string,
+  route: string,
 ): Promise<unknown> {
   const signal = dependencies.timeoutSignal(config.requestTimeoutMs);
+  const destination = new URL(config.baseUrl);
+  const observation: UpstreamRequestDetails = {
+    system: 'datasul', operation, method: 'GET', route,
+    protocol: destination.protocol as 'http:' | 'https:',
+    destinationHost: destination.host,
+  };
   let response: Response;
   try {
-    response = await dependencies.transport(url, {
-      method: 'GET',
-      redirect: 'error',
-      headers: { Authorization: authorization, Accept: 'application/json' },
-      signal,
-    });
+    response = await observeUpstreamFetch(
+      dependencies.logger ?? noopLogger,
+      observation,
+      () => dependencies.transport(url, {
+        method: 'GET',
+        redirect: 'error',
+        headers: { Authorization: authorization, Accept: 'application/json' },
+        signal,
+      }),
+      dependencies.clock,
+    );
   } catch (error) {
     return mapRequestFailure(error, signal);
   }
@@ -94,7 +115,12 @@ async function getJson(
   if (!response.ok) {
     throw new AuthLoginError(502, 'datasul-unavailable');
   }
-  return safeJson(response);
+  try {
+    return await safeJson(response);
+  } catch (error) {
+    reportInvalidUpstreamResponse(dependencies.logger ?? noopLogger, observation, response.status);
+    throw error;
+  }
 }
 
 export async function authenticateAndAuthorizeDatasul(
@@ -109,6 +135,8 @@ export async function authenticateAndAuthorizeDatasul(
     authorization,
     config,
     dependencies,
+    'authenticate_user',
+    '/api/btb/v1/usuarios',
   );
   // A API de usuários é um catálogo paginado com campos `code`/`name`.
   // O sucesso autenticado valida as credenciais, mas a primeira página não
@@ -153,6 +181,8 @@ async function getProgramAccess(
     authorization,
     config,
     dependencies,
+    'authorize_program',
+    '/api/fcq/v1/seguranca/:usuario/:programa',
   );
   const items = validateEnvelope(security);
   if (items.length !== 1 || !isRecord(items[0])) {

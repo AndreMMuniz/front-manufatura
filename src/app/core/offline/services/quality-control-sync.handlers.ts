@@ -93,7 +93,7 @@ function headers(auth: AuthSessionService, idempotencyKey: string): HttpHeaders 
   });
 }
 
-function qualityResultBody(payloadValue: JsonValue): Record<string, number> {
+function qualityResultBody(payloadValue: JsonValue): Record<string, number | string> {
   const payload = objectOf(payloadValue);
   const common = {
     nrFicha: positiveInteger(payload['nrFicha']),
@@ -104,10 +104,15 @@ function qualityResultBody(payloadValue: JsonValue): Record<string, number> {
   const hasTableNumber = payload['nrTabela'] !== undefined;
   const hasOptionSequence = payload['seqOpcao'] !== undefined;
   const hasCompleteOption = hasTableNumber && hasOptionSequence;
-  if (hasResult === hasCompleteOption || hasTableNumber !== hasOptionSequence) throw invalidReceipt();
+  const report = typeof payload['laudo'] === 'string' ? payload['laudo'].trim() : '';
+  if (
+    hasTableNumber !== hasOptionSequence
+    || [hasResult, hasCompleteOption, Boolean(report)].filter(Boolean).length !== 1
+  ) throw invalidReceipt();
   if (hasResult) {
     return { ...common, resultado: finiteNumber(payload['resultado']) };
   }
+  if (report) return { ...common, laudo: report };
   return {
     ...common,
     nrTabela: positiveInteger(payload['nrTabela']),
@@ -115,7 +120,7 @@ function qualityResultBody(payloadValue: JsonValue): Record<string, number> {
   };
 }
 
-function resultReceipt(value: unknown, expected: Record<string, number>): {
+function resultReceipt(value: unknown, expected: Record<string, number | string>): {
   nrFicha: number;
   codExame: number;
   codComponente: number;

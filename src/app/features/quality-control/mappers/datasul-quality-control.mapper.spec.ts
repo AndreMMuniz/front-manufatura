@@ -51,6 +51,35 @@ describe('Datasul quality-control mapper', () => {
     });
   });
 
+  it('preserva tipo 3 como laudo sem transformar limites zerados em referência', () => {
+    const result = mapInspectionRouteEnvelope({
+      total: 1, hasNext: false, items: [{ nrFicha: 64399, 'ds-roteiro': { exames: [{
+        codExame: 2000, descricao: 'CORTE LASER', versao: 1, frequencia: 60,
+        amostra: 2, nivel: 0, nqa: 0, responsavel: 'RPEREIRA', observacao: '',
+        componentes: [{
+          codExame: 2000, codComponente: 10,
+          descricao: 'ESPESSURA CHAPA CONF. DESENHO', referenciaTecnica: '',
+          metodo: '', equipamento: 'PAQUÍMETRO', tipoResultado: 3,
+          unidade: '', numeroDecimais: 0, resultadoMin: 0, resultadoMax: 0,
+          nrTabela: 0,
+        }],
+      }] } }],
+    }, {
+      orderNumber: '372569',
+      operation: {
+        operationCode: '10', operationDescription: 'CORTE', itemCode: 'ITEM',
+        itemDescription: 'ITEM', processDescription: 'CORTE', split: '1',
+      },
+    });
+
+    expect(result.exams[0].components[0]).toMatchObject({
+      resultType: 3,
+      reference: '',
+      minValue: 0,
+      maxValue: 0,
+    });
+  });
+
   it('rejeita envelope vazio ou desconhecido', () => {
     expect(() => mapProductionOrderEnvelope({ total: 0, hasNext: false, items: [] }))
       .toThrow('invalid-upstream-response');

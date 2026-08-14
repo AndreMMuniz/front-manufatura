@@ -209,9 +209,25 @@
           tabindex="-1"
         >
           <h2 id="synchronization-detail-title">Detalhes do registro</h2>
+          @if (item.operationalDetails.length) {
+            <section
+              class="synchronization-center__feedback synchronization-detail__identification"
+              aria-labelledby="synchronization-detail-identification-title"
+              data-testid="sync-operational-details"
+            >
+              <h3 id="synchronization-detail-identification-title">Dados do resultado</h3>
+              <dl>
+                @for (detail of item.operationalDetails; track detail.label) {
+                  <div><dt>{{ detail.label }}</dt><dd>{{ detail.value }}</dd></div>
+                }
+              </dl>
+            </section>
+          }
           <dl>
             <div><dt>Módulo</dt><dd>{{ item.moduleLabel }}</dd></div>
-            <div><dt>Identificação</dt><dd>{{ item.operationalIdentification }}</dd></div>
+            @if (!item.operationalDetails.length) {
+              <div><dt>Identificação</dt><dd>{{ item.operationalIdentification }}</dd></div>
+            }
             <div><dt>Horário operacional</dt><dd>{{ formatDate(item.occurredAt) }}</dd></div>
             <div><dt>Commit local</dt><dd>{{ formatDate(item.createdAt) }}</dd></div>
             <div><dt>Status do negócio</dt><dd>{{ item.businessStatus }}</dd></div>
