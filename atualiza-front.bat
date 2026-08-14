@@ -31,7 +31,10 @@ if errorlevel 1 (
 
 echo.
 echo [3/4] Gerando build...
-call npm run build
+REM MODO TEMPORARIO DE TESTE VIA HTTP/IP:
+REM Este build habilita fallbacks somente para o ambiente interno sem HTTPS.
+REM Quando o servidor receber HTTPS, troque a linha abaixo por: call npm run build
+call npm run build:http-test
 
 if errorlevel 1 (
     echo.
