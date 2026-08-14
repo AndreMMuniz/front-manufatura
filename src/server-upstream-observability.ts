@@ -11,6 +11,8 @@ export interface UpstreamRequestDetails {
   readonly destinationHost?: string;
 }
 
+const responseDurations = new WeakMap<Response, number>();
+
 export async function observeUpstreamFetch(
   logger: ApplicationLogger,
   details: UpstreamRequestDetails,
@@ -27,16 +29,16 @@ export async function observeUpstreamFetch(
     protocol: details.protocol,
     destinationHost: details.destinationHost,
   });
-  logger.debug('upstream_request_started', common);
+  logger.info('upstream_request_started', common);
   try {
     const response = await request();
-    const metadata = sanitizeLogMetadata({
-      ...common,
-      status: response.status,
-      outcome: response.ok ? 'success' : 'http_error',
-      durationMs: duration(clock() - start),
-    });
-    (response.ok ? logger.info : logger.warn)('upstream_request_completed', metadata);
+    const durationMs = duration(clock() - start);
+    responseDurations.set(response, durationMs);
+    if (!response.ok) {
+      logger.warn('upstream_request_failed', sanitizeLogMetadata({
+        ...common, status: response.status, failureCategory: 'http_status', durationMs,
+      }));
+    }
     return response;
   } catch (error) {
     logger.warn('upstream_request_failed', sanitizeLogMetadata({
@@ -48,12 +50,57 @@ export async function observeUpstreamFetch(
   }
 }
 
+export function reportUpstreamRequestCompleted(
+  logger: ApplicationLogger,
+  details: UpstreamRequestDetails,
+  response: Response,
+): void {
+  logger.info('upstream_request_completed', responseMetadata(details, response, {
+    outcome: 'success',
+  }));
+}
+
 export function reportInvalidUpstreamResponse(
   logger: ApplicationLogger,
   details: UpstreamRequestDetails,
-  status: number,
+  response: Response,
 ): void {
-  logger.warn('upstream_response_invalid', sanitizeLogMetadata({
+  logger.warn('upstream_request_failed', responseMetadata(details, response, {
+    failureCategory: 'invalid_response',
+  }));
+}
+
+export function reportUpstreamResponseFailure(
+  logger: ApplicationLogger,
+  details: UpstreamRequestDetails,
+  response: Response,
+  error: unknown,
+): void {
+  logger.warn('upstream_request_failed', responseMetadata(details, response, {
+    failureCategory: failureCategory(error, 'invalid_response'),
+  }));
+}
+
+function failureCategory(
+  error: unknown,
+  fallback: 'unknown' | 'invalid_response' = 'unknown',
+): 'timeout' | 'network' | 'unknown' | 'invalid_response' {
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    return 'timeout';
+  }
+  return error instanceof TypeError && fallback === 'unknown' ? 'network' : fallback;
+}
+
+function duration(value: number): number {
+  return Math.max(0, Math.round(value * 100) / 100);
+}
+
+function responseMetadata(
+  details: UpstreamRequestDetails,
+  response: Response,
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  return sanitizeLogMetadata({
     correlationId: getRequestCorrelationId(),
     upstreamSystem: details.system,
     operation: details.operation,
@@ -61,18 +108,8 @@ export function reportInvalidUpstreamResponse(
     route: details.route,
     protocol: details.protocol,
     destinationHost: details.destinationHost,
-    status,
-    failureCategory: 'invalid_response',
-  }));
-}
-
-function failureCategory(error: unknown): 'timeout' | 'network' | 'unknown' {
-  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-    return 'timeout';
-  }
-  return error instanceof TypeError ? 'network' : 'unknown';
-}
-
-function duration(value: number): number {
-  return Math.max(0, Math.round(value * 100) / 100);
+    status: response.status,
+    durationMs: responseDurations.get(response),
+    ...extra,
+  });
 }

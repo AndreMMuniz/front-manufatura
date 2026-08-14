@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { authenticateAndAuthorizeDatasul } from './datasul-auth-client';
 import type { ApplicationLogger } from './logging/log-contracts';
@@ -71,7 +71,7 @@ describe('instrumentação dos clientes Datasul', () => {
 
     const serialized = JSON.stringify(target.events);
     expect(serialized).toContain('save_quality_result');
-    expect(serialized).toContain('http_error');
+    expect(serialized).toContain('http_status');
     expect(serialized).not.toMatch(/346|observacao-sentinela|companyId|senha-sentinela|integracao-sentinela/);
   });
 
@@ -96,5 +96,26 @@ describe('instrumentação dos clientes Datasul', () => {
       .rejects.toBeInstanceOf(QualityControlGatewayError);
     expect(JSON.stringify(invalidSink.events)).toContain('invalid_response');
     expect(JSON.stringify(invalidSink.events)).not.toMatch(/444444|usuario-secreto|não-json/);
+  });
+
+  it('classifica timeout durante leitura do body de autenticação como 504', async () => {
+    const target = sink();
+    const response = new Response('{}', { status: 200 });
+    vi.spyOn(response, 'json').mockRejectedValue(
+      Object.assign(new Error('Bearer segredo-body'), { name: 'TimeoutError' }),
+    );
+
+    await expect(authenticateAndAuthorizeDatasul('usuario', 'senha', {
+      baseUrl: qualityConfig.baseUrl.toString(), requestTimeoutMs: 100,
+    }, {
+      transport: async () => response,
+      timeoutSignal: AbortSignal.timeout,
+      logger: target.logger,
+    })).rejects.toEqual(expect.objectContaining({ status: 504, code: 'datasul-timeout' }));
+    expect(target.events.at(-1)).toEqual(expect.objectContaining({
+      event: 'upstream_request_failed',
+      metadata: expect.objectContaining({ failureCategory: 'timeout' }),
+    }));
+    expect(JSON.stringify(target.events)).not.toContain('segredo-body');
   });
 });

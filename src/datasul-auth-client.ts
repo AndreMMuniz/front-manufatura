@@ -8,7 +8,8 @@ import {
 import { noopLogger, type ApplicationLogger } from './logging/log-contracts';
 import {
   observeUpstreamFetch,
-  reportInvalidUpstreamResponse,
+  reportUpstreamRequestCompleted,
+  reportUpstreamResponseFailure,
   type UpstreamRequestDetails,
 } from './server-upstream-observability';
 
@@ -44,14 +45,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-async function safeJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    throw new AuthLoginError(502, 'invalid-upstream-response');
-  }
-}
-
 function validateEnvelope(value: unknown): unknown[] {
   if (!isRecord(value)
     || !Array.isArray(value['items'])
@@ -71,20 +64,21 @@ function basicAuthorization(login: string, senha: string): string {
 
 function mapRequestFailure(error: unknown, signal: AbortSignal): never {
   if (signal.aborted
-    || (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError'))) {
+    || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'))) {
     throw new AuthLoginError(504, 'datasul-timeout');
   }
   throw new AuthLoginError(502, 'datasul-unavailable');
 }
 
-async function getJson(
+async function getJson<T>(
   url: string,
   authorization: string,
   config: DatasulAuthConfig,
   dependencies: DatasulAuthClientDependencies,
   operation: string,
   route: string,
-): Promise<unknown> {
+  parse: (value: unknown) => T,
+): Promise<T> {
   const signal = dependencies.timeoutSignal(config.requestTimeoutMs);
   const destination = new URL(config.baseUrl);
   const observation: UpstreamRequestDetails = {
@@ -116,10 +110,17 @@ async function getJson(
     throw new AuthLoginError(502, 'datasul-unavailable');
   }
   try {
-    return await safeJson(response);
+    const parsed = parse(await response.json());
+    reportUpstreamRequestCompleted(dependencies.logger ?? noopLogger, observation, response);
+    return parsed;
   } catch (error) {
-    reportInvalidUpstreamResponse(dependencies.logger ?? noopLogger, observation, response.status);
-    throw error;
+    reportUpstreamResponseFailure(dependencies.logger ?? noopLogger, observation, response, error);
+    if (signal.aborted
+      || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'))) {
+      return mapRequestFailure(error, signal);
+    }
+    if (error instanceof AuthLoginError) throw error;
+    throw new AuthLoginError(502, 'invalid-upstream-response');
   }
 }
 
@@ -137,12 +138,13 @@ export async function authenticateAndAuthorizeDatasul(
     dependencies,
     'authenticate_user',
     '/api/btb/v1/usuarios',
+    validateEnvelope,
   );
   // A API de usuários é um catálogo paginado com campos `code`/`name`.
   // O sucesso autenticado valida as credenciais, mas a primeira página não
   // necessariamente contém o próprio usuário. A identidade canônica deste
   // login vem da API de segurança, que é consultada pelo código informado.
-  validateEnvelope(users);
+  void users;
 
   const access = await Promise.all(DATASUL_SECURITY_PROGRAMS.map(async definition => {
     return getProgramAccess(login, authorization, definition.program, config, dependencies);
@@ -183,8 +185,17 @@ async function getProgramAccess(
     dependencies,
     'authorize_program',
     '/api/fcq/v1/seguranca/:usuario/:programa',
+    value => validateProgramAccess(value, login, program),
   );
-  const items = validateEnvelope(security);
+  return security;
+}
+
+function validateProgramAccess(
+  value: unknown,
+  login: string,
+  program: DatasulSecurityProgram,
+): DatasulProgramAccess {
+  const items = validateEnvelope(value);
   if (items.length !== 1 || !isRecord(items[0])) {
     throw new AuthLoginError(502, 'invalid-upstream-response');
   }

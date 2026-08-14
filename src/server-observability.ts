@@ -41,7 +41,7 @@ export function requestObservabilityMiddleware(
         correlationId,
         method: req.method,
         route: normalizedRoute(req),
-        status: res.statusCode,
+        status: completed ? res.statusCode : 499,
         durationMs: Math.max(0, Math.round((clock() - start) * 100) / 100),
       });
       if (!completed) {
@@ -62,16 +62,31 @@ export function requestObservabilityMiddleware(
 
 export function serverErrorHandler(logger: ApplicationLogger): ErrorRequestHandler {
   return (error, req, res, next) => {
-    logger.error('api_request_unhandled_error', sanitizeLogMetadata({
+    const candidate = typeof error === 'object' && error !== null
+      ? error as { status?: unknown; type?: unknown }
+      : {};
+    const parserStatus = candidate.status === 413 || candidate.type === 'entity.too.large'
+      ? 413
+      : candidate.status === 400 || candidate.type === 'entity.parse.failed' ? 400 : undefined;
+    const metadata = sanitizeLogMetadata({
       correlationId: getRequestCorrelationId(),
       method: req.method,
       route: normalizedRoute(req),
       error,
-    }));
+    });
     if (res.headersSent || !isApiRequest(req)) {
+      logger.error('api_request_unhandled_error', metadata);
       next(error);
       return;
     }
+    if (parserStatus) {
+      logger.warn('api_request_rejected', { ...metadata, status: parserStatus });
+      res.status(parserStatus).json({
+        code: parserStatus === 413 ? 'request-too-large' : 'invalid-request',
+      });
+      return;
+    }
+    logger.error('api_request_unhandled_error', metadata);
     res.status(500).json({ code: 'internal-error' });
   };
 }
@@ -81,7 +96,7 @@ export function normalizedRoute(req: Request): string {
   if (typeof routePath === 'string') {
     return joinRoute(req.baseUrl, routePath);
   }
-  return maskDynamicSegments(req.path || '/');
+  return isApiRequest(req) ? '/api/:unmatched' : '/:unmatched';
 }
 
 function safeCorrelationId(value: string | undefined): string | undefined {
@@ -91,15 +106,6 @@ function safeCorrelationId(value: string | undefined): string | undefined {
 function joinRoute(baseUrl: string, path: string): string {
   const joined = `${baseUrl}/${path}`.replace(/\/{2,}/g, '/');
   return joined.length > 1 && joined.endsWith('/') ? joined.slice(0, -1) : joined;
-}
-
-function maskDynamicSegments(path: string): string {
-  return path.split('/').map(segment => {
-    if (/^\d+$/.test(segment)) return ':id';
-    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(segment)) return ':id';
-    if (segment !== 'v1' && /\d/.test(segment)) return ':id';
-    return segment;
-  }).join('/');
 }
 
 function isApiRequest(req: Request): boolean {

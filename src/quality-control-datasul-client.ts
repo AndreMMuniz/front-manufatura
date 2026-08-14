@@ -1,7 +1,8 @@
 import { noopLogger, type ApplicationLogger } from './logging/log-contracts';
 import {
   observeUpstreamFetch,
-  reportInvalidUpstreamResponse,
+  reportUpstreamRequestCompleted,
+  reportUpstreamResponseFailure,
   type UpstreamRequestDetails,
 } from './server-upstream-observability';
 
@@ -137,9 +138,11 @@ export class QualityControlDatasulClient {
       );
     }
     try {
-      return await response.json() as unknown;
+      const parsed = await response.json() as unknown;
+      reportUpstreamRequestCompleted(this.logger, observation, response);
+      return parsed;
     } catch (error) {
-      reportInvalidUpstreamResponse(this.logger, observation, response.status);
+      reportUpstreamResponseFailure(this.logger, observation, response, error);
       if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
         throw new QualityControlGatewayError(504, 'datasul-timeout');
       }

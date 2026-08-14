@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ApplicationLogger } from './logging/log-contracts';
-import { observeUpstreamFetch } from './server-upstream-observability';
+import {
+  observeUpstreamFetch,
+  reportInvalidUpstreamResponse,
+  reportUpstreamRequestCompleted,
+} from './server-upstream-observability';
 
 function sink() {
   const events: Array<{ level: string; event: string; metadata?: Record<string, unknown> }> = [];
@@ -25,15 +29,38 @@ describe('upstream observability', () => {
       system: 'datasul', operation: 'save_quality_result', method: 'PUT',
       route: '/api/fcq/v1/resultexames',
     }, async () => new Response('{}', { status: 201 }), () => time += 4);
+    reportUpstreamRequestCompleted(target.logger, {
+      system: 'datasul', operation: 'save_quality_result', method: 'PUT',
+      route: '/api/fcq/v1/resultexames',
+    }, response);
 
     expect(response.status).toBe(201);
     expect(target.events).toEqual([
-      expect.objectContaining({ level: 'debug', event: 'upstream_request_started' }),
+      expect.objectContaining({ level: 'info', event: 'upstream_request_started' }),
       expect.objectContaining({
         level: 'info', event: 'upstream_request_completed',
         metadata: expect.objectContaining({ status: 201, durationMs: 4 }),
       }),
     ]);
+  });
+
+  it('emite somente falha terminal para resposta JSON inválida, preservando duração', async () => {
+    const target = sink();
+    let time = 0;
+    const details = {
+      system: 'datasul' as const, operation: 'save_quality_result', method: 'PUT' as const,
+      route: '/api/fcq/v1/resultexames',
+    };
+    const response = await observeUpstreamFetch(
+      target.logger, details, async () => new Response('invalid', { status: 200 }), () => time += 3,
+    );
+    reportInvalidUpstreamResponse(target.logger, details, response);
+
+    expect(target.events.filter(event => event.event === 'upstream_request_completed')).toHaveLength(0);
+    expect(target.events.at(-1)).toEqual(expect.objectContaining({
+      event: 'upstream_request_failed',
+      metadata: expect.objectContaining({ failureCategory: 'invalid_response', durationMs: 3 }),
+    }));
   });
 
   it.each([

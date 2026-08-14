@@ -48,6 +48,8 @@ describe('server logger configuration', () => {
     [{ APP_LOG_RETENTION_DAYS: '0' }, 'APP_LOG_RETENTION_DAYS'],
     [{ APP_LOG_RETENTION_DAYS: '14.5' }, 'APP_LOG_RETENTION_DAYS'],
     [{ APP_LOG_MAX_SIZE: '20mb' }, 'APP_LOG_MAX_SIZE'],
+    [{ APP_LOG_MAX_SIZE: '11g' }, 'APP_LOG_MAX_SIZE'],
+    [{ APP_LOG_MAX_SIZE: '999999999999999999999g' }, 'APP_LOG_MAX_SIZE'],
   ])('rejeita configuração inválida %o', (env, expected) => {
     expect(() => readServerLogConfig(env, '/srv/front')).toThrow(expected);
   });
@@ -80,6 +82,9 @@ describe('server logger configuration', () => {
   it('remove transporte que falha de forma assíncrona e avisa uma única vez', async () => {
     const fallback = vi.fn();
     const transport = new transports.Stream({ stream: new PassThrough() });
+    const writes: unknown[] = [];
+    (transport as unknown as { log: (info: unknown, callback: () => void) => void }).log =
+      (info, callback) => { writes.push(info); callback(); };
     const close = vi.fn();
     Object.assign(transport, { close });
     const logger = createServerLogger({}, '/srv/front', {
@@ -91,8 +96,10 @@ describe('server logger configuration', () => {
     transport.emit('error', new Error('disk secret'));
     transport.emit('error', new Error('disk secret again'));
     expect(() => logger.info('api_request_completed', { status: 200 })).not.toThrow();
+    await Promise.resolve();
     expect(fallback).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
     await logger.close();
   });
 

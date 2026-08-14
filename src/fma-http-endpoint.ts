@@ -12,7 +12,8 @@ import { noopLogger, type ApplicationLogger } from './logging/log-contracts';
 import { normalizedRoute } from './server-observability';
 import {
   observeUpstreamFetch,
-  reportInvalidUpstreamResponse,
+  reportUpstreamRequestCompleted,
+  reportUpstreamResponseFailure,
   type UpstreamRequestDetails,
 } from './server-upstream-observability';
 
@@ -239,12 +240,13 @@ class FmaClient {
       throw new QualityControlGatewayError(502, 'datasul-unavailable');
     }
     if (!response.ok) throw new QualityControlGatewayError(response.status, 'datasul-request-failed');
-    try { return await response.json() as unknown; }
-    catch {
-      reportInvalidUpstreamResponse(
-        this.dependencies.logger ?? noopLogger,
-        observation,
-        response.status,
+    try {
+      const parsed = await response.json() as unknown;
+      reportUpstreamRequestCompleted(this.dependencies.logger ?? noopLogger, observation, response);
+      return parsed;
+    } catch (error) {
+      reportUpstreamResponseFailure(
+        this.dependencies.logger ?? noopLogger, observation, response, error,
       );
       throw new QualityControlGatewayError(502, 'invalid-upstream-response');
     }

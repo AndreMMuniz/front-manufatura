@@ -52,6 +52,20 @@ describe('log sanitizer', () => {
     expect(sanitizeLogText('m'.repeat(1_500), 1_000)).toHaveLength(1_000);
   });
 
+  it('remove Basic Auth completo, segredos compostos e valores entre aspas', () => {
+    const text = sanitizeLogText(
+      'Authorization: Basic dXNlcjpwYXNz; senha="segredo com espaços"; token=parte1 parte2',
+    );
+    expect(text).not.toMatch(/dXNlcjpwYXNz|segredo com espaços|parte1|parte2|Basic/);
+    expect(sanitizeLogMetadata({
+      accessToken: 'opaque-value', clientSecret: 'client-value',
+      'x-api-key': 'key-value', userPassword: 'pass-value', sessionId: 'session-value',
+    })).toEqual({
+      accessToken: '[REDACTED]', clientSecret: '[REDACTED]', 'x-api-key': '[REDACTED]',
+      userPassword: '[REDACTED]', sessionId: '[REDACTED]',
+    });
+  });
+
   it('não avalia getters e remove campos de negócio sensíveis', () => {
     const source = {
       resultado: 346,
@@ -82,5 +96,15 @@ describe('log sanitizer', () => {
     expect(sanitizeLogMetadata({ error })).toEqual(expect.objectContaining({
       error: expect.objectContaining({ message: 'seguro' }),
     }));
+  });
+
+  it('ignora propriedades não enumeráveis e preserva referências compartilhadas', () => {
+    const shared = { code: 'SAFE' };
+    const metadata = { first: shared, second: shared } as Record<string, unknown>;
+    Object.defineProperty(metadata, 'hiddenSecret', { value: 'não-serializar', enumerable: false });
+
+    expect(sanitizeLogMetadata(metadata)).toEqual({
+      first: { code: 'SAFE' }, second: { code: 'SAFE' },
+    });
   });
 });

@@ -25,6 +25,7 @@ export interface ServerLoggerDependencies {
 }
 
 const LEVELS: readonly AppLogLevel[] = ['debug', 'info', 'warn', 'error'];
+const MAX_LOG_FILE_BYTES = 10n * 1024n * 1024n * 1024n;
 
 export function readServerLogConfig(
   env: ServerLogEnvironment,
@@ -50,7 +51,8 @@ export function readServerLogConfig(
     throw new Error('APP_LOG_RETENTION_DAYS inválido; informe um inteiro entre 1 e 3650.');
   }
   const maxSize = env['APP_LOG_MAX_SIZE']?.trim().toLowerCase() || '20m';
-  if (!/^[1-9]\d*(?:k|m|g)$/.test(maxSize)) {
+  const sizeMatch = /^([1-9]\d*)(k|m|g)$/.exec(maxSize);
+  if (!sizeMatch || logSizeBytes(sizeMatch[1], sizeMatch[2]) > MAX_LOG_FILE_BYTES) {
     throw new Error('APP_LOG_MAX_SIZE inválido; use número seguido de k, m ou g.');
   }
   return {
@@ -103,16 +105,24 @@ export function createServerLogger(
       ...buildRotatingFileOptions(config),
       format: format.combine(format.timestamp(), format.json()),
     });
+    logger.add(rotatingFile);
+    let transportQuarantined = false;
     rotatingFile.on('error', () => {
       reportFileFailure();
       logger.remove(rotatingFile);
+      if (transportQuarantined) return;
+      transportQuarantined = true;
       try { rotatingFile.close(); } catch { /* console transport remains active */ }
     });
-    logger.add(rotatingFile);
   } catch {
     reportFileFailure();
   }
   return wrapLogger(logger, config);
+}
+
+function logSizeBytes(quantity: string, unit: string): bigint {
+  const factor = unit === 'g' ? 1024n ** 3n : unit === 'm' ? 1024n ** 2n : 1024n;
+  return BigInt(quantity) * factor;
 }
 
 export function buildRotatingFileOptions(

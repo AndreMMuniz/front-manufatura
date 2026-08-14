@@ -29,18 +29,27 @@ export function installServerLifecycle(
   const shutdown = (exitCode = 0, reason = 'requested'): Promise<void> => shutdownPromise ??= (async () => {
     logger.info('server_shutdown_started', sanitizeLogMetadata({ reason, exitCode }));
     await closeServerWithin(server, timeoutMs);
-    await logger.close();
-    processTarget.exit(exitCode);
+    try {
+      await logger.close();
+    } catch {
+      console.error('[WARN] server_logger_close_failed.');
+    } finally {
+      processTarget.exit(exitCode);
+    }
   })();
 
   processTarget.once('SIGINT', () => { void shutdown(130, 'sigint'); });
   processTarget.once('SIGTERM', () => { void shutdown(143, 'sigterm'); });
-  processTarget.once('uncaughtException', () => {
-    logger.error('server_fatal_error', { failureCategory: 'uncaught_exception' });
+  processTarget.once('uncaughtException', error => {
+    logger.error('server_fatal_error', sanitizeLogMetadata({
+      failureCategory: 'uncaught_exception', error,
+    }));
     void shutdown(1, 'uncaught_exception');
   });
-  processTarget.once('unhandledRejection', () => {
-    logger.error('server_fatal_error', { failureCategory: 'unhandled_rejection' });
+  processTarget.once('unhandledRejection', reason => {
+    logger.error('server_fatal_error', sanitizeLogMetadata({
+      failureCategory: 'unhandled_rejection', error: reason,
+    }));
     void shutdown(1, 'unhandled_rejection');
   });
 

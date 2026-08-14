@@ -129,4 +129,44 @@ describe('server request observability', () => {
 
     expect(sink.events).toHaveLength(1);
   });
+
+  it('não inclui PII de rota desconhecida e usa status 499 para conexão abortada', () => {
+    const sink = logger();
+    const listeners = new Map<string, () => void>();
+    const response = {
+      statusCode: 200, writableEnded: false, setHeader: vi.fn(),
+      once: vi.fn((event: string, callback: () => void) => listeners.set(event, callback)),
+    };
+    const request = {
+      method: 'GET', path: '/api/clientes/joao.silva/token-secreto', baseUrl: '',
+      header: vi.fn(() => undefined),
+    };
+    requestObservabilityMiddleware(sink.value, { createId: () => 'abort-id' })(
+      request as never, response as never, vi.fn(),
+    );
+    listeners.get('close')?.();
+
+    expect(sink.events[0]).toEqual(expect.objectContaining({
+      event: 'api_request_aborted',
+      metadata: expect.objectContaining({ route: '/api/:unmatched', status: 499 }),
+    }));
+    expect(JSON.stringify(sink.events)).not.toMatch(/joao|token-secreto/);
+  });
+
+  it('mantém erro de parser API em JSON seguro 400', async () => {
+    const sink = logger();
+    const app = express();
+    app.use(requestObservabilityMiddleware(sink.value, { createId: () => 'parser-id' }));
+    app.use('/api', express.json({ limit: '1kb' }));
+    app.post('/api/items', (_req, res) => res.json({ ok: true }));
+    app.use(serverErrorHandler(sink.value));
+    const root = await start(app);
+
+    const response = await fetch(`${root}/api/items`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{invalid',
+    });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ code: 'invalid-request' });
+    expect(response.headers.get('x-correlation-id')).toBe('parser-id');
+  });
 });
