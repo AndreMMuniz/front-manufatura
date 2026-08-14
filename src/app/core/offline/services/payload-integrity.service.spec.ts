@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { sha256 } from 'js-sha256';
 
 import { normalizeDependencyIds } from '../models/local-record';
 import { OfflineStorageError } from '../models/offline-storage-error';
@@ -140,6 +141,20 @@ describe('PayloadIntegrityService', () => {
     const unavailable = new PayloadIntegrityService(() => undefined);
 
     await expect(unavailable.prepare({ safe: true })).rejects.toEqual(
+      expect.objectContaining({ code: 'CAPABILITY_UNAVAILABLE' }),
+    );
+  });
+
+  it('usa SHA-256 em software somente no modo HTTP temporário', async () => {
+    const fallback = new PayloadIntegrityService(() => undefined, () => sha256);
+
+    await expect(fallback.hashCanonical('abc')).resolves.toBe(SHA_256_ABC);
+  });
+
+  it('preserva erro sem Web Crypto no modo normal', async () => {
+    const unavailable = new PayloadIntegrityService(() => undefined, () => undefined);
+
+    await expect(unavailable.hashCanonical('abc')).rejects.toEqual(
       expect.objectContaining({ code: 'CAPABILITY_UNAVAILABLE' }),
     );
   });

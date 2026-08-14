@@ -39,6 +39,7 @@ import {
   StartBatchSyncHandler,
   StartOperationSyncHandler,
 } from './core/offline/services/fma-sync.handlers';
+import { INSECURE_HTTP_TEST_MODE } from './core/runtime/insecure-http-test-mode';
 
 export type AfterRenderScheduler = (callback: () => void) => void;
 
@@ -66,7 +67,7 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideHttpClient(withFetch(), withInterceptorsFromDi()),
     provideServiceWorker('ngsw-worker.js', {
-      enabled: !isDevMode(),
+      enabled: !isDevMode() && !INSECURE_HTTP_TEST_MODE,
       registrationStrategy: 'registerWhenStable:30000',
     }),
     { provide: PoNotificationService, useClass: TopNotificationService },

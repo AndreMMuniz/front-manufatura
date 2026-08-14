@@ -40,6 +40,8 @@ describe('configuração dos artefatos PWA', () => {
       replace: 'src/app/core/runtime/insecure-http-test-mode.ts',
       with: 'src/app/core/runtime/insecure-http-test-mode.http-test.ts',
     });
+    const appConfigSource = readFileSync(resolve(process.cwd(), 'src/app/app.config.ts'), 'utf8');
+    expect(appConfigSource).toContain('!INSECURE_HTTP_TEST_MODE');
   });
 
   it('faz prefetch somente do shell e de assets essenciais, sem cache de API', () => {
