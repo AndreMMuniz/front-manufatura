@@ -122,6 +122,37 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "runnerConfig": "vitest.config.ts"
+          },
+          "configurations": {
+            "coverage": {
+              "coverage": true,
+              "watch": false,
+              "coverageInclude": ["src/**/*.ts"],
+              "coverageExclude": [
+                "src/**/*.spec.ts",
+                "src/**/*.test.ts",
+                "src/**/*.e2e.ts",
+                "src/**/*.d.ts",
+                "src/app/core/offline/testing/**",
+                "src/main.ts",
+                "src/main.server.ts",
+                "src/app/app.config.server.ts",
+                "src/app/app.routes.server.ts"
+              ],
+              "coverageReporters": [
+                "text-summary",
+                "html",
+                "json-summary",
+                "lcov"
+              ],
+              "coverageThresholds": {
+                "perFile": false,
+                "statements": 82,
+                "branches": 74,
+                "functions": 83,
+                "lines": 83
+              }
+            }
           }
         }
       }

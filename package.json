@@ -7,6 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:coverage": "ng test --configuration coverage",
+    "test:ci": "ng test --configuration coverage",
     "e2e": "playwright test",
     "build:pwa:e2e:a": "ng build --configuration pwa-e2e-a --output-path dist/pwa-e2e-a",
     "build:pwa:e2e:b": "ng build --configuration pwa-e2e-b --output-path dist/pwa-e2e-b",
