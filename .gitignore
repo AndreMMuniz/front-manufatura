@@ -87,6 +87,11 @@ ai-docs/
 generated-docs/
 token-usage-output.txt
 
+# Keep the Windows server update runbook versioned
+!docs/
+docs/*
+!docs/atualiza-front.md
+
 # Keep Plano de Controle CQ API documentation versioned
 !project-specs/
 project-specs/*
