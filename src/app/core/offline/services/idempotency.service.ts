@@ -1,5 +1,6 @@
 import { Inject, Injectable, InjectionToken } from '@angular/core';
 
+import { INSECURE_HTTP_TEST_MODE } from '../../runtime/insecure-http-test-mode';
 import { OfflineStorageError } from '../models/offline-storage-error';
 
 export type RandomUuidCapability = Pick<Crypto, 'randomUUID'>;
@@ -50,10 +51,29 @@ export class IdempotencyService {
   }
 }
 
-export function provideBrowserRandomUuid(): RandomUuidCapability | undefined {
+export function provideBrowserRandomUuid(
+  allowInsecureFallback = INSECURE_HTTP_TEST_MODE,
+  candidate = globalThis.crypto,
+): RandomUuidCapability | undefined {
   if (typeof globalThis.window === 'undefined') {
     return undefined;
   }
-  const candidate = globalThis.crypto;
-  return typeof candidate?.randomUUID === 'function' ? candidate : undefined;
+  if (typeof candidate?.randomUUID === 'function') {
+    return candidate;
+  }
+  if (!allowInsecureFallback || typeof candidate?.getRandomValues !== 'function') {
+    return undefined;
+  }
+  return {
+    randomUUID: () => uuidV4FromRandomValues(candidate) as ReturnType<Crypto['randomUUID']>,
+  };
+}
+
+export function uuidV4FromRandomValues(crypto: Pick<Crypto, 'getRandomValues'>): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

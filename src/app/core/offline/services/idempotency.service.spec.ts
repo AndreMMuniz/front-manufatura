@@ -37,4 +37,23 @@ describe('IdempotencyService', () => {
 
     vi.unstubAllGlobals();
   });
+
+  it('gera UUID v4 por getRandomValues apenas no modo HTTP temporário', () => {
+    const candidate = {
+      getRandomValues: vi.fn((bytes: Uint8Array) => {
+        bytes.set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+        return bytes;
+      }),
+    } as unknown as Crypto;
+
+    const capability = provideBrowserRandomUuid(true, candidate);
+
+    expect(capability?.randomUUID()).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f');
+  });
+
+  it('não habilita fallback inseguro no build normal', () => {
+    const candidate = { getRandomValues: vi.fn() } as unknown as Crypto;
+
+    expect(provideBrowserRandomUuid(false, candidate)).toBeUndefined();
+  });
 });
