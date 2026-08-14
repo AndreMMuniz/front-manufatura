@@ -22,12 +22,34 @@ describe('IdempotencyService', () => {
   });
 
   it('rejeita identidade inválida e indisponibilidade de Web Crypto', () => {
-    const service = new IdempotencyService(() => undefined);
+    const capture = vi.fn();
+    const service = new IdempotencyService(() => undefined, { capture } as never);
 
     expect(() => service.resolve('command-1')).toThrowError(OfflineStorageError);
     expect(() => service.resolve()).toThrowError(
       expect.objectContaining({ code: 'CAPABILITY_UNAVAILABLE' }),
     );
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture).toHaveBeenCalledWith({
+      level: 'error', category: 'capability', event: 'identity_capability_unavailable',
+      context: {
+        cryptoAvailable: false, randomUuidAvailable: false, insecureHttpTestMode: false,
+      },
+    });
+  });
+
+  it('registra UUID inseguro e preserva o mesmo erro quando o sink lança', () => {
+    const capture = vi.fn(() => { throw new Error('sink'); });
+    const service = new IdempotencyService(
+      () => ({ randomUUID: () => 'invalid' as `${string}-${string}-${string}-${string}-${string}` }),
+      { capture } as never,
+    );
+
+    expect(() => service.resolve()).toThrowError(expect.objectContaining({
+      code: 'CAPABILITY_UNAVAILABLE',
+      message: 'A identidade segura gerada pelo navegador é inválida.',
+    }));
+    expect(capture).toHaveBeenCalledOnce();
   });
 
   it('não expõe Web Crypto quando window não existe no SSR', () => {

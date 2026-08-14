@@ -25,6 +25,7 @@ describe('SyncCoordinatorService', () => {
   let trigger: SyncTriggerService;
   let uuidIndex: number;
   let currentTime: string;
+  let clientLogs: { capture: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
@@ -40,6 +41,7 @@ describe('SyncCoordinatorService', () => {
     } as SyncTriggerService;
     uuidIndex = 0;
     currentTime = NOW;
+    clientLogs = { capture: vi.fn() };
   });
 
   it('serializa um agregado, paraleliza agregados independentes e limita concorrência', async () => {
@@ -468,6 +470,10 @@ describe('SyncCoordinatorService', () => {
     authenticate();
     vi.spyOn(repository, 'retryError').mockRejectedValueOnce(new Error('storage'));
     expect(await coordinator.retryError('command')).toBe('storage-error');
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_storage_failed',
+      context: { stage: 'manual_retry', code: 'STORAGE_FAILURE' },
+    }));
   });
 
   it('reenvia após falha transitória com chave e conteúdo exatamente iguais', async () => {
@@ -554,6 +560,154 @@ describe('SyncCoordinatorService', () => {
     releaseB();
     await processing;
     expect(settled).toBe(true);
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_storage_failed',
+      context: { stage: 'reconcile_failure', code: 'STORAGE_FAILURE' },
+    }));
+  });
+
+  it('diagnostica falha de claim e preserva a mesma rejeição', async () => {
+    await seed(database, [entry('command')]);
+    const failure = new Error('claim storage');
+    vi.spyOn(repository, 'claim').mockRejectedValue(failure);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.requestSync()).rejects.toBe(failure);
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_storage_failed', context: { stage: 'claim', code: 'STORAGE_FAILURE' },
+    }));
+  });
+
+  it('diagnostica falha de release e preserva a mesma rejeição após logout', async () => {
+    await seed(database, [entry('command')]);
+    let unblockClaim = () => undefined;
+    let claimReached = () => undefined;
+    const reached = new Promise<void>(resolve => { claimReached = resolve; });
+    const gate = new Promise<void>(resolve => { unblockClaim = resolve; });
+    const originalClaim = repository.claim.bind(repository);
+    vi.spyOn(repository, 'claim').mockImplementation(async request => {
+      const claimed = await originalClaim(request);
+      claimReached();
+      await gate;
+      return claimed;
+    });
+    const failure = new Error('release storage');
+    vi.spyOn(repository, 'releaseClaim').mockRejectedValue(failure);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    const processing = coordinator.requestSync();
+    await reached;
+    auth.logout();
+    unblockClaim();
+
+    await expect(processing).rejects.toBe(failure);
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_storage_failed', context: { stage: 'release', code: 'STORAGE_FAILURE' },
+    }));
+  });
+
+  it('diagnostica falha absorvida ao retomar owner sem expor identidade', async () => {
+    const failure = new Error('resume owner segredo');
+    vi.spyOn(repository, 'resumeBlockedAuth').mockRejectedValue(failure);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+
+    expect(() => coordinator.start()).not.toThrow();
+    await eventually(() => clientLogs.capture.mock.calls.some(call =>
+      call[0]?.event === 'sync_storage_failed' && call[0]?.context?.stage === 'resume'));
+    expect(JSON.stringify(clientLogs.capture.mock.calls)).not.toContain(OWNER);
+  });
+
+  it('diagnostica falha de reconciliação de sucesso sem alterar a classificação vigente', async () => {
+    await seed(database, [entry('command')]);
+    vi.spyOn(repository, 'reconcileSuccess').mockRejectedValueOnce(new Error('storage'));
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.requestSync()).resolves.toBeUndefined();
+
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_storage_failed',
+      context: { stage: 'reconcile_success', code: 'STORAGE_FAILURE' },
+    }));
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'ERROR' });
+  });
+
+  it('emite transições correlacionadas sem dados persistidos sensíveis', async () => {
+    const idempotencyKey = '550e8400-e29b-41d4-a716-446655440000';
+    await seed(database, [entry('command', {
+      idempotencyKey, commandType: 'START_OPERATION', aggregateType: 'OPERATION',
+    })]);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_send_started', correlationId: idempotencyKey,
+      context: expect.objectContaining({
+        commandType: 'START_OPERATION', aggregateType: 'OPERATION',
+        fromStatus: 'PENDING', toStatus: 'SYNCING', attemptCount: 1,
+      }),
+    }));
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_succeeded', correlationId: idempotencyKey,
+      context: expect.objectContaining({ fromStatus: 'SYNCING', toStatus: 'SYNCED' }),
+    }));
+    expect(JSON.stringify(clientLogs.capture.mock.calls)).not.toMatch(
+      /operator-1|localId|leaseToken|payload|canonical|hash-command|quantity/,
+    );
+  });
+
+  it('diagnostica listagem/ciclo e preserva a mesma rejeição de storage', async () => {
+    const failure = new Error('indexeddb segredo');
+    vi.spyOn(repository, 'listCandidates').mockRejectedValue(failure);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.requestSync()).rejects.toBe(failure);
+
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_storage_failed', context: { stage: 'list', code: 'STORAGE_FAILURE' },
+    }));
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_cycle_failed', context: { stage: 'cycle', code: 'SYNC_CYCLE_FAILURE' },
+    }));
+  });
+
+  it('mantém retry e estado persistido quando o sink lança', async () => {
+    await seed(database, [entry('command')]);
+    const before = await repository.getById(OWNER, 'command');
+    clientLogs.capture.mockImplementation(() => { throw new Error('sink'); });
+    const coordinator = createCoordinator({ send: () => Promise.reject(new TypeError('network')) });
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.requestSync()).resolves.toBeUndefined();
+    const after = await repository.getById(OWNER, 'command');
+    expect(after).toMatchObject({
+      status: 'RETRY_WAIT', attemptCount: 1,
+    });
+    expect({
+      idempotencyKey: after?.idempotencyKey,
+      payloadHash: after?.payloadHash,
+      canonicalPayload: after?.canonicalPayload,
+      payload: after?.payload,
+      dependencyIds: after?.dependencyIds,
+    }).toEqual({
+      idempotencyKey: before?.idempotencyKey,
+      payloadHash: before?.payloadHash,
+      canonicalPayload: before?.canonicalPayload,
+      payload: before?.payload,
+      dependencyIds: before?.dependencyIds,
+    });
   });
 
   it('rejeita configuração cujo lease não ultrapassa o timeout antes de iniciar', () => {
@@ -585,6 +739,8 @@ describe('SyncCoordinatorService', () => {
       () => 0.5,
       { ...DEFAULT_SYNC_SCHEDULER_CONFIG, batchSize: 10, concurrency: 2, ...overrides },
       timeout,
+      undefined,
+      clientLogs as never,
     );
   }
 

@@ -6,6 +6,7 @@ import { provideClientHydration } from '@angular/platform-browser';
 
 import {
   ApplicationConfig,
+  ErrorHandler,
   PLATFORM_ID,
   afterNextRender,
   inject,
@@ -15,7 +16,12 @@ import {
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
 } from '@angular/core';
-import { provideHttpClient, withFetch, withInterceptorsFromDi } from '@angular/common/http';
+import {
+  provideHttpClient,
+  withFetch,
+  withInterceptors,
+  withInterceptorsFromDi,
+} from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 
 import { PoHttpRequestModule, PoNotificationService } from '@po-ui/ng-components';
@@ -40,6 +46,8 @@ import {
   StartOperationSyncHandler,
 } from './core/offline/services/fma-sync.handlers';
 import { INSECURE_HTTP_TEST_MODE } from './core/runtime/insecure-http-test-mode';
+import { ClientErrorHandler } from './core/logging/client-error-handler';
+import { clientLogInterceptor } from './core/logging/client-log.interceptor';
 
 export type AfterRenderScheduler = (callback: () => void) => void;
 
@@ -62,10 +70,11 @@ export function initializeSyncRuntime(
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    { provide: ErrorHandler, useClass: ClientErrorHandler },
     provideRouter(routes),
     importProvidersFrom([BrowserAnimationsModule, PoHttpRequestModule]),
     provideZoneChangeDetection({ eventCoalescing: true }),
-    provideHttpClient(withFetch(), withInterceptorsFromDi()),
+    provideHttpClient(withFetch(), withInterceptors([clientLogInterceptor]), withInterceptorsFromDi()),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode() && !INSECURE_HTTP_TEST_MODE,
       registrationStrategy: 'registerWhenStable:30000',

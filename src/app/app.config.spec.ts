@@ -1,7 +1,9 @@
+import { ErrorHandler, type StaticProvider } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { initializeSyncRuntime } from './app.config';
+import { appConfig, initializeSyncRuntime } from './app.config';
 import { routes } from './app.routes';
+import { ClientErrorHandler } from './core/logging/client-error-handler';
 import { OFFLINE_TEST_ROUTES as E2E_ROUTES } from './core/offline/testing/offline-test.routes.e2e';
 
 describe('appConfig sync bootstrap', () => {
@@ -48,5 +50,14 @@ describe('appConfig sync bootstrap', () => {
       '_test/offline-synchronization',
       '_test/pwa-offline',
     ]);
+  });
+
+  it('registra um único ErrorHandler central sem remover o listener global do Angular', () => {
+    const providers = appConfig.providers as StaticProvider[];
+    const errorHandlers = providers.filter(provider =>
+      typeof provider === 'object' && provider !== null && 'provide' in provider
+      && provider.provide === ErrorHandler);
+
+    expect(errorHandlers).toEqual([{ provide: ErrorHandler, useClass: ClientErrorHandler }]);
   });
 });

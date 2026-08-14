@@ -290,8 +290,19 @@ export class ExamEntryPanel implements AfterViewInit {
     this.workflow.examFeedback.set('Concluindo exame...');
     const measurementCommandIds = this.workflow.exams()
       .flatMap(item => this.workflow.measurementCommandIds(item.id));
-    const finishCommandId =
-      this.workflow.ensureFinishCommandId(route.routeNumber, () => this.idempotency.resolve());
+    let finishCommandId: string;
+    try {
+      finishCommandId = this.workflow.ensureFinishCommandId(
+        route.routeNumber,
+        () => this.idempotency.resolve(),
+      );
+    } catch {
+      this.workflow.isFinishing.set(false);
+      this.workflow.examFeedback.set(
+        'Não foi possível gerar a identidade segura da finalização.',
+      );
+      return;
+    }
     this.qualityControlService.finishExam({
       examId: `route-${route.routeNumber}`,
       routeNumber: route.routeNumber,
@@ -345,10 +356,19 @@ export class ExamEntryPanel implements AfterViewInit {
     this.workflow.isStopping.set(true);
     this.workflow.examFeedback.set('Parando roteiro...');
     const measurementCommandIds = this.workflow.measurementCommandIds(exam.id);
-    const stopCommandId =
-      this.workflow.ensureStopCommandId(() => this.idempotency.resolve());
-    const inspectionCommandId =
-      this.workflow.ensureInspectionCommandId(exam.id, () => this.idempotency.resolve());
+    let stopCommandId: string;
+    let inspectionCommandId: string;
+    try {
+      stopCommandId = this.workflow.ensureStopCommandId(() => this.idempotency.resolve());
+      inspectionCommandId = this.workflow.ensureInspectionCommandId(
+        exam.id,
+        () => this.idempotency.resolve(),
+      );
+    } catch {
+      this.workflow.isStopping.set(false);
+      this.workflow.examFeedback.set('Não foi possível gerar a identidade segura da parada.');
+      return;
+    }
     this.qualityControlService.stopInspectionRoute({
       routeNumber: route.routeNumber,
       ...(route.localId || route.creationCommandId

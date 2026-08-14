@@ -2,6 +2,7 @@ import { Inject, Injectable, InjectionToken } from '@angular/core';
 
 import { INSECURE_HTTP_TEST_MODE } from '../../runtime/insecure-http-test-mode';
 import { OfflineStorageError } from '../models/offline-storage-error';
+import { ClientLogService } from '../../logging/client-log.service';
 
 export type RandomUuidCapability = Pick<Crypto, 'randomUUID'>;
 export type RandomUuidProvider = () => RandomUuidCapability | undefined;
@@ -19,7 +20,12 @@ const UUID_V4 =
 
 @Injectable({ providedIn: 'root' })
 export class IdempotencyService {
-  constructor(@Inject(RANDOM_UUID_PROVIDER) private readonly provideCrypto: RandomUuidProvider) {}
+  constructor(
+    @Inject(RANDOM_UUID_PROVIDER) private readonly provideCrypto: RandomUuidProvider,
+    private readonly clientLogs: ClientLogService = {
+      capture: () => undefined,
+    } as unknown as ClientLogService,
+  ) {}
 
   resolve(supplied?: string): string {
     if (supplied !== undefined) {
@@ -34,6 +40,7 @@ export class IdempotencyService {
 
     const cryptoCapability = this.provideCrypto();
     if (!cryptoCapability) {
+      this.captureCapabilityUnavailable(false);
       throw new OfflineStorageError(
         'CAPABILITY_UNAVAILABLE',
         'Geração segura de identidade não está disponível neste contexto.',
@@ -42,12 +49,30 @@ export class IdempotencyService {
 
     const generated = cryptoCapability.randomUUID();
     if (!UUID_V4.test(generated)) {
+      this.captureCapabilityUnavailable(true);
       throw new OfflineStorageError(
         'CAPABILITY_UNAVAILABLE',
         'A identidade segura gerada pelo navegador é inválida.',
       );
     }
     return generated.toLowerCase();
+  }
+
+  private captureCapabilityUnavailable(available: boolean): void {
+    try {
+      this.clientLogs.capture({
+        level: 'error',
+        category: 'capability',
+        event: 'identity_capability_unavailable',
+        context: {
+          cryptoAvailable: available,
+          randomUuidAvailable: available,
+          insecureHttpTestMode: INSECURE_HTTP_TEST_MODE,
+        },
+      });
+    } catch {
+      // Identity semantics must not depend on the diagnostics sink.
+    }
   }
 }
 

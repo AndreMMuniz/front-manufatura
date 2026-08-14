@@ -66,6 +66,21 @@ describe('log sanitizer', () => {
     });
   });
 
+  it('remove sentinelas de negócio também quando aparecem em texto técnico', () => {
+    const result = sanitizeLogText(
+      'resultado=346; laudo="reprovado"; observacao=trinca; motivo=setup; '
+      + 'proof=supervisor-secret; body={senha:segredo}; response=conteudo',
+    );
+
+    expect(result).not.toMatch(/346|reprovado|trinca|setup|supervisor-secret|conteudo|senha/);
+    expect(result.match(/\[REDACTED\]/g)).toHaveLength(7);
+    expect(sanitizeLogMetadata({ laudo: 'x', motivo: 'y', report: 'z', reason: 'w' }))
+      .toEqual({
+        laudo: '[REDACTED]', motivo: '[REDACTED]',
+        report: '[REDACTED]', reason: '[REDACTED]',
+      });
+  });
+
   it('não avalia getters e remove campos de negócio sensíveis', () => {
     const source = {
       resultado: 346,

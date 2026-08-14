@@ -9,7 +9,7 @@ import { CLIENT_LOG_CLOCK, ClientLogService } from './client-log.service';
 describe('ClientLogService', () => {
   let http: HttpTestingController;
   let now: number;
-  let intercepted: ReturnType<typeof vi.fn>;
+  let intercepted: (url: string) => void;
   let clock: ReturnType<typeof vi.fn>;
 
   function configure(platformId: 'browser' | 'server' = 'browser') {

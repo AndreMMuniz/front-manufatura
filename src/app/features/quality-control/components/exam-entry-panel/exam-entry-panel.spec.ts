@@ -204,4 +204,40 @@ describe('ExamEntryPanel resultado único', () => {
       commandType: 'FINALIZE_QUALITY_ROUTE', aggregateId: '64379', dependencyIds: ['r1', 'r2'],
     })));
   });
+
+  it('restaura finalização e preserva medições quando a identidade segura falha', () => {
+    state.applyMeasurement('e1', 'numeric', { result: 24, status: 'RECORDED', commandId: 'r1' });
+    state.applyMeasurement('e2', 'option', {
+      selectedOption: { tableNumber: 8, sequence: 1, description: 'SIM' },
+      status: 'RECORDED', commandId: 'r2',
+    });
+    idempotency.resolve.mockImplementationOnce(() => { throw new Error('identity'); });
+
+    expect(() => component.completeExam()).not.toThrow();
+
+    expect(state.isFinishing()).toBe(false);
+    expect(state.examFeedback()).toBe('Não foi possível gerar a identidade segura da finalização.');
+    expect(state.componentById('numeric')?.measurement).toMatchObject({ commandId: 'r1' });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('restaura parada e preserva motivo/medições quando a identidade segura falha', () => {
+    state.applyMeasurement('e1', 'numeric', {
+      result: 25, status: 'REJECTED', withinRange: false, commandId: 'r1',
+    });
+    state.applyMeasurement('e2', 'option', {
+      selectedOption: { tableNumber: 8, sequence: 2, description: 'NÃO' },
+      status: 'APPROVED', withinRange: true, commandId: 'r2',
+    });
+    component.updateStopReason('Ajustar processo');
+    idempotency.resolve.mockImplementationOnce(() => { throw new Error('identity'); });
+
+    expect(() => component.stopRoute()).not.toThrow();
+
+    expect(state.isStopping()).toBe(false);
+    expect(state.examFeedback()).toBe('Não foi possível gerar a identidade segura da parada.');
+    expect(component.stopReason).toBe('Ajustar processo');
+    expect(state.componentById('numeric')?.measurement).toMatchObject({ commandId: 'r1' });
+    expect(capture).not.toHaveBeenCalled();
+  });
 });
