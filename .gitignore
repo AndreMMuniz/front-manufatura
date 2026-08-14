@@ -111,6 +111,9 @@ SKILL.md
 # Engram AI agent memory
 .engram/
 
+# Isolated implementation worktrees
+.worktrees/
+
 # Playwright
 node_modules/
 /test-results/
