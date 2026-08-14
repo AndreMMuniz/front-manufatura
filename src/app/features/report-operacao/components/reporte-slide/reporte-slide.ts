@@ -9,7 +9,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, takeUntil, throwError } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -67,7 +67,9 @@ export class ReporteSlide implements OnDestroy {
   constructor(
     private readonly changeDetector: ChangeDetectorRef,
     private readonly dialog: PoDialogService,
-    private readonly motivoService: MotivoRefugoService = new MotivoRefugoService(),
+    private readonly motivoService: MotivoRefugoService = {
+      buscarMotivos: () => throwError(() => new Error('scrap-reasons-api-not-configured')),
+    } as unknown as MotivoRefugoService,
     private readonly pwaWorkState: PwaWorkStateService = new PwaWorkStateService(),
     private readonly idempotency: IdempotencyService = new IdempotencyService(
       () => globalThis.crypto,

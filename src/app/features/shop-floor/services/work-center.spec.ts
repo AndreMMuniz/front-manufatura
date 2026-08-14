@@ -1,131 +1,41 @@
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { WorkCenterService } from './work-center';
 
 describe('WorkCenterService', () => {
-  let service: WorkCenterService;
+  const centers = [{
+    code: 'CT-EXT-01', description: 'Extrusão Linha 01', areaCode: '4001',
+    area: 'Produção', machineGroup: 'Extrusoras', establishment: '101', active: true,
+  }];
 
-  beforeEach(() => {
-    service = new WorkCenterService();
-  });
-
-  it('returns deterministic mock work centers', async () => {
-    const centers = await firstValueFrom(service.listWorkCenters());
-
-    expect(centers.map(center => center.code)).toEqual(['CT-EXT-01', 'CT-CQ-01', 'CT-MNT-01']);
-    expect(centers[0]).toMatchObject({
-      code: 'CT-EXT-01',
-      description: 'Extrusao Linha 01',
-      areaCode: '4001',
-      area: 'Producao',
-      machineGroup: 'Extrusoras',
-      establishment: '101',
-      active: true,
-    });
-  });
-
-  it('searches work centers by code and description case-insensitively', async () => {
-    await expect(firstValueFrom(service.searchWorkCenters('cq'))).resolves.toEqual([
-      expect.objectContaining({ code: 'CT-CQ-01' }),
-    ]);
-
-    await expect(firstValueFrom(service.searchWorkCenters('extrusao'))).resolves.toEqual([
-      expect.objectContaining({ code: 'CT-EXT-01' }),
-    ]);
-  });
-
-  it('searches work centers with accented Portuguese input', async () => {
-    await expect(firstValueFrom(service.searchWorkCenters('extrusão'))).resolves.toEqual([
-      expect.objectContaining({ code: 'CT-EXT-01' }),
-    ]);
-
-    await expect(firstValueFrom(service.searchWorkCenters('produção'))).resolves.toEqual([
-      expect.objectContaining({ code: 'CT-EXT-01' }),
-    ]);
-
-    await expect(firstValueFrom(service.searchWorkCenters('manutenção'))).resolves.toEqual([
-      expect.objectContaining({ code: 'CT-MNT-01' }),
-    ]);
-  });
-
-  it('returns every work center for an empty search term', async () => {
-    const centers = await firstValueFrom(service.searchWorkCenters('   '));
-
-    expect(centers).toHaveLength(3);
-  });
-
-  it('filters only active work centers from the selected production area', async () => {
-    await expect(firstValueFrom(service.searchActiveWorkCenters('4001', 'extrusão'))).resolves.toEqual([
-      expect.objectContaining({ code: 'CT-EXT-01', areaCode: '4001', active: true }),
-    ]);
-
-    await expect(firstValueFrom(service.searchActiveWorkCenters('4002', ''))).resolves.toEqual([
-      expect.objectContaining({ code: 'CT-CQ-01', areaCode: '4002', active: true }),
-    ]);
-
-    await expect(firstValueFrom(service.searchActiveWorkCenters('4003', ''))).resolves.toEqual([]);
-  });
-
-  it('returns fresh work center objects from the Datasul-ready boundary', async () => {
-    const first = await firstValueFrom(service.searchActiveWorkCenters('4001', ''));
-    const second = await firstValueFrom(service.searchActiveWorkCenters('4001', ''));
-
-    expect(first).not.toBe(second);
-    expect(first[0]).not.toBe(second[0]);
-  });
-
-  it('selects an active work center and exposes the current selection', async () => {
-    const selected = await firstValueFrom(service.selectWorkCenter('CT-EXT-01'));
-
-    expect(selected).toMatchObject({ code: 'CT-EXT-01', active: true });
-    expect(service.selectedWorkCenter).toEqual(selected);
-  });
-
-  it('finds an active work center by exact code', async () => {
-    await expect(firstValueFrom(service.findWorkCenter('CT-CQ-01'))).resolves.toEqual(
-      expect.objectContaining({
-        code: 'CT-CQ-01',
-        machineGroup: 'Qualidade',
-        establishment: '101',
-      }),
+  it('loads active work centers through the API', async () => {
+    const get = vi.fn().mockReturnValue(of(centers));
+    const service = new WorkCenterService(
+      { get } as unknown as AuthenticatedApiService,
     );
-  });
 
-  it('does not find inactive or unknown work centers by exact code', async () => {
-    await expect(firstValueFrom(service.findWorkCenter('CT-MNT-01'))).resolves.toBeNull();
-    await expect(firstValueFrom(service.findWorkCenter('CT-UNKNOWN'))).resolves.toBeNull();
-  });
+    await expect(firstValueFrom(service.listWorkCenters())).resolves.toEqual(centers);
+    await firstValueFrom(service.searchActiveWorkCenters('4001', 'EXT'));
 
-  it('does not select inactive or unknown work centers', async () => {
-    await expect(firstValueFrom(service.selectWorkCenter('CT-MNT-01'))).resolves.toBeNull();
-    expect(service.selectedWorkCenter).toBeNull();
-
-    await expect(firstValueFrom(service.selectWorkCenter('CT-UNKNOWN'))).resolves.toBeNull();
-    expect(service.selectedWorkCenter).toBeNull();
-  });
-
-  it('clears the selected work center', async () => {
-    await firstValueFrom(service.selectWorkCenter('CT-CQ-01'));
-
-    service.clearSelection();
-
-    expect(service.selectedWorkCenter).toBeNull();
-  });
-
-  it('clears the selected work center when the auth session is cleared', async () => {
-    const sessionSubject = new BehaviorSubject<unknown>({
-      user: { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: [] },
-      token: 'token-123',
-      authenticatedAt: new Date(),
+    expect(get).toHaveBeenNthCalledWith(1, '/api/work-centers', { active: true });
+    expect(get).toHaveBeenNthCalledWith(2, '/api/work-centers', {
+      areaCode: '4001', term: 'ext', active: true,
     });
-    service = new WorkCenterService({
-      session$: sessionSubject.asObservable(),
-    } as unknown as AuthSessionService);
-    await firstValueFrom(service.selectWorkCenter('CT-CQ-01'));
+  });
 
-    sessionSubject.next(null);
+  it('selects the exact active center and clears it on logout', async () => {
+    const session = new BehaviorSubject<unknown>({ user: { id: '1' } });
+    const service = new WorkCenterService(
+      { get: vi.fn().mockReturnValue(of(centers)) } as unknown as AuthenticatedApiService,
+      { session$: session.asObservable() } as unknown as AuthSessionService,
+    );
 
+    await expect(firstValueFrom(service.selectWorkCenter('CT-EXT-01'))).resolves.toEqual(centers[0]);
+    expect(service.selectedWorkCenter).toEqual(centers[0]);
+    session.next(null);
     expect(service.selectedWorkCenter).toBeNull();
   });
 });

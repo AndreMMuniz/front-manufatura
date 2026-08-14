@@ -1,7 +1,7 @@
 <po-page-default p-title="Centro de Trabalho">
   <section class="work-center">
     <po-widget>
-      <form class="work-center__form" (ngSubmit)="validateWorkCenter()">
+      <div class="work-center__form">
         <div class="work-center__lookup-row">
           <po-input
             name="workCenterCode"
@@ -20,7 +20,12 @@
             (p-click)="showScannerUnavailable()"
           ></po-button>
 
-          <po-button p-label="Consultar" p-kind="primary" p-type="submit"></po-button>
+          <po-button
+            p-label="Consultar"
+            p-kind="primary"
+            p-type="button"
+            (p-click)="validateWorkCenter()"
+          ></po-button>
         </div>
 
         <div class="work-center__readonly-grid">
@@ -43,7 +48,7 @@
             [ngModel]="selectedWorkCenter?.establishment ?? ''"
           ></po-input>
         </div>
-      </form>
+      </div>
     </po-widget>
 
     <po-widget p-title="Reporte">
@@ -58,7 +63,7 @@
     </po-widget>
 
     <po-widget p-title="Operador">
-      <form class="work-center__form" (ngSubmit)="validateOperator()">
+      <div class="work-center__form">
         <div class="work-center__lookup-row">
           <po-input
             name="operatorCode"
@@ -82,8 +87,9 @@
           <po-button
             p-label="Validar"
             p-kind="primary"
-            p-type="submit"
+            p-type="button"
             [p-disabled]="!canUseOperatorField"
+            (p-click)="validateOperator()"
           ></po-button>
         </div>
 
@@ -104,7 +110,7 @@
             (ngModelChange)="onValidityChange($event)"
           ></po-input>
         </div>
-      </form>
+      </div>
     </po-widget>
 
     @if (feedback) {

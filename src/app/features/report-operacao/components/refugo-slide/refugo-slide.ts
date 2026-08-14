@@ -17,7 +17,7 @@ import {
   PoPageSlideModule,
 } from '@po-ui/ng-components';
 
-import { MOTIVOS_REFUGO_MOCK, MotivoRefugo, MotivoRefugoService } from '../../services/motivo-refugo.service';
+import { MotivoRefugo, MotivoRefugoService } from '../../services/motivo-refugo.service';
 import { RefugoService } from '../../services/refugo.service';
 
 export interface RefugoRegistradoItem {
@@ -61,10 +61,7 @@ export class RefugoSlide {
     private readonly dialog: PoDialogService,
     private readonly motivoRefugoService: MotivoRefugoService,
     private readonly refugoService: RefugoService,
-  ) {
-    this.motivos = MOTIVOS_REFUGO_MOCK;
-    this.motivoOptions = this.toMotivoOptions(this.motivos);
-  }
+  ) {}
 
   motivos: ReadonlyArray<MotivoRefugo> = [];
   motivoOptions: ReadonlyArray<{ label: string; value: string }> = [];

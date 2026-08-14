@@ -1,0 +1,65 @@
+import { of } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
+
+import { AuthSessionService } from '../../auth/auth-session.service';
+import { SyncCommandRequest } from '../models/sync-command';
+import {
+  FinishStopSyncHandler,
+  StartOperationSyncHandler,
+} from './fma-sync.handlers';
+
+describe('FMA sync handlers', () => {
+  it('sends operation commands with bearer token and idempotency key', async () => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new StartOperationSyncHandler(
+      { post } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+    const request = command('START_OPERATION', { ordem: '372562' });
+
+    await expect(handler.send(request, new AbortController().signal)).resolves.toEqual(receipt());
+    expect(post).toHaveBeenCalledWith('/api/operations/start', request.payload, {
+      headers: expect.objectContaining({
+        Authorization: 'Bearer session-token',
+        'Idempotency-Key': request.idempotencyKey,
+      }),
+    });
+  });
+
+  it('uses the encoded local stop identity in the finish endpoint', async () => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new FinishStopSyncHandler(
+      { post } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+    const request = command('FINISH_STOP', { stopLocalId: 'stop/01' });
+
+    await handler.send(request, new AbortController().signal);
+    expect(post).toHaveBeenCalledWith('/api/production-stops/stop%2F01/finish', request.payload, expect.any(Object));
+  });
+});
+
+function command(commandType: string, payload: Record<string, string>): SyncCommandRequest {
+  return {
+    localId: 'local-1',
+    idempotencyKey: '123e4567-e89b-42d3-a456-426614174000',
+    payloadHash: 'hash',
+    payloadSchemaVersion: 1,
+    aggregateType: 'OPERATION',
+    aggregateId: 'aggregate-1',
+    commandType,
+    payload,
+    canonicalPayload: '{}',
+    occurredAt: '2026-08-13T12:00:00.000Z',
+  };
+}
+
+function receipt() {
+  return {
+    serverRecordId: 'datasul:record:1',
+    idempotencyKey: '123e4567-e89b-42d3-a456-426614174000',
+    receivedAt: '2026-08-13T12:00:01.000Z',
+    processedAt: '2026-08-13T12:00:01.000Z',
+    duplicate: false,
+  };
+}

@@ -1,44 +1,18 @@
 import { Injectable, Optional } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { WorkCenter } from '../models/work-center';
-
-const WORK_CENTERS: ReadonlyArray<WorkCenter> = Object.freeze([
-  {
-    code: 'CT-EXT-01',
-    description: 'Extrusao Linha 01',
-    areaCode: '4001',
-    area: 'Producao',
-    machineGroup: 'Extrusoras',
-    establishment: '101',
-    active: true,
-  },
-  {
-    code: 'CT-CQ-01',
-    description: 'Controle de Qualidade',
-    areaCode: '4002',
-    area: 'Qualidade',
-    machineGroup: 'Qualidade',
-    establishment: '101',
-    active: true,
-  },
-  {
-    code: 'CT-MNT-01',
-    description: 'Manutencao',
-    areaCode: '4003',
-    area: 'Apoio',
-    machineGroup: 'Manutencao',
-    establishment: '102',
-    active: false,
-  },
-]);
 
 @Injectable({ providedIn: 'root' })
 export class WorkCenterService {
   private selected: WorkCenter | null = null;
 
-  constructor(@Optional() authSession?: AuthSessionService) {
+  constructor(
+    private readonly api: AuthenticatedApiService,
+    @Optional() authSession?: AuthSessionService,
+  ) {
     authSession?.session$.subscribe(session => {
       if (session === null) {
         this.clearSelection();
@@ -51,7 +25,9 @@ export class WorkCenterService {
   }
 
   listWorkCenters(): Observable<ReadonlyArray<WorkCenter>> {
-    return of(this.cloneCenters(WORK_CENTERS));
+    return this.api.get<ReadonlyArray<WorkCenter>>('/api/work-centers', { active: true }).pipe(
+      map(centers => this.cloneCenters(centers)),
+    );
   }
 
   searchWorkCenters(term: string): Observable<ReadonlyArray<WorkCenter>> {
@@ -61,45 +37,37 @@ export class WorkCenterService {
       return this.listWorkCenters();
     }
 
-    return of(
-      this.cloneCenters(
-        WORK_CENTERS.filter(center =>
-          this.normalize(`${center.code} ${center.description} ${center.area}`).includes(normalizedTerm),
-        ),
-      ),
-    );
+    return this.api.get<ReadonlyArray<WorkCenter>>('/api/work-centers', {
+      term: normalizedTerm,
+      active: true,
+    }).pipe(map(centers => this.cloneCenters(centers)));
   }
 
   searchActiveWorkCenters(areaCode: string, term: string): Observable<ReadonlyArray<WorkCenter>> {
     const normalizedAreaCode = this.normalize(areaCode);
     const normalizedTerm = this.normalize(term);
 
-    return of(
-      this.cloneCenters(
-        WORK_CENTERS.filter(center => {
-          const searchable = `${center.code} ${center.description} ${center.area}`;
-          return (
-            center.active &&
-            this.normalize(center.areaCode) === normalizedAreaCode &&
-            (!normalizedTerm || this.normalize(searchable).includes(normalizedTerm))
-          );
-        }),
-      ),
-    );
+    return this.api.get<ReadonlyArray<WorkCenter>>('/api/work-centers', {
+      areaCode: normalizedAreaCode,
+      term: normalizedTerm || undefined,
+      active: true,
+    }).pipe(map(centers => this.cloneCenters(centers)));
   }
 
   findWorkCenter(code: string): Observable<WorkCenter | null> {
     const normalizedCode = this.normalize(code);
-    const found = WORK_CENTERS.find(center => this.normalize(center.code) === normalizedCode && center.active) ?? null;
-
-    return of(found);
+    return this.api.get<ReadonlyArray<WorkCenter>>('/api/work-centers', {
+      term: normalizedCode,
+      active: true,
+    }).pipe(map(centers => centers.find(center => this.normalize(center.code) === normalizedCode) ?? null));
   }
 
   selectWorkCenter(code: string): Observable<WorkCenter | null> {
     const normalizedCode = this.normalize(code);
-    const selected = WORK_CENTERS.find(center => this.normalize(center.code) === normalizedCode && center.active) ?? null;
-    this.selected = selected;
-    return of(selected);
+    return this.findWorkCenter(normalizedCode).pipe(map(selected => {
+      this.selected = selected;
+      return selected;
+    }));
   }
 
   clearSelection(): void {

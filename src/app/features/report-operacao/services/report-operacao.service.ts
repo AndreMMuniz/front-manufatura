@@ -1,7 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 
-import { Observable, delay, from, map, of } from 'rxjs';
+import { Observable, delay, from, map, of, switchMap } from 'rxjs';
 
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
@@ -11,7 +12,6 @@ import { ProductionContextCatalogService } from '../../shop-floor/services/produ
 import {
   EncerrarOperacaoRequest,
   IniciarOperacaoRequest,
-  OrdemCentroTrabalhoResponseDTO,
   ReportOperacaoResponseDTO,
   ReportarOperacaoRequest,
 } from '../interfaces/report-operacao.dto';
@@ -30,90 +30,7 @@ export class ReportOperacaoService {
   private readonly commands = inject(OperationalCommandFacade);
   private readonly authSession = inject(AuthSessionService);
   private readonly localRecords = inject(LocalRecordRepository);
-
-  private readonly ordens: ReadonlyArray<OrdemCentroTrabalhoResponseDTO> = [
-    {
-      id: '450001|OP-10458|10|01',
-      areaCode: '4001',
-      workCenterCode: 'CT-EXT-01',
-      situacao: 'LIBERADA',
-      ordem: '450001',
-      itemOp: 'PERFIL-100 / OP-10458',
-      operacao: '10',
-      split: '01',
-      operation: {
-        ordem: '450001',
-        op: 'OP-10458',
-        split: '01',
-        item: 'PERFIL-100',
-        descricao: 'Perfil extrudado de alumínio',
-        unidade: 'PC',
-        roteiro: '10 - Extrusão',
-        quantidadeOrdem: 500,
-        quantidadeSaldo: 320,
-        linha: 'Extrusao Linha 01',
-        ct: 'CT-EXT-01',
-        grupoMaquina: 'Extrusoras',
-        operador: 'Ana Silva',
-        equipe: 'Equipe A',
-        turno: '1o Turno',
-      },
-    },
-    {
-      id: '450002|OP-10459|20|01',
-      areaCode: '4001',
-      workCenterCode: 'CT-EXT-01',
-      situacao: 'LIBERADA',
-      ordem: '450002',
-      itemOp: 'PERFIL-200 / OP-10459',
-      operacao: '20',
-      split: '01',
-      operation: {
-        ordem: '450002',
-        op: 'OP-10459',
-        split: '01',
-        item: 'PERFIL-200',
-        descricao: 'Perfil extrudado reforçado',
-        unidade: 'PC',
-        roteiro: '20 - Acabamento',
-        quantidadeOrdem: 250,
-        quantidadeSaldo: 75,
-        linha: 'Extrusao Linha 01',
-        ct: 'CT-EXT-01',
-        grupoMaquina: 'Extrusoras',
-        operador: 'Ana Silva',
-        equipe: 'Equipe A',
-        turno: '1o Turno',
-      },
-    },
-    {
-      id: '450003|OP-10460|30|01',
-      areaCode: '4001',
-      workCenterCode: 'CT-EXT-01',
-      situacao: 'NAO_LIBERADA',
-      ordem: '450003',
-      itemOp: 'PERFIL-300 / OP-10460',
-      operacao: '30',
-      split: '01',
-      operation: {
-        ordem: '450003',
-        op: 'OP-10460',
-        split: '01',
-        item: 'PERFIL-300',
-        descricao: 'Perfil ainda não liberado',
-        unidade: 'PC',
-        roteiro: '30 - Inspeção',
-        quantidadeOrdem: 100,
-        quantidadeSaldo: 100,
-        linha: 'Extrusao Linha 01',
-        ct: 'CT-EXT-01',
-        grupoMaquina: 'Extrusoras',
-        operador: 'Ana Silva',
-        equipe: 'Equipe A',
-        turno: '1o Turno',
-      },
-    },
-  ];
+  private readonly api = inject(AuthenticatedApiService);
 
   listarAreasProducao(): Observable<ReadonlyArray<AreaProducao>> {
     return this.productionCatalog.listarAreas().pipe(delay(100));
@@ -129,42 +46,31 @@ export class ReportOperacaoService {
   ): Observable<ReadonlyArray<OrdemCentroTrabalho>> {
     return this.productionCatalog.pesquisarCentros(areaCode, '').pipe(
       delay(150),
-      map(centers => {
+      switchMap(centers => {
         const validCenter = centers.some(center => this.normalize(center.code) === this.normalize(workCenterCode));
         if (!validCenter) {
-          return [];
+          return of([] as ReadonlyArray<OrdemCentroTrabalho>);
         }
-
-        return this.ordens
-          .filter(
-            item =>
-              item.situacao === 'LIBERADA' &&
-              this.normalize(item.areaCode) === this.normalize(areaCode) &&
-              this.normalize(item.workCenterCode) === this.normalize(workCenterCode),
-          )
-          .map(item => this.mapOrdem(item));
+        return this.api.get<ReadonlyArray<OrdemCentroTrabalho>>('/api/production-orders', {
+          areaCode: areaCode.trim(),
+          workCenterCode: workCenterCode.trim(),
+          status: 'RELEASED',
+        });
       }),
+      map(orders => orders.map(order => ({ ...order }))),
     );
   }
 
   carregarOrdemSelecionada(ordem: OrdemCentroTrabalho): Observable<ResultadoConsultaOP> {
-    return of(ordem).pipe(
-      delay(250),
-      map(selected => {
-        const found = this.ordens.find(item => item.id === selected.id && item.situacao === 'LIBERADA');
-
-        if (!found) {
-          return {
-            sucesso: false,
-            mensagem: 'OP não encontrada ou não liberada para produção.',
-          };
-        }
-
-        return {
-          sucesso: true,
-          operacao: this.mapOperacao(found.operation),
-        };
-      }),
+    return this.api.get<ReportOperacaoResponseDTO>(
+      `/api/production-orders/${encodeURIComponent(ordem.ordem)}/operations/${encodeURIComponent(ordem.operacao)}`,
+      {
+        split: ordem.split,
+        areaCode: ordem.areaCode,
+        workCenterCode: ordem.workCenterCode,
+      },
+    ).pipe(
+      map(operation => ({ sucesso: true, operacao: this.mapOperacao(operation) })),
     );
   }
 
@@ -404,16 +310,6 @@ export class ReportOperacaoService {
       quantidadeAprovada: 0,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
-    };
-  }
-
-  private mapOrdem(dto: OrdemCentroTrabalhoResponseDTO): OrdemCentroTrabalho {
-    return {
-      id: dto.id,
-      ordem: dto.ordem,
-      itemOp: dto.itemOp,
-      operacao: dto.operacao,
-      split: dto.split,
     };
   }
 

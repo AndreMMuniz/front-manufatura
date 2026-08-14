@@ -29,6 +29,16 @@ import {
   FinalizeQualityRouteSyncHandler,
   SaveQualityResultSyncHandler,
 } from './core/offline/services/quality-control-sync.handlers';
+import {
+  CreateStopSyncHandler,
+  EndBatchSyncHandler,
+  EndOperationSyncHandler,
+  FinishStopSyncHandler,
+  ReportBatchSyncHandler,
+  ReportOperationSyncHandler,
+  StartBatchSyncHandler,
+  StartOperationSyncHandler,
+} from './core/offline/services/fma-sync.handlers';
 
 export type AfterRenderScheduler = (callback: () => void) => void;
 
@@ -62,6 +72,14 @@ export const appConfig: ApplicationConfig = {
     { provide: PoNotificationService, useClass: TopNotificationService },
     { provide: SYNC_COMMAND_HANDLERS, useClass: SaveQualityResultSyncHandler, multi: true },
     { provide: SYNC_COMMAND_HANDLERS, useClass: FinalizeQualityRouteSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: StartOperationSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: ReportOperationSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: EndOperationSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: StartBatchSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: ReportBatchSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: EndBatchSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: CreateStopSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: FinishStopSyncHandler, multi: true },
     provideAppInitializer(() => {
       const coordinator = inject(SyncCoordinatorService);
       const pwaUpdate = inject(PwaUpdateService);
