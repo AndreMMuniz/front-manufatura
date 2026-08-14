@@ -68,7 +68,7 @@
   border: 1px solid var(--app-color-border);
   border-radius: var(--app-radius);
   color: var(--app-color-text-muted);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   padding: 0.25rem 0.75rem;
 }
@@ -98,6 +98,6 @@
 
 @media (min-width: 768px) {
   .quality-exam-card__header {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(144px, 1fr));
   }
 }

@@ -3,9 +3,9 @@
   gap: var(--app-space-sm);
 }
 
-@media (min-width: 760px) {
+@media (min-width: 481px) {
   .report-actions {
-    grid-template-columns: auto auto;
+    grid-template-columns: repeat(3, auto);
     justify-content: start;
   }
 }

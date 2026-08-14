@@ -1,7 +1,9 @@
 .reporta-batelada {
   display: grid;
   gap: var(--app-space-lg);
-  width: min(100%, 1180px);
+  margin-inline: auto;
+  max-width: var(--app-container-operational);
+  width: 100%;
   min-width: 0;
 }
 

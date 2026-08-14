@@ -5,18 +5,23 @@
   --app-color-primary-dark: #a91419;
   --app-color-primary-soft: #fde7e8;
   --app-color-background: #ffffff;
+  --app-color-background-soft: var(--app-color-surface-muted);
   --app-color-surface: #ffffff;
   --app-color-surface-muted: #f6f7f8;
   --app-color-border: #dadedf;
   --app-color-text: #2c373b;
   --app-color-text-muted: #5b6871;
+  --app-color-text-secondary: var(--app-color-text-muted);
   --app-color-success: #0f6b2f;
   --app-color-success-soft: #dff3e7;
   --app-color-warning: #9a6a00;
   --app-color-warning-soft: #fff8e1;
   --app-color-error: #9f1c1c;
   --app-color-error-soft: #fde7e7;
+  --app-color-danger: var(--app-color-error);
   --app-color-info: #005c9e;
+  --app-color-info-soft: #e5f2fb;
+  --app-color-focus: var(--color-action-focus);
   --app-space-xs: 4px;
   --app-space-sm: 8px;
   --app-space-md: 16px;
@@ -24,6 +29,14 @@
   --app-space-xl: 32px;
   --app-radius: 4px;
   --app-touch-target: 48px;
+  --app-container-form: 960px;
+  --app-container-content: 1120px;
+  --app-container-operational: 1200px;
+  --app-font-size-caption: var(--font-size-sm);
+  --app-font-size-body: var(--font-size-default);
+  --app-font-size-section-title: var(--font-size-md);
+  --app-line-height-body: var(--line-height-md);
+  --app-z-dialog: 1000;
 
   --color-brand-01-base: var(--app-color-primary);
   --color-brand-01-dark: var(--app-color-primary-dark);
@@ -59,6 +72,15 @@ html,
 body {
   background: var(--app-color-background);
   color: var(--app-color-text);
+}
+
+body {
+  line-height: var(--app-line-height-body);
+}
+
+table,
+.app-tabular-numbers {
+  font-variant-numeric: tabular-nums;
 }
 
 po-page-default {

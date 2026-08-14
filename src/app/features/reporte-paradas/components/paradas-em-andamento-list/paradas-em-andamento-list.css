@@ -31,7 +31,7 @@
 }
 
 .open-stops__retry {
-  min-height: var(--app-touch-target);
+  display: block;
 }
 
 .open-stops__list {
@@ -61,8 +61,7 @@
   border-color: var(--app-color-primary);
 }
 
-.open-stops__item:focus-visible,
-.open-stops__retry:focus-visible {
+.open-stops__item:focus-visible {
   outline: 3px solid var(--app-color-primary);
   outline-offset: 2px;
 }

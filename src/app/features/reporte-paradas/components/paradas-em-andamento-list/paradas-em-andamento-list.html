@@ -13,9 +13,13 @@
   } @else if (errorMessage) {
     <div class="open-stops__state open-stops__state--error" role="alert">
       <p>{{ errorMessage }}</p>
-      <button type="button" class="open-stops__retry" [disabled]="disabled" (click)="retry.emit()">
-        Tentar novamente
-      </button>
+      <po-button
+        class="open-stops__retry"
+        p-label="Tentar novamente"
+        p-kind="secondary"
+        [p-disabled]="disabled"
+        (p-click)="retry.emit()"
+      ></po-button>
     </div>
   } @else if (stops.length === 0) {
     <p class="open-stops__state" role="status">Nenhuma parada em andamento neste contexto.</p>

@@ -1,17 +1,17 @@
-.exam-entry { border-top: 1px solid var(--app-color-border, #dadedf); display: grid; gap: var(--app-space-lg, 16px); min-width: 0; padding-top: 20px; }
-.exam-entry__header { align-items: end; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) minmax(120px, 180px); }
-.exam-entry__eyebrow { color: var(--app-color-primary, #0c6b77); font-weight: 800; margin: 0 0 8px; text-transform: uppercase; }
-.exam-entry h2 { font-size: 1.4rem; margin: 0; }
-.exam-entry h2:focus-visible { outline: 3px solid #0c6b77; outline-offset: 4px; }
-.exam-entry__exam, .exam-entry__characteristic { border: 1px solid var(--app-color-border, #dadedf); border-radius: 4px; display: grid; gap: 6px; padding: 12px; }
-.exam-entry__feedback { background: #e5f2fb; border-left: 4px solid #0c6b77; margin: 0; padding: 12px; }
-.exam-entry__form { display: grid; gap: 16px; }
-.exam-entry__alert { align-items: center; background: var(--app-color-warning-soft, #fff8e1); border: 1px solid var(--app-color-warning, #9a6a00); border-left-width: 4px; border-radius: 4px; color: #654a00; display: flex; gap: 10px; line-height: 1.4; margin-bottom: 12px; padding: 12px 14px; }
-.exam-entry__alert-icon { color: var(--app-color-warning, #9a6a00); flex: 0 0 auto; font-size: 1.5rem; line-height: 1; }
-.exam-entry__validation { background: var(--app-color-warning-soft, #fff8e1); border-left: 4px solid var(--app-color-warning, #f9a825); margin: 0; padding: 12px; }
-.exam-entry__stop { display: grid; gap: 8px; }
-.exam-entry__navigation, .exam-entry__footer { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.exam-entry { border-top: 1px solid var(--app-color-border); display: grid; gap: var(--app-space-lg); min-width: 0; padding-top: var(--app-space-lg); }
+.exam-entry__header { align-items: end; display: grid; gap: var(--app-space-md); grid-template-columns: minmax(0, 1fr) minmax(120px, 180px); }
+.exam-entry__eyebrow { color: var(--app-color-primary); font-weight: 700; margin: 0 0 var(--app-space-sm); }
+.exam-entry h2 { font-size: var(--app-font-size-section-title); line-height: var(--line-height-xs); margin: 0; text-wrap: balance; }
+.exam-entry h2:focus-visible { outline: 3px solid var(--app-color-focus); outline-offset: var(--app-space-xs); }
+.exam-entry__exam, .exam-entry__characteristic { border: 1px solid var(--app-color-border); border-radius: var(--app-radius); display: grid; gap: var(--app-space-sm); padding: var(--app-space-md); }
+.exam-entry__feedback { background: var(--app-color-info-soft); border-left: 4px solid var(--app-color-info); margin: 0; padding: var(--app-space-md); }
+.exam-entry__form { display: grid; gap: var(--app-space-md); }
+.exam-entry__alert { align-items: center; background: var(--app-color-warning-soft); border: 1px solid var(--app-color-warning); border-left-width: 4px; border-radius: var(--app-radius); color: var(--color-feedback-warning-darkest); display: flex; gap: var(--app-space-sm); line-height: var(--line-height-sm); margin-bottom: var(--app-space-md); padding: var(--app-space-md); }
+.exam-entry__alert-icon { color: var(--app-color-warning); flex: 0 0 auto; font-size: var(--font-size-lg); line-height: var(--line-height-none); }
+.exam-entry__validation { background: var(--app-color-warning-soft); border-left: 4px solid var(--app-color-warning); margin: 0; padding: var(--app-space-md); }
+.exam-entry__stop { display: grid; gap: var(--app-space-sm); }
+.exam-entry__navigation, .exam-entry__footer { display: grid; gap: var(--app-space-md); grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .exam-entry__footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .exam-entry__footer--with-stop { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (min-width: 1100px) { .exam-entry { border-left: 1px solid var(--app-color-border, #dadedf); border-top: 0; padding-left: 20px; padding-top: 0; } }
-@media (max-width: 520px) { .exam-entry__header, .exam-entry__navigation, .exam-entry__footer { grid-template-columns: 1fr; } }
+@media (min-width: 1100px) { .exam-entry { border-left: 1px solid var(--app-color-border); border-top: 0; padding-left: var(--app-space-lg); padding-top: 0; } }
+@media (max-width: 480px) { .exam-entry__header, .exam-entry__navigation, .exam-entry__footer { grid-template-columns: 1fr; } }

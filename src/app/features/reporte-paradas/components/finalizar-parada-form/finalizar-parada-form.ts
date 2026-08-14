@@ -21,7 +21,7 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { PoFieldModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoFieldModule, PoWidgetModule } from '@po-ui/ng-components';
 
 import { StopEntry } from '../../models/reporte-paradas.model';
 import { combineLocalDateTime } from '../../models/reporte-paradas-time';
@@ -34,7 +34,7 @@ type FinalizarParadaControls = {
 
 @Component({
   selector: 'app-finalizar-parada-form',
-  imports: [DatePipe, ReactiveFormsModule, PoFieldModule, PoWidgetModule],
+  imports: [DatePipe, ReactiveFormsModule, PoButtonModule, PoFieldModule, PoWidgetModule],
   templateUrl: './finalizar-parada-form.html',
   styleUrls: ['./finalizar-parada-form.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

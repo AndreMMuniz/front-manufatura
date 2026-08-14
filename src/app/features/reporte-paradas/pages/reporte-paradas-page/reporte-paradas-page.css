@@ -2,7 +2,8 @@
   box-sizing: border-box;
   display: grid;
   gap: var(--app-space-lg);
-  max-width: 1120px;
+  margin-inline: auto;
+  max-width: var(--app-container-content);
   min-width: 0;
   width: 100%;
 }

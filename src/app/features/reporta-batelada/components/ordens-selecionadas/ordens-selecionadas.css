@@ -5,6 +5,7 @@
 
 table {
   border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
   width: 100%;
 }
 
@@ -34,7 +35,12 @@ th {
   padding: var(--app-space-sm) var(--app-space-md);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
+  .ordens-selecionadas__scroll {
+    max-height: none;
+    overflow: visible;
+  }
+
   thead {
     border: 0;
     clip: rect(0 0 0 0);

@@ -8,6 +8,7 @@ import {
   QueryList,
   ViewChildren,
 } from '@angular/core';
+import { PoButtonModule } from '@po-ui/ng-components';
 
 import { StopEntry, StopId } from '../../models/reporte-paradas.model';
 import {
@@ -18,6 +19,7 @@ import {
 
 @Component({
   selector: 'app-paradas-em-andamento-list',
+  imports: [PoButtonModule],
   templateUrl: './paradas-em-andamento-list.html',
   styleUrls: ['./paradas-em-andamento-list.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

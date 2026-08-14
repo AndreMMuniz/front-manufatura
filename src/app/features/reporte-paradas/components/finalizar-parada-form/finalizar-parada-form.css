@@ -28,12 +28,7 @@
 }
 
 .finish-stop__submit {
-  min-height: var(--app-touch-target);
-}
-
-.finish-stop__submit:focus-visible {
-  outline: 3px solid var(--app-color-primary);
-  outline-offset: 2px;
+  display: block;
 }
 
 @media (max-width: 600px) {

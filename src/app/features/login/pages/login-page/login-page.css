@@ -1,5 +1,5 @@
 .login-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-rows: 1fr auto;
   place-items: center;
@@ -37,8 +37,10 @@
 .login-page__header h1 {
   margin: 0;
   color: var(--app-color-text);
-  font-size: 1.5rem;
+  font-size: var(--font-size-lg);
   font-weight: 700;
+  line-height: var(--line-height-xs);
+  text-wrap: balance;
 }
 
 .login-page__form {
@@ -68,12 +70,12 @@
 
 .login-page__version {
   color: var(--app-color-text-muted);
-  font-size: 0.875rem;
+  font-size: var(--app-font-size-caption);
   padding-top: var(--app-space-lg);
 }
 
 @media (min-width: 1024px) {
   .login-page {
-    padding: 48px;
+    padding: var(--spacing-2xl);
   }
 }

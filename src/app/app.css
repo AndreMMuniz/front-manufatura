@@ -1,5 +1,5 @@
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--app-color-background);
 }
 
@@ -44,6 +44,22 @@
   color: inherit;
   cursor: pointer;
   font-weight: 600;
+  transition:
+    background-color var(--duration-normal) ease,
+    border-color var(--duration-normal) ease,
+    color var(--duration-normal) ease;
+}
+
+.app-shell__update-action:hover {
+  background: var(--color-brand-01-lightest);
+  border-color: var(--color-action-hover);
+  color: var(--color-action-hover);
+}
+
+.app-shell__update-action:active {
+  background: var(--color-brand-01-lighter);
+  border-color: var(--color-action-pressed);
+  color: var(--color-action-pressed);
 }
 
 .app-shell__update-action:focus-visible {

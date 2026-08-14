@@ -1,6 +1,8 @@
 .ordens-centro-list__table {
+  font-variant-numeric: tabular-nums;
   max-width: 100%;
   overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .ordens-centro-list__loading {
@@ -21,7 +23,7 @@
   margin-top: var(--app-space-md);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .ordens-centro-list__footer {
     align-items: stretch;
     flex-direction: column;

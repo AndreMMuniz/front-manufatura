@@ -37,10 +37,13 @@
       formControlName="endTime"
     ></po-input>
 
-    <label class="parada-form__checkbox">
-      <input type="checkbox" formControlName="programmed" />
-      Parada Programada
-    </label>
+    <po-checkbox
+      class="parada-form__checkbox"
+      name="programmed"
+      p-label="Parada Programada"
+      p-size="large"
+      formControlName="programmed"
+    ></po-checkbox>
 
     @if (form.hasError('endPair') && (form.touched || form.dirty)) {
       <p class="parada-form__error" role="alert">
@@ -53,14 +56,14 @@
     }
 
     <div class="parada-form__actions">
-      <button
+      <po-button
         class="parada-form__submit"
-        type="submit"
-        [disabled]="form.disabled || loading"
-        [attr.aria-busy]="loading"
-      >
-        {{ loading ? 'Registrando...' : 'Registrar parada' }}
-      </button>
+        p-label="Registrar parada"
+        p-kind="primary"
+        p-type="submit"
+        [p-disabled]="form.disabled || loading"
+        [p-loading]="loading"
+      ></po-button>
     </div>
   </form>
 </po-widget>

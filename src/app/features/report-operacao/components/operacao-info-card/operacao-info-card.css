@@ -24,14 +24,14 @@
   min-width: 0;
 }
 
-@media (max-width: 559px) {
+@media (max-width: 480px) {
   .operacao-info__responsavel-group {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (min-width: 760px) {
+@media (min-width: 961px) {
   .operacao-info {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 }

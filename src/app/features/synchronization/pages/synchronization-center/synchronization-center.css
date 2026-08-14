@@ -3,7 +3,8 @@
   display: grid;
   gap: var(--app-space-lg);
   width: 100%;
-  max-width: 1200px;
+  margin-inline: auto;
+  max-width: var(--app-container-operational);
   min-width: 0;
 }
 
@@ -31,7 +32,7 @@
 .synchronization-center__filters select,
 .synchronization-center button {
   box-sizing: border-box;
-  min-height: 48px;
+  min-height: var(--target-size-aaa);
   border: 1px solid var(--app-color-border);
   border-radius: var(--app-radius);
   padding: 0 var(--app-space-sm);
@@ -43,6 +44,47 @@
 .synchronization-center button {
   cursor: pointer;
   font-weight: 600;
+  transition:
+    background-color var(--duration-normal) ease,
+    border-color var(--duration-normal) ease,
+    color var(--duration-normal) ease;
+}
+
+.synchronization-center button:hover:not(:disabled) {
+  background: var(--color-brand-01-lightest);
+  border-color: var(--color-action-hover);
+  color: var(--color-action-hover);
+}
+
+.synchronization-center button:active:not(:disabled) {
+  background: var(--color-brand-01-lighter);
+  border-color: var(--color-action-pressed);
+  color: var(--color-action-pressed);
+}
+
+.synchronization-center button:disabled {
+  background: var(--color-neutral-light-10);
+  color: var(--color-action-disabled);
+  cursor: not-allowed;
+}
+
+.synchronization-center button[type='submit'],
+.synchronization-center button[data-testid='sync-retry-load'] {
+  background: var(--color-action-default);
+  border-color: var(--color-action-default);
+  color: var(--color-neutral-light-00);
+}
+
+.synchronization-center button[type='submit']:hover:not(:disabled),
+.synchronization-center button[data-testid='sync-retry-load']:hover:not(:disabled) {
+  background: var(--color-action-hover);
+  color: var(--color-neutral-light-00);
+}
+
+.synchronization-center button[data-testid^='sync-abandon-'],
+.synchronization-center button[data-testid='sync-confirm-abandon'] {
+  border-color: var(--color-feedback-negative-dark);
+  color: var(--color-feedback-negative-dark);
 }
 
 .synchronization-center input:focus-visible,
@@ -145,7 +187,7 @@ dd {
 
 .synchronization-detail__backdrop {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--app-z-dialog);
   inset: 0;
   display: grid;
   place-items: center;
@@ -158,7 +200,7 @@ dd {
   display: grid;
   gap: var(--app-space-lg);
   width: min(680px, 100%);
-  max-height: calc(100vh - 2 * var(--app-space-md));
+  max-height: calc(100dvh - 2 * var(--app-space-md));
   overflow: auto;
   padding: var(--app-space-lg);
   border-radius: var(--app-radius);
@@ -190,6 +232,11 @@ dd {
   border: 1px solid var(--app-color-border);
   border-radius: var(--app-radius);
   font: inherit;
+}
+
+.synchronization-abandon textarea:focus-visible {
+  outline: 2px solid var(--color-action-focus);
+  outline-offset: 2px;
 }
 
 .synchronization-abandon__actions {

@@ -11,7 +11,7 @@
 
 dt {
   color: var(--app-color-text-secondary);
-  font-size: 0.875rem;
+  font-size: var(--app-font-size-caption);
   font-weight: 600;
 }
 
@@ -39,10 +39,10 @@ dd {
 }
 
 .informacoes-batelada__responsavel > po-button {
-  transform: translateY(calc(-1 * var(--app-space-sm)));
+  align-self: end;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .informacoes-batelada__context {
     grid-template-columns: 1fr;
   }
@@ -51,7 +51,4 @@ dd {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .informacoes-batelada__responsavel > po-button {
-    transform: none;
-  }
 }

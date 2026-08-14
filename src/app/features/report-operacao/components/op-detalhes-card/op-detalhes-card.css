@@ -3,7 +3,7 @@
   gap: var(--app-space-md);
 }
 
-@media (min-width: 760px) {
+@media (min-width: 961px) {
   .op-detalhes {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

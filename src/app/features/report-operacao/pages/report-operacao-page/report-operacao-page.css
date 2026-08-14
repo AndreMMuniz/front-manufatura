@@ -1,7 +1,9 @@
 .report-operacao {
   display: grid;
   gap: var(--app-space-lg);
-  max-width: 1180px;
+  margin-inline: auto;
+  max-width: var(--app-container-operational);
+  width: 100%;
   min-width: 0;
 }
 

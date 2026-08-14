@@ -1,7 +1,9 @@
 .operators {
   display: grid;
   gap: var(--app-space-lg);
-  max-width: 1120px;
+  margin-inline: auto;
+  max-width: var(--app-container-content);
+  width: 100%;
 }
 
 .operators__search,
