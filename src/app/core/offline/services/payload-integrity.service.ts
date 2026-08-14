@@ -26,7 +26,7 @@ export const SOFTWARE_SHA256_PROVIDER = new InjectionToken<SoftwareSha256Provide
   'OFFLINE_SOFTWARE_SHA256_PROVIDER',
   {
     providedIn: 'root',
-    factory: () => () => INSECURE_HTTP_TEST_MODE ? sha256 : undefined,
+    factory: provideSoftwareSha256,
   },
 );
 
@@ -86,7 +86,7 @@ export class PayloadIntegrityService {
 
   async hashCanonical(canonicalPayload: string): Promise<string> {
     const subtle = this.provideSubtle();
-    if (subtle && typeof globalThis.TextEncoder === 'function') {
+    if (typeof subtle?.digest === 'function' && typeof globalThis.TextEncoder === 'function') {
       try {
         const digest = await subtle.digest(
           'SHA-256',
@@ -101,9 +101,16 @@ export class PayloadIntegrityService {
       }
     }
 
-    const softwareSha256 = this.provideSoftwareSha256();
-    if (softwareSha256) {
-      return softwareSha256(canonicalPayload);
+    try {
+      const softwareSha256 = this.provideSoftwareSha256();
+      if (softwareSha256) {
+        return softwareSha256(canonicalPayload);
+      }
+    } catch {
+      throw new OfflineStorageError(
+        'PAYLOAD_INVALID',
+        'Não foi possível calcular a integridade do comando.',
+      );
     }
 
     throw new OfflineStorageError(
@@ -118,6 +125,12 @@ export function provideBrowserSubtleCrypto(): SubtleCrypto | undefined {
     return undefined;
   }
   return globalThis.crypto?.subtle;
+}
+
+export function provideSoftwareSha256(
+  allowInsecureFallback = INSECURE_HTTP_TEST_MODE,
+): SoftwareSha256Provider {
+  return () => allowInsecureFallback ? sha256 : undefined;
 }
 
 function canonicalize(

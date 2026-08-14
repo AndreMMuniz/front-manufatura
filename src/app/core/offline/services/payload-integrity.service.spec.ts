@@ -6,6 +6,7 @@ import { OfflineStorageError } from '../models/offline-storage-error';
 import {
   PayloadIntegrityService,
   provideBrowserSubtleCrypto,
+  provideSoftwareSha256,
 } from './payload-integrity.service';
 
 const SHA_256_ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
@@ -145,10 +146,45 @@ describe('PayloadIntegrityService', () => {
     );
   });
 
-  it('usa SHA-256 em software somente no modo HTTP temporário', async () => {
+  it('usa SHA-256 em software quando o provider está disponível', async () => {
     const fallback = new PayloadIntegrityService(() => undefined, () => sha256);
 
     await expect(fallback.hashCanonical('abc')).resolves.toBe(SHA_256_ABC);
+  });
+
+  it('habilita a factory SHA-256 em software quando a flag temporária está ativa', () => {
+    const provider = provideSoftwareSha256(true);
+
+    expect(provider()?.('abc')).toBe(SHA_256_ABC);
+  });
+
+  it('mantém a factory SHA-256 em software desabilitada no build normal', () => {
+    const provider = provideSoftwareSha256(false);
+
+    expect(provider()).toBeUndefined();
+  });
+
+  it('usa o fallback em software quando Web Crypto existe sem digest', async () => {
+    const partialSubtle = {} as SubtleCrypto;
+    const fallback = new PayloadIntegrityService(() => partialSubtle, () => sha256);
+
+    await expect(fallback.hashCanonical('abc')).resolves.toBe(SHA_256_ABC);
+  });
+
+  it('converte falha do provider SHA-256 em erro tipado sem expor a causa', async () => {
+    const fallback = new PayloadIntegrityService(
+      () => undefined,
+      () => {
+        throw new Error('segredo interno');
+      },
+    );
+
+    await expect(fallback.hashCanonical('abc')).rejects.toEqual(
+      expect.objectContaining({
+        code: 'PAYLOAD_INVALID',
+        message: 'Não foi possível calcular a integridade do comando.',
+      }),
+    );
   });
 
   it('preserva erro sem Web Crypto no modo normal', async () => {
