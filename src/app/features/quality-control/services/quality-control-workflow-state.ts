@@ -248,9 +248,7 @@ export class QualityControlWorkflowState {
     const firstPending = this.components().find(component => !this.isCompleted(component));
     this.selectedComponentId.set(firstPending?.id);
     this.inspectionFeedback.set(
-      this.components().length
-        ? 'Componentes carregados. Inicie pelo componente destacado.'
-        : 'Nenhum componente retornado para o roteiro.',
+      this.components().length ? '' : 'Nenhum componente retornado para o roteiro.',
     );
     return true;
   }

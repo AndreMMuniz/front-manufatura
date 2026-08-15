@@ -1,23 +1,21 @@
 <section class="inspection-process" aria-labelledby="inspection-title">
   <header class="inspection-process__header">
-    <div>
-      <p class="inspection-process__eyebrow">Inspeção de Processo</p>
-      <h2 id="inspection-title" tabindex="-1">Execução do roteiro de inspeção</h2>
-    </div>
-    <div class="inspection-process__route"><span>Roteiro</span><strong>{{ workflow.route()?.routeNumber || '-' }}</strong></div>
+    <p class="inspection-process__eyebrow">Inspeção de processo</p>
+    <h2 id="inspection-title" tabindex="-1">Execução do roteiro de inspeção</h2>
   </header>
 
-  @if (workflow.exams().length > 0) {
-    <div class="inspection-process__exam-strip" aria-label="Exames do roteiro">
-      @for (exam of workflow.exams(); track exam.id) {
-        <div>
-          <span>Exame</span><strong>{{ exam.code }}</strong>
-          <small>Versão {{ exam.version }}</small>
-          <small>Frequência: {{ formatExamFrequency(exam.frequency) }}</small>
-          <small>Amostra: {{ exam.sample }}</small>
-          <small>Observação do Exame: {{ exam.observation?.trim() || '-' }}</small>
-        </div>
-      }
+  @if (workflow.selectedExam(); as exam) {
+    <div class="inspection-process__summary" aria-label="Resumo do roteiro e do exame">
+      <div class="inspection-process__identifiers">
+        <div><span>Roteiro</span><strong>{{ workflow.route()?.routeNumber || '-' }}</strong></div>
+        <div><span>Exame</span><strong>{{ exam.code }}</strong></div>
+      </div>
+      <div class="inspection-process__metadata">
+        <div><span>Versão: </span><strong>{{ exam.version }}</strong></div>
+        <div><span>Frequência: </span><strong>{{ formatExamFrequency(exam.frequency) }}</strong></div>
+        <div><span>Amostra: </span><strong>{{ exam.sample }}</strong></div>
+        <div><span>Observação do Exame: </span><strong>{{ exam.observation?.trim() || '-' }}</strong></div>
+      </div>
     </div>
   }
 
@@ -25,7 +23,21 @@
     <p class="inspection-process__feedback" role="status" aria-live="polite">{{ workflow.inspectionFeedback() }}</p>
   }
 
-  <po-widget p-title="Componentes">
+  <section class="inspection-process__component-section" aria-labelledby="components-title">
+    <header class="inspection-process__component-header">
+      <h3 id="components-title">Componentes</h3>
+      <span>{{ workflow.completedCount() }} de {{ workflow.components().length }} concluídos</span>
+    </header>
+    <div
+      class="inspection-process__progress-track"
+      role="progressbar"
+      aria-label="Progresso da inspeção"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuenow]="workflow.progressPercentage()"
+    >
+      <span [style.width.%]="workflow.progressPercentage()"></span>
+    </div>
     <div class="inspection-process__components" aria-label="Componentes do roteiro de inspeção">
       @if (workflow.isLoadingExams()) {
         <p>Carregando componentes...</p>
@@ -42,7 +54,7 @@
             [disabled]="workflow.isBusy()"
             (click)="selectComponent(component)"
           >
-            <span aria-hidden="true">{{ isCompleted(component) ? '☑' : '☐' }}</span>
+            <span class="inspection-process__check" aria-hidden="true">{{ isCompleted(component) ? '✓' : '' }}</span>
             <span class="inspection-process__component-text">
               <strong>{{ component.code }} - {{ component.description }}</strong>
               <small class="inspection-process__component-status">
@@ -63,12 +75,12 @@
         }
       }
     </div>
-    <div class="inspection-process__progress">
-      <po-progress [p-value]="workflow.progressPercentage()" [p-text]="progressText" [p-info]="workflow.pendingCount() + ' restantes'" p-aria-label="Progresso da inspeção"></po-progress>
-    </div>
     <div class="inspection-process__action">
-      <span>Componente atual: <strong>{{ workflow.selectedComponent()?.code || '-' }}</strong></span>
+      <div class="inspection-process__action-meta">
+        <span>{{ workflow.pendingCount() }} restantes</span>
+        <span>Componente atual: <strong>{{ workflow.selectedComponent()?.code || '-' }}</strong></span>
+      </div>
       <po-button #measurementButton p-label="Digitar medição" p-kind="primary" [p-disabled]="!canOpenExamEntry" (p-click)="openExamEntry()"></po-button>
     </div>
-  </po-widget>
+  </section>
 </section>

@@ -1,11 +1,11 @@
 <section class="route-generation" aria-label="Geração do roteiro de inspeção">
-  <header class="route-generation__header">
-    <div class="route-generation__brand">
-      <img src="assets/logo-cortag.png" alt="Cortag — Revolution Tools" />
-    </div>
-  </header>
-
   @if (!workflow.route()?.routeNumber) {
+    <header class="route-generation__header">
+      <div class="route-generation__brand">
+        <img src="assets/logo-cortag.png" alt="Cortag — Revolution Tools" />
+      </div>
+    </header>
+
     <po-widget p-title="Localização da Ordem">
       <app-ordem-search
         [orderNumber]="workflow.orderNumber()"
@@ -48,18 +48,15 @@
         <po-button p-label="Gerar Roteiro" p-kind="primary" [p-disabled]="!canGenerateRoute" (p-click)="generateRoute()"></po-button>
       </div>
     }
-  } @else {
-    <po-widget p-title="Contexto do roteiro">
-      <app-ordem-info-card [route]="workflow.route()"></app-ordem-info-card>
-      <div class="route-generation__summary-actions">
-        <span>Roteiro <strong>{{ workflow.route()?.routeNumber }}</strong></span>
-        <po-button p-label="Trocar ordem" p-kind="tertiary" [p-disabled]="workflow.isBusy()" (p-click)="clearSearch()"></po-button>
-      </div>
-    </po-widget>
   }
 
   @if (workflow.routeFeedback()) {
-    <p class="route-generation__feedback" role="status" aria-live="polite">{{ workflow.routeFeedback() }}</p>
+    <p class="route-generation__feedback" role="status" aria-live="polite">
+      <span>{{ workflow.routeFeedback() }}</span>
+      @if (workflow.route()?.routeNumber) {
+        <small>Ordem <strong>{{ workflow.route()?.currentOrder }}</strong></small>
+      }
+    </p>
   }
   @if (workflow.examLoadFailed()) {
     <po-button p-label="Tentar carregar componentes novamente" p-kind="primary" (p-click)="retryExamLoad()"></po-button>

@@ -15,6 +15,8 @@
 .route-generation__operation:focus-visible { outline: 3px solid var(--app-color-focus); outline-offset: -3px; }
 .route-generation__operation--selected { background: var(--app-color-primary-soft); box-shadow: inset 4px 0 var(--app-color-primary); }
 .route-generation__operation-code { font-weight: 700; }
-.route-generation__feedback { background: var(--app-color-info-soft); border-left: 4px solid var(--app-color-info); margin: 0; padding: var(--app-space-md); }
+.route-generation__feedback { align-items: center; background: var(--app-color-info-soft); border-left: 4px solid var(--app-color-info); display: flex; gap: var(--app-space-md); justify-content: space-between; margin: 0; padding: var(--app-space-md); }
+.route-generation__feedback small { color: var(--app-color-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.route-generation__feedback strong { color: var(--app-color-text); }
 .route-generation__primary-action, .route-generation__summary-actions { align-items: center; display: flex; gap: var(--app-space-md); justify-content: flex-end; margin-top: var(--app-space-md); }
 @media (max-width: 480px) { .route-generation__operation { grid-template-columns: 44px minmax(0, 1fr); } .route-generation__operation small { grid-column: 2; } .route-generation__summary-actions { align-items: stretch; flex-direction: column; } }

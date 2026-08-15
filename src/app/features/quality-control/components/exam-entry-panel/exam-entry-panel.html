@@ -1,54 +1,70 @@
 <section class="exam-entry" aria-labelledby="exam-entry-title">
   <header class="exam-entry__header">
     <div>
-      <p class="exam-entry__eyebrow">Digitação de Exame</p>
+      <p class="exam-entry__eyebrow">Digitação de exame</p>
       <h2 #panelTitle id="exam-entry-title" tabindex="-1">Registro das medições</h2>
     </div>
-    <div class="exam-entry__exam"><span>Exame</span><strong>{{ exam?.code || '-' }}</strong></div>
+    <span class="exam-entry__position">Característica {{ progressText }}</span>
   </header>
 
   @if (workflow.examFeedback()) {
     <p class="exam-entry__feedback" role="status" aria-live="polite">{{ workflow.examFeedback() }}</p>
   }
 
-  <po-widget p-title="Característica">
-    <div class="exam-entry__characteristic">
-      <span>Código</span><strong>{{ currentCharacteristic?.code || '-' }}</strong>
-      <span>Descrição</span><strong>{{ currentCharacteristic?.description || '-' }}</strong>
-      <span>Referência</span><strong>{{ currentMeasurementReference }}</strong>
-      <span>Meio de Medição</span><strong>{{ currentCharacteristic?.measurementMethod || '-' }}</strong>
+  <section class="exam-entry__measurement" aria-label="Característica e medidas encontradas">
+    <div class="exam-entry__details">
+      <h3>Característica</h3>
+      <dl class="exam-entry__characteristic">
+        <div><dt>Código</dt><dd>{{ currentCharacteristic?.code || '-' }}</dd></div>
+        <div><dt>Descrição</dt><dd>{{ currentCharacteristic?.description || '-' }}</dd></div>
+        <div><dt>Referência</dt><dd class="exam-entry__reference">{{ currentMeasurementReference }}</dd></div>
+        <div><dt>Meio de Medição</dt><dd>{{ currentCharacteristic?.measurementMethod || '-' }}</dd></div>
+      </dl>
     </div>
-  </po-widget>
 
-  <po-widget p-title="Status/Medidas encontradas">
-    @if (hasOutOfRangeAlert) {
-      <div class="exam-entry__alert" role="alert">
-        <po-icon class="exam-entry__alert-icon" p-icon="an an-warning" aria-hidden="true"></po-icon>
-        <span>{{ outOfRangeMessage }}</span>
-      </div>
-    }
-    <form class="exam-entry__form" (ngSubmit)="saveCurrentMeasurement().subscribe()">
-      @if (hasResultOptions) {
-        <po-select name="resultOption" p-label="Resultado" p-placeholder="Selecione uma opção" p-required="true" [p-options]="resultOptions" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="selectedOptionKey" (ngModelChange)="updateSelectedOption($event)"></po-select>
-      } @else if (isReportResult) {
-        <po-input name="report" p-label="Laudo" p-placeholder="Informe o laudo" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="report" (ngModelChange)="updateReport($event)"></po-input>
-      } @else {
-        <po-input name="result" p-label="Resultado" [p-placeholder]="currentCharacteristic ? 'Ex.: ' + currentCharacteristic.minValue : 'Informe o resultado'" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="result" (ngModelChange)="updateResult($event)"></po-input>
+    <div class="exam-entry__result">
+      <h3>Status/Medidas encontradas</h3>
+      @if (hasOutOfRangeAlert) {
+        <div class="exam-entry__alert" role="alert">
+          <po-icon class="exam-entry__alert-icon" p-icon="an an-warning" aria-hidden="true"></po-icon>
+          <span>{{ outOfRangeMessage }}</span>
+        </div>
       }
-      <po-input name="observation" p-label="Observação" p-placeholder="Observação da medição" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [(ngModel)]="observation"></po-input>
-      @if (validationMessage && !hasOutOfRangeAlert) { <p class="exam-entry__validation" aria-live="polite">{{ validationMessage }}</p> }
-      <div class="exam-entry__navigation">
-        <po-button p-label="Anterior" p-kind="secondary" [p-disabled]="!canGoPrevious" (p-click)="goPrevious()"></po-button>
-        <po-button p-label="Salvar" p-kind="primary" p-type="submit" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked"></po-button>
-        <po-button p-label="Próxima" p-kind="secondary" [p-disabled]="!canGoNext" (p-click)="goNext()"></po-button>
-      </div>
-    </form>
-  </po-widget>
+      <form class="exam-entry__form" (ngSubmit)="saveCurrentMeasurement().subscribe()">
+        @if (hasResultOptions) {
+          <po-select name="resultOption" p-label="Resultado" p-placeholder="Selecione uma opção" p-required="true" [p-options]="resultOptions" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="selectedOptionKey" (ngModelChange)="updateSelectedOption($event)"></po-select>
+        } @else if (isReportResult) {
+          <po-input name="report" p-label="Laudo" p-placeholder="Informe o laudo" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="report" (ngModelChange)="updateReport($event)"></po-input>
+        } @else {
+          <po-input name="result" p-label="Resultado" [p-placeholder]="currentCharacteristic ? 'Ex.: ' + currentCharacteristic.minValue : 'Informe o resultado'" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="result" (ngModelChange)="updateResult($event)"></po-input>
+        }
+        <po-input name="observation" p-label="Observação" p-placeholder="Observação da medição" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [(ngModel)]="observation"></po-input>
+        @if (validationMessage && !hasOutOfRangeAlert) { <p class="exam-entry__validation" aria-live="polite">{{ validationMessage }}</p> }
+        <div class="exam-entry__navigation">
+          <po-button p-label="Anterior" p-kind="secondary" [p-disabled]="!canGoPrevious" (p-click)="goPrevious()"></po-button>
+          <po-button p-label="Salvar" p-kind="primary" p-type="submit" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked"></po-button>
+          <po-button p-label="Próxima" p-kind="secondary" [p-disabled]="!canGoNext" (p-click)="goNext()"></po-button>
+        </div>
+      </form>
+    </div>
+  </section>
 
-  <po-widget p-title="Progresso do exame">
-    <strong>Característica {{ progressText }}</strong>
-    <po-progress [p-value]="progressPercentage" [p-text]="completedCount + ' de ' + characteristics.length + ' salvas'" p-aria-label="Progresso da digitação do exame"></po-progress>
-  </po-widget>
+  <section class="exam-entry__progress" aria-labelledby="exam-progress-title">
+    <div class="exam-entry__progress-header">
+      <h3 id="exam-progress-title">Progresso do exame</h3>
+      <strong>{{ completedCount }} de {{ characteristics.length }} salvas</strong>
+    </div>
+    <div
+      class="exam-entry__progress-track"
+      role="progressbar"
+      aria-label="Progresso da digitação do exame"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuenow]="progressPercentage"
+    >
+      <span [style.width.%]="progressPercentage"></span>
+    </div>
+  </section>
 
   @if (showStopRoute) {
     <div class="exam-entry__stop">

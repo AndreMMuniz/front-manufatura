@@ -13,7 +13,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, concatMap, Observable, of, tap } from 'rxjs';
 
-import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule } from '@po-ui/ng-components';
 
 import { SaveMeasurementResponse } from '../../models/inspection-record';
 import { QualityControlService } from '../../services/quality-control';
@@ -23,7 +23,7 @@ import { IdempotencyService } from '../../../../core/offline/services/idempotenc
 
 @Component({
   selector: 'app-exam-entry-panel',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, PoIconModule],
   templateUrl: './exam-entry-panel.html',
   styleUrls: ['./exam-entry-panel.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
