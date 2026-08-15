@@ -30,13 +30,17 @@ for (const viewport of [
     const approvedComponent = page.locator('.inspection-process__component').first();
     await expect(approvedComponent).toContainText('Registrado');
     await expect(approvedComponent).toContainText('Resultado: 490,75');
-    await expect(approvedComponent).toContainText(/Apontado em \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
+    await expect(approvedComponent).toContainText(/Apontado \d{2}\/\d{2} \d{2}:\d{2}/);
 
     const layout = await approvedComponent.evaluate(element => {
       const componentRect = element.getBoundingClientRect();
       const statusItems = Array.from(
         element.querySelectorAll<HTMLElement>('.inspection-process__component-status > span'),
       ).map(item => item.getBoundingClientRect());
+      const measurementItems = Array.from(
+        element.querySelectorAll<HTMLElement>('.inspection-process__component-measurements > span'),
+      ).map(item => item.getBoundingClientRect());
+      const styles = getComputedStyle(element);
       const overlaps = statusItems.some((current, index) => statusItems.slice(index + 1).some(next => (
         Math.min(current.right, next.right) > Math.max(current.left, next.left)
         && Math.min(current.bottom, next.bottom) > Math.max(current.top, next.top)
@@ -47,6 +51,10 @@ for (const viewport of [
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         outsideComponent: statusItems.some(item => item.left < componentRect.left || item.right > componentRect.right),
         overlaps,
+        measurementSameLine: measurementItems.length === 2
+          && Math.abs(measurementItems[0].top - measurementItems[1].top) < 2,
+        backgroundColor: styles.backgroundColor,
+        borderWidth: styles.borderWidth,
       };
     });
 
@@ -55,6 +63,9 @@ for (const viewport of [
       pageOverflow: false,
       outsideComponent: false,
       overlaps: false,
+      measurementSameLine: true,
+      backgroundColor: 'rgb(255, 255, 255)',
+      borderWidth: '1px',
     });
 
     await approvedComponent.click();

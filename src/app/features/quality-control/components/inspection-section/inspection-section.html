@@ -62,10 +62,10 @@
                 @if (component.measurement) {
                   <span class="inspection-process__component-measurements">
                     <span>Resultado: {{ measurementResult(component) ?? '-' }}</span>
+                    @if (measurementSavedAt(component); as savedAt) {
+                      <span class="inspection-process__component-time">Apontado {{ savedAt }}</span>
+                    }
                   </span>
-                }
-                @if (measurementSavedAt(component); as savedAt) {
-                  <span class="inspection-process__component-time">Apontado em {{ savedAt }}</span>
                 }
               </small>
             </span>
