@@ -3,7 +3,7 @@
 .inspection-process__eyebrow { color: var(--app-color-primary); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); letter-spacing: .08em; margin: 0; text-transform: uppercase; }
 .inspection-process h2 { color: #111719; font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); letter-spacing: var(--letter-spacing-neg-1); line-height: var(--line-height-sm); margin: 0; text-wrap: balance; }
 .inspection-process__summary { display: grid; gap: var(--app-space-md); }
-.inspection-process__identifiers { border: 1px solid var(--app-color-border); border-radius: var(--app-radius-container); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
+.inspection-process__identifiers { background: var(--app-color-surface); border: 1px solid var(--app-color-border); border-radius: var(--app-radius-container); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
 .inspection-process__identifiers > div { display: grid; gap: var(--app-space-xs); min-height: 68px; padding: var(--app-space-md); }
 .inspection-process__identifiers > div + div { border-left: 1px solid var(--app-color-border); }
 .inspection-process__identifiers span, .inspection-process__metadata span { color: var(--app-color-text-muted); font-size: var(--font-size-sm); }
