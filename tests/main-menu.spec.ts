@@ -24,6 +24,33 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   ).toBe(true);
 }
 
+async function expectSeparatedToolbarContent(page: Page): Promise<void> {
+  const layout = await page.evaluate(() => {
+    const title = document.querySelector<HTMLElement>('.po-toolbar-title');
+    const identity = document.querySelector<HTMLElement>('[data-testid="session-identity"]');
+    const synchronization = document.querySelector<HTMLElement>('[data-testid="synchronization-indicator"]');
+    const actions = document.querySelector<HTMLElement>('button[aria-label="Abrir ações da sessão"]');
+
+    if (!title || !identity || !synchronization || !actions) {
+      throw new Error('Conteúdo completo do toolbar não encontrado.');
+    }
+
+    return {
+      title: title.getBoundingClientRect().toJSON(),
+      identity: identity.getBoundingClientRect().toJSON(),
+      synchronization: synchronization.getBoundingClientRect().toJSON(),
+      actions: actions.getBoundingClientRect().toJSON(),
+    };
+  });
+
+  expect(layout.title.right).toBeLessThanOrEqual(layout.identity.left + 1);
+  expect(layout.identity.right).toBeLessThanOrEqual(layout.synchronization.left + 1);
+  expect(layout.synchronization.right).toBeLessThanOrEqual(layout.actions.left + 1);
+  expect(layout.identity.width).toBeGreaterThan(0);
+  expect(layout.synchronization.width).toBeGreaterThan(0);
+  expect(layout.actions.width).toBeGreaterThanOrEqual(44);
+}
+
 test.describe('Home de navegação', () => {
   test('mostra para mjocelio somente Plano Controle CQ e Reporte Ordem', async ({ page }) => {
     await page.goto('/login');
@@ -165,6 +192,7 @@ test.describe('Home de navegação', () => {
       expect(box.width).toBeGreaterThanOrEqual(48);
     }
     await expectNoHorizontalOverflow(page);
+    await expectSeparatedToolbarContent(page);
   });
 
   test('mantém pelo menos três colunas e cartões quadrados em 1024x768', async ({ page }) => {
@@ -185,5 +213,6 @@ test.describe('Home de navegação', () => {
       expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(2);
     }
     await expectNoHorizontalOverflow(page);
+    await expectSeparatedToolbarContent(page);
   });
 });

@@ -29,6 +29,33 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   ).toBe(true);
 }
 
+async function expectSeparatedToolbarContent(page: Page): Promise<void> {
+  const layout = await page.evaluate(() => {
+    const title = document.querySelector<HTMLElement>('.po-toolbar-title');
+    const identity = document.querySelector<HTMLElement>('[data-testid="session-identity"]');
+    const synchronization = document.querySelector<HTMLElement>('[data-testid="synchronization-indicator"]');
+    const actions = document.querySelector<HTMLElement>('button[aria-label="Abrir ações da sessão"]');
+
+    if (!title || !identity || !synchronization || !actions) {
+      throw new Error('Conteúdo completo do toolbar não encontrado.');
+    }
+
+    return {
+      title: title.getBoundingClientRect().toJSON(),
+      identity: identity.getBoundingClientRect().toJSON(),
+      synchronization: synchronization.getBoundingClientRect().toJSON(),
+      actions: actions.getBoundingClientRect().toJSON(),
+    };
+  });
+
+  expect(layout.title.right).toBeLessThanOrEqual(layout.identity.left + 1);
+  expect(layout.identity.right).toBeLessThanOrEqual(layout.synchronization.left + 1);
+  expect(layout.synchronization.right).toBeLessThanOrEqual(layout.actions.left + 1);
+  expect(layout.identity.width).toBeGreaterThan(0);
+  expect(layout.synchronization.width).toBeGreaterThan(0);
+  expect(layout.actions.width).toBeGreaterThanOrEqual(44);
+}
+
 async function expectHomeFullWidth(page: Page): Promise<void> {
   const dimensions = await page.evaluate(() => {
     const contentBox = document.querySelector<HTMLElement>('[data-testid="app-content"]')?.getBoundingClientRect();
@@ -214,6 +241,7 @@ test.describe('menu lateral contextual', () => {
       const homeItem = page.getByTestId('app-side-menu').getByRole('menuitem', { name: 'Menu Principal' });
       await expect(homeItem).toBeVisible();
       await expectNoHorizontalOverflow(page);
+      await expectSeparatedToolbarContent(page);
 
       await homeItem.click();
       await expect(page).toHaveURL(/\/menu$/);

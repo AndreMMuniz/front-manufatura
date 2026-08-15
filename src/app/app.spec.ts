@@ -441,6 +441,7 @@ describe('App', () => {
     expect(app.sessionIdentity).toBe('Apontamento Manufatura — operador');
     expect(toolbar.title).toBe('Menu Principal');
     const sessionIdentity = fixture.nativeElement.querySelector('[data-testid="session-identity"]');
+    expect(sessionIdentity).not.toBeNull();
     expect(sessionIdentity.textContent.trim()).toBe('Apontamento Manufatura — operador');
     expect(sessionIdentity.getAttribute('title')).toBe('Apontamento Manufatura — operador');
     expect(fixture.nativeElement.querySelector('po-toolbar')).not.toBeNull();
