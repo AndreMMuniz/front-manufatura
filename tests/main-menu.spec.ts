@@ -41,6 +41,52 @@ test.describe('Home de navegação', () => {
     await expect(page.getByRole('button', { name: 'Abrir ações da sessão' })).toBeVisible();
   });
 
+  test('preenche toda a largura visível sem reservar a coluna do menu lateral', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await login(page);
+
+    const layout = await page.evaluate(() => {
+      const toolbar = document.querySelector<HTMLElement>('.po-toolbar');
+      const pageElement = document.querySelector<HTMLElement>('.po-page');
+      const pageContent = document.querySelector<HTMLElement>('.po-page-content');
+      const grid = document.querySelector<HTMLElement>('.main-menu__grid');
+      const title = document.querySelector<HTMLElement>('.po-toolbar-title');
+      const actions = document.querySelector<HTMLElement>('.po-toolbar-actions');
+
+      if (!toolbar || !pageElement || !pageContent || !grid || !title || !actions) {
+        throw new Error('Estrutura principal da página não encontrada.');
+      }
+
+      const toolbarRect = toolbar.getBoundingClientRect();
+      const pageRect = pageElement.getBoundingClientRect();
+      const contentRect = pageContent.getBoundingClientRect();
+      const gridRect = grid.getBoundingClientRect();
+      const titleRect = title.getBoundingClientRect();
+      const actionsRect = actions.getBoundingClientRect();
+
+      return {
+        toolbarLeft: toolbarRect.left,
+        toolbarRight: toolbarRect.right,
+        pageRight: pageRect.right,
+        contentRight: contentRect.right,
+        gridCenter: gridRect.left + gridRect.width / 2,
+        titleLeft: titleRect.left,
+        actionsRight: actionsRect.right,
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+
+    expect(layout.toolbarLeft).toBeCloseTo(0, 0);
+    expect(layout.toolbarRight).toBeCloseTo(layout.viewportWidth, 0);
+    expect(layout.pageRight).toBeCloseTo(layout.viewportWidth, 0);
+    expect(layout.contentRight).toBeCloseTo(layout.viewportWidth, 0);
+    expect(layout.gridCenter).toBeCloseTo(layout.viewportWidth / 2, 0);
+    expect(layout.titleLeft).toBeLessThan(layout.viewportWidth / 2);
+    expect(layout.actionsRight).toBeGreaterThan(layout.viewportWidth / 2);
+    expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  });
+
   test('cada cartão navega para seu destino', async ({ page }) => {
     await login(page);
 

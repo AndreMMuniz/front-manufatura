@@ -3,6 +3,25 @@ import { mockAuthentication } from './helpers/auth';
 
 test.beforeEach(async ({ context }) => mockAuthentication(context));
 
+test('não cria rolagem vertical quando o conteúdo cabe na viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 1266, height: 918 });
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: 'Login' }).fill('operador');
+  await page.getByRole('textbox', { name: 'Senha' }).fill('mock123');
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/menu$/);
+  await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
+  await expect(page).toHaveURL(/\/quality-control$/);
+  await expect(page.locator('.quality-workspace__actions')).toBeVisible();
+
+  const layout = await page.evaluate(() => ({
+    documentHeight: document.documentElement.scrollHeight,
+    viewportHeight: window.innerHeight,
+  }));
+
+  expect(layout.documentHeight).toBeLessThanOrEqual(layout.viewportHeight);
+});
+
 test('exibe as ações do Plano Controle CQ sem cortá-las no contêiner da página', async ({ page }) => {
   await page.setViewportSize({ width: 1587, height: 857 });
   await page.goto('/login');
@@ -42,7 +61,7 @@ test('exibe as ações do Plano Controle CQ sem cortá-las no contêiner da pág
   await expect(page.locator('.quality-workspace__actions')).toBeInViewport();
 });
 
-test('permite rolar até as ações após consultar uma ordem', async ({ page }) => {
+test('usa a rolagem da página, sem limitar o conteúdo em um scroll interno', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 600 });
   await page.goto('/login');
   await page.getByRole('textbox', { name: 'Login' }).fill('operador');
@@ -65,8 +84,18 @@ test('permite rolar até as ações após consultar uma ordem', async ({ page })
   expect(beforeScroll!.y + beforeScroll!.height).toBeGreaterThan(page.viewportSize()!.height);
 
   const pageContent = page.locator('.po-page-content');
-  await pageContent.evaluate(element => element.scrollTo(0, element.scrollHeight));
+  const contentLayout = await pageContent.evaluate(element => ({
+    clientHeight: element.clientHeight,
+    overflowY: getComputedStyle(element).overflowY,
+    scrollHeight: element.scrollHeight,
+  }));
 
-  await expect.poll(() => pageContent.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  expect(contentLayout.overflowY).toBe('visible');
+  expect(contentLayout.clientHeight).toBeGreaterThanOrEqual(contentLayout.scrollHeight);
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  expect(await pageContent.evaluate(element => element.scrollTop)).toBe(0);
   await expect(actions).toBeInViewport();
 });

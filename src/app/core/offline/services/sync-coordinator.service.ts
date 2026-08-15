@@ -213,7 +213,7 @@ export class SyncCoordinatorService implements OnDestroy {
         leaseExpiresAt: validDate(new Date(now.getTime() + this.config.leaseDurationMs)),
       });
     } catch (error) {
-      this.captureFailure('sync_storage_failed', 'claim', 'STORAGE_FAILURE');
+      this.captureFailure('sync_storage_failed', 'claim', 'STORAGE_FAILURE', candidate);
       throw error;
     }
     if (!claimed) {
@@ -223,7 +223,7 @@ export class SyncCoordinatorService implements OnDestroy {
       try {
         await this.outbox.releaseClaim(owner, claimed.localId, leaseToken, this.nowIso());
       } catch (error) {
-        this.captureFailure('sync_storage_failed', 'release', 'STORAGE_FAILURE');
+        this.captureFailure('sync_storage_failed', 'release', 'STORAGE_FAILURE', claimed);
         throw error;
       }
       return false;
@@ -255,7 +255,9 @@ export class SyncCoordinatorService implements OnDestroy {
           result,
         });
       } catch (error) {
-        this.captureFailure('sync_storage_failed', 'reconcile_success', 'STORAGE_FAILURE');
+        this.captureFailure(
+          'sync_storage_failed', 'reconcile_success', 'STORAGE_FAILURE', claimed,
+        );
         throw error;
       }
       this.captureTransition('sync_succeeded', 'info', claimed, {
@@ -275,7 +277,7 @@ export class SyncCoordinatorService implements OnDestroy {
             this.nowIso(),
           );
         } catch (releaseError) {
-          this.captureFailure('sync_storage_failed', 'release', 'STORAGE_FAILURE');
+          this.captureFailure('sync_storage_failed', 'release', 'STORAGE_FAILURE', claimed);
           throw releaseError;
         }
         if (released && this.activeOwner === owner) {
@@ -319,7 +321,9 @@ export class SyncCoordinatorService implements OnDestroy {
           error: persistedError,
         });
       } catch (storageError) {
-        this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE');
+        this.captureFailure(
+          'sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', claimed,
+        );
         throw storageError;
       }
       this.captureTransition('sync_retry_scheduled', 'warn', claimed, {
@@ -339,7 +343,9 @@ export class SyncCoordinatorService implements OnDestroy {
         error: persistedError,
       });
     } catch (storageError) {
-      this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE');
+      this.captureFailure(
+        'sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', claimed,
+      );
       throw storageError;
     }
     this.captureTransition(
@@ -414,11 +420,30 @@ export class SyncCoordinatorService implements OnDestroy {
     event: 'sync_cycle_failed' | 'sync_storage_failed',
     stage: ClientLogContext['stage'],
     code: string,
+    entry?: OutboxEntry<JsonValue>,
   ): void {
+    const commandType = entry && member(entry.commandType, CLIENT_COMMAND_TYPES)
+      ? entry.commandType
+      : undefined;
+    const aggregateType = entry && member(entry.aggregateType, CLIENT_AGGREGATE_TYPES)
+      ? entry.aggregateType
+      : undefined;
+    const correlationId = entry && SAFE_CLIENT_CORRELATION_ID.test(entry.idempotencyKey)
+      ? entry.idempotencyKey
+      : undefined;
     try {
       this.clientLogs.capture({
         level: 'error', category: 'synchronization', event,
-        context: { stage, code },
+        ...(correlationId ? { correlationId } : {}),
+        context: {
+          stage,
+          code,
+          ...(commandType ? { commandType } : {}),
+          ...(aggregateType ? { aggregateType } : {}),
+          ...(entry ? {
+            attemptCount: Math.min(1_000_000, Math.max(0, Math.trunc(entry.attemptCount))),
+          } : {}),
+        },
       });
     } catch {
       // Synchronization behavior cannot depend on diagnostics.

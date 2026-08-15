@@ -81,6 +81,17 @@ describe('log sanitizer', () => {
       });
   });
 
+  it.each([
+    ['JSON textual', '{"senha":"segredo-json","body":{"resultado":346}}'],
+    ['valor quoted com escape', 'password="abc\\\"segredo-restante"; code=SAFE'],
+    ['chaves acentuadas', 'observação=trinca; medição=346'],
+  ])('redige %s sem deixar o valor sensível no texto', (_case, input) => {
+    const result = sanitizeLogText(input);
+
+    expect(result).toContain('[REDACTED]');
+    expect(result).not.toMatch(/segredo-json|segredo-restante|trinca|346/);
+  });
+
   it('não avalia getters e remove campos de negócio sensíveis', () => {
     const source = {
       resultado: 346,

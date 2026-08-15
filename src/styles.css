@@ -71,7 +71,8 @@
 
 html,
 body {
-  background: var(--app-color-background);
+  min-height: 100%;
+  background: var(--app-color-background-soft);
   color: var(--app-color-text);
 }
 
@@ -82,6 +83,7 @@ body {
 /* Keep the PO-UI structure while giving operational pages a clearer visual
    hierarchy: neutral canvas, distinct page header and consistent surfaces. */
 .po-page {
+  height: auto !important;
   background: var(--app-color-background-soft);
 }
 
@@ -105,10 +107,20 @@ po-page-default {
   display: block;
 }
 
-/* PO UI 21.21 can leave page content transparent when the asynchronous
-   viewport calculation does not complete. Keep its calculated height so the
-   internal scroll area still accounts for the toolbar and page header. */
+/* The PO UI viewport calculation starts at 90% and is updated asynchronously.
+   Let the page grow naturally so there is no temporary nested scrollbar or
+   uncovered viewport while preserving the PO UI page structure. */
+po-page-content {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
 .po-page-content {
+  flex: 1 0 auto;
+  height: auto !important;
+  max-height: none;
+  overflow-y: visible;
   background: var(--app-color-background-soft);
   opacity: 1 !important;
 }
@@ -131,6 +143,29 @@ po-widget .po-widget-text {
 
 po-table .po-table-header {
   background: var(--app-color-surface-muted);
+}
+
+.synchronization-center__summary {
+  align-items: center;
+  background: var(--app-color-surface);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-container);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--app-font-size-body);
+  gap: var(--app-space-sm) var(--app-space-lg);
+  min-height: var(--app-touch-target);
+  padding: var(--app-space-sm) var(--app-space-md);
+}
+
+.synchronization-center__summary strong {
+  color: var(--app-color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.synchronization-center__summary span {
+  color: var(--app-color-text-muted);
 }
 
 @media (min-width: 961px) {

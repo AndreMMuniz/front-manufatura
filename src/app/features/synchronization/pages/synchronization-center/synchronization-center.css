@@ -1,31 +1,37 @@
 .synchronization-center {
   box-sizing: border-box;
   display: grid;
-  gap: var(--app-space-lg);
+  gap: var(--app-space-md);
   width: 100%;
   margin-inline: auto;
   max-width: var(--app-container-operational);
   min-width: 0;
 }
 
-.synchronization-center__summary,
 .synchronization-center__filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--app-space-md);
-  align-items: center;
-  padding: var(--app-space-md);
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius);
+  align-items: end;
   background: var(--app-color-surface);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-container);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: var(--app-space-md);
+  grid-template-columns:
+    minmax(136px, 0.8fr)
+    minmax(152px, 0.9fr)
+    minmax(148px, 0.75fr)
+    minmax(148px, 0.75fr)
+    minmax(220px, 1.25fr);
+  padding: var(--app-space-md);
 }
 
 .synchronization-center__filters label {
   display: grid;
-  flex: 1 1 150px;
   gap: var(--app-space-xs);
   min-width: 0;
-  font-weight: 600;
+  color: var(--app-color-text-muted);
+  font-size: var(--app-font-size-caption);
+  font-weight: var(--font-weight-semibold);
 }
 
 .synchronization-center__filters input,
@@ -38,7 +44,16 @@
   padding: 0 var(--app-space-sm);
   background: var(--color-neutral-light-00);
   color: var(--app-color-text);
-  font: inherit;
+  font-family: inherit;
+  font-size: var(--app-font-size-body);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--app-line-height-body);
+}
+
+.synchronization-center__filters input,
+.synchronization-center__filters select {
+  min-width: 0;
+  width: 100%;
 }
 
 .synchronization-center button {
@@ -95,21 +110,24 @@
 }
 
 .synchronization-center__identification {
-  flex-basis: 240px;
+  min-width: 0;
 }
 
 .synchronization-center__filter-actions {
   display: flex;
-  flex: 1 1 240px;
   gap: var(--app-space-sm);
+  grid-column: 1 / -1;
   align-self: end;
+  justify-content: flex-end;
+  padding-top: var(--app-space-xs);
 }
 
 .synchronization-center__state {
   margin: 0;
   padding: var(--app-space-lg);
   border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius);
+  border-radius: var(--app-radius-container);
+  background: var(--app-color-surface);
   overflow-wrap: anywhere;
 }
 
@@ -128,25 +146,34 @@
 
 .synchronization-record {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(360px, 2fr) auto;
+  grid-template-columns: minmax(240px, 1.15fr) minmax(360px, 1.65fr) auto;
   gap: var(--app-space-md);
-  align-items: center;
+  align-items: start;
   min-width: 0;
   padding: var(--app-space-md);
   border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius);
+  border-radius: var(--app-radius-container);
   background: var(--app-color-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .synchronization-record h2 {
-  margin: var(--app-space-xs) 0;
+  margin: var(--app-space-xs) 0 var(--app-space-sm);
   overflow-wrap: anywhere;
-  font-size: var(--font-size-lg);
+  font-size: var(--app-font-size-body);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-sm);
 }
 
 .synchronization-record__module {
   color: var(--app-color-text-muted);
-  font-weight: 600;
+  font-size: var(--app-font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.synchronization-record > div:first-child > span:last-child {
+  color: var(--app-color-text-muted);
+  font-size: var(--app-font-size-caption);
 }
 
 .synchronization-record dl,
@@ -164,13 +191,15 @@
 
 dt {
   color: var(--app-color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-size: var(--app-font-size-caption);
+  font-weight: var(--font-weight-semibold);
 }
 
 dd {
   margin: var(--app-space-xs) 0 0;
   overflow-wrap: anywhere;
+  font-size: var(--app-font-size-body);
+  line-height: var(--line-height-sm);
 }
 
 .synchronization-record__sync {
@@ -180,9 +209,19 @@ dd {
 }
 
 .synchronization-record__actions {
-  display: grid;
+  align-items: center;
+  border-top: 1px solid var(--app-color-border);
+  color: var(--app-color-text-muted);
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--app-space-sm);
   grid-column: 1 / -1;
+  justify-content: flex-end;
+  padding-top: var(--app-space-md);
+}
+
+.synchronization-record__actions > span {
+  margin-right: auto;
 }
 
 .synchronization-detail__backdrop {
@@ -203,8 +242,9 @@ dd {
   max-height: calc(100dvh - 2 * var(--app-space-md));
   overflow: auto;
   padding: var(--app-space-lg);
-  border-radius: var(--app-radius);
+  border-radius: var(--app-radius-container);
   background: var(--app-color-surface);
+  box-shadow: var(--shadow-xl);
 }
 
 .synchronization-detail h2 {
@@ -246,24 +286,85 @@ dd {
   gap: var(--app-space-sm);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  .synchronization-center__filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .synchronization-center__identification {
+    grid-column: span 2;
+  }
+
   .synchronization-record {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.5fr);
+  }
+
+  .synchronization-record > button {
+    grid-column: 1 / -1;
+    justify-self: end;
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 760px) {
+  .synchronization-center__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .synchronization-center__identification {
+    grid-column: 1 / -1;
+  }
+
+  .synchronization-record {
+    grid-template-columns: 1fr;
+  }
+
+  .synchronization-record > button {
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 480px) {
   .synchronization-center {
     gap: var(--app-space-md);
   }
 
+  .synchronization-center__summary {
+    align-items: flex-start;
+    display: grid;
+    gap: var(--app-space-xs);
+  }
+
+  .synchronization-center__filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .synchronization-center__identification,
+  .synchronization-center__filter-actions {
+    grid-column: auto;
+  }
+
   .synchronization-center__filter-actions,
   .synchronization-record dl,
-  .synchronization-detail dl {
+  .synchronization-detail dl,
+  .synchronization-record__actions {
     grid-template-columns: 1fr;
   }
 
   .synchronization-center__filter-actions {
     display: grid;
+  }
+
+  .synchronization-record__actions {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .synchronization-record__actions > span {
+    margin-right: 0;
+  }
+
+  .synchronization-center__filter-actions button,
+  .synchronization-record > button {
+    width: 100%;
   }
 }

@@ -38,16 +38,22 @@ export class IdempotencyService {
       return supplied.toLowerCase();
     }
 
-    const cryptoCapability = this.provideCrypto();
+    let cryptoCapability: RandomUuidCapability | undefined;
+    try {
+      cryptoCapability = this.provideCrypto();
+    } catch {
+      this.throwCapabilityUnavailable(false);
+    }
     if (!cryptoCapability) {
-      this.captureCapabilityUnavailable(false);
-      throw new OfflineStorageError(
-        'CAPABILITY_UNAVAILABLE',
-        'Geração segura de identidade não está disponível neste contexto.',
-      );
+      this.throwCapabilityUnavailable(false);
     }
 
-    const generated = cryptoCapability.randomUUID();
+    let generated: string;
+    try {
+      generated = cryptoCapability.randomUUID();
+    } catch {
+      this.throwCapabilityUnavailable(true);
+    }
     if (!UUID_V4.test(generated)) {
       this.captureCapabilityUnavailable(true);
       throw new OfflineStorageError(
@@ -56,6 +62,14 @@ export class IdempotencyService {
       );
     }
     return generated.toLowerCase();
+  }
+
+  private throwCapabilityUnavailable(available: boolean): never {
+    this.captureCapabilityUnavailable(available);
+    throw new OfflineStorageError(
+      'CAPABILITY_UNAVAILABLE',
+      'Geração segura de identidade não está disponível neste contexto.',
+    );
   }
 
   private captureCapabilityUnavailable(available: boolean): void {

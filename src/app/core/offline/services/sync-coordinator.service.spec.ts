@@ -562,12 +562,19 @@ describe('SyncCoordinatorService', () => {
     expect(settled).toBe(true);
     expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
       event: 'sync_storage_failed',
-      context: { stage: 'reconcile_failure', code: 'STORAGE_FAILURE' },
+      context: expect.objectContaining({
+        stage: 'reconcile_failure', code: 'STORAGE_FAILURE',
+      }),
     }));
   });
 
   it('diagnostica falha de claim e preserva a mesma rejeição', async () => {
-    await seed(database, [entry('command')]);
+    const correlationId = '550e8400-e29b-41d4-a716-446655440000';
+    await seed(database, [entry('command', {
+      idempotencyKey: correlationId,
+      commandType: 'START_OPERATION',
+      aggregateType: 'OPERATION',
+    })]);
     const failure = new Error('claim storage');
     vi.spyOn(repository, 'claim').mockRejectedValue(failure);
     const coordinator = createCoordinator(successTransport([]));
@@ -575,9 +582,14 @@ describe('SyncCoordinatorService', () => {
     coordinator.start();
 
     await expect(coordinator.requestSync()).rejects.toBe(failure);
-    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
-      event: 'sync_storage_failed', context: { stage: 'claim', code: 'STORAGE_FAILURE' },
-    }));
+    expect(clientLogs.capture).toHaveBeenCalledWith({
+      level: 'error', category: 'synchronization', event: 'sync_storage_failed',
+      correlationId,
+      context: {
+        stage: 'claim', code: 'STORAGE_FAILURE', commandType: 'START_OPERATION',
+        aggregateType: 'OPERATION', attemptCount: 0,
+      },
+    });
   });
 
   it('diagnostica falha de release e preserva a mesma rejeição após logout', async () => {
@@ -606,7 +618,8 @@ describe('SyncCoordinatorService', () => {
 
     await expect(processing).rejects.toBe(failure);
     expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
-      event: 'sync_storage_failed', context: { stage: 'release', code: 'STORAGE_FAILURE' },
+      event: 'sync_storage_failed',
+      context: expect.objectContaining({ stage: 'release', code: 'STORAGE_FAILURE' }),
     }));
   });
 
@@ -633,7 +646,9 @@ describe('SyncCoordinatorService', () => {
 
     expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
       event: 'sync_storage_failed',
-      context: { stage: 'reconcile_success', code: 'STORAGE_FAILURE' },
+      context: expect.objectContaining({
+        stage: 'reconcile_success', code: 'STORAGE_FAILURE',
+      }),
     }));
     expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'ERROR' });
   });

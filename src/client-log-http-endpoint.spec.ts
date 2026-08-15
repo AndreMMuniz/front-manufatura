@@ -109,17 +109,39 @@ describe('/api/client-logs', () => {
     const malformed = await send(endpoint.url, '{"senha":"segredo"');
     const schema = await send(endpoint.url, JSON.stringify({ ...EVENT, body: 'senha=segredo' }));
     const large = await send(endpoint.url, JSON.stringify({ ...EVENT, message: 'x'.repeat(17 * 1024) }));
+    const largeNonJson = await fetch(endpoint.url, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: 'x'.repeat(17 * 1024),
+    });
 
     expect(method.status).toBe(405);
     expect(method.headers.get('allow')).toBe('POST');
     for (const [response, status, code] of [
       [malformed, 400, 'invalid-request'], [schema, 400, 'invalid-request'],
-      [large, 413, 'request-too-large'],
+      [large, 413, 'request-too-large'], [largeNonJson, 413, 'request-too-large'],
     ] as const) {
       expect(response.status).toBe(status);
       expect(response.headers.get('cache-control')).toBe('no-store');
       expect(await response.json()).toEqual({ code });
     }
+  });
+
+  it('usa a correlação observada pelo servidor quando header e evento divergem', async () => {
+    const endpoint = await start();
+    const response = await send(endpoint.url, JSON.stringify(EVENT), {
+      headers: { 'x-correlation-id': 'corr-header-2' },
+    });
+
+    expect(response.status).toBe(204);
+    expect(endpoint.sink.writes).toContainEqual(expect.objectContaining({
+      event: 'http_request_failed',
+      metadata: expect.objectContaining({ correlationId: 'corr-header-2' }),
+    }));
+    expect(endpoint.accessSink.writes).toContainEqual(expect.objectContaining({
+      event: 'api_request_completed',
+      metadata: expect.objectContaining({ correlationId: 'corr-header-2' }),
+    }));
   });
 
   it('limita a 60 requests por janela/IP antes do método e parser e reinicia deterministicamente', async () => {

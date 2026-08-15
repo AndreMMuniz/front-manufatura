@@ -56,8 +56,36 @@ async function expectHomeFullWidth(page: Page): Promise<void> {
 
 test.describe('menu lateral contextual', () => {
   test('não aparece no login nem na Home, que usa toda a largura', async ({ page }) => {
+    await page.setViewportSize({ width: 1900, height: 1017 });
     await page.goto('/login');
     await expect(page.locator('po-menu')).toHaveCount(0);
+
+    const loginLayout = await page.evaluate(() => {
+      const shell = document.querySelector<HTMLElement>('.app-shell');
+      const loginPage = document.querySelector<HTMLElement>('.login-page');
+      const loginPanel = document.querySelector<HTMLElement>('.login-page__panel');
+
+      if (!shell || !loginPage || !loginPanel) {
+        throw new Error('Estrutura da tela de login não encontrada.');
+      }
+
+      const shellBox = shell.getBoundingClientRect();
+      const pageBox = loginPage.getBoundingClientRect();
+      const panelBox = loginPanel.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+
+      return {
+        shellRight: shellBox.right,
+        pageRight: pageBox.right,
+        panelCenter: panelBox.left + panelBox.width / 2,
+        viewportCenter: viewportWidth / 2,
+        viewportWidth,
+      };
+    });
+
+    expect(Math.abs(loginLayout.shellRight - loginLayout.viewportWidth)).toBeLessThanOrEqual(1);
+    expect(Math.abs(loginLayout.pageRight - loginLayout.viewportWidth)).toBeLessThanOrEqual(1);
+    expect(Math.abs(loginLayout.panelCenter - loginLayout.viewportCenter)).toBeLessThanOrEqual(1);
 
     await login(page);
     await expect(page.getByTestId('app-side-menu')).toHaveCount(0);
@@ -66,7 +94,7 @@ test.describe('menu lateral contextual', () => {
   });
 
   test('mostra Menu Principal e somente os módulos aprovados em ordem nas telas internas', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize({ width: 1900, height: 1017 });
     await login(page);
     await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
 
@@ -85,20 +113,30 @@ test.describe('menu lateral contextual', () => {
     const layout = await page.evaluate(() => {
       const menu = document.querySelector<HTMLElement>('[data-testid="app-side-menu"] .po-menu');
       const pageElement = document.querySelector<HTMLElement>('.po-page');
+      const workspace = document.querySelector<HTMLElement>('.quality-workspace');
 
-      if (!menu || !pageElement) {
+      if (!menu || !pageElement || !workspace) {
         throw new Error('Shell contextual não encontrado.');
       }
 
       const menuBox = menu.getBoundingClientRect();
       const pageBox = pageElement.getBoundingClientRect();
+      const workspaceBox = workspace.getBoundingClientRect();
       return {
         menuRight: menuBox.right,
         pageLeft: pageBox.left,
+        pageRight: pageBox.right,
+        viewportRight: document.documentElement.clientWidth,
+        workspaceWidth: workspaceBox.width,
+        workspaceLeftGap: workspaceBox.left - menuBox.right,
+        workspaceRightGap: document.documentElement.clientWidth - workspaceBox.right,
       };
     });
 
     expect(layout.pageLeft).toBeGreaterThanOrEqual(layout.menuRight - 1);
+    expect(Math.abs(layout.pageRight - layout.viewportRight)).toBeLessThanOrEqual(1);
+    expect(layout.workspaceWidth).toBeLessThanOrEqual(1200);
+    expect(Math.abs(layout.workspaceLeftGap - layout.workspaceRightGap)).toBeLessThanOrEqual(2);
     await expect.poll(async () => page.evaluate(() => {
       const menu = document.querySelector<HTMLElement>('[data-testid="app-side-menu"] .po-menu');
       const toolbar = document.querySelector<HTMLElement>('po-toolbar .po-toolbar');
@@ -110,6 +148,36 @@ test.describe('menu lateral contextual', () => {
       return toolbar.getBoundingClientRect().left - menu.getBoundingClientRect().right;
     })).toBeGreaterThanOrEqual(-1);
     await expectNoHorizontalOverflow(page);
+  });
+
+  test('estende toolbar e página até a borda direita na Central de Sincronização', async ({ page }) => {
+    await login(page);
+    await page.goto('/synchronization');
+    await expect(page).toHaveURL(/\/synchronization$/);
+
+    for (const width of [1024, 1280, 1366, 1520, 1900]) {
+      await page.setViewportSize({ width, height: 900 });
+      const layout = await page.evaluate(() => {
+        const toolbar = document.querySelector<HTMLElement>('po-toolbar .po-toolbar');
+        const pageElement = document.querySelector<HTMLElement>('.po-page');
+
+        if (!toolbar || !pageElement) {
+          throw new Error('Toolbar ou página da Central de Sincronização não encontrada.');
+        }
+
+        return {
+          toolbarRight: toolbar.getBoundingClientRect().right,
+          pageRight: pageElement.getBoundingClientRect().right,
+          viewportRight: document.documentElement.clientWidth,
+        };
+      });
+
+      expect(Math.abs(layout.toolbarRight - layout.viewportRight), `toolbar em ${width}px`)
+        .toBeLessThanOrEqual(1);
+      expect(Math.abs(layout.pageRight - layout.viewportRight), `página em ${width}px`)
+        .toBeLessThanOrEqual(1);
+      await expectNoHorizontalOverflow(page);
+    }
   });
 
   test('navega entre módulos e retorna à Home pelo primeiro item', async ({ page }) => {

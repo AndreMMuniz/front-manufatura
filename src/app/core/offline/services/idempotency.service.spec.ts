@@ -52,6 +52,22 @@ describe('IdempotencyService', () => {
     expect(capture).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ['provedor', () => { throw new Error('crypto bloqueado'); }],
+    ['randomUUID', () => ({ randomUUID: () => { throw new Error('uuid bloqueado'); } })],
+  ])('normaliza exceção do %s como indisponibilidade diagnosticada', (_case, provider) => {
+    const capture = vi.fn();
+    const service = new IdempotencyService(provider as never, { capture } as never);
+
+    expect(() => service.resolve()).toThrowError(expect.objectContaining({
+      code: 'CAPABILITY_UNAVAILABLE',
+    }));
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'identity_capability_unavailable',
+    }));
+  });
+
   it('não expõe Web Crypto quando window não existe no SSR', () => {
     vi.stubGlobal('window', undefined);
 

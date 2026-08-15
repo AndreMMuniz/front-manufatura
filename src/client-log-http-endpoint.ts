@@ -5,7 +5,10 @@ import express, {
   type RequestHandler,
 } from 'express';
 
-import { validateClientLogEvent } from './logging/client-log-contracts';
+import {
+  CLIENT_LOG_BODY_LIMIT_BYTES,
+  validateClientLogEvent,
+} from './logging/client-log-contracts';
 import type { AppLogLevel, ApplicationLogger, LogMetadata } from './logging/log-contracts';
 import { sanitizeLogMetadata } from './logging/log-sanitizer';
 import { getRequestCorrelationId } from './server-observability';
@@ -45,7 +48,10 @@ export function installClientLogEndpoint(
     res.setHeader('Allow', 'POST');
     res.status(405).json({ code: 'method-not-allowed' });
   });
-  app.use(CLIENT_LOG_PATH, express.json({ limit: '16kb' }));
+  app.use(CLIENT_LOG_PATH, express.json({
+    limit: CLIENT_LOG_BODY_LIMIT_BYTES,
+    type: '*/*',
+  }));
   app.post(CLIENT_LOG_PATH, (req, res) => {
     const validation = validateClientLogEvent(req.body);
     if (!validation.ok) {
@@ -59,7 +65,7 @@ export function installClientLogEndpoint(
       clientTimestamp: clientEvent.timestamp,
       ...(clientEvent.message !== undefined ? { clientMessage: clientEvent.message } : {}),
       ...(clientEvent.stack !== undefined ? { clientStack: clientEvent.stack } : {}),
-      correlationId: clientEvent.correlationId ?? getRequestCorrelationId(),
+      correlationId: getRequestCorrelationId() ?? clientEvent.correlationId,
       ...(clientEvent.context ?? {}),
     });
     bestEffortWrite(dependencies.logger, clientEvent.level, clientEvent.event, metadata);

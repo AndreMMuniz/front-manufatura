@@ -1,13 +1,67 @@
 .app-shell {
   min-height: 100dvh;
-  background: var(--app-color-background);
+  background: var(--app-color-background-soft);
+}
+
+.app-shell.po-wrapper {
+  max-height: none;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .app-shell__content {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  background: var(--app-color-background);
+  background: var(--app-color-background-soft);
+}
+
+/* PO UI keeps menu-aware dimensions on its page and toolbar elements. When
+   the contextual menu is absent (Login/Home), explicitly reset every layer
+   to the viewport so no reserved menu column remains on the right. */
+.app-shell:not(.po-wrapper),
+.app-shell:not(.po-wrapper) .app-shell__content,
+.app-shell:not(.po-wrapper) po-toolbar,
+.app-shell:not(.po-wrapper) po-page-default {
+  box-sizing: border-box;
+  max-width: none;
+  width: 100vw;
+}
+
+.app-shell:not(.po-wrapper) .po-toolbar,
+.app-shell:not(.po-wrapper) .po-page {
+  box-sizing: border-box;
+  left: 0;
+  margin-left: 0;
+  max-width: none;
+  right: 0;
+  width: 100vw;
+}
+
+@media (min-width: 961px) {
+  .app-shell.po-wrapper .po-page {
+    box-sizing: border-box;
+    margin-left: var(--menu-width);
+    max-width: none;
+    width: auto;
+  }
+
+  .app-shell.po-wrapper .po-toolbar {
+    box-sizing: border-box;
+    left: var(--menu-width);
+    margin-left: 0;
+    max-width: none;
+    right: 0;
+    width: auto;
+  }
+
+  .app-shell.po-wrapper.po-collapsed-menu .po-page {
+    margin-left: var(--collapsed-menu-width);
+  }
+
+  .app-shell.po-wrapper.po-collapsed-menu .po-toolbar {
+    left: var(--collapsed-menu-width);
+  }
 }
 
 .app-shell__menu {

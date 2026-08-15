@@ -15,7 +15,7 @@ const SENSITIVE_BUSINESS_KEYS = new Set([
   'result', 'resultado', 'measurement', 'medicao', 'observation', 'observacao',
   'report', 'laudo', 'reason', 'motivo',
 ]);
-const INLINE_SECRET = /\b(?:authorization|cookie|password|passwd|senha|token|jwt|secret|segredo|credential|credencial|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha|proof|prova)|payload|body|request[-_ ]?body|response[-_ ]?body|response|proof|prova|result|resultado|measurement|medicao|observation|observacao|report|laudo|reason|motivo)\b\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,;]+)/gi;
+const INLINE_SECRET = /["']?\b(?:authorization|cookie|password|passwd|senha|token|jwt|secret|segredo|credential|credencial|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha|proof|prova)|payload|body|request[-_ ]?body|response[-_ ]?body|response|proof|prova|result|resultado|measurement|medicao|medição|observation|observacao|observação|report|laudo|reason|motivo)\b["']?\s*[:=]\s*(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\r\n,;]+)/gi;
 const BEARER = /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi;
 const BASIC = /\bBasic\s+[A-Za-z0-9+/]+=*/gi;
 const JWT = /\b[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
