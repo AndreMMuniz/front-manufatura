@@ -3,6 +3,17 @@
   gap: var(--app-space-md);
 }
 
+@media (min-width: 481px) and (max-width: 960px) {
+  .op-detalhes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .op-detalhes po-input:nth-child(2),
+  .op-detalhes po-input:nth-child(7) {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (min-width: 961px) {
   .op-detalhes {
     grid-template-columns: repeat(4, minmax(0, 1fr));

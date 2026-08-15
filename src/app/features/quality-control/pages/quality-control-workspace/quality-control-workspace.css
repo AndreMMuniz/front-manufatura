@@ -1,5 +1,5 @@
-.quality-workspace { display: grid; gap: var(--app-space-lg); margin: 0 auto; max-width: var(--app-container-operational); min-width: 0; width: 100%; }
-.quality-workspace__execution { border-top: 1px solid var(--app-color-border); display: grid; gap: var(--app-space-lg); margin-inline: auto; min-width: 0; padding-top: var(--app-space-lg); width: 100%; }
-.quality-workspace__actions { border-top: 1px solid var(--app-color-border); display: flex; gap: var(--app-space-md); justify-content: space-between; margin-inline: auto; min-width: 0; padding-top: var(--app-space-md); width: 100%; }
+.quality-workspace { display: grid; gap: var(--app-space-md); margin: 0 auto; max-width: var(--app-container-operational); min-width: 0; width: 100%; }
+.quality-workspace__execution { display: grid; gap: var(--app-space-md); margin-inline: auto; min-width: 0; width: 100%; }
+.quality-workspace__actions { align-items: center; background: var(--app-color-surface); border: 1px solid var(--app-color-border); border-radius: var(--app-radius-container); box-shadow: var(--shadow-sm); display: flex; gap: var(--app-space-md); justify-content: space-between; margin-inline: auto; min-width: 0; padding: var(--app-space-md); width: 100%; }
 @media (min-width: 1100px) { .quality-workspace__execution--editing { align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: var(--app-container-operational); } }
 @media (max-width: 480px) { .quality-workspace__actions { align-items: stretch; flex-direction: column; } }

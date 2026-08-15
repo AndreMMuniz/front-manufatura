@@ -3,6 +3,12 @@
   gap: var(--app-space-md);
 }
 
+@media (min-width: 481px) and (max-width: 960px) {
+  .producao-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 961px) {
   .producao-form {
     align-items: end;

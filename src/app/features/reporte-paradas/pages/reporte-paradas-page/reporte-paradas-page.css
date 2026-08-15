@@ -1,7 +1,7 @@
 .reporte-paradas {
   box-sizing: border-box;
   display: grid;
-  gap: var(--app-space-lg);
+  gap: var(--app-space-md);
   margin-inline: auto;
   max-width: var(--app-container-content);
   min-width: 0;
@@ -12,7 +12,7 @@
 .reporte-paradas__guidance,
 .reporte-paradas__success {
   border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius);
+  border-radius: var(--app-radius-container);
   margin: 0;
   padding: var(--app-space-md);
 }
@@ -29,10 +29,15 @@
 }
 
 .reporte-paradas__actions {
+  background: var(--app-color-surface);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-container);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-wrap: wrap;
   gap: var(--app-space-md);
   justify-content: flex-end;
+  padding: var(--app-space-md);
 }
 
 @media (max-width: 600px) {

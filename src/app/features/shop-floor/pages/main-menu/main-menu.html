@@ -1,28 +1,36 @@
 <po-page-default p-title="Menu Principal">
-  @if (accessDenied) {
-    <p class="main-menu__feedback" role="alert">
-      Você não possui permissão para acessar o módulo solicitado.
-    </p>
-  }
-  <nav aria-label="Módulos disponíveis">
-    <ul class="main-menu__grid">
-      @for (module of modules; track module.id) {
-        <li class="main-menu__item">
-          <a
-            class="main-menu__card"
-            [routerLink]="module.route"
-            (keydown.space)="navigateWithSpace($event, module.route)"
-          >
-            <po-icon class="main-menu__icon" [p-icon]="module.icon" aria-hidden="true" />
-            <span class="main-menu__label">{{ module.label }}</span>
-          </a>
-        </li>
-      }
-    </ul>
-    @if (modules.length === 0) {
-      <p class="main-menu__empty" role="status">
-        Nenhum módulo foi liberado para o seu usuário. Solicite acesso ao administrador do Datasul.
+  <section class="main-menu" aria-labelledby="main-menu-heading">
+    <header class="main-menu__intro">
+      <h2 id="main-menu-heading">Operações disponíveis</h2>
+      <p>Selecione uma operação para iniciar o apontamento.</p>
+    </header>
+    @if (accessDenied) {
+      <p class="main-menu__feedback" role="alert">
+        Você não possui permissão para acessar o módulo solicitado.
       </p>
     }
-  </nav>
+    <nav aria-label="Módulos disponíveis">
+      <ul class="main-menu__grid">
+        @for (module of modules; track module.id) {
+          <li class="main-menu__item">
+            <a
+              class="main-menu__card"
+              [routerLink]="module.route"
+              (keydown.space)="navigateWithSpace($event, module.route)"
+            >
+              <span class="main-menu__icon-wrap" aria-hidden="true">
+                <po-icon class="main-menu__icon" [p-icon]="module.icon" />
+              </span>
+              <span class="main-menu__label">{{ module.label }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+      @if (modules.length === 0) {
+        <p class="main-menu__empty" role="status">
+          Nenhum módulo foi liberado para o seu usuário. Solicite acesso ao administrador do Datasul.
+        </p>
+      }
+    </nav>
+  </section>
 </po-page-default>

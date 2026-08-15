@@ -5,6 +5,10 @@
   align-items: end;
 }
 
+.contexto-producao po-select {
+  min-width: 0;
+}
+
 .contexto-producao__status {
   min-height: var(--app-touch-target);
   margin-top: var(--app-space-sm);
@@ -17,6 +21,10 @@
   justify-content: space-between;
   margin-top: var(--app-space-sm);
   color: var(--app-color-error);
+  background: var(--app-color-error-soft);
+  border-left: var(--border-width-lg) solid var(--app-color-error);
+  border-radius: var(--app-radius);
+  padding: var(--app-space-sm) var(--app-space-md);
 }
 
 @media (max-width: 960px) {

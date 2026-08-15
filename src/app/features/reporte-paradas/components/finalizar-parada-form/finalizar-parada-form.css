@@ -1,4 +1,5 @@
 .finish-stop__summary {
+  border-left: var(--border-width-lg) solid var(--app-color-primary);
   background: var(--app-color-surface-muted);
   border-radius: var(--app-radius);
   display: grid;
@@ -28,7 +29,9 @@
 }
 
 .finish-stop__submit {
+  border-top: 1px solid var(--app-color-border);
   display: block;
+  padding-top: var(--app-space-md);
 }
 
 @media (max-width: 600px) {
