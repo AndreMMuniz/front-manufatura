@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
-import { PoButtonModule, PoFieldModule, PoLoadingModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoFieldModule } from '@po-ui/ng-components';
 
 import { LoginAutenticado, Usuario } from '../../models/usuario';
 import { LoginError, LoginService } from '../../services/login.service';
@@ -58,7 +58,7 @@ describe('LoginPage', () => {
     setReturnUrl = route.setReturnUrl;
 
     await TestBed.configureTestingModule({
-      imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, LoginPage],
+      imports: [FormsModule, PoButtonModule, PoFieldModule, LoginPage],
       providers: [
         { provide: Router, useValue: routerMock },
         { provide: ActivatedRoute, useValue: route.routeMock },
@@ -134,6 +134,22 @@ describe('LoginPage', () => {
 
     expect(loginServiceMock.login).toHaveBeenCalledTimes(1);
     expect(loginServiceMock.login).toHaveBeenCalledWith('operador', '   ');
+  });
+
+  it('exibe uma barra de progresso compacta enquanto autentica', () => {
+    vi.mocked(loginServiceMock.login).mockReturnValue(NEVER);
+    component.login = 'operador';
+    component.senha = 'mock123';
+
+    component.entrar();
+    fixture.detectChanges();
+
+    const loading = fixture.nativeElement.querySelector('.login-page__loading') as HTMLElement;
+    const progressbar = loading.querySelector('[role="progressbar"]');
+
+    expect(loading.textContent).toContain('Autenticando...');
+    expect(progressbar).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('po-loading')).toBeNull();
   });
 
   it('returns to a safe internal returnUrl after valid credentials', () => {
@@ -226,7 +242,7 @@ describe('LoginPage', () => {
       const route = buildRouteMock();
 
       await TestBed.configureTestingModule({
-        imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, LoginPage],
+        imports: [FormsModule, PoButtonModule, PoFieldModule, LoginPage],
         providers: [
           { provide: Router, useValue: routerMock },
           { provide: ActivatedRoute, useValue: route.routeMock },

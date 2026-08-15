@@ -55,7 +55,51 @@
 }
 
 .login-page__loading {
-  min-height: 48px;
+  display: grid;
+  gap: var(--app-space-xs);
+  padding-block: var(--app-space-xs);
+}
+
+.login-page__loading-label {
+  color: var(--app-color-text-muted);
+  font-size: var(--app-font-size-caption);
+  font-weight: 600;
+}
+
+.login-page__loading-track {
+  height: 4px;
+  overflow: hidden;
+  background: var(--app-color-primary-soft);
+  border-radius: 2px;
+}
+
+.login-page__loading-bar {
+  display: block;
+  width: 42%;
+  height: 100%;
+  background: var(--app-color-primary);
+  border-radius: inherit;
+  animation: login-authentication-progress 1.2s ease-in-out infinite;
+  transform: translateX(-110%);
+}
+
+@keyframes login-authentication-progress {
+  50% {
+    transform: translateX(140%);
+  }
+
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page__loading-bar {
+    width: 100%;
+    animation: none;
+    opacity: 0.55;
+    transform: none;
+  }
 }
 
 .login-page__submit {
