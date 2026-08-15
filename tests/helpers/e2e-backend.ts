@@ -114,14 +114,17 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       const body = request.postDataJSON() as { login?: unknown };
       const login = typeof body.login === 'string' ? body.login.trim() : 'operador';
       const tokenExpiresAt = new Date(Date.now() + 28_800_000).toISOString();
+      const permissoes = login.toLocaleLowerCase('pt-BR') === 'mjocelio'
+        ? ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'REPORTE_ORDEM']
+        : [
+            'MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'AUTORIZACAO_ROTEIRO_DIVERGENCIA',
+            'REPORTE_ORDEM', 'REPORTE_BATELADA', 'REPORTE_PARADAS',
+          ];
       await json(route, {
         token: 'e2e-memory-token', tokenExpiresAt, offlineSessionExpiresAt: tokenExpiresAt,
         usuario: {
           id: `E2E-${login}`, nome: 'Operador E2E', login,
-          permissoes: [
-            'MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'AUTORIZACAO_ROTEIRO_DIVERGENCIA',
-            'REPORTE_ORDEM', 'REPORTE_BATELADA', 'REPORTE_PARADAS',
-          ],
+          permissoes,
         },
       });
       return;

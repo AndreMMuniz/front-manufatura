@@ -25,6 +25,21 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Home de navegação', () => {
+  test('mostra para mjocelio somente Plano Controle CQ e Reporte Ordem', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByRole('textbox', { name: 'Login' }).fill('mjocelio');
+    await page.getByRole('textbox', { name: 'Senha' }).fill('senha-e2e');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await expect(page).toHaveURL(/\/menu$/);
+
+    const cards = page
+      .getByRole('navigation', { name: 'Módulos disponíveis' })
+      .getByRole('link');
+    await expect(cards).toHaveText(['Plano Controle CQ', 'Reporte Ordem']);
+    await expect(page.getByRole('link', { name: 'Reporte Batelada' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Paradas' })).toHaveCount(0);
+  });
+
   test('é o landing do login e expõe somente os cartões aprovados sem navegação lateral', async ({ page }) => {
     await login(page);
 

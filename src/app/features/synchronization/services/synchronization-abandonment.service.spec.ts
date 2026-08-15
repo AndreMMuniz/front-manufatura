@@ -16,7 +16,7 @@ describe('SynchronizationAbandonmentService', () => {
     const service = new SynchronizationAbandonmentService(
       repository,
       auth,
-      new SynchronizationPermissionPolicy(),
+      new SynchronizationPermissionPolicy(false),
       () => new Date('2026-07-30T12:00:00.000Z'),
     );
 
@@ -43,7 +43,7 @@ describe('SynchronizationAbandonmentService', () => {
     const service = new SynchronizationAbandonmentService(
       repository,
       auth,
-      new SynchronizationPermissionPolicy(),
+      new SynchronizationPermissionPolicy(false),
       () => new Date('2026-07-30T12:00:00.000Z'),
     );
 

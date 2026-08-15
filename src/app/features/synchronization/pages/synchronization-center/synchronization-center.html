@@ -29,7 +29,7 @@
           <option value="BLOCKED_AUTH">Bloqueado por autenticação</option>
           <option value="BLOCKED_DEPENDENCY">Aguardando dependência</option>
           <option value="ERROR">Precisa de atenção</option>
-          <option value="ABANDONED">Abandonado</option>
+          <option value="ABANDONED">Cancelado</option>
           <option value="SUPERSEDED">Substituído</option>
         </select>
       </label>
@@ -179,10 +179,10 @@
                         [attr.data-testid]="'sync-abandon-' + item.localId"
                         (click)="openAbandon(item, $event)"
                       >
-                        Abandonar registro
+                        Cancelar sincronização
                       </button>
                     } @else {
-                      <span>Abandono indisponível: a sessão não possui a permissão homologada.</span>
+                      <span>Cancelamento indisponível: ação restrita ao administrador do sistema.</span>
                     }
                   }
                 </div>
@@ -256,7 +256,7 @@
           tabindex="-1"
           data-testid="sync-abandon-dialog"
         >
-          <h2 id="sync-abandon-title">Abandonar registro preservado?</h2>
+          <h2 id="sync-abandon-title">Cancelar sincronização deste registro?</h2>
           <p>
             O registro não será mais enviado ao Datasul, mas continuará no histórico local para
             auditoria. Esta ação não exclui dados.
@@ -289,7 +289,7 @@
               data-testid="sync-confirm-abandon"
               (click)="confirmAbandon()"
             >
-              {{ isAbandoning() ? 'Confirmando…' : 'Confirmar abandono' }}
+              {{ isAbandoning() ? 'Cancelando…' : 'Confirmar cancelamento' }}
             </button>
           </div>
         </section>

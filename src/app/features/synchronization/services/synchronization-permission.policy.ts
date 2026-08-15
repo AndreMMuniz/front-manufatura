@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Inject, Injectable, InjectionToken, isDevMode } from '@angular/core';
 
 import { User } from '../../../core/auth/auth.models';
 import { SYNC_UNSYNCHRONIZED_ABANDON } from '../../../core/offline/models/command-abandonment';
@@ -9,12 +9,23 @@ export type NormalizedAbandonReason =
   | { readonly ok: true; readonly value: string }
   | { readonly ok: false; readonly reason: 'length' | 'secret' };
 
+export const DEVELOPMENT_SYNC_CANCELLATION = new InjectionToken<boolean>(
+  'DEVELOPMENT_SYNC_CANCELLATION',
+  { providedIn: 'root', factory: () => isDevMode() },
+);
+
 @Injectable({ providedIn: 'root' })
 export class SynchronizationPermissionPolicy {
+  constructor(
+    @Inject(DEVELOPMENT_SYNC_CANCELLATION)
+    private readonly developmentOverride: boolean = isDevMode(),
+  ) {}
+
   canAbandon(user: User | null): boolean {
-    return user?.permissoes.some(
+    if (!user) return false;
+    return this.developmentOverride || user.permissoes.some(
       permission => permission.trim() === SYNC_UNSYNCHRONIZED_ABANDON,
-    ) ?? false;
+    );
   }
 }
 

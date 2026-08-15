@@ -159,7 +159,7 @@ export function mapSynchronizationEntry(
     : 'ACTIVE';
   const state = isSyncStatus(source.status) ? STATUS_PRESENTATIONS[source.status] : undefined;
   const dispositionState = disposition === 'ABANDONED'
-    ? status('Abandonado com justificativa', 'po-icon-close', 'neutral')
+    ? status('Cancelado com justificativa', 'po-icon-close', 'neutral')
     : disposition === 'SUPERSEDED'
       ? status('Substituído por comando corrigido', 'po-icon-exchange', 'neutral')
       : undefined;

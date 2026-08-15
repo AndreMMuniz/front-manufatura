@@ -117,7 +117,7 @@ describe('SynchronizationCenterPage', () => {
       .textContent).toContain('preparado para nova tentativa');
   });
 
-  it('confirma abandono crítico com justificativa, bloqueia concorrência e devolve foco', async () => {
+  it('confirma cancelamento crítico com justificativa, bloqueia concorrência e devolve foco', async () => {
     const abandonment = deferred<'abandoned'>();
     const test = await setup(
       state({ readState: 'ready', items: [item()] }),
@@ -125,10 +125,12 @@ describe('SynchronizationCenterPage', () => {
       abandonment.promise,
     );
     const trigger = test.fixture.nativeElement.querySelector('[data-testid="sync-abandon-local-1"]');
+    expect(trigger.textContent).toContain('Cancelar sincronização');
     trigger.focus();
     trigger.click();
     test.fixture.detectChanges();
     const dialog = test.fixture.nativeElement.querySelector('[data-testid="sync-abandon-dialog"]');
+    expect(dialog.textContent).toContain('Cancelar sincronização deste registro?');
     expect(dialog.textContent).toContain('não será mais enviado');
     expect(dialog.textContent).toContain('não informe senhas');
 
@@ -136,6 +138,7 @@ describe('SynchronizationCenterPage', () => {
     reason.value = 'Duplicidade confirmada na operação';
     reason.dispatchEvent(new Event('input', { bubbles: true }));
     const confirm = dialog.querySelector('[data-testid="sync-confirm-abandon"]');
+    expect(confirm.textContent).toContain('Confirmar cancelamento');
     confirm.click();
     confirm.click();
     test.fixture.detectChanges();

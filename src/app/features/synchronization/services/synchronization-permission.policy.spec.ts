@@ -7,13 +7,20 @@ import {
 } from './synchronization-permission.policy';
 
 describe('SynchronizationPermissionPolicy', () => {
-  const policy = new SynchronizationPermissionPolicy();
+  const policy = policyWithDevelopmentOverride(false);
 
   it('aplica default deny e exige o código canônico explícito', () => {
     expect(policy.canAbandon(null)).toBe(false);
     expect(policy.canAbandon(user([]))).toBe(false);
     expect(policy.canAbandon(user(['ADMIN', 'sync_unsynchronized_abandon']))).toBe(false);
     expect(policy.canAbandon(user([` ${SYNC_UNSYNCHRONIZED_ABANDON} `]))).toBe(true);
+  });
+
+  it('libera temporariamente o cancelamento para usuário autenticado no desenvolvimento', () => {
+    const developmentPolicy = policyWithDevelopmentOverride(true);
+
+    expect(developmentPolicy.canAbandon(null)).toBe(false);
+    expect(developmentPolicy.canAbandon(user([]))).toBe(true);
   });
 
   it('normaliza Unicode/controles, limita 10–500 e rejeita padrões de segredo', () => {
@@ -33,6 +40,13 @@ describe('SynchronizationPermissionPolicy', () => {
     });
   });
 });
+
+function policyWithDevelopmentOverride(enabled: boolean): SynchronizationPermissionPolicy {
+  const Policy = SynchronizationPermissionPolicy as unknown as new (
+    developmentOverride: boolean,
+  ) => SynchronizationPermissionPolicy;
+  return new Policy(enabled);
+}
 
 function user(permissoes: string[]) {
   return { id: 'owner-1', nome: 'Owner', login: 'owner', permissoes };

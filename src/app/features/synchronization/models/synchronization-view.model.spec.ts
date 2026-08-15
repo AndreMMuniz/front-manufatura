@@ -46,7 +46,7 @@ describe('synchronization view model', () => {
   });
 
   it.each([
-    ['ABANDONED', 'Abandonado com justificativa'],
+    ['ABANDONED', 'Cancelado com justificativa'],
     ['SUPERSEDED', 'Substituído por comando corrigido'],
   ] as const)('prioriza a disposição %s sobre o estado anterior', (deliveryDisposition, label) => {
     const view = mapSynchronizationEntry(entry({ status: 'ERROR', deliveryDisposition }));
