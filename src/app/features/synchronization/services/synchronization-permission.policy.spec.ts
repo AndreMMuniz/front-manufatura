@@ -7,7 +7,7 @@ import {
 } from './synchronization-permission.policy';
 
 describe('SynchronizationPermissionPolicy', () => {
-  const policy = policyWithDevelopmentOverride(false);
+  const policy = policyWithTemporaryRelease(false);
 
   it('aplica default deny e exige o código canônico explícito', () => {
     expect(policy.canAbandon(null)).toBe(false);
@@ -16,11 +16,11 @@ describe('SynchronizationPermissionPolicy', () => {
     expect(policy.canAbandon(user([` ${SYNC_UNSYNCHRONIZED_ABANDON} `]))).toBe(true);
   });
 
-  it('libera temporariamente o cancelamento para usuário autenticado no desenvolvimento', () => {
-    const developmentPolicy = policyWithDevelopmentOverride(true);
+  it('libera temporariamente o cancelamento para usuário autenticado nesta versão', () => {
+    const releasedPolicy = policyWithTemporaryRelease(true);
 
-    expect(developmentPolicy.canAbandon(null)).toBe(false);
-    expect(developmentPolicy.canAbandon(user([]))).toBe(true);
+    expect(releasedPolicy.canAbandon(null)).toBe(false);
+    expect(releasedPolicy.canAbandon(user([]))).toBe(true);
   });
 
   it('normaliza Unicode/controles, limita 10–500 e rejeita padrões de segredo', () => {
@@ -41,9 +41,9 @@ describe('SynchronizationPermissionPolicy', () => {
   });
 });
 
-function policyWithDevelopmentOverride(enabled: boolean): SynchronizationPermissionPolicy {
+function policyWithTemporaryRelease(enabled: boolean): SynchronizationPermissionPolicy {
   const Policy = SynchronizationPermissionPolicy as unknown as new (
-    developmentOverride: boolean,
+    temporaryRelease: boolean,
   ) => SynchronizationPermissionPolicy;
   return new Policy(enabled);
 }
