@@ -1,4 +1,8 @@
-<div class="app-shell" [class.po-wrapper]="showSideMenu">
+<div
+  class="app-shell"
+  [class.po-wrapper]="showSideMenu"
+  [class.po-collapsed-menu]="showSideMenu && !sideMenuExpanded()"
+>
   @if (isAuthenticated) {
     <ng-template #sessionActionsIcon>
       <span class="app-shell__session-actions">
@@ -26,7 +30,11 @@
 
     @if (showSideMenu) {
       <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
-        <po-menu [p-menus]="menus"></po-menu>
+        <po-menu
+          [p-menus]="menus"
+          [p-collapsed]="!sideMenuExpanded()"
+          (p-toggle)="sideMenuExpanded.set($event)"
+        ></po-menu>
       </nav>
     }
   }

@@ -210,6 +210,46 @@ test.describe('menu lateral contextual', () => {
     }
   });
 
+  test('acompanha a largura do menu ao recolher e expandir', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page);
+    await page.getByRole('link', { name: 'Plano Controle CQ' }).click();
+
+    const collapseButton = page
+      .getByTestId('app-side-menu')
+      .locator('.po-menu-collapse-button-icon');
+
+    await collapseButton.click();
+
+    await expect.poll(() => page.evaluate(() => {
+      const menu = document.querySelector<HTMLElement>('[data-testid="app-side-menu"] .po-menu');
+      const toolbar = document.querySelector<HTMLElement>('po-toolbar .po-toolbar');
+      const pageElement = document.querySelector<HTMLElement>('.po-page');
+
+      if (!menu || !toolbar || !pageElement) {
+        throw new Error('Shell contextual não encontrado.');
+      }
+
+      return {
+        toolbarGap: Math.round(toolbar.getBoundingClientRect().left - menu.getBoundingClientRect().right),
+        pageGap: Math.round(pageElement.getBoundingClientRect().left - menu.getBoundingClientRect().right),
+      };
+    })).toEqual({ toolbarGap: 0, pageGap: 0 });
+
+    await collapseButton.click();
+
+    await expect.poll(() => page.evaluate(() => {
+      const menu = document.querySelector<HTMLElement>('[data-testid="app-side-menu"] .po-menu');
+      const toolbar = document.querySelector<HTMLElement>('po-toolbar .po-toolbar');
+
+      if (!menu || !toolbar) {
+        throw new Error('Menu ou toolbar contextual não encontrado.');
+      }
+
+      return Math.round(toolbar.getBoundingClientRect().left - menu.getBoundingClientRect().right);
+    })).toBe(0);
+  });
+
   test('navega entre módulos e retorna à Home pelo primeiro item', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page);

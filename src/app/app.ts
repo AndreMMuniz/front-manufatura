@@ -56,6 +56,7 @@ export class App {
 
   readonly pwaUpdateState = this.pwaUpdate.state;
   readonly pwaUpdateFeedback = signal('');
+  readonly sideMenuExpanded = signal(true);
 
   readonly toolbarActions: Array<PoToolbarAction> = [
     {
