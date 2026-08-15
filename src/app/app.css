@@ -125,7 +125,21 @@
   display: inline-flex;
   align-items: center;
   gap: var(--app-space-xs);
+  min-width: 0;
   font-size: var(--font-size-default-normal);
+}
+
+.app-shell__session-identity {
+  display: block;
+  max-width: min(34vw, 28rem);
+  overflow: hidden;
+  color: var(--color-brand-01-base);
+  font-size: var(--font-size-default-small);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-shell__session-actions-trigger {
@@ -150,4 +164,11 @@
 .app-shell__session-actions-trigger:focus-visible {
   outline: 2px solid var(--color-action-focus);
   outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .app-shell__session-identity {
+    max-width: 25vw;
+    font-size: 0.625rem;
+  }
 }

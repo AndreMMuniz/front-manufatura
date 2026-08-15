@@ -53,6 +53,9 @@ test.describe('Home de navegação', () => {
     ).toBe('1');
     await expect(navigation.getByText('Sair', { exact: true })).toHaveCount(0);
     await expect(page.locator('po-menu')).toHaveCount(0);
+    await expect(page.locator('.po-toolbar-title')).toContainText('Menu Principal');
+    await expect(page.getByTestId('session-identity'))
+      .toHaveText('Apontamento Manufatura — operador-e2e');
     await expect(page.getByRole('button', { name: 'Abrir ações da sessão' })).toBeVisible();
   });
 

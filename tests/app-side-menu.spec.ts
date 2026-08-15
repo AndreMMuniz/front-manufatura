@@ -100,6 +100,9 @@ test.describe('menu lateral contextual', () => {
 
     await expect(page).toHaveURL(/\/quality-control$/);
     await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
+    await expect(page.locator('.po-toolbar-title')).toContainText('Plano Controle CQ');
+    await expect(page.getByTestId('session-identity'))
+      .toHaveText('Apontamento Manufatura — operador');
 
     const expectedItems = ['Menu Principal', ...modules.map(module => module.label)];
     const menuItems = page.getByTestId('app-side-menu').getByRole('menuitem');

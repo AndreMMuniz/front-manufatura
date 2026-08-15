@@ -2,6 +2,11 @@
   @if (isAuthenticated) {
     <ng-template #sessionActionsIcon>
       <span class="app-shell__session-actions">
+        <span
+          class="app-shell__session-identity"
+          data-testid="session-identity"
+          [attr.title]="sessionIdentity"
+        >{{ sessionIdentity }}</span>
         <app-synchronization-indicator data-testid="synchronization-indicator" />
         <button
           type="button"
