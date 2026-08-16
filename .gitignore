@@ -97,6 +97,7 @@ docs/*
 # Keep Plano de Controle CQ API documentation versioned
 !project-specs/
 project-specs/*
+!project-specs/acessos-datasul-frontend.md
 !project-specs/planodecontrole-api/
 !project-specs/planodecontrole-api/**
 
