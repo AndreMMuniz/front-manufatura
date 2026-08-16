@@ -104,7 +104,9 @@ test.describe('fluxo de Reporte Ordem', () => {
 
     await expect(page).toHaveURL(/\/operation-reporting$/);
     await expect(page.getByTestId('app-side-menu').locator('.po-menu')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Reporta Operação' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reporta Operação' })).toHaveCount(0);
+    await expect(page.locator('.po-toolbar-title')).toBeVisible();
+    await expect(page.locator('.po-toolbar-title')).toHaveText('Reporte Ordem');
   });
 
   test('consulta ordens por Área/Centro, seleciona pelo teclado e não cria overflow na página', async ({ page }) => {
@@ -292,7 +294,9 @@ test.describe('fluxo de Reporte Ordem', () => {
     await page.getByRole('button', { name: 'Report' }).click();
 
     await expect(page).toHaveURL(/\/operation-reporting$/);
-    await expect(page.getByRole('heading', { name: 'Reporta Operação' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reporta Operação' })).toHaveCount(0);
+    await expect(page.locator('.po-toolbar-title')).toBeVisible();
+    await expect(page.locator('.po-toolbar-title')).toHaveText('Reporte Ordem');
     await expect(page.getByRole('combobox', { name: 'Área de Produção' })).toHaveValue('4001 - Produção');
     await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' })).toHaveValue('CT-EXT-01 - Extrusao Linha 01');
     await page.getByRole('button', { name: 'Consultar ordens' }).click();

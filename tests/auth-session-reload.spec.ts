@@ -11,13 +11,17 @@ test('mantém a sessão e a rota atual ao recarregar uma página protegida', asy
   await expect(page).toHaveURL(/\/menu$/);
 
   await page.goto('/quality-control');
-  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toHaveCount(0);
+  await expect(page.locator('.po-toolbar-title')).toBeVisible();
+  await expect(page.locator('.po-toolbar-title')).toHaveText('Plano Controle CQ');
   await expect(page.getByRole('heading', { name: 'Plano de Controle CQ', exact: true })).toHaveCount(0);
 
   await page.reload();
 
   await expect(page).toHaveURL(/\/quality-control$/);
-  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toHaveCount(0);
+  await expect(page.locator('.po-toolbar-title')).toBeVisible();
+  await expect(page.locator('.po-toolbar-title')).toHaveText('Plano Controle CQ');
   await expect(page.getByRole('heading', { name: 'Plano de Controle CQ', exact: true })).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Login' })).toHaveCount(0);
 });

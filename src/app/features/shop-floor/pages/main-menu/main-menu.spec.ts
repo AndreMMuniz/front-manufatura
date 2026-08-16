@@ -39,11 +39,12 @@ describe('MainMenuPage', () => {
     expect(component.modules).toEqual(APP_MODULE_NAVIGATION);
   });
 
-  it('renders the heading and only the approved semantic links in order', () => {
+  it('renders the contextual heading without repeating the menu title and lists the approved links', () => {
     const native = fixture.nativeElement as HTMLElement;
     const links = Array.from(native.querySelectorAll<HTMLAnchorElement>('.main-menu__card'));
 
-    expect(native.textContent).toContain('Menu Principal');
+    expect(native.textContent).not.toContain('Menu Principal');
+    expect(native.querySelector('h2')?.textContent).toBe('Operações disponíveis');
     expect(links).toHaveLength(APP_MODULE_NAVIGATION.length);
     expect(links.map(link => link.textContent?.trim())).toEqual(APP_MODULE_NAVIGATION.map(item => item.label));
     expect(links.map(link => link.getAttribute('href'))).toEqual(APP_MODULE_NAVIGATION.map(item => item.route));

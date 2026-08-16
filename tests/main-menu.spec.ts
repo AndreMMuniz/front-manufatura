@@ -70,7 +70,7 @@ test.describe('Home de navegação', () => {
   test('é o landing do login e expõe somente os cartões aprovados sem navegação lateral', async ({ page }) => {
     await login(page);
 
-    await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Menu Principal' })).toHaveCount(0);
     const navigation = page.getByRole('navigation', { name: 'Módulos disponíveis' });
     const cards = navigation.getByRole('link');
     await expect(cards).toHaveCount(modules.length);
@@ -80,7 +80,8 @@ test.describe('Home de navegação', () => {
     ).toBe('1');
     await expect(navigation.getByText('Sair', { exact: true })).toHaveCount(0);
     await expect(page.locator('po-menu')).toHaveCount(0);
-    await expect(page.locator('.po-toolbar-title')).toContainText('Menu Principal');
+    await expect(page.locator('.po-toolbar-title')).toBeVisible();
+    await expect(page.locator('.po-toolbar-title')).toHaveText('Menu Principal');
     await expect(page.getByTestId('session-identity'))
       .toHaveText('Apontamento Manufatura — operador-e2e');
     await expect(page.getByRole('button', { name: 'Abrir ações da sessão' })).toBeVisible();

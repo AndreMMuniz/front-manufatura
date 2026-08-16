@@ -21,7 +21,6 @@ test.describe('título único das telas', () => {
       await login(page);
 
       for (const screen of [
-        { route: '/quality-control', title: 'Plano Controle CQ' },
         { route: '/work-center', title: 'Centro de Trabalho' },
         { route: '/item-consultation', title: 'Consulta Item' },
       ]) {
@@ -33,6 +32,9 @@ test.describe('título único das telas', () => {
       }
 
       await page.goto('/quality-control');
+      await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toHaveCount(0);
+      await expect(page.locator('.po-toolbar-title')).toBeVisible();
+      await expect(page.locator('.po-toolbar-title')).toHaveText('Plano Controle CQ');
       await expect(page.getByRole('heading', { name: 'Plano de Controle CQ', exact: true })).toHaveCount(0);
     });
   }

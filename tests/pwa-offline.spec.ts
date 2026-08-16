@@ -13,15 +13,21 @@ test('aquece online e reabre shell/deep link com sessão válida offline', async
   await login(page);
   await waitForController(page);
   await page.goto('/quality-control');
-  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toHaveCount(0);
+  await expect(page.locator('.po-toolbar-title')).toBeVisible();
+  await expect(page.locator('.po-toolbar-title')).toHaveText('Plano Controle CQ');
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plano Controle CQ', exact: true })).toHaveCount(0);
+  await expect(page.locator('.po-toolbar-title')).toBeVisible();
+  await expect(page.locator('.po-toolbar-title')).toHaveText('Plano Controle CQ');
   await expect(page.getByTestId('offline-banner')).toContainText('Você está offline');
 
   await page.goto('/menu');
-  await expect(page.getByRole('heading', { name: 'Menu Principal' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Menu Principal' })).toHaveCount(0);
+  await expect(page.locator('.po-toolbar-title')).toBeVisible();
+  await expect(page.locator('.po-toolbar-title')).toHaveText('Menu Principal');
 });
 
 test('recusa login novo e consulta sem cópia local quando offline', async ({

@@ -92,7 +92,7 @@ export class ReportOperacaoPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly auxiliaryFlow = this.route.snapshot.data['auxiliaryFlow'];
 
-  readonly pageTitle = this.auxiliaryFlow === 'refugo' ? 'Refugo / Retrabalho' : 'Reporta Operação';
+  readonly pageTitle = this.auxiliaryFlow === 'refugo' ? 'Refugo / Retrabalho' : '';
 
   areas: ReadonlyArray<AreaProducao> = [];
   centers: ReadonlyArray<WorkCenter> = [];
