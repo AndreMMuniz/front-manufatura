@@ -378,6 +378,13 @@ export class QualityControlWorkflowState {
     this.routeFeedback.set('Roteiro parado. Gere um novo roteiro após a conferência do supervisor.');
   }
 
+  returnToOrderLocation(): void {
+    const operation = this.selectedOperation();
+    this.contextId += 1;
+    this.clearRouteContext();
+    if (operation) this.selectOperation(operation);
+  }
+
   componentById(componentId: string | undefined): QualityExamComponent | undefined {
     return componentId
       ? this.exams().flatMap(exam => exam.components).find(component => component.id === componentId)

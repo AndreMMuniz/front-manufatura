@@ -41,7 +41,43 @@ describe('QualityControlWorkspacePage', () => {
     expect(fixture.nativeElement.querySelector('app-exam-entry-panel')).toBeTruthy();
   });
 
-  it('returns to work-center and exit resets while staying in the CQ route', () => {
+  it('returns from the generated route to the located order with its operation selected', () => {
+    const fixture = TestBed.createComponent(QualityControlWorkspacePage);
+    const component = fixture.componentInstance;
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const operation = {
+      operationCode: '10',
+      operationDescription: 'Cortar chapa',
+      split: '1',
+      itemCode: '30907',
+      itemDescription: 'Alavanca',
+      processDescription: 'Corte',
+    };
+    const token = component.workflow.beginOrderLookup('325571');
+    component.workflow.completeOrderLookup(token, '325571', [operation]);
+    component.workflow.selectOperation(operation);
+    component.workflow.setGeneratedRoute({
+      routeNumber: '475.956',
+      processDescription: 'Corte',
+      currentOrder: '325571',
+      operationCode: '10',
+      operationDescription: '10 - Cortar chapa',
+      split: '1',
+      itemCode: '30907',
+      itemDescription: 'Alavanca',
+    });
+
+    component.goBack();
+
+    expect(component.workflow.orderNumber()).toBe('325571');
+    expect(component.workflow.operations()).toEqual([operation]);
+    expect(component.workflow.selectedOperation()).toEqual(operation);
+    expect(component.workflow.route()?.routeNumber).toBe('');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('exits the quality-control flow to the main menu', () => {
     const fixture = TestBed.createComponent(QualityControlWorkspacePage);
     const component = fixture.componentInstance;
     const router = TestBed.inject(Router);
@@ -49,11 +85,9 @@ describe('QualityControlWorkspacePage', () => {
     component.workflow.updateOrderNumber('325571');
 
     component.exit();
-    expect(component.workflow.orderNumber()).toBe('');
-    expect(navigate).not.toHaveBeenCalled();
 
-    component.goBack();
-    expect(navigate).toHaveBeenCalledWith(['/work-center']);
+    expect(component.workflow.orderNumber()).toBe('');
+    expect(navigate).toHaveBeenCalledWith(['/menu']);
   });
 
   it('protects workspace exit when any non-current draft is dirty', () => {

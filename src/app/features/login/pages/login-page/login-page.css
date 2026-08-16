@@ -112,12 +112,6 @@
   color: var(--app-color-text);
 }
 
-.login-page__version {
-  color: var(--app-color-text-muted);
-  font-size: var(--app-font-size-caption);
-  padding-top: var(--app-space-lg);
-}
-
 @media (min-width: 1024px) {
   .login-page {
     padding: var(--spacing-2xl);

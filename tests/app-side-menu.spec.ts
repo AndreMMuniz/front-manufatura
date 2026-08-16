@@ -306,4 +306,23 @@ test.describe('menu lateral contextual', () => {
     await expect(page.locator('po-toolbar')).toHaveCount(0);
     await expect(page.locator('po-menu')).toHaveCount(0);
   });
+
+  test('posiciona as ações da sessão diretamente abaixo do botão acionado', async ({ page }) => {
+    await login(page);
+
+    const sessionActions = page.getByRole('button', { name: 'Abrir ações da sessão' });
+    await sessionActions.click();
+    const popup = page.locator('po-toolbar-actions .po-popup');
+    await expect(popup).toBeVisible();
+
+    const triggerBox = await sessionActions.boundingBox();
+    const popupBox = await popup.boundingBox();
+    expect(triggerBox).not.toBeNull();
+    expect(popupBox).not.toBeNull();
+
+    const triggerCenter = triggerBox!.x + triggerBox!.width / 2;
+    const popupCenter = popupBox!.x + popupBox!.width / 2;
+    expect(Math.abs(popupBox!.y - (triggerBox!.y + triggerBox!.height))).toBeLessThanOrEqual(2);
+    expect(Math.abs(popupCenter - triggerCenter)).toBeLessThanOrEqual(2);
+  });
 });
