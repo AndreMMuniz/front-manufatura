@@ -18,8 +18,8 @@
               [routerLink]="module.route"
               (keydown.space)="navigateWithSpace($event, module.route)"
             >
-              <span class="main-menu__icon-wrap" aria-hidden="true">
-                <po-icon class="main-menu__icon" [p-icon]="module.icon" />
+              <span class="main-menu__icon-wrap">
+                <po-icon class="main-menu__icon" [p-icon]="module.icon" aria-hidden="true" />
               </span>
               <span class="main-menu__label">{{ module.label }}</span>
             </a>
