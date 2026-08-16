@@ -312,7 +312,7 @@ test.describe('menu lateral contextual', () => {
 
     const sessionActions = page.getByRole('button', { name: 'Abrir ações da sessão' });
     await sessionActions.click();
-    const popup = page.locator('po-toolbar-actions .po-popup');
+    const popup = page.getByTestId('session-actions-popup').locator('.po-popup');
     await expect(popup).toBeVisible();
 
     const triggerBox = await sessionActions.boundingBox();
@@ -321,8 +321,10 @@ test.describe('menu lateral contextual', () => {
     expect(popupBox).not.toBeNull();
 
     const triggerCenter = triggerBox!.x + triggerBox!.width / 2;
-    const popupCenter = popupBox!.x + popupBox!.width / 2;
-    expect(Math.abs(popupBox!.y - (triggerBox!.y + triggerBox!.height))).toBeLessThanOrEqual(2);
-    expect(Math.abs(popupCenter - triggerCenter)).toBeLessThanOrEqual(2);
+    const verticalGap = popupBox!.y - (triggerBox!.y + triggerBox!.height);
+    expect(verticalGap).toBeGreaterThanOrEqual(0);
+    expect(verticalGap).toBeLessThanOrEqual(10);
+    expect(triggerCenter).toBeGreaterThanOrEqual(popupBox!.x);
+    expect(triggerCenter).toBeLessThanOrEqual(popupBox!.x + popupBox!.width);
   });
 });

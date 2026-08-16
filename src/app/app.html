@@ -13,12 +13,22 @@
         >{{ sessionIdentity }}</span>
         <app-synchronization-indicator data-testid="synchronization-indicator" />
         <button
+          #sessionActionsTrigger
           type="button"
           class="app-shell__session-actions-trigger"
           aria-label="Abrir ações da sessão"
+          (click)="sessionActionsPopup.toggle(); $event.stopPropagation()"
         >
           <po-icon p-icon="an an-sign-out" aria-hidden="true" />
         </button>
+        <po-popup
+          #sessionActionsPopup
+          data-testid="session-actions-popup"
+          p-position="bottom"
+          p-size="medium"
+          [p-actions]="toolbarActions"
+          [p-target]="sessionActionsTrigger"
+        />
       </span>
     </ng-template>
 

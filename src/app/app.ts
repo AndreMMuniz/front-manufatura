@@ -8,6 +8,7 @@ import {
   PoIconModule,
   PoMenuItem,
   PoMenuModule,
+  PoPopupModule,
   PoToolbarAction,
   PoToolbarModule,
 } from '@po-ui/ng-components';
@@ -36,6 +37,7 @@ const HOME_MENU: PoMenuItem = {
     RouterOutlet,
     PoIconModule,
     PoMenuModule,
+    PoPopupModule,
     PoToolbarModule,
     SynchronizationIndicator,
   ],
