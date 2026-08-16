@@ -63,6 +63,7 @@ dev-debug.log
 .opencode/
 .serena/
 .taskmaster/
+/graphify-out/
 memories/
 .mcp.json
 .bmad/
