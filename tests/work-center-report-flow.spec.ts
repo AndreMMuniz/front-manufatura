@@ -245,6 +245,32 @@ test.describe('fluxo de Reporte Ordem', () => {
     await expect(actions.getByRole('button', { name: 'Encerrar' })).toHaveCount(0);
   });
 
+  test('alinha a ação de criar equipe com o campo Equipe', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
+    const area = page.getByRole('textbox', { name: 'Área de Produção' });
+    await area.fill('4001');
+    await area.blur();
+    const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
+    await expect(center).toBeEnabled();
+    await center.selectOption('CT-EXT-01');
+    await page.getByRole('button', { name: 'Consultar ordens' }).click();
+    await expect(page.getByRole('cell', { name: '450001' })).toBeVisible();
+    await selectSingleOrderWithKeyboard(page, '450001');
+    await page.getByRole('button', { name: 'Abrir apontamento' }).click();
+    await page.getByRole('combobox', { name: 'Reportar por' }).selectOption('EQUIPE');
+
+    const teamBox = await page.getByRole('combobox', { name: 'Equipe' }).boundingBox();
+    const actionBox = await page
+      .getByRole('button', { name: 'Criar ou gerenciar equipe' })
+      .boundingBox();
+
+    expect(teamBox).not.toBeNull();
+    expect(actionBox).not.toBeNull();
+    expect(Math.abs(teamBox!.y - actionBox!.y)).toBeLessThanOrEqual(2);
+  });
+
   test('cria equipe por teclado sem perder a ordem e bloqueia a gestão após iniciar', async ({ page }) => {
     await login(page);
     await page.getByRole('link', { name: 'Reporte Ordem' }).click();
