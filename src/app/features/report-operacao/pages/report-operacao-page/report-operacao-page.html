@@ -73,10 +73,10 @@
       [iniciarLoading]="estado === 'Carregando' && !operacao?.dataInicio"
       [reporteDisabled]="reporteDisabled"
       [reporteLoading]="estado === 'Reportando' && !encerrando"
-      [paradaDisabled]="!canOpenAuxiliaryFlows"
+      [encerrarDisabled]="encerrarDisabled"
       (iniciar)="iniciarOperacao()"
       (reporte)="abrirReporte()"
-      (parada)="abrirParada()"
+      (encerrar)="solicitarEncerramento()"
     ></app-report-actions>
 
     <p class="report-operacao__feedback" role="status" aria-live="polite" [class.report-operacao__feedback--error]="consultaEstado === 'erro' || estado === 'Erro'">

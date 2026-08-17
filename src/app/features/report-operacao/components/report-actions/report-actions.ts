@@ -14,9 +14,9 @@ export class ReportActions {
   @Input() iniciarLoading = false;
   @Input() reporteDisabled = true;
   @Input() reporteLoading = false;
-  @Input() paradaDisabled = true;
+  @Input() encerrarDisabled = true;
 
   @Output() iniciar = new EventEmitter<void>();
   @Output() reporte = new EventEmitter<void>();
-  @Output() parada = new EventEmitter<void>();
+  @Output() encerrar = new EventEmitter<void>();
 }
