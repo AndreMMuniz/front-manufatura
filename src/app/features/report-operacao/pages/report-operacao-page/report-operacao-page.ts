@@ -484,9 +484,9 @@ export class ReportOperacaoPage implements OnInit {
 
     this.dialog.confirm({
       title: 'Encerrar operação?',
-      message: 'A operação será concluída sem criar um novo reporte. Deseja continuar?',
-      confirm: () => this.endOperation(),
-      literals: { cancel: 'Cancelar', confirm: 'Encerrar' },
+      message: 'O próximo reporte será o último e finalizará o split. Deseja informar as quantidades finais?',
+      confirm: () => this.reporteSlide?.abrir(this.reportes, true),
+      literals: { cancel: 'Cancelar', confirm: 'Informar reporte final' },
     });
   }
 
@@ -904,14 +904,13 @@ export class ReportOperacaoPage implements OnInit {
     );
     const invalidReason = refugoItens.some(item =>
       !Number.isFinite(item.quantidade) || item.quantidade <= 0);
-    const reasonTotal = this.round3(
-      refugoItens.reduce((total, item) => total + item.quantidade, 0),
-    );
-    const expectedScrap = quantidadeRefugo;
+    const requiresReason = quantidadeRefugo > 0 || quantidadeRetrabalho > 0;
     const reasonValidation = invalidReason
       ? 'Os motivos de refugo devem possuir quantidades válidas e maiores que zero.'
-      : reasonTotal !== expectedScrap
-        ? `Os motivos de refugo da Ordem ${operation.ordem} devem totalizar ${this.formatQuantity(expectedScrap)}.`
+      : requiresReason && refugoItens.length !== 1
+        ? `Informe exatamente um motivo de refugo ou retrabalho para a Ordem ${operation.ordem}.`
+        : !requiresReason && refugoItens.length !== 0
+          ? `Remova o motivo da Ordem ${operation.ordem}, pois não há refugo ou retrabalho.`
         : '';
 
     if (validation || reasonValidation) {
@@ -937,7 +936,9 @@ export class ReportOperacaoPage implements OnInit {
     };
 
     this.reportOperacaoService.reportarOperacao(
-      this.toReportRequest(parcial, responsavel, refugoItens, idempotencyKey),
+      this.toReportRequest(
+        parcial, responsavel, refugoItens, idempotencyKey, Boolean(draft.finalizarSplit),
+      ),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -969,6 +970,10 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setActiveOperation(this.operacao, this.estado);
           this.workflowState.addReporte(reporte);
           this.reporteSlide?.confirmarReporte(reporte);
+          if (draft.finalizarSplit) {
+            this.endOperation();
+            return;
+          }
           this.feedback = 'Salvo neste dispositivo — envio pendente. A operação continua ativa.';
           this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.changeDetector.markForCheck();
@@ -1152,6 +1157,7 @@ export class ReportOperacaoPage implements OnInit {
     responsavel: ResponsavelOperacao,
     refugoItens: ReportarOperacaoRequest['refugoItens'],
     idempotencyKey: string,
+    finalizarSplit: boolean,
   ): ReportarOperacaoRequest {
     const dependencyIds = [
       ...(operation.startCommandId ? [operation.startCommandId] : []),
@@ -1162,6 +1168,8 @@ export class ReportOperacaoPage implements OnInit {
       ordem: operation.ordem,
       op: operation.op,
       split: operation.split,
+      areaCode: this.areaCode,
+      finalizarSplit,
       quantidadeAprovada: operation.quantidadeAprovada,
       quantidadeRetrabalho: operation.quantidadeRetrabalho,
       quantidadeRefugo: operation.quantidadeRefugo,

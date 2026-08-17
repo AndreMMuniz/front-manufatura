@@ -72,6 +72,8 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
         contexto,
         responsavel,
         ordens: ordensSelecionadas,
+        dataInicio: '2026-07-23',
+        horaInicio: '08:15',
       })),
       iniciarBatelada: vi.fn(() => of({
         batchId: 'batch-1',
@@ -532,11 +534,12 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.salvarReporte(draft);
 
     expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledOnce();
-    expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledWith({
+    expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledWith(expect.objectContaining({
       batchId: 'batch-1',
       idempotencyKey: 'idem-1',
       items: draft.items,
-    });
+      finalizarSplit: false,
+    }));
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.history).toHaveLength(1);
     expect(component.view.draft?.items.every(item => item.quantidadeAprovada === 0)).toBe(true);
@@ -575,7 +578,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledOnce();
   });
 
-  it('ends only after confirmation, without an implicit report, and returns to work center', () => {
+  it('ends after a confirmed final report and returns to work center', () => {
     prepareForStart();
     component.iniciarBatelada();
 
@@ -583,9 +586,14 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(serviceMock.encerrarBatelada).not.toHaveBeenCalled();
     const confirmation = dialogMock.confirm.mock.calls[0][0];
     confirmation.confirm();
+    expect(serviceMock.encerrarBatelada).not.toHaveBeenCalled();
+
+    component.salvarReporte({ ...reportDraft('idem-final'), finalizarSplit: true });
 
     expect(serviceMock.encerrarBatelada).toHaveBeenCalledOnce();
-    expect(serviceMock.reportarBateladaParcial).not.toHaveBeenCalled();
+    expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledWith(
+      expect.objectContaining({ finalizarSplit: true }),
+    );
     expect(component.view.estado).toBe('Encerrada');
     expect(routerMock.navigate).toHaveBeenCalledWith(['/work-center']);
   });
@@ -601,7 +609,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.estado).toBe('BateladaIniciada');
   });
 
-  it('warns that an unsaved draft will be discarded before ending', () => {
+  it('preserves an unsaved draft when opening the final report', () => {
     prepareForStart();
     component.iniciarBatelada();
     component.atualizarRascunho(reportDraft('idem-unsaved'));
@@ -609,8 +617,9 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.encerrarBatelada();
 
     expect(dialogMock.confirm).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('quantidades não salvas'),
+      message: expect.stringContaining('próximo reporte'),
     }));
+    expect(component.view.draft?.idempotencyKey).toBe('idem-unsaved');
   });
 
   it('protects navigation while a batch is active and allows cancelling the discard', () => {
@@ -662,6 +671,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
     component.encerrarBatelada();
     dialogMock.confirm.mock.calls.at(-1)![0].confirm();
+    component.salvarReporte({ ...reportDraft('idem-final-failure'), finalizarSplit: true });
 
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.endingAsyncState).toBe('erro');

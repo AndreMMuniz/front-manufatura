@@ -68,6 +68,135 @@ function response(dataset: string, rows: unknown[]): Response {
 }
 
 describe('gateway FMA', () => {
+  it('normaliza operadores, motivos e geração de equipe preservando códigos string', async () => {
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response('operadores', [{ codOperador: '00016570', nomOperador: 'Ana' }]))
+      .mockResolvedValueOnce(response('motivosRefugo', [{ codMotivoRefugo: '05', desMotivoRefugo: 'Borra', refugoMaterial: true, refugoRetrabalho: true }]))
+      .mockResolvedValueOnce(response('motivosParada', [{ codParada: '', desParada: '' }, { codParada: '07', desParada: 'Manutenção' }]))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{
+        equipeResultado: [{ codEquipe: 'AUT0002', desEquipe: 'Equipe Automática', numTurno: 1 }],
+        operadores: [{ codOperador: '00016570', nomOperador: 'Ana' }],
+      }] }), { status: 200 }));
+    const root = await startGateway(transport);
+    const authorization = `Bearer ${await token()}`;
+
+    await expect((await fetch(`${root}/api/operators`, { headers: { authorization } })).json())
+      .resolves.toEqual([{ code: '00016570', name: 'Ana' }]);
+    await expect((await fetch(`${root}/api/scrap-reasons`, { headers: { authorization } })).json())
+      .resolves.toEqual([expect.objectContaining({ codigo: '05', descricao: 'Borra' })]);
+    await expect((await fetch(`${root}/api/stop-reasons`, { headers: { authorization } })).json())
+      .resolves.toEqual([{ id: 7, code: '07', description: 'Manutenção' }]);
+    const team = await fetch(`${root}/api/teams`, {
+      method: 'POST', headers: { authorization, 'content-type': 'application/json' },
+      body: JSON.stringify({ areaCode: '4104', workCenterCode: 'PRE-01', operadores: ['00016570'] }),
+    });
+    await expect(team.json()).resolves.toEqual({
+      codigo: 'AUT0002', descricao: 'Equipe Automática', turno: '1',
+      operadores: [{ codigo: '00016570', nome: 'Ana' }],
+    });
+    expect(JSON.parse(String(transport.mock.calls[3][1]?.body))).toEqual({
+      codAreaProduc: '4104', codCtrab: 'PRE-01', operadores: ['00016570'],
+    });
+  });
+
+  it('traduz reporte final individual, exige motivo único e mantém encerramento apenas local', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const root = await startGateway(transport);
+    const authorization = `Bearer ${await token()}`;
+    const headers = {
+      authorization, 'content-type': 'application/json', 'idempotency-key': 'report-final-1',
+    };
+    const body = {
+      ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+      quantidadeAprovada: 10, quantidadeRetrabalho: 1, quantidadeRefugo: 0,
+      refugoItens: [{ codigo: '05', descricao: 'Retrabalho', quantidade: 1 }],
+      dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+      dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
+      tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: true,
+    };
+    const result = await fetch(`${root}/api/operations/report`, { method: 'POST', headers, body: JSON.stringify(body) });
+    expect(result.status).toBe(200);
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({
+      codAreaProduc: '4113', codCtrab: 'LASER-01-01', codOperador: '00016570', codEquipe: '',
+      finalizarSplit: true,
+      splits: [{ nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1, qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 0, codMotivoRefugo: '05' }],
+    }));
+
+    const invalid = await fetch(`${root}/api/operations/report`, {
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'invalid-reason' },
+      body: JSON.stringify({ ...body, refugoItens: [] }),
+    });
+    expect(invalid.status).toBe(400);
+    const ending = await fetch(`${root}/api/operations/end`, {
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'local-end-1' }, body: JSON.stringify({ ordem: '372572' }),
+    });
+    expect(ending.status).toBe(200);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it('traduz início e reporte em batelada com receipts completos por ordem', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const root = await startGateway(transport);
+    const authorization = `Bearer ${await token([APP_PERMISSIONS.batchReporting])}`;
+    const headers = { authorization, 'content-type': 'application/json', 'idempotency-key': 'batch-command-1' };
+    const ordens = [
+      { id: '372569|ITEM|20|1', ordem: '372569', operacao: '20', split: '1' },
+      { id: '372570|ITEM|20|1', ordem: '372570', operacao: '20', split: '1' },
+    ];
+    const start = await fetch(`${root}/api/batches/start`, {
+      method: 'POST', headers, body: JSON.stringify({
+        contexto: { areaCode: '4114', workCenterCode: 'DOBR-01-01' },
+        responsavel: { tipo: 'OPERADOR', codigo: '00016570' },
+        iniciadoEm: '2026-08-14T12:35:00.000Z',
+        dataInicio: '2026-08-14', horaInicio: '09:35', ordens,
+      }),
+    });
+    const startReceipt = await start.json() as { orderResults: unknown[] };
+    expect(startReceipt.orderResults).toHaveLength(2);
+
+    const report = await fetch(`${root}/api/batches/report`, {
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'batch-report-1' }, body: JSON.stringify({
+        contexto: { areaCode: '4114', workCenterCode: 'DOBR-01-01' },
+        responsavel: { tipo: 'OPERADOR', codigo: '00016570' },
+        dataInicio: '2026-08-14T12:35:00.000Z', horaInicio: '09:35',
+        dataFim: '2026-08-14T13:35:00.000Z', horaFim: '10:35', finalizarSplit: true,
+        items: ordens.map(order => ({
+          orderId: order.id, ordem: order.ordem, quantidadeAprovada: 1,
+          quantidadeRetrabalho: 0, quantidadeRefugo: 0, refugoItens: [],
+        })),
+      }),
+    });
+    const reportReceipt = await report.json() as { orderResults: unknown[] };
+    expect(reportReceipt.orderResults).toHaveLength(2);
+    expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciarordembatelada');
+    expect(String(transport.mock.calls[1][0])).toContain('/api/fma/v1/reporteordembatelada');
+  });
+
+  it('classifica parada aberta, retroativa e finalização posterior', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const root = await startGateway(transport);
+    const authorization = `Bearer ${await token([APP_PERMISSIONS.stoppages])}`;
+    const base = {
+      context: { area: { code: '4104' }, workCenter: { code: 'PRE-01' } },
+      reason: { code: '07' }, responsible: { tipo: 'OPERADOR', codigo: '00016570' },
+      startDate: '2026-08-14', startTime: '09:00', programmed: false,
+    };
+    const send = (path: string, idempotencyKey: string, body: object) => fetch(`${root}${path}`, {
+      method: 'POST', headers: { authorization, 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+      body: JSON.stringify(body),
+    });
+    expect((await send('/api/production-stops', 'stop-open', base)).status).toBe(200);
+    expect((await send('/api/production-stops', 'stop-past', { ...base, endDate: '2026-08-14', endTime: '10:00' })).status).toBe(200);
+    expect((await send('/api/production-stops/local-1/finish', 'stop-finish', {
+      areaCode: '4104', workCenterCode: 'PRE-01', endDate: '2026-08-14', endTime: '11:00',
+    })).status).toBe(200);
+    expect(transport.mock.calls.map(call => String(call[0]))).toEqual([
+      expect.stringContaining('/api/fma/v1/iniciaparada'),
+      expect.stringContaining('/api/fma/v1/incluiparada'),
+      expect.stringContaining('/api/fma/v1/finalizaparada'),
+    ]);
+  });
+
   it('lista e adapta centros de trabalho sem expor Basic ao browser', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [{ codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T' }]));
     const root = await startGateway(transport);

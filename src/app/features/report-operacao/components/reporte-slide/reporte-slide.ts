@@ -33,6 +33,7 @@ export interface ReporteParcialDraft {
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;
   readonly refugoItens?: ReadonlyArray<ReporteRefugoItem>;
+  readonly finalizarSplit?: boolean;
 }
 
 @Component({
@@ -61,6 +62,7 @@ export class ReporteSlide implements OnDestroy {
   quantidadeMotivo = 0;
   motivoOptions: ReadonlyArray<{ readonly label: string; readonly value: string }> = [];
   private idempotencyKey = '';
+  private finalizarAoSalvar = false;
   private motivosRequest = 0;
   private readonly destroyed$ = new Subject<void>();
 
@@ -87,19 +89,7 @@ export class ReporteSlide implements OnDestroy {
   }
 
   get canSave(): boolean {
-    const quantidades = [
-      this.quantidadeAprovada,
-      this.quantidadeRetrabalho,
-      this.quantidadeRefugo,
-      ...this.refugoItens.map(item => item.quantidade),
-    ];
-    return !this.salvando
-      && quantidades.every(quantidade => Number.isFinite(quantidade) && quantidade >= 0)
-      && [
-        this.quantidadeAprovada,
-        this.quantidadeRetrabalho,
-        this.quantidadeRefugo,
-      ].some(quantidade => this.round3(quantidade) > 0);
+    return !this.salvando && this.validationError() === '';
   }
 
   get hasDraft(): boolean {
@@ -220,7 +210,7 @@ export class ReporteSlide implements OnDestroy {
     this.draftChanged();
   }
 
-  abrir(reportes: ReadonlyArray<ReporteParcialOperacao>): void {
+  abrir(reportes: ReadonlyArray<ReporteParcialOperacao>, finalizarAoSalvar = false): void {
     this.historico = reportes.map(reporte => ({
       ...reporte,
       registradoEm: new Date(reporte.registradoEm),
@@ -228,7 +218,8 @@ export class ReporteSlide implements OnDestroy {
       dataFim: new Date(reporte.dataFim),
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }));
-    this.resetDraft();
+    if (!this.hasDraft) this.resetDraft();
+    this.finalizarAoSalvar = finalizarAoSalvar;
     this.pwaWorkState.setCaptureActive('report-operation', true);
     this.pageSlide.open();
     this.changeDetector.markForCheck();
@@ -257,6 +248,7 @@ export class ReporteSlide implements OnDestroy {
         ...item,
         quantidade: this.round3(item.quantidade),
       })),
+      finalizarSplit: this.finalizarAoSalvar,
     });
   }
 
@@ -322,6 +314,7 @@ export class ReporteSlide implements OnDestroy {
     this.quantidadeRefugo = 0;
     this.refugoItens = [];
     this.idempotencyKey = '';
+    this.finalizarAoSalvar = false;
     this.validationMessage = '';
     this.resetReasonEditor();
   }
@@ -344,11 +337,12 @@ export class ReporteSlide implements OnDestroy {
       return 'Adicione ou limpe o motivo em edição antes de salvar o reporte.';
     }
 
-    const totalMotivos = this.round3(
-      this.refugoItens.reduce((total, item) => total + item.quantidade, 0),
-    );
-    if (totalMotivos !== this.round3(this.quantidadeRefugo)) {
-      return `Os motivos de refugo${this.ordemLabel} devem totalizar ${this.formatQuantidade(this.quantidadeRefugo)}.`;
+    const requiresReason = this.quantidadeRefugo > 0 || this.quantidadeRetrabalho > 0;
+    if (requiresReason && this.refugoItens.length !== 1) {
+      return `Informe exatamente um motivo de refugo ou retrabalho${this.ordemLabel}.`;
+    }
+    if (!requiresReason && this.refugoItens.length !== 0) {
+      return `Remova o motivo${this.ordemLabel}, pois não há refugo ou retrabalho.`;
     }
     return '';
   }

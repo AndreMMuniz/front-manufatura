@@ -79,9 +79,11 @@ export class ReportaBateladaService {
           .filter(record => record.commandType === 'START_BATCH')
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
         const start = starts.find(candidate =>
-          !records.some(record =>
+          !records.some(record => record.aggregateId === candidate.aggregateId && (
             record.commandType === 'END_BATCH'
-            && record.aggregateId === candidate.aggregateId));
+            || (record.commandType === 'REPORT_BATCH'
+              && (record.payload as Record<string, unknown>)['finalizarSplit'] === true)
+          )));
         if (!start) return of(null);
         const payload = start.payload as Record<string, unknown>;
         const contexto = payload['contexto'] as Record<string, unknown> | undefined;
@@ -188,10 +190,13 @@ export class ReportaBateladaService {
       throw new Error('A batelada deve conter ordens únicas.');
     }
 
+    const now = new Date();
     return {
       batchId: this.idempotency.resolve(),
       idempotencyKey: this.idempotency.resolve(),
-      occurredAt: new Date().toISOString(),
+      occurredAt: now.toISOString(),
+      dataInicio: this.formatLocalDate(now),
+      horaInicio: this.formatLocalTime(now),
       contexto: { ...contexto },
       responsavel: { ...responsavel },
       ordens: ordens.map(ordem => ({ ...ordem })),
@@ -219,6 +224,8 @@ export class ReportaBateladaService {
         responsavel: { ...request.responsavel },
         ordens: request.ordens.map(ordem => ({ ...ordem })),
         iniciadoEm: iniciadoEm.toISOString(),
+        dataInicio: request.dataInicio,
+        horaInicio: request.horaInicio,
       },
     })).pipe(
       map(confirmation => {
@@ -299,14 +306,12 @@ export class ReportaBateladaService {
     }
 
     for (const item of request.items) {
-      const reasonTotal = arredondarQuantidadeBatelada(
-        item.refugoItens.reduce((sum, reason) => sum + reason.quantidade, 0),
-      );
-      if (reasonTotal !== arredondarQuantidadeBatelada(item.quantidadeRefugo)) {
-        throw new Error(
-          `Os motivos de refugo da ordem ${item.ordem} devem totalizar ` +
-          `${this.formatQuantity(item.quantidadeRefugo)}.`,
-        );
+      const requiresReason = item.quantidadeRefugo > 0 || item.quantidadeRetrabalho > 0;
+      if (requiresReason && item.refugoItens.length !== 1) {
+        throw new Error(`Informe exatamente um motivo de refugo ou retrabalho para a ordem ${item.ordem}.`);
+      }
+      if (!requiresReason && item.refugoItens.length !== 0) {
+        throw new Error(`Remova o motivo da ordem ${item.ordem}, pois não há refugo ou retrabalho.`);
       }
     }
   }
@@ -341,6 +346,13 @@ export class ReportaBateladaService {
           : {}),
         payload: {
           batchId: validated.batchId,
+          contexto: { ...validated.contexto },
+          responsavel: { ...validated.responsavel },
+          dataInicio: validated.dataInicio.toISOString(),
+          horaInicio: validated.horaInicio,
+          dataFim: validated.dataFim.toISOString(),
+          horaFim: validated.horaFim,
+          finalizarSplit: validated.finalizarSplit,
           items: validated.items.map(item => ({
             ...item,
             refugoItens: item.refugoItens.map(reason => ({ ...reason })),
@@ -553,6 +565,13 @@ export class ReportaBateladaService {
     return {
       batchId: request.batchId,
       idempotencyKey: request.idempotencyKey,
+      contexto: { ...request.contexto },
+      responsavel: { ...request.responsavel },
+      dataInicio: new Date(request.dataInicio),
+      horaInicio: request.horaInicio,
+      dataFim: new Date(request.dataFim),
+      horaFim: request.horaFim,
+      finalizarSplit: request.finalizarSplit,
       ...(request.dependencyIds ? { dependencyIds: [...request.dependencyIds] } : {}),
       items: request.items.map(item => ({
         ...item,
@@ -600,5 +619,17 @@ export class ReportaBateladaService {
       minimumFractionDigits: 3,
       maximumFractionDigits: 3,
     }).format(value);
+  }
+
+  private formatLocalDate(value: Date): string {
+    return [
+      value.getFullYear(),
+      String(value.getMonth() + 1).padStart(2, '0'),
+      String(value.getDate()).padStart(2, '0'),
+    ].join('-');
+  }
+
+  private formatLocalTime(value: Date): string {
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
   }
 }

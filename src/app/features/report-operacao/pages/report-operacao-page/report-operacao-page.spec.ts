@@ -316,7 +316,12 @@ describe('ReportOperacaoPage', () => {
     component.operacao = baseOperacao({ dataInicio: startedAt, horaInicio: '08:00' });
 
     component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
-    component.salvarReporte({ quantidadeAprovada: 2, quantidadeRetrabalho: 1, quantidadeRefugo: 0 });
+    component.salvarReporte({
+      quantidadeAprovada: 2,
+      quantidadeRetrabalho: 1,
+      quantidadeRefugo: 0,
+      refugoItens: [{ codigo: '05', descricao: 'Retrabalho', quantidade: 1 }],
+    });
 
     expect(service.reportarOperacao).toHaveBeenCalledTimes(2);
     expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(1);
@@ -336,8 +341,10 @@ describe('ReportOperacaoPage', () => {
     expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
   });
 
-  it('refreshes the Center list after confirming the last operation ending', () => {
+  it('opens the final report capture when ending is confirmed', () => {
+    const abrir = vi.fn();
     fixture.detectChanges();
+    (component as unknown as { reporteSlide: { abrir: typeof abrir } }).reporteSlide = { abrir };
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
     component.openSelectedOrders();
@@ -347,17 +354,15 @@ describe('ReportOperacaoPage', () => {
     component.solicitarEncerramento();
     vi.mocked(dialog.confirm).mock.calls[0][0].confirm();
 
-    expect(service.encerrarOperacao).toHaveBeenCalledTimes(1);
-    expect(service.listarOrdensPorCentro).toHaveBeenCalledTimes(2);
-    expect(component.operacao).toBeNull();
-    expect(workflow.snapshot().activeOrder).toBeNull();
-    expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
+    expect(abrir).toHaveBeenCalledWith(component.reportes, true);
+    expect(service.encerrarOperacao).not.toHaveBeenCalled();
+    expect(component.operacao).not.toBeNull();
   });
 
-  it('ignores a second ending confirmation while the first request is pending', () => {
-    const pending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
-    vi.mocked(service.encerrarOperacao).mockReturnValue(pending.asObservable());
+  it('does not mutate Datasul while only opening repeated final-report confirmations', () => {
+    const abrir = vi.fn();
     fixture.detectChanges();
+    (component as unknown as { reporteSlide: { abrir: typeof abrir } }).reporteSlide = { abrir };
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
     component.openSelectedOrders();
@@ -369,7 +374,8 @@ describe('ReportOperacaoPage', () => {
     vi.mocked(dialog.confirm).mock.calls[0][0].confirm();
     vi.mocked(dialog.confirm).mock.calls[1][0].confirm();
 
-    expect(service.encerrarOperacao).toHaveBeenCalledTimes(1);
+    expect(abrir).toHaveBeenCalledTimes(2);
+    expect(service.encerrarOperacao).not.toHaveBeenCalled();
   });
 
   it('preserves operation, queue and history when a partial report fails', () => {
@@ -656,7 +662,7 @@ describe('ReportOperacaoPage', () => {
     }));
   });
 
-  it('rejects a report whose scrap reasons do not match the scrap quantity', () => {
+  it('rejects a report containing more than one scrap or rework reason', () => {
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -668,12 +674,15 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 1,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 2,
-      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1 }],
+      refugoItens: [
+        { codigo: '05', descricao: 'Borra', quantidade: 1 },
+        { codigo: '07', descricao: 'Outro', quantidade: 1 },
+      ],
     });
 
     expect(service.reportarOperacao).not.toHaveBeenCalled();
     expect(component.feedback).toBe(
-      'Os motivos de refugo da Ordem 450001 devem totalizar 2,000.',
+      'Informe exatamente um motivo de refugo ou retrabalho para a Ordem 450001.',
     );
   });
 

@@ -108,6 +108,8 @@ describe('ReportaBateladaService', () => {
   });
 
   it('builds one command containing context, responsible party and all ordered items', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-18T01:15:00.000Z'));
     const request = service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       responsavel(),
@@ -122,11 +124,14 @@ describe('ReportaBateladaService', () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       ),
       occurredAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      dataInicio: '2026-08-17',
+      horaInicio: '22:15',
       contexto: { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       responsavel: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
       ordens: [order('2'), order('1')],
     });
     expect(request.ordens[0]).not.toBe(order('2'));
+    vi.useRealTimers();
   });
 
   it('rejects an empty or duplicated composition at the start boundary', () => {
@@ -208,7 +213,7 @@ describe('ReportaBateladaService', () => {
       .toThrowError('As quantidades devem ser números finitos e não negativos.');
   });
 
-  it('requires a globally positive quantity and exact scrap reasons for each order', () => {
+  it('requires a globally positive quantity and one reason for each affected order', () => {
     const base = reportRequest();
     const zero = {
       ...base,
@@ -227,11 +232,14 @@ describe('ReportaBateladaService', () => {
       first: {
         quantidadeAprovada: 0,
         quantidadeRefugo: 2,
-        refugoItens: [{ motivoCode: 'R01', descricao: 'Apara', quantidade: 1 }],
+        refugoItens: [
+          { motivoCode: 'R01', descricao: 'Apara', quantidade: 1 },
+          { motivoCode: 'R02', descricao: 'Outro', quantidade: 1 },
+        ],
       },
     });
     expect(() => service.validarReporteParcial(wrongScrap))
-      .toThrowError('Os motivos de refugo da ordem 450001 devem totalizar 2,000.');
+      .toThrowError('Informe exatamente um motivo de refugo ou retrabalho para a ordem 450001.');
   });
 
   it('rejects an empty idempotency key and aggregate overflow', () => {
@@ -481,6 +489,13 @@ function reportRequest(options: {
   return {
     batchId: options.batchId ?? 'batch-1',
     idempotencyKey: 'idem-1',
+    contexto: { areaCode: '4001', workCenterCode: 'CT-01' },
+    responsavel: responsavel(),
+    dataInicio: new Date(2026, 7, 17, 8),
+    horaInicio: '08:00',
+    dataFim: new Date(2026, 7, 17, 9),
+    horaFim: '09:00',
+    finalizarSplit: false,
     items: [
       {
         orderId: '1',
@@ -497,7 +512,7 @@ function reportRequest(options: {
         quantidadeAprovada: 8.25,
         quantidadeRetrabalho: 0.5,
         quantidadeRefugo: 0,
-        refugoItens: [],
+        refugoItens: [{ motivoCode: 'R01', descricao: 'Retrabalho', quantidade: 0.5 }],
       },
     ],
   };

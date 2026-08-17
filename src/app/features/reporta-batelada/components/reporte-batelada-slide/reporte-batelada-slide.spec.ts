@@ -20,13 +20,13 @@ describe('ReporteBateladaSlide', () => {
     expect(component.totalInformado).toBe(110);
   });
 
-  it('allows saving a batch report containing only rework', () => {
+  it('requires one reason for a batch report containing only rework', () => {
     const { component } = createComponent();
     component.abrir(orders(), [], null);
     component.atualizarQuantidade('2', 'quantidadeRetrabalho', 2);
 
     expect(component.totalInformado).toBe(0);
-    expect(component.canSave).toBe(true);
+    expect(component.canSave).toBe(false);
   });
 
   it('renders the same quantity labels as the order report and the ordered history columns in the DOM', () => {
@@ -85,6 +85,10 @@ describe('ReporteBateladaSlide', () => {
 
     component.atualizarQuantidade('2', 'quantidadeAprovada', 4);
     component.atualizarQuantidade('1', 'quantidadeRetrabalho', 2);
+    component.editarRefugo('1');
+    component.atualizarMotivo('05');
+    component.atualizarQuantidadeMotivo(2);
+    component.adicionarMotivo();
     component.salvar();
     component.salvar();
 
@@ -92,6 +96,7 @@ describe('ReporteBateladaSlide', () => {
     expect(emitted).toHaveBeenCalledTimes(1);
     expect(emitted.mock.calls[0][0]).toEqual({
       idempotencyKey: expect.any(String),
+      finalizarSplit: false,
       items: [
         expect.objectContaining({ orderId: '2', quantidadeAprovada: 4 }),
         expect.objectContaining({ orderId: '1', quantidadeRetrabalho: 2 }),
@@ -118,7 +123,7 @@ describe('ReporteBateladaSlide', () => {
     expect(emitted[2].idempotencyKey).not.toBe(emitted[1].idempotencyKey);
   });
 
-  it('validates quantities and scrap reasons independently for each order', () => {
+  it('accepts a single reason independently of its display quantity', () => {
     const { component } = createComponent();
     component.abrir(orders(), [], null);
     component.atualizarQuantidade('2', 'quantidadeAprovada', 1);
@@ -130,8 +135,7 @@ describe('ReporteBateladaSlide', () => {
 
     component.salvar();
 
-    expect(component.validationMessage)
-      .toBe('Os motivos de refugo da ordem 450002 devem totalizar 2,000.');
+    expect(component.validationMessage).toBe('');
     expect(component.items[1].refugoItens).toEqual([]);
   });
 

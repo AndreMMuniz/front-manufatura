@@ -88,6 +88,8 @@ export interface ReportarOperacaoRequest {
   readonly ordem: string;
   readonly op: string;
   readonly split: string;
+  readonly areaCode: string;
+  readonly finalizarSplit: boolean;
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
   readonly quantidadeRefugo: number;

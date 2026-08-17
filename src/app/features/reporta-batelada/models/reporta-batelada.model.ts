@@ -61,6 +61,7 @@ export interface ItemReporteBatelada {
 export interface RascunhoReporteBatelada {
   readonly idempotencyKey: string | null;
   readonly items: ReadonlyArray<ItemReporteBatelada>;
+  readonly finalizarSplit?: boolean;
 }
 
 export interface ReporteParcialBatelada {

@@ -33,11 +33,15 @@ export interface FmaEndpointDependencies {
 }
 
 type JsonObject = Record<string, unknown>;
+const COMMAND_CACHE_TTL_MS = 15 * 60_000;
+const COMMAND_CACHE_MAX_ENTRIES = 1_000;
 
 export function installFmaEndpoints(app: Application, dependencies: FmaEndpointDependencies): void {
-  const startRequests = new Map<string, {
+  const commandRequests = new Map<string, {
     readonly canonical: string;
     readonly promise: Promise<ReturnType<typeof receipt>>;
+    readonly createdAt: number;
+    settledAt?: number;
   }>();
   const roots = [
     '/api/production-areas', '/api/work-centers', '/api/operators',
@@ -58,7 +62,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     });
     const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
     return dataset(upstream, 'centrosTrabalho').map(row => {
-      const item = objectOf(row);
+      const item = objectOfUpstream(row);
       return {
         code: text(item['codCtrab']),
         description: text(item['desCtrab']),
@@ -79,7 +83,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
       codCtrab: workCenterCode,
     });
     return dataset(upstream, 'ordensLiberadas').map(row => {
-      const item = objectOf(row);
+      const item = objectOfUpstream(row);
       const ordem = integerText(item['nrOrdemProducao']);
       const itemOp = text(item['codItemOp']);
       const operacao = integerText(item['opCodigo']);
@@ -102,7 +106,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         opCodigo: positiveInteger(req.params['operation']),
         numSplitOperac: positiveInteger(req.query['split']),
       });
-      const item = objectOf(single(dataset(upstream, 'dadosApontamento')));
+      const item = objectOfUpstream(single(dataset(upstream, 'dadosApontamento')));
       return {
         ordem: integerText(item['nrOrdemProducao']),
         op: integerText(item['opCodigo']),
@@ -142,7 +146,8 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     const idempotencyKey = safeId(req.header('idempotency-key'));
     const cacheKey = `${client.subject}\u0000${idempotencyKey}`;
     const canonical = JSON.stringify(command);
-    const existing = startRequests.get(cacheKey);
+    pruneCommandRequests(commandRequests, dependencies.now?.().getTime() ?? Date.now());
+    const existing = commandRequests.get(cacheKey);
     if (existing) {
       if (existing.canonical !== canonical) {
         throw new QualityControlGatewayError(409, 'idempotency-conflict');
@@ -151,44 +156,374 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     }
     const promise = (async () => {
       const upstream = await client.request('POST', '/api/fma/v1/iniciaordem', command);
-      const result = objectOf(single(dataset(upstream, 'inicioOrdem')));
+      const result = objectOfUpstream(single(dataset(upstream, 'inicioOrdem')));
       return receipt(
         idempotencyKey,
         `datasul:operation:${integerText(result['nrOrdemProducao'])}:${integerText(result['opCodigo'])}:${integerText(result['numSplitOperac'])}`,
         dependencies.now?.() ?? new Date(),
       );
     })();
-    startRequests.set(cacheKey, { canonical, promise });
+    const cacheEntry: CommandRequestEntry = {
+      canonical, promise, createdAt: dependencies.now?.().getTime() ?? Date.now(),
+    };
+    commandRequests.set(cacheKey, cacheEntry);
     try {
-      return await promise;
+      const result = await promise;
+      cacheEntry.settledAt = dependencies.now?.().getTime() ?? Date.now();
+      return result;
     } catch (error) {
-      startRequests.delete(cacheKey);
+      commandRequests.delete(cacheKey);
       throw error;
     }
   }));
 
-  installTransparentRoutes(app, dependencies);
+  installAdaptedRoutes(app, dependencies, commandRequests);
 }
 
-function installTransparentRoutes(app: Application, dependencies: FmaEndpointDependencies): void {
+type CommandRequestEntry = {
+  readonly canonical: string;
+  readonly promise: Promise<ReturnType<typeof receipt>>;
+  readonly createdAt: number;
+  settledAt?: number;
+};
+type CommandRequestCache = Map<string, CommandRequestEntry>;
+
+function installAdaptedRoutes(
+  app: Application,
+  dependencies: FmaEndpointDependencies,
+  commandRequests: CommandRequestCache,
+): void {
+  app.get('/api/operators', (req, res) => handle(req, res, dependencies, async client => {
+    const upstream = await client.request('GET', '/api/fma/v1/operadores');
+    const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
+    return dataset(upstream, 'operadores').map(row => {
+      const item = objectOfUpstream(row);
+      return { code: requiredUpstreamText(item['codOperador']), name: requiredUpstreamText(item['nomOperador']) };
+    }).filter(operator => !term || `${operator.code} ${operator.name}`.toLocaleLowerCase('pt-BR').includes(term));
+  }));
+
+  app.get('/api/scrap-reasons', (req, res) => handle(req, res, dependencies, async client => {
+    const upstream = await client.request('GET', '/api/fma/v1/motivosrefugo');
+    const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
+    return dataset(upstream, 'motivosRefugo').map(row => {
+      const item = objectOfUpstream(row);
+      return {
+        codigo: requiredUpstreamText(item['codMotivoRefugo']),
+        descricao: requiredUpstreamText(item['desMotivoRefugo']),
+        materialScrap: booleanOf(item['refugoMaterial']),
+        rework: booleanOf(item['refugoRetrabalho']),
+      };
+    }).filter(reason => !term || `${reason.codigo} ${reason.descricao}`.toLocaleLowerCase('pt-BR').includes(term));
+  }));
+
+  app.get('/api/stop-reasons', (req, res) => handle(req, res, dependencies, async client => {
+    const upstream = await client.request('GET', '/api/fma/v1/motivosparada');
+    return dataset(upstream, 'motivosParada').flatMap(row => {
+      const item = objectOfUpstream(row);
+      const code = text(item['codParada']);
+      const description = text(item['desParada']);
+      const id = Number(code);
+      return code && description && Number.isSafeInteger(id) ? [{ id, code, description }] : [];
+    });
+  }));
+
+  app.post('/api/teams', (req, res) => handle(req, res, dependencies, async client => {
+    const body = objectOf(req.body);
+    const operators = uniqueRequiredTexts(body['operadores']);
+    const command = {
+      codAreaProduc: requiredText(body['areaCode']),
+      codCtrab: requiredText(body['workCenterCode']),
+      operadores: operators,
+    };
+    const upstream = await client.request('POST', '/api/fma/v1/geraequipe', command);
+    const result = objectOfUpstream(single(dataset(upstream, 'equipeResultado')));
+    const returnedOperators = dataset(upstream, 'operadores').map(row => {
+      const item = objectOfUpstream(row);
+      return { codigo: requiredUpstreamText(item['codOperador']), nome: requiredUpstreamText(item['nomOperador']) };
+    });
+    return {
+      codigo: requiredUpstreamText(result['codEquipe']),
+      descricao: requiredUpstreamText(result['desEquipe']),
+      turno: String(nonNegativeIntegerUpstream(result['numTurno'])),
+      operadores: returnedOperators,
+    };
+  }));
+
+  app.post('/api/operations/report', (req, res) => handle(req, res, dependencies, client => {
+    const body = objectOf(req.body);
+    const command = reportCommand(body, false);
+    return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/reporteordem', command, 'operation-report');
+  }));
+
+  app.post('/api/operations/end', (req, res) => handle(req, res, dependencies, client =>
+    localOnlyCommand(req, client, dependencies, commandRequests, objectOf(req.body), 'operation-end')));
+
+  app.post('/api/batches/start', (req, res) => handle(req, res, dependencies, client => {
+    const body = objectOf(req.body);
+    const context = objectOf(body['contexto']);
+    const responsible = objectOf(body['responsavel']);
+    const command = {
+      codAreaProduc: requiredText(context['areaCode']),
+      codCtrab: requiredText(context['workCenterCode']),
+      dataInicioReporte: localDate(body['dataInicio']),
+      horaInicioReporte: validTime(body['horaInicio']),
+      ...responsibleFields(responsible['tipo'], responsible['codigo']),
+      ...emptySetupFields(),
+      splits: requiredObjects(body['ordens']).map(order => ({
+        nrOrdemProducao: positiveInteger(order['ordem']),
+        opCodigo: positiveInteger(order['operacao']),
+        numSplitOperac: positiveInteger(order['split']),
+      })),
+    };
+    return idempotentCommand(
+      req, client, dependencies, commandRequests, '/api/fma/v1/iniciarordembatelada', command,
+      'batch-start', requiredObjects(body['ordens']).map(order => requiredText(order['id'])),
+    );
+  }));
+
+  app.post('/api/batches/report', (req, res) => handle(req, res, dependencies, client => {
+    const body = objectOf(req.body);
+    const command = reportCommand(body, true);
+    return idempotentCommand(
+      req, client, dependencies, commandRequests, '/api/fma/v1/reporteordembatelada', command,
+      'batch-report', requiredObjects(body['items']).map(item => requiredText(item['orderId'])),
+    );
+  }));
+
+  app.post('/api/batches/end', (req, res) => handle(req, res, dependencies, client => {
+    const body = objectOf(req.body);
+    return localOnlyCommand(
+      req, client, dependencies, commandRequests, body, 'batch-end', requiredTexts(body['orderIds']),
+    );
+  }));
+
+  app.post('/api/production-stops', (req, res) => handle(req, res, dependencies, client => {
+    const body = objectOf(req.body);
+    if (body['programmed'] === true) throw new QualityControlGatewayError(400, 'invalid-request');
+    const context = objectOf(body['context']);
+    const area = objectOf(context['area']);
+    const center = objectOf(context['workCenter']);
+    const reason = objectOf(body['reason']);
+    const responsible = objectOf(body['responsible']);
+    const endDate = optionalText(body['endDate']);
+    const endTime = optionalText(body['endTime']);
+    if (Boolean(endDate) !== Boolean(endTime)) throw new QualityControlGatewayError(400, 'invalid-request');
+    const base = {
+      codAreaProduc: requiredText(area['code']),
+      codCtrab: requiredText(center['code']),
+      codParada: requiredText(reason['code']),
+      dataInicioParada: localDate(body['startDate']),
+      horaInicioParada: validTime(body['startTime']),
+      ...responsibleFields(responsible['tipo'], responsible['codigo']),
+      numOmProgda: 0,
+    };
+    const end = endDate ? {
+      dataFimParada: localDate(endDate),
+      horaFimParada: validTime(endTime),
+    } : undefined;
+    if (end) assertChronological(
+      base.dataInicioParada, base.horaInicioParada, end.dataFimParada, end.horaFimParada,
+    );
+    const command = end ? { ...base, ...end } : base;
+    const endpoint = endDate ? '/api/fma/v1/incluiparada' : '/api/fma/v1/iniciaparada';
+    return idempotentCommand(req, client, dependencies, commandRequests, endpoint, command, 'production-stop');
+  }));
+
+  app.post('/api/production-stops/:id/finish', (req, res) => handle(req, res, dependencies, client => {
+    const body = objectOf(req.body);
+    const command = {
+      codAreaProduc: requiredText(body['areaCode']),
+      codCtrab: requiredText(body['workCenterCode']),
+      dataFimParada: localDate(body['endDate']),
+      horaFimParada: validTime(body['endTime']),
+    };
+    return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/finalizaparada', command, 'production-stop-finish');
+  }));
+
   const reads = [
-    '/api/production-areas', '/api/operators', '/api/operational-responsibles',
-    '/api/teams', '/api/teams/:code', '/api/scrap-reasons', '/api/stop-reasons',
+    '/api/production-areas', '/api/operational-responsibles',
+    '/api/teams', '/api/teams/:code',
   ];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
     client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));
-  app.post('/api/teams', (req, res) => handle(req, res, dependencies, client =>
-    client.request('POST', '/api/teams', objectOf(req.body), {}, normalizedRoute(req))));
   app.put('/api/teams/:code', (req, res) => handle(req, res, dependencies, client =>
     client.request('PUT', concretePath(req), objectOf(req.body), {}, normalizedRoute(req))));
+}
 
-  const commands = [
-    '/api/operations/report', '/api/operations/end', '/api/batches/start',
-    '/api/batches/report', '/api/batches/end', '/api/production-stops',
-    '/api/production-stops/:id/finish',
-  ];
-  for (const path of commands) app.post(path, (req, res) => handle(req, res, dependencies, client =>
-    client.request('POST', concretePath(req), objectOf(req.body), queryObject(req), normalizedRoute(req))));
+function reportCommand(body: JsonObject, batch: boolean): JsonObject {
+  const items = batch ? requiredObjects(body['items']) : [body];
+  const context = batch ? objectOf(body['contexto']) : body;
+  const responsible = batch ? objectOf(body['responsavel']) : body;
+  const startedAt = batch ? requiredText(body['dataInicio']) : requiredText(body['dataInicio']);
+  const endedAt = batch ? requiredText(body['dataFim']) : requiredText(body['dataFim']);
+  const dataInicioReporte = localDate(startedAt);
+  const horaInicioReporte = validTime(body['horaInicio']);
+  const dataFimReporte = localDate(endedAt);
+  const horaFimReporte = validTime(body['horaFim']);
+  assertChronological(dataInicioReporte, horaInicioReporte, dataFimReporte, horaFimReporte);
+  const splits = items.map(item => reportSplit(item, batch));
+  if (splits.reduce((total, split) => total
+    + Number(split['qtdAprovada']) + Number(split['qtdRetrabalho']) + Number(split['qtdRefugada']), 0) <= 0) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return {
+    codAreaProduc: requiredText(context['areaCode']),
+    codCtrab: requiredText(batch ? context['workCenterCode'] : body['ct']),
+    dataInicioReporte,
+    horaInicioReporte,
+    dataFimReporte,
+    horaFimReporte,
+    ...responsibleFields(
+      batch ? responsible['tipo'] : body['tipoResponsavel'],
+      batch ? responsible['codigo'] : body['codigoResponsavel'],
+    ),
+    ...emptySetupFields(),
+    finalizarSplit: requiredBoolean(body['finalizarSplit']),
+    splits,
+  };
+}
+
+function reportSplit(item: JsonObject, batch: boolean): JsonObject {
+  const approved = nonNegativeFinite(item['quantidadeAprovada']);
+  const rework = nonNegativeFinite(item['quantidadeRetrabalho']);
+  const scrap = nonNegativeFinite(item['quantidadeRefugo']);
+  const reasons = objectArray(item['refugoItens']);
+  const requiresReason = scrap > 0 || rework > 0;
+  if ((requiresReason && reasons.length !== 1) || (!requiresReason && reasons.length !== 0)) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  const identity = batch ? batchItemIdentity(item) : {
+    ordem: item['ordem'], operation: item['op'], split: item['split'],
+  };
+  return {
+    nrOrdemProducao: positiveInteger(identity.ordem),
+    opCodigo: positiveInteger(identity.operation),
+    numSplitOperac: positiveInteger(identity.split),
+    qtdAprovada: approved,
+    qtdRetrabalho: rework,
+    qtdRefugada: scrap,
+    codMotivoRefugo: reasons.length === 1
+      ? requiredText(reasons[0][batch ? 'motivoCode' : 'codigo'])
+      : '',
+  };
+}
+
+function batchItemIdentity(item: JsonObject): { ordem: unknown; operation: unknown; split: unknown } {
+  const parts = requiredText(item['orderId']).split('|');
+  if (parts.length !== 4) throw new QualityControlGatewayError(400, 'invalid-request');
+  const identity = {
+    ordem: item['ordem'] ?? parts[0],
+    operation: item['operacao'] ?? parts[2],
+    split: item['split'] ?? parts[3],
+  };
+  if (
+    (item['ordem'] !== undefined && String(item['ordem']) !== parts[0])
+    || (item['operacao'] !== undefined && String(item['operacao']) !== parts[2])
+    || (item['split'] !== undefined && String(item['split']) !== parts[3])
+  ) throw new QualityControlGatewayError(400, 'invalid-request');
+  return identity;
+}
+
+function responsibleFields(type: unknown, code: unknown): { codOperador: string; codEquipe: string } {
+  const responsibleType = requiredText(type);
+  const responsibleCode = requiredText(code);
+  if (responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE') {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return {
+    codOperador: responsibleType === 'OPERADOR' ? responsibleCode : '',
+    codEquipe: responsibleType === 'EQUIPE' ? responsibleCode : '',
+  };
+}
+
+function emptySetupFields() {
+  return {
+    codFerramenta: '', dataInicioSetup: '', horaInicioSetup: '', dataFimSetup: '', horaFimSetup: '',
+  };
+}
+
+async function idempotentCommand(
+  req: Request,
+  client: FmaClient,
+  dependencies: FmaEndpointDependencies,
+  commandRequests: CommandRequestCache,
+  endpoint: string,
+  command: JsonObject,
+  resource: string,
+  orderIds: readonly string[] = [],
+): Promise<ReturnType<typeof receipt>> {
+  const idempotencyKey = safeId(req.header('idempotency-key'));
+  const cacheKey = `${client.subject}\u0000${endpoint}\u0000${idempotencyKey}`;
+  const canonical = JSON.stringify(command);
+  const now = dependencies.now?.().getTime() ?? Date.now();
+  pruneCommandRequests(commandRequests, now);
+  const existing = commandRequests.get(cacheKey);
+  if (existing) {
+    if (existing.canonical !== canonical) throw new QualityControlGatewayError(409, 'idempotency-conflict');
+    return { ...(await existing.promise), duplicate: true };
+  }
+  const promise = (async () => {
+    await client.request('POST', endpoint, command, {}, endpoint, true);
+    return receipt(
+      idempotencyKey,
+      `datasul:${resource}:${idempotencyKey}`,
+      dependencies.now?.() ?? new Date(),
+      orderIds,
+    );
+  })();
+  const cacheEntry: CommandRequestEntry = { canonical, promise, createdAt: now };
+  commandRequests.set(cacheKey, cacheEntry);
+  try {
+    const result = await promise;
+    cacheEntry.settledAt = dependencies.now?.().getTime() ?? Date.now();
+    return result;
+  }
+  catch (error) { commandRequests.delete(cacheKey); throw error; }
+}
+
+async function localOnlyCommand(
+  req: Request,
+  client: FmaClient,
+  dependencies: FmaEndpointDependencies,
+  commandRequests: CommandRequestCache,
+  command: JsonObject,
+  resource: string,
+  orderIds: readonly string[] = [],
+): Promise<ReturnType<typeof receipt>> {
+  const idempotencyKey = safeId(req.header('idempotency-key'));
+  const cacheKey = `${client.subject}\u0000local:${resource}\u0000${idempotencyKey}`;
+  const canonical = JSON.stringify(command);
+  const now = dependencies.now?.().getTime() ?? Date.now();
+  pruneCommandRequests(commandRequests, now);
+  const existing = commandRequests.get(cacheKey);
+  if (existing) {
+    if (existing.canonical !== canonical) throw new QualityControlGatewayError(409, 'idempotency-conflict');
+    return { ...(await existing.promise), duplicate: true };
+  }
+  const promise = Promise.resolve(receipt(
+    idempotencyKey,
+    `local:${resource}:${idempotencyKey}`,
+    dependencies.now?.() ?? new Date(),
+    orderIds,
+  ));
+  commandRequests.set(cacheKey, { canonical, promise, createdAt: now, settledAt: now });
+  return promise;
+}
+
+function pruneCommandRequests(commandRequests: CommandRequestCache, now: number): void {
+  for (const [key, entry] of commandRequests) {
+    if (entry.settledAt !== undefined && now - entry.settledAt >= COMMAND_CACHE_TTL_MS) {
+      commandRequests.delete(key);
+    }
+  }
+  if (commandRequests.size < COMMAND_CACHE_MAX_ENTRIES) return;
+  const settled = [...commandRequests.entries()]
+    .filter((entry): entry is [string, CommandRequestEntry] => entry[1].settledAt !== undefined)
+    .sort((left, right) => left[1].createdAt - right[1].createdAt);
+  for (const [key] of settled) {
+    if (commandRequests.size < COMMAND_CACHE_MAX_ENTRIES) break;
+    commandRequests.delete(key);
+  }
 }
 
 class FmaClient {
@@ -206,6 +541,7 @@ class FmaClient {
     body?: object,
     query: Record<string, string | number> = {},
     observableRoute = path,
+    allowEmpty = false,
   ): Promise<unknown> {
     const url = new URL(path, this.config.baseUrl);
     url.searchParams.set('companyId', String(this.config.companyId));
@@ -241,10 +577,15 @@ class FmaClient {
     }
     if (!response.ok) throw new QualityControlGatewayError(response.status, 'datasul-request-failed');
     try {
-      const parsed = await response.json() as unknown;
+      const raw = await response.text();
+      const parsed = raw.trim() ? JSON.parse(raw) as unknown : allowEmpty ? {} : invalidUpstream();
+      if (allowEmpty && raw.trim() && isDatasulErrorEnvelope(parsed)) {
+        throw new QualityControlGatewayError(502, 'datasul-request-failed');
+      }
       reportUpstreamRequestCompleted(this.dependencies.logger ?? noopLogger, observation, response);
       return parsed;
     } catch (error) {
+      if (error instanceof QualityControlGatewayError) throw error;
       reportUpstreamResponseFailure(
         this.dependencies.logger ?? noopLogger, observation, response, error,
       );
@@ -308,16 +649,30 @@ function hasPermissionForPath(path: string, permissions: readonly unknown[]): bo
   return FMA_PERMISSIONS.some(permission => permissions.includes(permission));
 }
 
-function receipt(idempotencyKey: string, serverRecordId: string, current: Date) {
+function receipt(
+  idempotencyKey: string,
+  serverRecordId: string,
+  current: Date,
+  orderIds: readonly string[] = [],
+) {
   const now = current.toISOString();
-  return { serverRecordId, idempotencyKey, receivedAt: now, processedAt: now, duplicate: false };
+  return {
+    serverRecordId, idempotencyKey, receivedAt: now, processedAt: now, duplicate: false,
+    ...(orderIds.length > 0 ? {
+      orderResults: orderIds.map(orderId => ({
+        orderId,
+        success: true,
+        serverRecordId: `datasul:order:${orderId}`,
+      })),
+    } : {}),
+  };
 }
 
 function dataset(value: unknown, name: string): readonly unknown[] {
-  const envelope = objectOf(value);
+  const envelope = objectOfUpstream(value);
   const items = envelope['items'];
   if (!Array.isArray(items) || items.length !== 1) throw new QualityControlGatewayError(502, 'invalid-upstream-response');
-  const rows = objectOf(items[0])[name];
+  const rows = objectOfUpstream(items[0])[name];
   if (!Array.isArray(rows)) throw new QualityControlGatewayError(502, 'invalid-upstream-response');
   return rows;
 }
@@ -325,6 +680,13 @@ function dataset(value: unknown, name: string): readonly unknown[] {
 function objectOf(value: unknown): JsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new QualityControlGatewayError(400, 'invalid-request');
   return value as JsonObject;
+}
+function objectOfUpstream(value: unknown): JsonObject {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return invalidUpstream();
+  return value as JsonObject;
+}
+function invalidUpstream(): never {
+  throw new QualityControlGatewayError(502, 'invalid-upstream-response');
 }
 function single(values: readonly unknown[]): unknown {
   if (values.length !== 1) throw new QualityControlGatewayError(502, 'invalid-upstream-response');
@@ -347,10 +709,92 @@ function finiteNumber(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new QualityControlGatewayError(502, 'invalid-upstream-response');
   return value;
 }
+function nonNegativeFinite(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return value;
+}
+function booleanOf(value: unknown): boolean {
+  if (typeof value !== 'boolean') return invalidUpstream();
+  return value;
+}
+function requiredBoolean(value: unknown): boolean {
+  if (typeof value !== 'boolean') throw new QualityControlGatewayError(400, 'invalid-request');
+  return value;
+}
+function requiredUpstreamText(value: unknown): string {
+  const result = text(value);
+  if (!result) return invalidUpstream();
+  return result;
+}
+function nonNegativeIntegerUpstream(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) return invalidUpstream();
+  return value as number;
+}
+function requiredObjects(value: unknown): JsonObject[] {
+  if (!Array.isArray(value) || value.length === 0) throw new QualityControlGatewayError(400, 'invalid-request');
+  return value.map(objectOf);
+}
+function objectArray(value: unknown): JsonObject[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new QualityControlGatewayError(400, 'invalid-request');
+  return value.map(objectOf);
+}
+function requiredTexts(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0) throw new QualityControlGatewayError(400, 'invalid-request');
+  return value.map(requiredText);
+}
+function uniqueRequiredTexts(value: unknown): string[] {
+  const values = requiredTexts(value);
+  const unique = [...new Set(values)];
+  if (unique.length !== values.length) throw new QualityControlGatewayError(400, 'invalid-request');
+  return unique;
+}
 function isoDate(value: unknown): string {
-  const date = typeof value === 'string' ? new Date(value) : null;
+  const raw = typeof value === 'string' ? value : '';
+  const calendarPart = /^(\d{4}-\d{2}-\d{2})/.exec(raw)?.[1];
+  if (calendarPart) assertCalendarDate(calendarPart);
+  const date = raw ? new Date(raw) : null;
   if (!date || Number.isNaN(date.getTime())) throw new QualityControlGatewayError(400, 'invalid-request');
   return date.toISOString().slice(0, 10);
+}
+function localDate(value: unknown): string {
+  const raw = requiredText(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    assertCalendarDate(raw);
+    return raw;
+  }
+  return isoDate(raw);
+}
+function assertCalendarDate(raw: string): void {
+  const [year, month, day] = raw.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year
+    || parsed.getUTCMonth() !== month - 1
+    || parsed.getUTCDate() !== day
+  ) throw new QualityControlGatewayError(400, 'invalid-request');
+}
+function validTime(value: unknown): string {
+  const result = requiredText(value);
+  const match = /^(\d{2}):(\d{2})$/.exec(result);
+  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return result;
+}
+function assertChronological(startDate: string, startTime: string, endDate: string, endTime: string): void {
+  if (`${endDate}T${endTime}` < `${startDate}T${startTime}`) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+}
+function isDatasulErrorEnvelope(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const envelope = value as JsonObject;
+  return (typeof envelope['type'] === 'string'
+      && envelope['type'].toLocaleLowerCase('en-US') === 'error')
+    || (typeof envelope['message'] === 'string' && Array.isArray(envelope['details']));
 }
 function safeId(value: unknown): string {
   if (typeof value !== 'string' || !/^[A-Za-z0-9._:/-]{1,160}$/.test(value)) {

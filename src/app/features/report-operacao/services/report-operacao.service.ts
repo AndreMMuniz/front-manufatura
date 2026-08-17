@@ -132,9 +132,11 @@ export class ReportOperacaoService {
         .filter(record => record.commandType === 'START_OPERATION')
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       const start = starts.find(candidate =>
-        !records.some(record =>
+        !records.some(record => record.aggregateId === candidate.aggregateId && (
           record.commandType === 'END_OPERATION'
-          && record.aggregateId === candidate.aggregateId));
+          || (record.commandType === 'REPORT_OPERATION'
+            && (record.payload as Record<string, unknown>)['finalizarSplit'] === true)
+        )));
       if (!start) return null;
       const payload = start.payload as Record<string, unknown>;
       const area = payload['area'] as AreaProducao | undefined;
@@ -190,6 +192,8 @@ export class ReportOperacaoService {
         ordem: request.ordem,
         op: request.op,
         split: request.split,
+        areaCode: request.areaCode,
+        finalizarSplit: request.finalizarSplit,
         quantidadeAprovada: request.quantidadeAprovada,
         quantidadeRetrabalho: request.quantidadeRetrabalho,
         quantidadeRefugo: request.quantidadeRefugo,

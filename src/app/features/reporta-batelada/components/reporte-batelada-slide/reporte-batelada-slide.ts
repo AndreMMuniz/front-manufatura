@@ -56,6 +56,7 @@ export class ReporteBateladaSlide implements OnDestroy {
   quantidadeMotivo = 0;
   motivoOptions: ReadonlyArray<{ readonly label: string; readonly value: string }> = [];
   private idempotencyKey: string | null = null;
+  private finalizarAoSalvar = false;
   private motivosRequest = 0;
   private readonly destroyed$ = new Subject<void>();
 
@@ -103,10 +104,12 @@ export class ReporteBateladaSlide implements OnDestroy {
     composition: ReadonlyArray<OrdemLiberadaBatelada>,
     history: ReadonlyArray<ReporteParcialBatelada>,
     draft: RascunhoReporteBatelada | null,
+    finalizarAoSalvar = false,
   ): void {
     this.historico = this.dedupeHistory(history);
     this.items = this.restoreDraft(composition, draft);
     this.idempotencyKey = draft?.idempotencyKey ?? null;
+    this.finalizarAoSalvar = finalizarAoSalvar;
     this.salvando = false;
     this.validationMessage = '';
     this.resetReasonEditor();
@@ -244,6 +247,7 @@ export class ReporteBateladaSlide implements OnDestroy {
       refugoItens: [],
     }));
     this.idempotencyKey = null;
+    this.finalizarAoSalvar = false;
     this.salvando = false;
     this.validationMessage = '';
     this.resetReasonEditor();
@@ -330,11 +334,12 @@ export class ReporteBateladaSlide implements OnDestroy {
       return 'Informe ao menos uma quantidade positiva para salvar o reporte.';
     }
     for (const item of this.items) {
-      const reasonTotal = arredondarQuantidadeBatelada(
-        item.refugoItens.reduce((sum, reason) => sum + reason.quantidade, 0),
-      );
-      if (reasonTotal !== arredondarQuantidadeBatelada(item.quantidadeRefugo)) {
-        return `Os motivos de refugo da ordem ${item.ordem} devem totalizar ${this.formatQuantidade(item.quantidadeRefugo)}.`;
+      const requiresReason = item.quantidadeRefugo > 0 || item.quantidadeRetrabalho > 0;
+      if (requiresReason && item.refugoItens.length !== 1) {
+        return `Informe exatamente um motivo de refugo ou retrabalho para a ordem ${item.ordem}.`;
+      }
+      if (!requiresReason && item.refugoItens.length !== 0) {
+        return `Remova o motivo da ordem ${item.ordem}, pois não há refugo ou retrabalho.`;
       }
     }
     return '';
@@ -350,6 +355,7 @@ export class ReporteBateladaSlide implements OnDestroy {
     return {
       idempotencyKey: this.idempotencyKey,
       items: this.cloneItems(this.items),
+      finalizarSplit: this.finalizarAoSalvar,
     };
   }
 

@@ -227,6 +227,8 @@ describe('ReportOperacaoService', () => {
       ordem: '450001',
       op: 'OP-10458',
       split: '01',
+      areaCode: '4001',
+      finalizarSplit: false,
       quantidadeAprovada: 1,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,

@@ -14,6 +14,8 @@ export interface IniciarBateladaRequest {
   readonly batchId?: string;
   readonly idempotencyKey?: string;
   readonly occurredAt?: string;
+  readonly dataInicio: string;
+  readonly horaInicio: string;
   readonly contexto: ContextoBatelada;
   readonly responsavel: ResponsavelBatelada;
   readonly ordens: ReadonlyArray<OrdemLiberadaBatelada>;
@@ -53,6 +55,13 @@ export interface ReporteParcialBateladaRequest {
   readonly batchId: string;
   readonly idempotencyKey: string;
   readonly items: ReadonlyArray<ItemReporteParcialBateladaRequest>;
+  readonly contexto: ContextoBatelada;
+  readonly responsavel: ResponsavelBatelada;
+  readonly dataInicio: Date;
+  readonly horaInicio: string;
+  readonly dataFim: Date;
+  readonly horaFim: string;
+  readonly finalizarSplit: boolean;
   readonly dependencyIds?: readonly string[];
 }
 

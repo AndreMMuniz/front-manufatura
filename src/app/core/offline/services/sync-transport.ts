@@ -177,6 +177,10 @@ function safeIdentifier(value: string): boolean {
   return typeof value === 'string' && /^[A-Za-z0-9._:/-]{1,160}$/.test(value);
 }
 
+function safeOrderIdentifier(value: string): boolean {
+  return typeof value === 'string' && /^[A-Za-z0-9._:/|-]{1,160}$/.test(value);
+}
+
 function validateBatchReconciliation(
   request: SyncCommandRequest,
   result: CommandResult,
@@ -187,12 +191,12 @@ function validateBatchReconciliation(
   const complete =
     expected.length > 0
     && new Set(expected).size === expected.length
-    && expected.every(safeIdentifier)
+    && expected.every(safeOrderIdentifier)
     && received.length === expected.length
     && unique.size === received.length
     && received.every(item =>
       item.success
-      && safeIdentifier(item.orderId)
+      && safeOrderIdentifier(item.orderId)
       && expected.includes(item.orderId)
       && (item.serverRecordId === undefined || safeIdentifier(item.serverRecordId)))
     && expected.every(orderId => unique.has(orderId));

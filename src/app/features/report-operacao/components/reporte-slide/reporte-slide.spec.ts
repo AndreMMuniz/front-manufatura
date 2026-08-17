@@ -17,12 +17,12 @@ describe('ReporteSlide', () => {
     expect(component.totalInformado).toBe(110);
   });
 
-  it('allows saving a report containing only rework', () => {
+  it('requires one reason when a report contains only rework', () => {
     const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
     component.quantidadeRetrabalho = 2;
 
     expect(component.totalInformado).toBe(0);
-    expect(component.canSave).toBe(true);
+    expect(component.canSave).toBe(false);
   });
 
   it('emits one draft and blocks duplicate saves while waiting for the service', () => {
@@ -116,19 +116,19 @@ describe('ReporteSlide', () => {
     expect(component.formatDataHora(new Date('invalid'))).toBe('Data inválida');
   });
 
-  it('requires reasons to total the entered scrap quantity', () => {
+  it('requires exactly one reason for scrap or rework', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
     const emitted = vi.fn();
     component.reporteSolicitado.subscribe(emitted);
     component.ordem = '450001';
     component.atualizarQuantidade('quantidadeRefugo', 1.5);
 
-    expect(component.canSave).toBe(true);
+    expect(component.canSave).toBe(false);
     component.salvar();
 
     expect(emitted).not.toHaveBeenCalled();
     expect(component.validationMessage).toBe(
-      'Os motivos de refugo da Ordem 450001 devem totalizar 1,500.',
+      'Informe exatamente um motivo de refugo ou retrabalho da Ordem 450001.',
     );
   });
 

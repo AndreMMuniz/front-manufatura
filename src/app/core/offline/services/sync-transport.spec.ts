@@ -89,6 +89,24 @@ describe('sync transport contract', () => {
     })).toThrow(/multiordem/i);
   });
 
+  it.each([
+    ['START_BATCH', { ordens: [{ id: '372569|ITEM|20|1' }] }],
+    ['REPORT_BATCH', { items: [{ orderId: '372569|ITEM|20|1' }] }],
+    ['END_BATCH', { orderIds: ['372569|ITEM|20|1'] }],
+  ])('aceita identidade composta com pipes em %s', (commandType, payload) => {
+    const request = toSyncCommandRequest(entry({
+      commandType,
+      aggregateType: 'BATCH',
+      payload,
+    }));
+    const result = {
+      ...receipt(),
+      orderResults: [{ orderId: '372569|ITEM|20|1', success: true }],
+    };
+
+    expect(validateCommandResult(request, result)).toEqual(result);
+  });
+
   it('rejeita identificadores inválidos no payload multiordem antes da reconciliação', () => {
     const request = toSyncCommandRequest(entry({
       commandType: 'REPORT_BATCH',

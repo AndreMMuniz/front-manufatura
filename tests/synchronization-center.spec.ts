@@ -1,7 +1,10 @@
 import { BrowserContext, Page, expect, test } from '@playwright/test';
 
+import { mockE2eBackend } from './helpers/e2e-backend';
+
 const DATABASE_NAME = 'plano-de-controle-operational';
 const ABANDON_PERMISSION = 'SYNC_UNSYNCHRONIZED_ABANDON';
+const STOPPAGES_PERMISSION = 'REPORTE_PARADAS';
 const OWNER_A = 'operator-sync-a';
 const OWNER_B = 'operator-sync-b';
 
@@ -23,6 +26,7 @@ interface SeedEntry {
 }
 
 test.beforeEach(async ({ context }) => {
+  await mockE2eBackend(context);
   await mockAuthentication(context);
 });
 
@@ -114,6 +118,10 @@ test('indicador abre a Central owner-scoped, preserva reload, teclado, foco e vi
 
 test('retry, correção e cancelamento usam a Outbox real e mantêm feedback seguro', async ({ page }) => {
   test.setTimeout(60_000);
+  await page.route('**/api/operations/report', route => route.fulfill({
+    status: 503,
+    json: { code: 'datasul-unavailable' },
+  }));
   await page.goto('/login');
   await login(page, 'owner-a');
   await seedEntries(page, [
@@ -160,7 +168,10 @@ test('retry, correção e cancelamento usam a Outbox real e mantêm feedback seg
   await expect(page.getByTestId('sync-action-feedback')).toContainText(
     'preparado para nova tentativa',
   );
-  await expect(retry).toBeEnabled();
+  await expect(page.getByTestId('sync-status-retry-a')).toContainText(
+    'Nova tentativa agendada',
+  );
+  await expect(retry).toHaveCount(0);
   expect(Date.now() - retryStartedAt).toBeLessThan(5_000);
 
   await page.getByTestId('sync-correct-correct-a').click();
@@ -262,7 +273,9 @@ async function mockAuthentication(context: BrowserContext): Promise<void> {
           id: ownerId,
           nome: loginName,
           login: loginName,
-          permissoes: denied ? ['MENU_PRINCIPAL'] : ['MENU_PRINCIPAL', ABANDON_PERMISSION],
+          permissoes: denied
+            ? ['MENU_PRINCIPAL']
+            : ['MENU_PRINCIPAL', ABANDON_PERMISSION, STOPPAGES_PERMISSION],
         },
       },
     });
@@ -285,6 +298,22 @@ async function invalidateProjection(page: Page): Promise<void> {
 }
 
 async function seedEntries(page: Page, entries: readonly SeedEntry[]): Promise<void> {
+  await expect.poll(() => page.evaluate(async databaseName => {
+    const databases = await indexedDB.databases();
+    if (!databases.some(database => database.name === databaseName)) return false;
+    return new Promise<boolean>(resolve => {
+      const request = indexedDB.open(databaseName);
+      request.onsuccess = () => {
+        const database = request.result;
+        const ready = database.objectStoreNames.contains('localRecords')
+          && database.objectStoreNames.contains('outbox');
+        database.close();
+        resolve(ready);
+      };
+      request.onerror = () => resolve(false);
+    });
+  }, DATABASE_NAME), { timeout: 10_000 }).toBe(true);
+
   await page.evaluate(async ({ databaseName, values }) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(databaseName);

@@ -85,7 +85,7 @@ function dependencies(transport = configuredTransport()): LoginDependencies {
 }
 
 describe('authenticateExternalLogin', () => {
-  it('autentica em /usuarios e consulta os cinco programas com paths e Basic seguros', async () => {
+  it('autentica em /usuarios e consulta todos os programas mapeados com paths e Basic seguros', async () => {
     const transport = configuredTransport(['fcq-0001']);
 
     const result = await authenticateExternalLogin(
@@ -120,9 +120,16 @@ describe('authenticateExternalLogin', () => {
 
   it.each([
     [['fma-0001'], [APP_PERMISSIONS.mainMenu, APP_PERMISSIONS.operationReporting]],
+    [['fma-0001', 'fma-0003'], [APP_PERMISSIONS.mainMenu, APP_PERMISSIONS.operationReporting]],
+    [['fma-0005', 'fma-0006', 'fma-0010'], [APP_PERMISSIONS.mainMenu, APP_PERMISSIONS.stoppages]],
+    [['fma-0011', 'fma-0012', 'fma-0013', 'fma-0014'], [APP_PERMISSIONS.mainMenu]],
     [DATASUL_SECURITY_PROGRAMS.map(item => item.program), [
       APP_PERMISSIONS.mainMenu,
-      ...DATASUL_SECURITY_PROGRAMS.map(item => item.permission),
+      APP_PERMISSIONS.qualityControl,
+      APP_PERMISSIONS.divergentRouteAuthorization,
+      APP_PERMISSIONS.operationReporting,
+      APP_PERMISSIONS.batchReporting,
+      APP_PERMISSIONS.stoppages,
     ]],
     [[], [APP_PERMISSIONS.mainMenu]],
   ] as const)('mapeia programas liberados %j sem impedir login', async (programs, expected) => {

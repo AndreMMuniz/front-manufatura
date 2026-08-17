@@ -373,8 +373,17 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(1);
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450002' })).toHaveCount(1);
 
-    await drawer.locator('article').filter({ hasText: 'Ordem 450001' })
-      .getByRole('spinbutton', { name: 'Qtde Retrabalho', exact: true }).fill('3');
+    const firstOrder = drawer.locator('article').filter({ hasText: 'Ordem 450001' });
+    await firstOrder.getByRole('spinbutton', { name: 'Qtde Retrabalho', exact: true }).fill('3');
+    await firstOrder.getByRole('button', {
+      name: 'Editar Motivo do Retrabalho/Ordem',
+    }).click();
+    await firstOrder.getByRole('combobox', { name: 'Motivo do Retrabalho/Refugo' })
+      .selectOption('05');
+    await firstOrder.getByRole('spinbutton', {
+      name: 'Quantidade do motivo — Ordem 450001',
+    }).fill('3');
+    await firstOrder.getByRole('button', { name: 'Adicionar motivo' }).click();
     await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(2);
     await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();

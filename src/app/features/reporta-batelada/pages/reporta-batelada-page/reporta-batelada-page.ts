@@ -577,6 +577,13 @@ export class ReportaBateladaPage implements OnInit {
       ...(snapshot.inicio?.startCommandId ? [snapshot.inicio.startCommandId] : []),
       ...snapshot.history.map(report => report.idempotencyKey),
     ];
+    const reportStart = snapshot.history.at(-1)?.confirmadoEm ?? snapshot.inicio?.iniciadoEm;
+    const reportEnd = new Date();
+    if (!snapshot.area || !snapshot.workCenter || !snapshot.responsavel || !reportStart) {
+      this.workflow.failReport('O contexto completo da batelada não está disponível para o reporte.');
+      this.syncView();
+      return;
+    }
     this.service.reportarBateladaParcial({
       batchId,
       idempotencyKey: draft.idempotencyKey,
@@ -584,6 +591,13 @@ export class ReportaBateladaPage implements OnInit {
         ...item,
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
       })),
+      contexto: { areaCode: snapshot.area.code, workCenterCode: snapshot.workCenter.code },
+      responsavel: { ...snapshot.responsavel },
+      dataInicio: new Date(reportStart),
+      horaInicio: this.formatTime(new Date(reportStart)),
+      dataFim: reportEnd,
+      horaFim: this.formatTime(reportEnd),
+      finalizarSplit: Boolean(draft.finalizarSplit),
       ...(dependencyIds.length > 0 ? { dependencyIds } : {}),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -594,6 +608,10 @@ export class ReportaBateladaPage implements OnInit {
           }
           this.workflow.completeReport(report);
           this.reportSlide?.confirmarReporte(report);
+          if (draft.finalizarSplit) {
+            this.confirmEnding();
+            return;
+          }
           this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.syncView();
         },
@@ -618,11 +636,12 @@ export class ReportaBateladaPage implements OnInit {
     }
     this.dialog.confirm({
       title: 'Encerrar batelada?',
-      message: this.workflow.hasUnsavedDraft()
-        ? 'Existem quantidades não salvas. Deseja descartá-las e encerrar conjuntamente todas as ordens desta batelada?'
-        : 'Deseja encerrar conjuntamente todas as ordens desta batelada?',
-      confirm: () => this.confirmEnding(),
-      literals: { cancel: 'Cancelar', confirm: 'Encerrar' },
+      message: 'O próximo reporte será o último e finalizará todos os splits da batelada.',
+      confirm: () => {
+        const current = this.workflow.snapshot();
+        this.reportSlide?.abrir(current.composition, current.history, current.draft, true);
+      },
+      literals: { cancel: 'Cancelar', confirm: 'Informar reporte final' },
     });
   }
 
@@ -816,5 +835,9 @@ export class ReportaBateladaPage implements OnInit {
 
   private normalizeCode(value: string): string {
     return value.trim().toUpperCase();
+  }
+
+  private formatTime(value: Date): string {
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
   }
 }

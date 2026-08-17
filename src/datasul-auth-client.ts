@@ -149,10 +149,10 @@ export async function authenticateAndAuthorizeDatasul(
   const access = await Promise.all(DATASUL_SECURITY_PROGRAMS.map(async definition => {
     return getProgramAccess(login, authorization, definition.program, config, dependencies);
   }));
-  const permissoes: AppPermission[] = [APP_PERMISSIONS.mainMenu];
+  const permissoes = new Set<AppPermission>([APP_PERMISSIONS.mainMenu]);
   DATASUL_SECURITY_PROGRAMS.forEach((definition, index) => {
     if (access[index]?.allowed) {
-      permissoes.push(definition.permission);
+      definition.permissions.forEach(permission => permissoes.add(permission));
     }
   });
 
@@ -164,7 +164,7 @@ export async function authenticateAndAuthorizeDatasul(
   return {
     codUsuario: login,
     nomUsuario: userName,
-    permissoes,
+    permissoes: [...permissoes],
   };
 }
 

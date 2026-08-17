@@ -612,6 +612,8 @@ export class ReporteParadasService {
       occurredAt: end.toISOString(),
       payload: {
         stopLocalId: current.localId ?? current.idempotencyKey,
+        areaCode: current.context.area.code,
+        workCenterCode: current.context.workCenter.code,
         endAt: end.toISOString(),
         endDate: formatLocalDate(end),
         endTime: formatLocalTime(end),
