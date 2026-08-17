@@ -32,9 +32,7 @@
     ></app-ordens-centro-list>
 
     @if (loadingOperation) {
-      <div class="report-operacao__loading" role="status">
-        <po-loading p-text="Carregando ordem selecionada..." p-size="md"></po-loading>
-      </div>
+      <app-loading text="Carregando ordem selecionada..."></app-loading>
     }
 
     @if (operacao) {

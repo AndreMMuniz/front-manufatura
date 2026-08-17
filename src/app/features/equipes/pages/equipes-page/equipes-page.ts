@@ -7,13 +7,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   PoButtonModule,
   PoFieldModule,
-  PoLoadingModule,
   PoNotificationService,
   PoPageModule,
   PoWidgetModule,
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import { AlterarEquipeSlide } from '../../components/alterar-equipe-slide/alterar-equipe-slide';
 import { OperadoresTable } from '../../components/operadores-table/operadores-table';
 import { Equipe } from '../../models/equipe.model';
@@ -28,11 +28,11 @@ export type EquipesPageState = 'initial' | 'loading' | 'loaded' | 'empty' | 'sav
     FormsModule,
     PoButtonModule,
     PoFieldModule,
-    PoLoadingModule,
     PoPageModule,
     PoWidgetModule,
     AlterarEquipeSlide,
     OperadoresTable,
+    LoadingIndicator,
   ],
   templateUrl: './equipes-page.html',
   styleUrls: ['./equipes-page.css'],

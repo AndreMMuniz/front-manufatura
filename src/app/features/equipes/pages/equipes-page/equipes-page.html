@@ -36,9 +36,7 @@
 
     <po-widget p-title="Operadores">
       @if (state() === 'loading') {
-        <div class="equipes__loading">
-          <po-loading p-text="Carregando equipe..." p-size="md"></po-loading>
-        </div>
+        <app-loading text="Carregando equipe..."></app-loading>
       } @else if (equipe(); as equipeCarregada) {
         @if (equipeCarregada.operadores.length > 0) {
           <app-operadores-table [operadores]="equipeCarregada.operadores"></app-operadores-table>

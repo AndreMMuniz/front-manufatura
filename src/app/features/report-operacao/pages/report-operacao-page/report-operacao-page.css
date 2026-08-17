@@ -7,10 +7,6 @@
   min-width: 0;
 }
 
-.report-operacao__loading {
-  min-height: 72px;
-}
-
 .report-operacao__feedback {
   background: var(--app-color-surface);
   border-left: var(--border-width-lg) solid var(--app-color-primary);

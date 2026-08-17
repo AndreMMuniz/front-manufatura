@@ -5,13 +5,14 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { PoButtonModule, PoFieldModule } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import { LoginError, LoginService } from '../../services/login.service';
 import { messageForOfflineAvailability } from '../../../../core/offline/models/offline-availability';
 import { buildSafeReturnUrl } from '../../../../core/auth/safe-return-url';
 
 @Component({
   selector: 'app-login-page',
-  imports: [FormsModule, PoButtonModule, PoFieldModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, LoadingIndicator],
   templateUrl: './login-page.html',
   styleUrls: ['./login-page.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

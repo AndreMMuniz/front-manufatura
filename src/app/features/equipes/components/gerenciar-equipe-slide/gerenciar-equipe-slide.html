@@ -45,9 +45,7 @@
     </div>
 
     @if (state() === 'loading') {
-      <div class="gerenciar-equipe__loading">
-        <po-loading p-text="Carregando equipes e operadores..." p-size="md"></po-loading>
-      </div>
+      <app-loading text="Carregando equipes e operadores..."></app-loading>
     } @else if (state() === 'error' && errorKind() === 'load') {
       <div class="gerenciar-equipe__load-error" role="alert">
         <p>{{ feedback() }}</p>

@@ -22,9 +22,7 @@
   </div>
 
   @if (loading) {
-    <div class="responsavel-parada__status" role="status" aria-live="polite">
-      <po-loading p-text="Carregando responsáveis e motivos..." p-size="sm"></po-loading>
-    </div>
+    <app-loading class="responsavel-parada__status" text="Carregando responsáveis e motivos..."></app-loading>
   } @else if (errorMessage) {
     <div class="responsavel-parada__error" role="alert">
       <span>{{ errorMessage }}</span>

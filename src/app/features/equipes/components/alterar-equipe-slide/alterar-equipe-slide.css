@@ -8,12 +8,6 @@
   padding: var(--app-space-md);
 }
 
-.alterar-equipe__loading {
-  display: grid;
-  min-height: 180px;
-  place-items: center;
-}
-
 .alterar-equipe__todos {
   padding-block: var(--app-space-sm);
 }

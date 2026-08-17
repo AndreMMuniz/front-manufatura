@@ -45,17 +45,7 @@
         }
 
         @if (submitting) {
-          <div class="login-page__loading" role="status" aria-live="polite">
-            <span class="login-page__loading-label">Autenticando...</span>
-            <span
-              class="login-page__loading-track"
-              role="progressbar"
-              aria-label="Autenticando"
-              aria-valuetext="Em andamento"
-            >
-              <span class="login-page__loading-bar"></span>
-            </span>
-          </div>
+          <app-loading text="Autenticando..."></app-loading>
         }
 
         <po-button

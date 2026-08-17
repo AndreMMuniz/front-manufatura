@@ -76,7 +76,6 @@
   opacity: 0.6;
 }
 
-.gerenciar-equipe__loading,
 .gerenciar-equipe__load-error {
   display: grid;
   min-height: 180px;

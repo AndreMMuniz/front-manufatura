@@ -1,9 +1,7 @@
 @if (showList) {
   <po-widget p-title="Ordens liberadas">
     @if (loading) {
-      <div class="ordens-centro-list__loading" role="status">
-        <po-loading p-text="Carregando ordens..." p-size="md"></po-loading>
-      </div>
+      <app-loading text="Carregando ordens..."></app-loading>
     } @else if (orders.length > 0) {
       <div class="ordens-centro-list__table">
         <po-table

@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
-import { PoButtonModule, PoLoadingModule, PoTableColumn, PoTableModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoTableColumn, PoTableModule, PoWidgetModule } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import { OrdemCentroTrabalho } from '../../models/report-operacao.model';
 
 export interface OrdemCentroTrabalhoTableItem extends OrdemCentroTrabalho {
@@ -10,7 +11,7 @@ export interface OrdemCentroTrabalhoTableItem extends OrdemCentroTrabalho {
 
 @Component({
   selector: 'app-ordens-centro-list',
-  imports: [PoButtonModule, PoLoadingModule, PoTableModule, PoWidgetModule],
+  imports: [PoButtonModule, PoTableModule, PoWidgetModule, LoadingIndicator],
   templateUrl: './ordens-centro-list.html',
   styleUrls: ['./ordens-centro-list.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

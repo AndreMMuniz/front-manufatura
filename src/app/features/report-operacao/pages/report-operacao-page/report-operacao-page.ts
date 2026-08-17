@@ -14,7 +14,6 @@ import { catchError, of } from 'rxjs';
 import {
   PoButtonModule,
   PoDialogService,
-  PoLoadingModule,
   PoNotificationService,
   PoPageModule,
   PoWidgetModule,
@@ -22,6 +21,7 @@ import {
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import {
   OperationalCorrectionNotice,
 } from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
@@ -69,10 +69,10 @@ import { ReportOperacaoService } from '../../services/report-operacao.service';
     ReportActions,
     GerenciarEquipeSlide,
     PoButtonModule,
-    PoLoadingModule,
     PoPageModule,
     PoWidgetModule,
     OperationalCorrectionNotice,
+    LoadingIndicator,
   ],
   templateUrl: './report-operacao-page.html',
   styleUrls: ['./report-operacao-page.css'],

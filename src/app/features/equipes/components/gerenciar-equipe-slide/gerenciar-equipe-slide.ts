@@ -19,13 +19,13 @@ import {
   PoButtonModule,
   PoDialogService,
   PoFieldModule,
-  PoLoadingModule,
   PoNotificationService,
   PoPageSlideComponent,
   PoPageSlideModule,
   PoSelectOption,
 } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import { EquipeContexto } from '../../models/equipe-contexto.model';
 import { Equipe } from '../../models/equipe.model';
 import { Operador } from '../../models/operador.model';
@@ -48,8 +48,8 @@ export interface GerenciarEquipeResultado {
     FormsModule,
     PoButtonModule,
     PoFieldModule,
-    PoLoadingModule,
     PoPageSlideModule,
+    LoadingIndicator,
   ],
   templateUrl: './gerenciar-equipe-slide.html',
   styleUrls: ['./gerenciar-equipe-slide.css'],

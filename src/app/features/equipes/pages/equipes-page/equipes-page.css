@@ -17,12 +17,6 @@
   align-self: end;
 }
 
-.equipes__loading {
-  display: grid;
-  min-height: 180px;
-  place-items: center;
-}
-
 .equipes__empty {
   color: var(--app-color-text-muted);
   margin: 0;

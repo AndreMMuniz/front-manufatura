@@ -4,11 +4,11 @@ import { FormsModule } from '@angular/forms';
 import {
   PoButtonModule,
   PoFieldModule,
-  PoLoadingModule,
   PoSelectOption,
   PoWidgetModule,
 } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import {
   ResponsavelParada,
   TipoResponsavelParada,
@@ -16,7 +16,7 @@ import {
 
 @Component({
   selector: 'app-responsavel-parada-select',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, PoWidgetModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, PoWidgetModule, LoadingIndicator],
   templateUrl: './responsavel-parada-select.html',
   styleUrls: ['./responsavel-parada-select.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

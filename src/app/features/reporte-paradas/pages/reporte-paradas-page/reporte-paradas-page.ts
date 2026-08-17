@@ -16,7 +16,6 @@ import { forkJoin, timer } from 'rxjs';
 import {
   PoButtonModule,
   PoDialogService,
-  PoLoadingModule,
   PoNotificationService,
   PoPageModule,
 } from '@po-ui/ng-components';
@@ -58,7 +57,6 @@ import { OperationalCorrectionNotice } from '../../../../core/offline/components
     ParadasEmAndamentoList,
     ResponsavelParadaSelect,
     PoButtonModule,
-    PoLoadingModule,
     PoPageModule,
     OperationalCorrectionNotice,
   ],

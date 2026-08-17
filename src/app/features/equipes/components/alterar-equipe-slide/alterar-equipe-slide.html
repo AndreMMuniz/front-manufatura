@@ -1,9 +1,7 @@
 <po-page-slide #pageSlide p-title="Alterar Equipe" p-size="sm" [p-click-out]="false" [p-hide-close]="true">
   <section class="alterar-equipe">
     @if (state() === 'loading') {
-      <div class="alterar-equipe__loading">
-        <po-loading p-text="Carregando operadores..." p-size="md"></po-loading>
-      </div>
+      <app-loading text="Carregando operadores..."></app-loading>
     } @else {
       <po-input
         name="pesquisarOperador"

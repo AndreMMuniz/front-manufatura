@@ -144,7 +144,7 @@ describe('LoginPage', () => {
     component.entrar();
     fixture.detectChanges();
 
-    const loading = fixture.nativeElement.querySelector('.login-page__loading') as HTMLElement;
+    const loading = fixture.nativeElement.querySelector('app-loading') as HTMLElement;
     const progressbar = loading.querySelector('[role="progressbar"]');
 
     expect(loading.textContent).toContain('Autenticando...');

@@ -12,8 +12,9 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 
-import { PoButtonModule, PoIconModule, PoLoadingModule, PoPageModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoIconModule, PoPageModule } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import {
   SynchronizationEntryView,
   SynchronizationModule,
@@ -33,7 +34,7 @@ import {
 
 @Component({
   selector: 'app-synchronization-center-page',
-  imports: [FormsModule, PoButtonModule, PoIconModule, PoLoadingModule, PoPageModule],
+  imports: [FormsModule, PoButtonModule, PoIconModule, PoPageModule, LoadingIndicator],
   templateUrl: './synchronization-center.html',
   styleUrl: './synchronization-center.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

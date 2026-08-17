@@ -4,18 +4,18 @@ import { FormsModule } from '@angular/forms';
 import {
   PoButtonModule,
   PoFieldModule,
-  PoLoadingModule,
   PoSelectOption,
   PoWidgetModule,
 } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import { AreaProducao } from '../../models/production-area';
 import { WorkCenter } from '../../models/work-center';
 import { RecentProductionContext } from '../../services/recent-production-context.service';
 
 @Component({
   selector: 'app-contexto-producao-selector',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, PoWidgetModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, PoWidgetModule, LoadingIndicator],
   templateUrl: './contexto-producao-selector.html',
   styleUrls: ['./contexto-producao-selector.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

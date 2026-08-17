@@ -17,13 +17,13 @@ import {
   PoButtonModule,
   PoDialogService,
   PoFieldModule,
-  PoLoadingModule,
   PoNotificationService,
   PoPageModule,
   PoPageSlideComponent,
   PoPageSlideModule,
 } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import { Equipe } from '../../models/equipe.model';
 import { Operador } from '../../models/operador.model';
 import { EquipesService } from '../../services/equipes.service';
@@ -32,7 +32,7 @@ export type AlterarEquipeSlideState = 'closed' | 'loading' | 'ready' | 'saving' 
 
 @Component({
   selector: 'app-alterar-equipe-slide',
-  imports: [CommonModule, FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule, PoPageModule, PoPageSlideModule],
+  imports: [CommonModule, FormsModule, PoButtonModule, PoFieldModule, PoPageModule, PoPageSlideModule, LoadingIndicator],
   templateUrl: './alterar-equipe-slide.html',
   styleUrls: ['./alterar-equipe-slide.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

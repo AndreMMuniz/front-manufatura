@@ -5,10 +5,6 @@
   scrollbar-gutter: stable;
 }
 
-.ordens-centro-list__loading {
-  min-height: 96px;
-}
-
 .ordens-centro-list__empty {
   background: var(--app-color-surface-muted);
   border-radius: var(--app-radius);

@@ -51,9 +51,7 @@
   }
 
   @if (loadingAction) {
-    <div class="contexto-producao__status" role="status" aria-live="polite">
-      <po-loading [p-text]="loadingText" p-size="sm"></po-loading>
-    </div>
+    <app-loading class="contexto-producao__status" [text]="loadingText"></app-loading>
   }
 
   @if (errorMessage) {

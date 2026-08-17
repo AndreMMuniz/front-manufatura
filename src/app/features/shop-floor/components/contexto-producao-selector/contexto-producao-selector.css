@@ -39,7 +39,6 @@
 }
 
 .contexto-producao__status {
-  min-height: var(--app-touch-target);
   margin-top: var(--app-space-sm);
 }
 

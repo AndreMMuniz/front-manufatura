@@ -12,12 +12,12 @@ import {
 
 import {
   PoButtonModule,
-  PoLoadingModule,
   PoTableColumn,
   PoTableModule,
   PoWidgetModule,
 } from '@po-ui/ng-components';
 
+import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import { OrdemLiberadaBatelada } from '../../models/reporta-batelada.model';
 
 export interface OrdemBateladaTableItem extends OrdemLiberadaBatelada {
@@ -26,7 +26,7 @@ export interface OrdemBateladaTableItem extends OrdemLiberadaBatelada {
 
 @Component({
   selector: 'app-ordens-centro-batelada-list',
-  imports: [PoButtonModule, PoLoadingModule, PoTableModule, PoWidgetModule],
+  imports: [PoButtonModule, PoTableModule, PoWidgetModule, LoadingIndicator],
   templateUrl: './ordens-centro-list.html',
   styleUrls: ['./ordens-centro-list.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

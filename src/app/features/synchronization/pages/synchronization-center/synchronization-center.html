@@ -77,9 +77,11 @@
         </p>
       }
       @case ('loading') {
-        <div class="synchronization-center__state" role="status" data-testid="sync-loading">
-          <po-loading p-text="Carregando registros locais…" p-size="sm" />
-        </div>
+        <app-loading
+          class="synchronization-center__state"
+          data-testid="sync-loading"
+          text="Carregando registros locais…"
+        ></app-loading>
       }
       @case ('unavailable') {
         <section class="synchronization-center__state" role="alert" data-testid="sync-unavailable">
