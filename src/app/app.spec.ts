@@ -128,6 +128,19 @@ describe('App', () => {
       expect(TestBed.inject(Router).url).toBe('/quality-control');
     });
 
+    it('should route divergent route authorization to its protected module', async () => {
+      const harness = await RouterTestingHarness.create();
+
+      const component = await harness.navigateByUrl(
+        '/quality-control/route-authorization',
+        SfcPlaceholderPage,
+      );
+
+      expect(component).toBeInstanceOf(SfcPlaceholderPage);
+      expect(component.title).toBe('Autoriza Roteiro CQ');
+      expect(TestBed.inject(Router).url).toBe('/quality-control/route-authorization');
+    });
+
     it('should route menu to the authenticated main menu page', async () => {
       const harness = await RouterTestingHarness.create();
 
@@ -508,6 +521,16 @@ describe('App', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.toolbarTitle).toBe('Plano Controle CQ');
+  });
+
+  it('should prefer the specific authorization module title over its parent route', () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/quality-control/route-authorization');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.toolbarTitle).toBe('Autoriza Roteiro CQ');
   });
 
   it('should expose Sair as the only toolbar action using the installed PO-UI API', () => {

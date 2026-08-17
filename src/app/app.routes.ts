@@ -71,6 +71,17 @@ export const routes: Routes = [
   { path: 'quality-control/inspection', pathMatch: 'full', redirectTo: 'quality-control' },
   { path: 'quality-control/exam-entry', pathMatch: 'full', redirectTo: 'quality-control' },
   {
+    path: 'quality-control/route-authorization',
+    component: SfcPlaceholderPage,
+    canActivate: [authGuard],
+    data: {
+      title: 'Autoriza Roteiro CQ',
+      description: 'A autorização de roteiros com divergência será implementada em uma próxima etapa.',
+      requiresOnlineData: true,
+      requiredPermission: APP_PERMISSIONS.divergentRouteAuthorization,
+    },
+  },
+  {
     path: 'quality-control',
     loadComponent: () => import('./features/quality-control/pages/quality-control-workspace/quality-control-workspace')
       .then(module => module.QualityControlWorkspacePage),

@@ -176,9 +176,14 @@ export class App {
       return HOME_MENU.label;
     }
 
-    return APP_MODULE_NAVIGATION.find(
-      item => path === item.route || path.startsWith(`${item.route}/`),
-    )?.label ?? APP_NAME;
+    const exactModule = APP_MODULE_NAVIGATION.find(item => path === item.route);
+    if (exactModule) {
+      return exactModule.label;
+    }
+
+    return APP_MODULE_NAVIGATION
+      .filter(item => path.startsWith(`${item.route}/`))
+      .sort((left, right) => right.route.length - left.route.length)[0]?.label ?? APP_NAME;
   }
 
   get sessionIdentity(): string {

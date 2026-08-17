@@ -5,6 +5,7 @@ test.beforeEach(async ({ context }) => mockAuthentication(context));
 
 const modules = [
   { label: 'Plano Controle CQ', route: '/quality-control' },
+  { label: 'Autoriza Roteiro CQ', route: '/quality-control/route-authorization' },
   { label: 'Reporte Ordem', route: '/operation-reporting' },
   { label: 'Reporte Batelada', route: '/batch-reporting' },
   { label: 'Paradas', route: '/stoppages' },
@@ -170,7 +171,7 @@ test.describe('Home de navegação', () => {
     await page.goBack();
     await page.getByRole('link', { name: modules[1].label }).focus();
     await page.keyboard.press('Space');
-    await expect(page).toHaveURL(/\/operation-reporting$/);
+    await expect(page).toHaveURL(/\/quality-control\/route-authorization$/);
   });
 
   test('mantém duas colunas e cartões quadrados em 390x844', async ({ page }) => {

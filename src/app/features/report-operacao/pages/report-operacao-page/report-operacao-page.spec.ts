@@ -51,6 +51,7 @@ describe('ReportOperacaoPage', () => {
     encerrarOperacao: ReturnType<typeof vi.fn>;
     validarReporte: ReturnType<typeof vi.fn>;
     validarReporteParcial: ReturnType<typeof vi.fn>;
+    restaurarOperacaoAtiva: ReturnType<typeof vi.fn>;
   };
 
   const orders: OrdemCentroTrabalho[] = [
@@ -96,6 +97,7 @@ describe('ReportOperacaoPage', () => {
       encerrarOperacao: vi.fn(() => of({ apontamentoId: 'ENC-1', reportadoEm: new Date() })),
       validarReporte: vi.fn(() => ''),
       validarReporteParcial: vi.fn(() => ''),
+      restaurarOperacaoAtiva: vi.fn(() => of(null)),
     };
 
     await TestBed.configureTestingModule({
@@ -133,6 +135,22 @@ describe('ReportOperacaoPage', () => {
     expect(component.areaCode).toBe('');
     expect(component.workCenterCode).toBe('');
     expect(component.feedback).toContain('Selecione');
+  });
+
+  it('mantém a Área vazia ao recarregar mesmo quando existe operação persistida', () => {
+    service.restaurarOperacaoAtiva.mockReturnValue(of({
+      area: { code: '4001', description: 'Produção' },
+      workCenter: center(),
+      operation: baseOperacao(),
+      responsavel: { tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' },
+      reportes: [],
+    }));
+
+    fixture.detectChanges();
+
+    expect(component.areaCode).toBe('');
+    expect(component.workCenterCode).toBe('');
+    expect(workflow.hasActiveWorkflow()).toBe(false);
   });
 
   it('transfere contexto estruturado para Paradas sem descartar o workflow ativo', () => {
@@ -263,43 +281,9 @@ describe('ReportOperacaoPage', () => {
     expect(component.estado).toBe(EstadoOperacao.OPEncontrada);
   });
 
-  it('fixa o operador retornado pela API quando o modo de reporte é 2', () => {
+  it('fixa o tipo Operador no modo 2 e mantém a escolha do operador habilitada', () => {
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
-      sucesso: true,
-      operacao: baseOperacao({
-        indReporteMod: 2,
-        responsavelCodigo: '00016570',
-        responsavelNome: 'Ana da API',
-      }),
-    }));
-    fixture.detectChanges();
-    selectContextAndConsult();
-    component.updateSelection(new Set(['first']));
-
-    component.openSelectedOrders();
-    component.alterarTipoResponsavel('EQUIPE');
-    component.alterarResponsavel('MONT03');
-    component.iniciarOperacao();
-
-    expect(service.listarResponsaveis).not.toHaveBeenCalled();
-    expect(component.tipoResponsavel).toBe('OPERADOR');
-    expect(component.responsavelCodigo).toBe('00016570');
-    expect(workflow.snapshot().responsavel).toEqual({
-      tipo: 'OPERADOR', codigo: '00016570', nome: 'Ana da API',
-    });
-    expect(service.iniciarOperacao).toHaveBeenCalledWith(expect.objectContaining({
-      tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', operador: 'Ana da API', equipe: '',
-    }));
-  });
-
-  it('fixa a equipe retornada pela API quando o modo de reporte é 3', () => {
-    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
-      sucesso: true,
-      operacao: baseOperacao({
-        indReporteMod: 3,
-        responsavelCodigo: 'EQ0007',
-        responsavelNome: 'Equipe Sete',
-      }),
+      sucesso: true, operacao: baseOperacaoComModo(2),
     }));
     fixture.detectChanges();
     selectContextAndConsult();
@@ -309,34 +293,50 @@ describe('ReportOperacaoPage', () => {
     fixture.detectChanges();
     const card = fixture.debugElement.query(By.directive(OperacaoInfoCard))
       .componentInstance as OperacaoInfoCard;
-    component.alterarTipoResponsavel('OPERADOR');
-    component.alterarResponsavel('001');
+    component.alterarTipoResponsavel('EQUIPE');
 
-    expect(service.listarResponsaveis).not.toHaveBeenCalled();
-    expect(component.tipoResponsavel).toBe('EQUIPE');
-    expect(component.responsavelCodigo).toBe('EQ0007');
-    expect(component.canManageTeam).toBe(false);
-    expect(card.responsavelDisabled).toBe(true);
-    expect(workflow.snapshot().responsavel).toEqual({
-      tipo: 'EQUIPE', codigo: 'EQ0007', nome: 'Equipe Sete',
+    expect(service.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01', 'OPERADOR');
+    expect(component.tipoResponsavel).toBe('OPERADOR');
+    expect(component.responsavelCodigo).toBe('');
+    expect((card as unknown as { tipoResponsavelDisabled: boolean }).tipoResponsavelDisabled).toBe(true);
+    expect(card.responsavelDisabled).toBe(false);
+
+    component.alterarResponsavel('001');
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva',
     });
   });
 
-  it('não escolhe fallback quando o modo fixo vem sem responsável', () => {
+  it('fixa o tipo Equipe no modo 3 e mantém escolha e criação de equipe habilitadas', () => {
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
-      sucesso: true,
-      operacao: baseOperacao({ indReporteMod: 2, responsavelCodigo: '', responsavelNome: '' }),
+      sucesso: true, operacao: baseOperacaoComModo(3),
     }));
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
 
     component.openSelectedOrders();
+    fixture.detectChanges();
+    const card = fixture.debugElement.query(By.directive(OperacaoInfoCard))
+      .componentInstance as OperacaoInfoCard;
+    const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
+      .componentInstance as GerenciarEquipeSlide;
+    vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
+    component.alterarTipoResponsavel('OPERADOR');
 
-    expect(service.listarResponsaveis).not.toHaveBeenCalled();
-    expect(component.responsavelSelecionado).toBeNull();
-    expect(component.iniciarDisabled).toBe(true);
-    expect(component.responsaveisError).toContain('API');
+    expect(service.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01', 'EQUIPE');
+    expect(component.tipoResponsavel).toBe('EQUIPE');
+    expect(component.responsavelCodigo).toBe('');
+    expect((card as unknown as { tipoResponsavelDisabled: boolean }).tipoResponsavelDisabled).toBe(true);
+    expect(card.responsavelDisabled).toBe(false);
+    expect(component.canManageTeam).toBe(true);
+
+    component.abrirGerenciarEquipe();
+    component.onEquipeSalva(resultadoEquipe(' nova01 ', 'nova'));
+    expect(drawer.abrir).toHaveBeenCalled();
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'EQUIPE', codigo: 'NOVA01', nome: 'Equipe Nova',
+    });
   });
 
   it('retries a failed active-order load while preserving the queue', () => {
@@ -1059,11 +1059,7 @@ function context() {
   };
 }
 
-function baseOperacao(overrides: Partial<ReportOperacao> & {
-  readonly indReporteMod?: number;
-  readonly responsavelCodigo?: string;
-  readonly responsavelNome?: string;
-} = {}): ReportOperacao {
+function baseOperacao(overrides: Partial<ReportOperacao> = {}): ReportOperacao {
   return {
     ordem: '450001',
     op: 'OP-10458',
@@ -1086,5 +1082,9 @@ function baseOperacao(overrides: Partial<ReportOperacao> & {
     equipe: 'Equipe A',
     turno: '1o Turno',
     ...overrides,
-  } as ReportOperacao;
+  };
+}
+
+function baseOperacaoComModo(indReporteMod: unknown): ReportOperacao {
+  return { ...baseOperacao(), indReporteMod } as ReportOperacao;
 }

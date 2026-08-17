@@ -338,7 +338,7 @@ describe('gateway FMA', () => {
     }));
   });
 
-  it('preserva o operador e a equipe definidos pelo modo de reporte da abertura', async () => {
+  it('preserva o modo de reporte da abertura sem converter valores inválidos', async () => {
     const base = {
       desOperacao: 'CORTAR', qtdOrdem: 1000, qtdAprovada: 0, opCodigo: 10,
       itCodigo: '30907', desGrupoMaquina: 'PRENSA', desModelTurno: '2T',
@@ -347,30 +347,19 @@ describe('gateway FMA', () => {
       qtdRetrabalho: 0, desCtrab: 'PRENSA 45T',
     };
     const transport = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(response('dadosApontamento', [{
-        ...base, indReporteMod: 2, codOperador: '00016570', nomOperador: 'Ana',
-      }]))
-      .mockResolvedValueOnce(response('dadosApontamento', [{
-        ...base, indReportMod: 3, codEquipe: 'EQ0007', desEquipe: 'Equipe Sete',
-      }]));
+      .mockResolvedValueOnce(response('dadosApontamento', [{ ...base, indReporteMod: 2 }]))
+      .mockResolvedValueOnce(response('dadosApontamento', [{ ...base, indReportMod: 3 }]))
+      .mockResolvedValueOnce(response('dadosApontamento', [{ ...base, indReporteMod: '2' }]));
     const root = await startGateway(transport);
     const authorization = `Bearer ${await token()}`;
     const url = `${root}/api/production-orders/372562/operations/10?split=1&areaCode=4104&workCenterCode=PRE-006-02`;
 
-    await expect((await fetch(url, { headers: { authorization } })).json()).resolves.toEqual(
-      expect.objectContaining({
-        indReporteMod: 2,
-        responsavelCodigo: '00016570',
-        responsavelNome: 'Ana',
-      }),
-    );
-    await expect((await fetch(url, { headers: { authorization } })).json()).resolves.toEqual(
-      expect.objectContaining({
-        indReporteMod: 3,
-        responsavelCodigo: 'EQ0007',
-        responsavelNome: 'Equipe Sete',
-      }),
-    );
+    await expect((await fetch(url, { headers: { authorization } })).json())
+      .resolves.toEqual(expect.objectContaining({ indReporteMod: 2 }));
+    await expect((await fetch(url, { headers: { authorization } })).json())
+      .resolves.toEqual(expect.objectContaining({ indReporteMod: 3 }));
+    await expect((await fetch(url, { headers: { authorization } })).json())
+      .resolves.not.toHaveProperty('indReporteMod');
   });
 
   it('inicia a ordem com identidade confiável e devolve receipt reconciliável', async () => {

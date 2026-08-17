@@ -10,6 +10,7 @@ const credentials = {
 
 const modules = [
   { label: 'Plano Controle CQ', route: '/quality-control' },
+  { label: 'Autoriza Roteiro CQ', route: '/quality-control/route-authorization' },
   { label: 'Reporte Ordem', route: '/operation-reporting' },
   { label: 'Reporte Batelada', route: '/batch-reporting' },
   { label: 'Paradas', route: '/stoppages' },

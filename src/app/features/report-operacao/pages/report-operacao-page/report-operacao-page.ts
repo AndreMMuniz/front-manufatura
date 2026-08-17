@@ -9,7 +9,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, of } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -199,7 +198,6 @@ export class ReportOperacaoPage implements OnInit {
       this.normalizeCode(item.code) === this.normalizeCode(this.workCenterCode));
     return this.authSession.isAuthenticated()
       && this.tipoResponsavel === 'EQUIPE'
-      && !this.responsavelDefinidoPelaApi
       && Boolean(area)
       && Boolean(
         center
@@ -211,10 +209,6 @@ export class ReportOperacaoPage implements OnInit {
       && !this.loadingCenters
       && !this.loadingResponsaveis
       && this.gerenciarEquipeSlide?.state() !== 'saving';
-  }
-
-  get responsavelDefinidoPelaApi(): boolean {
-    return this.operacao?.indReporteMod === 2 || this.operacao?.indReporteMod === 3;
   }
 
   get iniciarDisabled(): boolean {
@@ -249,44 +243,6 @@ export class ReportOperacaoPage implements OnInit {
     this.destroyRef.onDestroy(() => this.invalidateTeamContext());
     const snapshot = this.workflowState.snapshot();
     this.hydrate(snapshot);
-    const restoreOperation =
-      this.reportOperacaoService.restaurarOperacaoAtiva?.bind(this.reportOperacaoService);
-    if (!snapshot.operation && restoreOperation) {
-      restoreOperation()
-        .pipe(catchError(() => of(null)))
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(restored => {
-          if (!restored || this.workflowState.snapshot().operation) return;
-          const activeOrder: OrdemCentroTrabalho = {
-            id: [
-              restored.workCenter.code,
-              restored.operation.ordem,
-              restored.operation.op,
-              restored.operation.split,
-            ].join('|'),
-            ordem: restored.operation.ordem,
-            itemOp: `${restored.operation.item} / ${restored.operation.op}`,
-            operacao: restored.operation.op,
-            split: restored.operation.split,
-          };
-          this.workflowState.restore({
-            ...this.workflowState.snapshot(),
-            area: restored.area,
-            workCenter: restored.workCenter,
-            orders: [activeOrder],
-            selectedOrderIds: new Set([activeOrder.id]),
-            queue: [activeOrder],
-            activeOrder,
-            operation: restored.operation,
-            operationState: EstadoOperacao.OperacaoIniciada,
-            responsavel: restored.responsavel,
-            reportes: restored.reportes,
-          });
-          this.hydrate(this.workflowState.snapshot());
-          this.applyInitialContext();
-          this.changeDetector.markForCheck();
-        });
-    }
     this.recentContexts = this.recentContextService.list();
     this.applyInitialContext();
     if (snapshot.operation) {
@@ -423,7 +379,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   alterarTipoResponsavel(tipo: TipoResponsavelOperacao): void {
-    if (this.responsavelDefinidoPelaApi || this.operacao?.dataInicio || this.isBusy) {
+    if (this.operacao?.dataInicio || this.isBusy) {
       return;
     }
 
@@ -433,7 +389,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   alterarResponsavel(codigo: string): void {
-    if (this.responsavelDefinidoPelaApi || this.operacao?.dataInicio || this.isBusy) {
+    if (this.operacao?.dataInicio || this.isBusy) {
       return;
     }
 
@@ -496,7 +452,6 @@ export class ReportOperacaoPage implements OnInit {
       || !this.authSession.isAuthenticated()
       || this.isBusy
       || Boolean(this.operacao?.dataInicio)
-      || this.responsavelDefinidoPelaApi
     ) {
       return;
     }
@@ -823,11 +778,7 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setActiveOperation(this.operacao, this.estado);
           this.workflowState.setScrap([], '');
           this.workflowState.setResponsavel(null);
-          if (this.responsavelDefinidoPelaApi) {
-            this.applyApiResponsavel(this.operacao);
-          } else {
-            this.loadResponsaveis();
-          }
+          this.loadResponsaveis();
           this.feedback = `Ordem ${order.ordem} carregada. Inicie a operação.`;
           this.notification.success('OP carregada.');
           this.changeDetector.markForCheck();
@@ -1320,10 +1271,6 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private loadResponsaveis(): void {
-    if (this.operacao && this.responsavelDefinidoPelaApi) {
-      this.applyApiResponsavel(this.operacao);
-      return;
-    }
     const request = ++this.responsaveisRequest;
     const areaCode = this.normalizeCode(this.areaCode);
     const workCenterCode = this.normalizeCode(this.workCenterCode);
@@ -1407,31 +1354,6 @@ export class ReportOperacaoPage implements OnInit {
 
     this.tipoResponsavel = responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = responsavel?.codigo ?? '';
-    this.workflowState.setResponsavel(responsavel);
-  }
-
-  private applyApiResponsavel(operacao: ReportOperacao): void {
-    const tipo: TipoResponsavelOperacao = operacao.indReporteMod === 3 ? 'EQUIPE' : 'OPERADOR';
-    const codigo = this.normalizeCode(operacao.responsavelCodigo ?? '');
-    this.tipoResponsavel = tipo;
-    this.responsavelCodigo = codigo;
-    this.loadingResponsaveis = false;
-    this.responsaveis = [];
-    this.responsaveisError = '';
-
-    if (!codigo) {
-      this.responsaveisError = `A API não informou ${tipo === 'OPERADOR' ? 'o operador' : 'a equipe'} definido para esta ordem.`;
-      this.feedback = this.responsaveisError;
-      this.workflowState.setResponsavel(null);
-      return;
-    }
-
-    const responsavel: ResponsavelOperacao = {
-      tipo,
-      codigo,
-      nome: operacao.responsavelNome?.trim() || codigo,
-    };
-    this.responsaveis = [responsavel];
     this.workflowState.setResponsavel(responsavel);
   }
 

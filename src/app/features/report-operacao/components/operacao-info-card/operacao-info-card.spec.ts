@@ -62,4 +62,14 @@ describe('OperacaoInfoCard', () => {
 
     expect(emitted).toEqual([button]);
   });
+
+  it('bloqueia o tipo sem bloquear a escolha do responsável', () => {
+    fixture.componentRef.setInput('tipoResponsavelDisabled', true);
+    fixture.componentRef.setInput('responsavelDisabled', false);
+    fixture.detectChanges();
+
+    const selects = fixture.debugElement.queryAll(By.css('po-select'));
+    expect(selects[0].componentInstance.disabled).toBe(true);
+    expect(selects[1].componentInstance.disabled).toBe(false);
+  });
 });

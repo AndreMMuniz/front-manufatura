@@ -12,6 +12,14 @@ describe('APP_MODULE_NAVIGATION', () => {
       permission: APP_PERMISSIONS.qualityControl,
     },
     {
+      id: 'divergent-route-authorization',
+      label: 'Autoriza Roteiro CQ',
+      shortLabel: 'Autoriza CQ',
+      icon: 'an an-check-circle',
+      route: '/quality-control/route-authorization',
+      permission: APP_PERMISSIONS.divergentRouteAuthorization,
+    },
+    {
       id: 'operation-reporting',
       label: 'Reporte Ordem',
       shortLabel: 'Reporte',
@@ -53,9 +61,11 @@ describe('APP_MODULE_NAVIGATION', () => {
     expect(navigationForPermissions([
       APP_PERMISSIONS.stoppages,
       APP_PERMISSIONS.qualityControl,
+      APP_PERMISSIONS.divergentRouteAuthorization,
     ])).toEqual([
       APP_MODULE_NAVIGATION[0],
-      APP_MODULE_NAVIGATION[3],
+      APP_MODULE_NAVIGATION[1],
+      APP_MODULE_NAVIGATION[4],
     ]);
     expect(navigationForPermissions([APP_PERMISSIONS.mainMenu])).toEqual([]);
   });

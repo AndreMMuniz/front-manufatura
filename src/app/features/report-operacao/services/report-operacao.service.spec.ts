@@ -49,6 +49,9 @@ describe('ReportOperacaoService', () => {
         { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
         { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem' },
       ] : []);
+      if (url === '/api/teams') return of(query?.['areaCode'] === '4001' ? [{
+        codigo: 'EQ0007', descricao: 'Equipe Sete', turno: '2', operadores: [],
+      }] : []);
       return of([]);
     });
     TestBed.configureTestingModule({
@@ -213,6 +216,27 @@ describe('ReportOperacaoService', () => {
     expect(responsaveis).toHaveLength(2);
     await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([]);
     await expect(firstValueFrom(service.listarResponsaveis('', 'CT-CQ-01'))).resolves.toEqual([]);
+  });
+
+  it('carrega somente operadores ou equipes conforme o tipo definido pela abertura', async () => {
+    const listarPorTipo = service.listarResponsaveis as unknown as (
+      areaCode: string,
+      workCenterCode: string,
+      tipo: 'OPERADOR' | 'EQUIPE',
+    ) => ReturnType<ReportOperacaoService['listarResponsaveis']>;
+    await expect(firstValueFrom(
+      listarPorTipo('4001', 'CT-EXT-01', 'OPERADOR'),
+    )).resolves.toEqual([
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+    ]);
+    await expect(firstValueFrom(
+      listarPorTipo('4001', 'CT-EXT-01', 'EQUIPE'),
+    )).resolves.toEqual([
+      { tipo: 'EQUIPE', codigo: 'EQ0007', nome: 'Equipe Sete' },
+    ]);
+    expect(apiGet).toHaveBeenCalledWith('/api/teams', {
+      areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    });
   });
 
   it('não esconde falha do catálogo canônico', async () => {

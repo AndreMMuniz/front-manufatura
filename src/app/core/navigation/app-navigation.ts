@@ -19,6 +19,14 @@ const modules = [
     permission: APP_PERMISSIONS.qualityControl,
   },
   {
+    id: 'divergent-route-authorization',
+    label: 'Autoriza Roteiro CQ',
+    shortLabel: 'Autoriza CQ',
+    icon: 'an an-check-circle',
+    route: '/quality-control/route-authorization',
+    permission: APP_PERMISSIONS.divergentRouteAuthorization,
+  },
+  {
     id: 'operation-reporting',
     label: 'Reporte Ordem',
     shortLabel: 'Reporte',
