@@ -24,6 +24,10 @@ import {
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
+import {
+  RecentProductionContext,
+  RecentProductionContextService,
+} from '../../../shop-floor/services/recent-production-context.service';
 import { ParadaForm } from '../../components/parada-form/parada-form';
 import { FinalizarParadaForm } from '../../components/finalizar-parada-form/finalizar-parada-form';
 import { ParadasEmAndamentoList } from '../../components/paradas-em-andamento-list/paradas-em-andamento-list';
@@ -73,9 +77,12 @@ export class ReporteParadasPage implements OnInit {
   private readonly pwaWorkState = inject(PwaWorkStateService);
   private readonly idempotency = inject(IdempotencyService);
   private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly recentContextService = inject(RecentProductionContextService);
 
   readonly view = signal<ReporteParadasWorkflowSnapshot>(this.workflow.snapshot());
   readonly areas = signal<ReadonlyArray<AreaProducao>>([]);
+  readonly areaCode = signal('');
+  readonly recentContexts = signal<ReadonlyArray<RecentProductionContext>>([]);
   readonly centers = signal<ReadonlyArray<WorkCenter>>([]);
   readonly loadingAreas = signal(false);
   readonly loadingCenters = signal(false);
@@ -104,7 +111,12 @@ export class ReporteParadasPage implements OnInit {
 
   ngOnInit(): void {
     this.pendingPrefill = this.service.getPrefillContext();
-    this.loadAreas();
+    this.recentContexts.set(this.recentContextService.list());
+    if (this.pendingPrefill) {
+      this.areaCode.set(this.normalizeCode(this.pendingPrefill.area.code));
+      this.areas.set([{ ...this.pendingPrefill.area }]);
+      this.loadPrefill(this.pendingPrefill, this.areasRequest);
+    }
     this.now.set(new Date());
     timer(30_000, 30_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -112,12 +124,40 @@ export class ReporteParadasPage implements OnInit {
     this.destroyRef.onDestroy(() => this.workflow.resetTransient());
   }
 
-  onAreaChange(code: string): void {
+  onAreaInput(code: string): void {
     if (this.commandsBlocked() || code === (this.view().area?.code ?? '')) {
       return;
     }
-    const area = this.areas().find((item) => this.sameCode(item.code, code)) ?? null;
-    this.confirmDiscardIfNeeded(() => this.applyArea(area));
+    this.confirmDiscardIfNeeded(() => {
+      this.areaCode.set(this.normalizeCode(code));
+      this.applyArea(null);
+    });
+  }
+
+  onAreaChange(code: string): void {
+    this.onAreaInput(code);
+    if (this.areaCode() && this.sameCode(this.areaCode(), code)) {
+      this.loadCenters(this.areaCode());
+    }
+  }
+
+  validateArea(code: string, prefillCode = ''): void {
+    const normalized = this.normalizeCode(code);
+    if (!normalized) {
+      this.onAreaInput('');
+      return;
+    }
+    this.areaCode.set(normalized);
+    this.loadCenters(normalized, prefillCode);
+  }
+
+  selectRecentContext(context: RecentProductionContext): void {
+    this.confirmDiscardIfNeeded(() => {
+      this.areaCode.set(context.areaCode);
+      this.applyArea(null);
+      this.areaCode.set(context.areaCode);
+      this.loadCenters(context.areaCode, context.workCenterCode);
+    });
   }
 
   onWorkCenterChange(code: string): void {
@@ -175,8 +215,12 @@ export class ReporteParadasPage implements OnInit {
   }
 
   retryAreas(): void {
-    if (!this.view().saving && !this.loadingAreas()) {
-      this.loadAreas();
+    if (!this.view().saving && !this.loadingCenters()) {
+      if (this.pendingPrefill) {
+        this.loadPrefill(this.pendingPrefill, this.areasRequest);
+      } else {
+        this.validateArea(this.areaCode(), this.view().workCenter?.code ?? '');
+      }
     }
   }
 
@@ -339,34 +383,6 @@ export class ReporteParadasPage implements OnInit {
     ]);
   }
 
-  private loadAreas(): void {
-    const request = ++this.areasRequest;
-    this.loadingAreas.set(true);
-    this.pageError.set('');
-    this.service
-      .listarAreas()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (areas) => {
-          if (request !== this.areasRequest) {
-            return;
-          }
-          this.areas.set(areas.map((area) => ({ ...area })));
-          this.loadingAreas.set(false);
-          if (this.pendingPrefill) {
-            this.loadPrefill(this.pendingPrefill, request);
-          }
-        },
-        error: () => {
-          if (request !== this.areasRequest) {
-            return;
-          }
-          this.loadingAreas.set(false);
-          this.pageError.set('Não foi possível carregar as Áreas de Produção.');
-        },
-      });
-  }
-
   private loadPrefill(prefill: ProductionContext, areasRequest: number): void {
     const area = this.areas().find((item) => this.sameCode(item.code, prefill.area.code));
     if (
@@ -444,13 +460,13 @@ export class ReporteParadasPage implements OnInit {
     this.registrationError.set('');
     this.statusMessage.set('');
     this.workflow.confirmAreaChange(area);
-    this.syncView();
     if (area) {
-      this.loadCenters(area.code);
+      this.areaCode.set(area.code);
     }
+    this.syncView();
   }
 
-  private loadCenters(areaCode: string): void {
+  private loadCenters(areaCode: string, prefillCode = ''): void {
     const request = ++this.centersRequest;
     this.loadingCenters.set(true);
     this.service
@@ -460,7 +476,7 @@ export class ReporteParadasPage implements OnInit {
         next: (centers) => {
           if (
             request !== this.centersRequest ||
-            !this.sameCode(this.view().area?.code ?? '', areaCode)
+            !this.sameCode(this.areaCode(), areaCode)
           ) {
             return;
           }
@@ -470,6 +486,26 @@ export class ReporteParadasPage implements OnInit {
               .map((center) => ({ ...center })),
           );
           this.loadingCenters.set(false);
+          const available = this.centers();
+          if (!available.length) {
+            this.areas.set([]);
+            this.workflow.confirmAreaChange(null);
+            this.pageError.set(`Área de Produção ${areaCode} não encontrada ou sem Centros de Trabalho disponíveis.`);
+            this.notification.warning(this.pageError());
+            this.syncView();
+            return;
+          }
+          const firstCenter = available[0];
+          const area = { code: areaCode, description: firstCenter.area || `Área ${areaCode}` };
+          this.areas.set([area]);
+          this.workflow.confirmAreaChange(area);
+          const prefill = available.find(center => this.sameCode(center.code, prefillCode)) ?? null;
+          if (prefill) {
+            this.workflow.confirmWorkCenterChange(prefill);
+            this.loadContextData(areaCode, prefill.code);
+          }
+          this.pageError.set('');
+          this.syncView();
         },
         error: () => {
           if (request !== this.centersRequest) {
@@ -502,6 +538,11 @@ export class ReporteParadasPage implements OnInit {
       .subscribe({
         next: ({ responsibles, reasons }) => {
           if (this.workflow.acceptContextData(token, responsibles, reasons)) {
+            const center = this.centers().find(item => this.sameCode(item.code, workCenterCode));
+            if (center) {
+              this.recentContextService.remember(areaCode, center.code, center.description);
+              this.recentContexts.set(this.recentContextService.list());
+            }
             this.syncView();
             this.loadOpenStops(areaCode, workCenterCode);
           }
@@ -574,6 +615,10 @@ export class ReporteParadasPage implements OnInit {
 
   private sameCode(left: string, right: string): boolean {
     return left.trim().toUpperCase() === right.trim().toUpperCase();
+  }
+
+  private normalizeCode(value: string): string {
+    return value.trim().toUpperCase();
   }
 
   private commandsBlocked(): boolean {

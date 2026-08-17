@@ -11,6 +11,7 @@ import {
 
 import { AreaProducao } from '../../models/production-area';
 import { WorkCenter } from '../../models/work-center';
+import { RecentProductionContext } from '../../services/recent-production-context.service';
 
 @Component({
   selector: 'app-contexto-producao-selector',
@@ -33,9 +34,12 @@ export class ContextoProducaoSelector {
   @Input() actionLabel = 'Consultar ordens';
   @Input() loadingText = 'Consultando ordens...';
   @Input() errorMessage = '';
+  @Input() recentContexts: ReadonlyArray<RecentProductionContext> = [];
 
   @Output() areaChange = new EventEmitter<string>();
+  @Output() areaValidate = new EventEmitter<string>();
   @Output() workCenterChange = new EventEmitter<string>();
+  @Output() recentContextSelect = new EventEmitter<RecentProductionContext>();
   @Output() action = new EventEmitter<void>();
   @Output() retry = new EventEmitter<void>();
 

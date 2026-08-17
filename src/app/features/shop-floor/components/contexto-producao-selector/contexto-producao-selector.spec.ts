@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
 import { WorkCenter } from '../../models/work-center';
+import { RecentProductionContext } from '../../services/recent-production-context.service';
 import { ContextoProducaoSelector } from './contexto-producao-selector';
 
 describe('ContextoProducaoSelector', () => {
@@ -77,8 +78,45 @@ describe('ContextoProducaoSelector', () => {
     component.loadingAction = true;
     fixture.detectChanges();
 
-    expect(fixture.debugElement.queryAll(By.css('po-select')).length).toBe(2);
+    expect(fixture.debugElement.query(By.css('po-input[name="areaCode"]'))).toBeTruthy();
+    expect(fixture.debugElement.queryAll(By.css('po-select'))).toHaveLength(1);
     expect(fixture.debugElement.query(By.css('[role="status"]'))).toBeTruthy();
     expect(fixture.debugElement.query(By.css('[role="alert"]'))).toBeTruthy();
+  });
+
+  it('recebe a Área de Produção por digitação e mantém o Centro como seleção', () => {
+    const areaInput = fixture.debugElement.query(By.css('po-input[name="areaCode"]'));
+
+    expect(areaInput).toBeTruthy();
+    expect(fixture.debugElement.queryAll(By.css('po-select'))).toHaveLength(1);
+  });
+
+  it('solicita a validação da Área ao sair do campo', () => {
+    const values: string[] = [];
+    component.areaCode = ' 4104 ';
+    component.areaValidate.subscribe(value => values.push(value));
+    fixture.detectChanges();
+
+    fixture.debugElement.query(By.css('po-input[name="areaCode"]')).triggerEventHandler('p-blur');
+
+    expect(values).toEqual([' 4104 ']);
+  });
+
+  it('mostra os contextos recentes e emite a escolha sem aceitá-la localmente', () => {
+    const recent: RecentProductionContext = {
+      areaCode: '4104', workCenterCode: 'BAN-012-01',
+      workCenterDescription: 'Bancada', lastUsedAt: '2026-08-17T12:00:00.000Z',
+    };
+    component.recentContexts = [recent];
+    const selected: RecentProductionContext[] = [];
+    component.recentContextSelect.subscribe(value => selected.push(value));
+    fixture.detectChanges();
+
+    const button = fixture.debugElement.query(By.css('.contexto-producao__recent-button'));
+    expect(button.nativeElement.textContent).toContain('4104');
+    expect(button.nativeElement.textContent).toContain('BAN-012-01');
+    button.triggerEventHandler('click');
+
+    expect(selected).toEqual([recent]);
   });
 });

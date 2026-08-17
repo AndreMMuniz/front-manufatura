@@ -32,6 +32,10 @@ import { ContextoProducaoSelector } from '../../../shop-floor/components/context
 import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
+import {
+  RecentProductionContext,
+  RecentProductionContextService,
+} from '../../../shop-floor/services/recent-production-context.service';
 import { FooterAcoesBatelada } from '../../components/footer-acoes-batelada/footer-acoes-batelada';
 import { InformacoesBatelada } from '../../components/informacoes-batelada/informacoes-batelada';
 import { OrdensCentroBateladaList } from '../../components/ordens-centro-list/ordens-centro-list';
@@ -76,6 +80,7 @@ export class ReportaBateladaPage implements OnInit {
 
   private readonly router = inject(Router);
   private readonly operationalContext = inject(OperationalContextService);
+  private readonly recentContextService = inject(RecentProductionContextService);
   private readonly stoppages = inject(ReporteParadasService);
   private readonly service = inject(ReportaBateladaService);
   private readonly workflow = inject(ReportaBateladaWorkflowState);
@@ -87,6 +92,8 @@ export class ReportaBateladaPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   areas: ReadonlyArray<AreaProducao> = [];
+  areaCode = '';
+  recentContexts: ReadonlyArray<RecentProductionContext> = [];
   centers: ReadonlyArray<WorkCenter> = [];
   view: ReportaBateladaWorkflowSnapshot = this.workflow.snapshot();
   selectedIds: ReadonlySet<string> = new Set<string>();
@@ -206,6 +213,7 @@ export class ReportaBateladaPage implements OnInit {
     const stopped = this.service.retomarFluxoParada();
     if (stopped && this.workflow.restoreAfterStop(stopped)) {
       this.areas = stopped.area ? [{ ...stopped.area }] : [];
+      this.areaCode = stopped.area?.code ?? '';
       this.centers = stopped.workCenter ? [{ ...stopped.workCenter }] : [];
       this.syncView();
       return;
@@ -219,6 +227,7 @@ export class ReportaBateladaPage implements OnInit {
           if (!restored || this.workflow.snapshot().batchId) return;
           this.workflow.restoreDurable(restored);
           this.areas = [{ ...restored.area! }];
+          this.areaCode = restored.area?.code ?? '';
           this.centers = [{ ...restored.workCenter! }];
           this.syncView();
         });
@@ -227,50 +236,24 @@ export class ReportaBateladaPage implements OnInit {
     const context = this.operationalContext.currentContext;
     const batchContext = context?.reportType === 'BATCH' ? context : null;
     this.preferredOperatorCode = batchContext?.operator.code ?? '';
-    this.loadingAreas = true;
-
-    this.service.listarAreas()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-      next: areas => {
-        if (!this.sessionActive) {
-          return;
-        }
-        this.areas = areas.map(area => ({ ...area }));
-        this.loadingAreas = false;
-
-        if (batchContext) {
-          const area =
-            this.areas.find(item => item.code === batchContext.workCenter.areaCode) ??
-            {
-              code: batchContext.workCenter.areaCode,
-              description: batchContext.workCenter.area,
-            };
-          this.workflow.setArea(area);
-          this.syncView();
-          this.carregarCentros(area.code, batchContext.workCenter.code);
-        } else {
-          this.syncView();
-        }
-      },
-      error: () => {
-        if (!this.sessionActive) {
-          return;
-        }
-        this.loadingAreas = false;
-        this.notification.error('Não foi possível carregar as Áreas de Produção.');
-        this.syncView();
-      },
-      });
+    this.recentContexts = this.recentContextService.list();
+    if (batchContext) {
+      this.areaCode = this.normalizeCode(batchContext.workCenter.areaCode);
+      this.carregarCentros(this.areaCode, batchContext.workCenter.code);
+    } else {
+      this.syncView();
+    }
   }
 
-  selecionarArea(code: string): void {
+  selecionarAreaInput(code: string): void {
     this.pendingStartCommand = null;
-    const area = this.areas.find(item => item.code === code) ?? null;
-    if (!this.workflow.setArea(area)) {
+    const normalized = this.normalizeCode(code);
+    if (!this.workflow.setArea(null)) {
       this.syncView();
       return;
     }
+    this.areaCode = normalized;
+    this.areas = [];
 
     this.invalidateTeamContext();
     this.ordersRequest += 1;
@@ -283,9 +266,30 @@ export class ReportaBateladaPage implements OnInit {
     this.loadingResponsaveis = false;
     this.syncView();
 
-    if (area) {
-      this.carregarCentros(area.code);
+  }
+
+  selecionarArea(code: string): void {
+    this.selecionarAreaInput(code);
+    if (this.areaCode && this.areaCode === this.normalizeCode(code)) {
+      this.carregarCentros(this.areaCode);
     }
+  }
+
+  validarArea(code: string, prefillCode = ''): void {
+    const normalized = this.normalizeCode(code);
+    if (!normalized) {
+      this.selecionarAreaInput('');
+      return;
+    }
+    if (normalized !== this.areaCode) {
+      this.selecionarAreaInput(normalized);
+    }
+    this.carregarCentros(normalized, prefillCode);
+  }
+
+  selecionarContextoRecente(context: RecentProductionContext): void {
+    this.selecionarAreaInput(context.areaCode);
+    this.carregarCentros(context.areaCode, context.workCenterCode);
   }
 
   selecionarCentro(code: string): void {
@@ -323,6 +327,11 @@ export class ReportaBateladaPage implements OnInit {
           return;
         }
         this.workflow.setOrders(orders);
+        const center = this.workflow.snapshot().workCenter;
+        if (center) {
+          this.recentContextService.remember(areaCode, center.code, center.description);
+          this.recentContexts = this.recentContextService.list();
+        }
         this.syncView();
         this.carregarResponsaveis(request, areaCode, workCenterCode);
       },
@@ -660,12 +669,23 @@ export class ReportaBateladaPage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: centers => {
-        if (!this.sessionActive || request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
+        if (!this.sessionActive || request !== this.centersRequest || this.areaCode !== areaCode) {
           return;
         }
 
         this.centers = centers.map(center => ({ ...center }));
         this.loadingCenters = false;
+        if (!this.centers.length) {
+          this.areas = [];
+          this.workflow.setArea(null);
+          this.notification.warning(`Área de Produção ${areaCode} não encontrada ou sem Centros de Trabalho disponíveis.`);
+          this.syncView();
+          return;
+        }
+        const firstCenter = this.centers[0];
+        const area = { code: areaCode, description: firstCenter.area || `Área ${areaCode}` };
+        this.areas = [area];
+        this.workflow.setArea(area);
         const selected = this.centers.find(center => center.code === prefillCode) ?? null;
         if (selected) {
           this.workflow.setWorkCenter(selected);
@@ -673,7 +693,7 @@ export class ReportaBateladaPage implements OnInit {
         this.syncView();
       },
       error: () => {
-        if (!this.sessionActive || request !== this.centersRequest || this.workflow.snapshot().area?.code !== areaCode) {
+        if (!this.sessionActive || request !== this.centersRequest || this.areaCode !== areaCode) {
           return;
         }
         this.loadingCenters = false;

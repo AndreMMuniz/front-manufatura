@@ -101,22 +101,21 @@ export class ReporteParadasService {
       const command = this.cloneRequest(request);
       const validated = this.validateCommand(command);
       return forkJoin({
-        areas: this.listarAreas(),
         centers: this.pesquisarCentros(command.areaCode),
         responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
         reasons: this.listarMotivos(command.areaCode, command.workCenterCode),
       }).pipe(
-        switchMap(({ areas, centers, responsibles, reasons }) => {
-          const area = areas.find((item) => this.sameCode(item.code, command.areaCode));
+        switchMap(({ centers, responsibles, reasons }) => {
           const center = centers.find(
             (item) =>
               item.active &&
               this.sameCode(item.code, command.workCenterCode) &&
               this.sameCode(item.areaCode, command.areaCode),
           );
-          if (!area || !center) {
+          if (!center) {
             throw new Error('Informe uma Área de Produção e um Centro de Trabalho válidos.');
           }
+          const area = { code: center.areaCode, description: center.area };
 
           const responsible = responsibles.find(
             (item) =>

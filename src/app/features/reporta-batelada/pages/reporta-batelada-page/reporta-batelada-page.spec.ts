@@ -131,7 +131,8 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
     expect(component.view.area).toBeNull();
     expect(component.view.workCenter).toBeNull();
-    expect(component.areas).toEqual([{ code: '4001', description: 'Produção' }]);
+    expect(serviceMock.listarAreas).not.toHaveBeenCalled();
+    expect(component.areas).toEqual([]);
   });
 
   it('invalidates CT, orders and selection when Area changes', () => {

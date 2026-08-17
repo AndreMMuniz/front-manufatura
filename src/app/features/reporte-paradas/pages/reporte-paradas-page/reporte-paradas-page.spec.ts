@@ -109,10 +109,10 @@ describe('ReporteParadasPage', () => {
     component = fixture.componentInstance;
   });
 
-  it('permite acesso direto sem contexto e carrega Áreas', () => {
+  it('permite acesso direto sem depender de um catálogo de Áreas', () => {
     fixture.detectChanges();
 
-    expect(service.listarAreas).toHaveBeenCalledOnce();
+    expect(service.listarAreas).not.toHaveBeenCalled();
     expect(component.view().area).toBeNull();
     expect(fixture.debugElement.query(By.directive(ContextoProducaoSelector))).toBeTruthy();
     expect(router.navigate).not.toHaveBeenCalled();
@@ -152,9 +152,9 @@ describe('ReporteParadasPage', () => {
 
   it('preserva o prefill para retry após falha transitória', () => {
     service.getPrefillContext.mockReturnValue(prefill);
-    service.listarAreas
+    service.pesquisarCentros
       .mockReturnValueOnce(throwError(() => new Error('indisponível')))
-      .mockReturnValueOnce(of([area]));
+      .mockReturnValueOnce(of([center]));
 
     fixture.detectChanges();
     expect(service.clearPrefillContext).not.toHaveBeenCalled();

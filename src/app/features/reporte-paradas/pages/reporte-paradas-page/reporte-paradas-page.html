@@ -4,23 +4,20 @@
     <app-contexto-producao-selector
       [areas]="areas()"
       [centers]="centers()"
-      [areaCode]="view().area?.code ?? ''"
+      [areaCode]="areaCode()"
       [workCenterCode]="view().workCenter?.code ?? ''"
       [loadingAreas]="loadingAreas()"
       [loadingCenters]="loadingCenters()"
       [disabled]="view().saving || view().finishing"
       [showAction]="false"
       [errorMessage]="pageError()"
-      (areaChange)="onAreaChange($event)"
+      [recentContexts]="recentContexts()"
+      (areaChange)="onAreaInput($event)"
+      (areaValidate)="validateArea($event)"
       (workCenterChange)="onWorkCenterChange($event)"
+      (recentContextSelect)="selectRecentContext($event)"
       (retry)="retryAreas()"
     ></app-contexto-producao-selector>
-
-    @if (loadingAreas()) {
-      <div class="reporte-paradas__status" role="status" aria-live="polite">
-        <po-loading p-text="Carregando Áreas de Produção..." p-size="sm"></po-loading>
-      </div>
-    }
 
     @if (view().area && view().workCenter) {
       <app-responsavel-parada-select

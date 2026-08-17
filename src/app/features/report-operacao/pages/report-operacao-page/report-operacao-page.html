@@ -12,8 +12,11 @@
       [disabled]="isBusy"
       [consultBlocked]="hasActiveWorkflow"
       [errorMessage]="contextError"
-      (areaChange)="onAreaChange($event)"
+      [recentContexts]="recentContexts"
+      (areaChange)="onAreaInput($event)"
+      (areaValidate)="validateArea($event)"
       (workCenterChange)="onWorkCenterChange($event)"
+      (recentContextSelect)="selectRecentContext($event)"
       (action)="consultOrders()"
       (retry)="retryContext()"
     ></app-contexto-producao-selector>

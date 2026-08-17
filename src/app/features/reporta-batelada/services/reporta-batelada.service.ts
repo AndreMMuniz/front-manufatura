@@ -98,14 +98,13 @@ export class ReportaBateladaService {
           return of(null);
         }
         return forkJoin({
-          areas: this.listarAreas(),
           centers: this.pesquisarCentros(areaCode, ''),
           reportes: this.listarReportesBatelada(start.aggregateId),
           responsaveis: this.listarResponsaveisElegiveis(areaCode, workCenterCode),
-        }).pipe(map(({ areas, centers, reportes, responsaveis }) => {
-          const area = areas.find(item => item.code === areaCode);
+        }).pipe(map(({ centers, reportes, responsaveis }) => {
           const workCenter = centers.find(item => item.code === workCenterCode);
-          if (!area || !workCenter) return null;
+          if (!workCenter) return null;
+          const area = { code: workCenter.areaCode, description: workCenter.area };
           const inicio: InicioBatelada = {
             batchId: start.aggregateId,
             iniciadoEm: new Date(start.occurredAt),

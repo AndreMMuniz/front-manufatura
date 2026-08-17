@@ -34,6 +34,10 @@ import { ContextoProducaoSelector } from '../../../shop-floor/components/context
 import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
+import {
+  RecentProductionContext,
+  RecentProductionContextService,
+} from '../../../shop-floor/services/recent-production-context.service';
 import { OpDetalhesCard } from '../../components/op-detalhes-card/op-detalhes-card';
 import { OperacaoInfoCard } from '../../components/operacao-info-card/operacao-info-card';
 import { OrdensCentroList } from '../../components/ordens-centro-list/ordens-centro-list';
@@ -83,6 +87,7 @@ export class ReportOperacaoPage implements OnInit {
   private readonly reportOperacaoService = inject(ReportOperacaoService);
   private readonly workflowState = inject(ReportOperacaoWorkflowState);
   private readonly operationalContext = inject(OperationalContextService);
+  private readonly recentContextService = inject(RecentProductionContextService);
   private readonly authSession = inject(AuthSessionService);
   private readonly idempotency = inject(IdempotencyService);
   private readonly reporteParadasService = inject(ReporteParadasService);
@@ -95,6 +100,7 @@ export class ReportOperacaoPage implements OnInit {
   readonly pageTitle = this.auxiliaryFlow === 'refugo' ? 'Refugo / Retrabalho' : '';
 
   areas: ReadonlyArray<AreaProducao> = [];
+  recentContexts: ReadonlyArray<RecentProductionContext> = [];
   centers: ReadonlyArray<WorkCenter> = [];
   orders: ReadonlyArray<OrdemCentroTrabalho> = [];
   selectedOrderIds: ReadonlySet<string> = new Set<string>();
@@ -268,17 +274,49 @@ export class ReportOperacaoPage implements OnInit {
             reportes: restored.reportes,
           });
           this.hydrate(this.workflowState.snapshot());
+          this.applyInitialContext();
           this.changeDetector.markForCheck();
         });
     }
-    this.loadAreas();
+    this.recentContexts = this.recentContextService.list();
+    this.applyInitialContext();
     if (snapshot.operation) {
       this.loadResponsaveis();
     }
   }
 
   onAreaChange(code: string): void {
+    const apply = () => {
+      this.applyAreaChange(code);
+      if (this.areaCode) {
+        this.loadCenters(this.areaCode);
+      }
+    };
+    this.confirmDiscardIfRequired(apply);
+  }
+
+  onAreaInput(code: string): void {
     const apply = () => this.applyAreaChange(code);
+    this.confirmDiscardIfRequired(apply);
+  }
+
+  validateArea(code: string, prefillCode = ''): void {
+    const normalized = this.normalizeCode(code);
+    if (!normalized) {
+      this.applyAreaChange('');
+      return;
+    }
+    if (normalized !== this.areaCode) {
+      this.applyAreaChange(normalized);
+    }
+    this.loadCenters(normalized, prefillCode);
+  }
+
+  selectRecentContext(context: RecentProductionContext): void {
+    const apply = () => {
+      this.applyAreaChange(context.areaCode);
+      this.loadCenters(context.areaCode, context.workCenterCode);
+    };
     this.confirmDiscardIfRequired(apply);
   }
 
@@ -321,17 +359,12 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
 
-    if (this.retryTarget === 'areas') {
-      this.loadAreas();
-      return;
-    }
-
     if (this.areaCode && this.workCenterCode) {
       this.consultOrders();
       return;
     }
 
-    this.loadAreas();
+    this.validateArea(this.areaCode, this.workCenterCode);
   }
 
   updateSelection(ids: ReadonlySet<string>): void {
@@ -565,69 +598,34 @@ export class ReportOperacaoPage implements OnInit {
     this.changeDetector.markForCheck();
   }
 
-  private loadAreas(): void {
-    const request = ++this.areasRequest;
-    this.consultaEstado = 'carregando-areas';
-    this.contextError = '';
-    this.retryTarget = null;
-
-    this.reportOperacaoService.listarAreasProducao()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: areas => {
-          if (request !== this.areasRequest) return;
-          this.areas = areas.map(area => ({ ...area }));
-          this.consultaEstado = this.orders.length
-            ? 'ordens-disponiveis'
-            : this.areaCode ? 'pronto' : 'contexto-pendente';
-          this.applyInitialContext();
-          this.changeDetector.markForCheck();
-        },
-        error: () => {
-          if (request !== this.areasRequest) return;
-          this.consultaEstado = 'erro';
-          this.retryTarget = 'areas';
-          this.contextError = 'Não foi possível carregar as Áreas de Produção.';
-          this.feedback = this.contextError;
-          this.notification.error(this.contextError);
-          this.changeDetector.markForCheck();
-        },
-      });
-  }
-
   private applyInitialContext(): void {
     const snapshot = this.workflowState.snapshot();
     const contextCenter = snapshot.workCenter ?? this.operationalContext.currentContext?.workCenter ?? null;
     const areaCode = snapshot.area?.code ?? contextCenter?.areaCode ?? '';
-    const area = this.areas.find(item => item.code === areaCode);
-
-    if (!area || !contextCenter) {
+    if (!areaCode || !contextCenter) {
       return;
     }
 
-    this.areaCode = area.code;
-    this.loadCenters(area.code, contextCenter.code, true);
+    this.areaCode = areaCode;
+    this.loadCenters(areaCode, contextCenter.code, true);
   }
 
   private applyAreaChange(code: string): void {
-    const area = this.areas.find(item => item.code === code) ?? null;
+    const normalized = this.normalizeCode(code);
     this.invalidateRequests();
-    this.areaCode = area?.code ?? '';
+    this.areaCode = normalized;
+    this.areas = [];
     this.workCenterCode = '';
     this.centers = [];
     this.orders = [];
     this.selectedOrderIds = new Set<string>();
     this.clearActiveOperation();
     this.contextError = '';
-    this.consultaEstado = area ? 'pronto' : 'contexto-pendente';
-    this.workflowState.setContext(area, null);
-
-    if (area) {
-      this.feedback = 'Selecione o Centro de Trabalho.';
-      this.loadCenters(area.code);
-    } else {
-      this.feedback = 'Selecione a Área de Produção e o Centro de Trabalho para consultar as ordens.';
-    }
+    this.consultaEstado = 'contexto-pendente';
+    this.workflowState.setContext(null, null);
+    this.feedback = normalized
+      ? 'Valide a Área de Produção para carregar os Centros de Trabalho.'
+      : 'Digite a Área de Produção e selecione o Centro de Trabalho para consultar as ordens.';
 
     this.changeDetector.markForCheck();
   }
@@ -644,11 +642,39 @@ export class ReportOperacaoPage implements OnInit {
           if (request !== this.centersRequest || this.areaCode !== areaCode) return;
           this.isLoadingCenters = false;
           this.centers = centers.map(center => ({ ...center }));
+          if (!this.centers.length) {
+            const restoredArea = this.workflowState.snapshot().area;
+            this.areas = preserveWorkflow && restoredArea ? [{ ...restoredArea }] : [];
+            if (!preserveWorkflow) {
+              this.workCenterCode = '';
+              this.workflowState.setContext(null, null);
+            }
+            this.consultaEstado = 'erro';
+            this.retryTarget = 'centers';
+            this.contextError = preserveWorkflow
+              ? 'O Centro de Trabalho restaurado não está mais ativo ou disponível.'
+              : `Área de Produção ${areaCode} não encontrada ou sem Centros de Trabalho disponíveis.`;
+            this.feedback = this.contextError;
+            this.notification.warning(this.contextError);
+            this.changeDetector.markForCheck();
+            return;
+          }
+          const firstCenter = this.centers[0];
+          const area: AreaProducao = {
+            code: areaCode,
+            description: firstCenter.area || `Área ${areaCode}`,
+          };
+          this.areas = [area];
+          this.consultaEstado = 'pronto';
+          if (!preserveWorkflow) {
+            this.workflowState.setContext(area, null);
+          }
           const prefill = this.centers.find(center => center.code === prefillCode) ?? null;
           if (prefill) {
             this.workCenterCode = prefill.code;
-            const area = this.areas.find(item => item.code === areaCode) ?? null;
-            this.workflowState.setContext(area, prefill);
+            if (!preserveWorkflow) {
+              this.workflowState.setContext(area, prefill);
+            }
             this.feedback = this.workflowState.hasActiveWorkflow()
               ? 'Apontamento restaurado.'
               : 'Centro de Trabalho preenchido. Consulte as ordens liberadas.';
@@ -658,7 +684,6 @@ export class ReportOperacaoPage implements OnInit {
             this.feedback = this.contextError;
             if (!preserveWorkflow) {
               this.workCenterCode = '';
-              const area = this.areas.find(item => item.code === areaCode) ?? null;
               this.workflowState.setContext(area, null);
             }
           }
@@ -667,6 +692,7 @@ export class ReportOperacaoPage implements OnInit {
         error: () => {
           if (request !== this.centersRequest) return;
           this.isLoadingCenters = false;
+          this.areas = [];
           this.centers = [];
           this.retryTarget = 'centers';
           this.contextError = 'Não foi possível carregar os Centros de Trabalho.';
@@ -718,6 +744,8 @@ export class ReportOperacaoPage implements OnInit {
           this.feedback = orders.length
             ? `${orders.length} ordem(ns) liberada(s) encontrada(s).`
             : 'Nenhuma ordem liberada para este Centro de Trabalho.';
+          this.recentContextService.remember(area.code, center.code, center.description);
+          this.recentContexts = this.recentContextService.list();
           this.changeDetector.markForCheck();
         },
         error: () => {

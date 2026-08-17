@@ -124,10 +124,11 @@ describe('ReportOperacaoPage', () => {
     dialog = { confirm: vi.spyOn(actualDialog, 'confirm').mockImplementation(() => undefined) };
   });
 
-  it('loads Areas on direct access and requests the missing local context', () => {
+  it('permite acesso direto sem depender de um catálogo de Áreas', () => {
     fixture.detectChanges();
 
-    expect(component.areas.map(area => area.code)).toEqual(['4001', '4002']);
+    expect(service.listarAreasProducao).not.toHaveBeenCalled();
+    expect(component.areas).toEqual([]);
     expect(component.areaCode).toBe('');
     expect(component.workCenterCode).toBe('');
     expect(component.feedback).toContain('Selecione');
@@ -205,17 +206,13 @@ describe('ReportOperacaoPage', () => {
     expect(component.centers).toEqual([]);
   });
 
-  it('ignores stale Area responses after a retry starts a newer request', () => {
-    const first = new Subject<Array<{ code: string; description: string }>>();
-    vi.mocked(service.listarAreasProducao)
-      .mockReturnValueOnce(first.asObservable())
-      .mockReturnValueOnce(of([{ code: '4002', description: 'Qualidade' }]));
-
+  it('informa quando o código da Área não possui Centros disponíveis', () => {
     fixture.detectChanges();
-    component.retryContext();
-    first.next([{ code: '4001', description: 'Produção' }]);
+    component.onAreaChange('4104');
 
-    expect(component.areas).toEqual([{ code: '4002', description: 'Qualidade' }]);
+    expect(service.pesquisarCentrosTrabalho).toHaveBeenCalledWith('4104', '');
+    expect(component.contextError).toContain('não encontrada ou sem Centros');
+    expect(notification.warning).toHaveBeenCalledWith(component.contextError);
   });
 
   it('retries the Center request that failed without losing the selected Area', () => {
@@ -753,7 +750,7 @@ describe('ReportOperacaoPage', () => {
     expect(abrir).toHaveBeenCalledWith({
       areaCode: '4001',
       workCenterCode: 'CT-EXT-01',
-      areaLabel: 'Produção',
+      areaLabel: 'Producao',
       workCenterLabel: 'Extrusao Linha 01',
     }, 'nova');
     expect(router.navigate).not.toHaveBeenCalled();

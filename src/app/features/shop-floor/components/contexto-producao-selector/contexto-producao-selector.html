@@ -1,15 +1,15 @@
 <po-widget p-title="Contexto de Produção">
   <div class="contexto-producao">
-    <po-select
+    <po-input
       name="areaCode"
       p-label="Área de Produção"
-      p-placeholder="Selecione a Área"
-      [p-options]="areaOptions"
+      p-placeholder="Digite o código da Área"
       [p-disabled]="disabled"
       [p-loading]="loadingAreas"
       [ngModel]="areaCode"
       (ngModelChange)="changeArea($event)"
-    ></po-select>
+      (p-blur)="areaValidate.emit(areaCode)"
+    ></po-input>
 
     <po-select
       name="workCenterCode"
@@ -33,6 +33,22 @@
       ></po-button>
     }
   </div>
+
+  @if (recentContexts.length) {
+    <div class="contexto-producao__recent" aria-label="Últimos centros utilizados">
+      <span>Últimos utilizados:</span>
+      @for (context of recentContexts; track context.areaCode + ':' + context.workCenterCode) {
+        <button
+          class="contexto-producao__recent-button"
+          type="button"
+          [disabled]="disabled || loadingCenters || loadingAction"
+          (click)="recentContextSelect.emit(context)"
+        >
+          {{ context.areaCode }} · {{ context.workCenterCode }} - {{ context.workCenterDescription }}
+        </button>
+      }
+    </div>
+  }
 
   @if (loadingAction) {
     <div class="contexto-producao__status" role="status" aria-live="polite">

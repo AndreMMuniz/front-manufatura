@@ -5,8 +5,33 @@
   align-items: end;
 }
 
-.contexto-producao po-select {
+.contexto-producao po-select,
+.contexto-producao po-input {
   min-width: 0;
+}
+
+.contexto-producao__recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-xs);
+  align-items: center;
+  margin-top: var(--app-space-sm);
+  color: var(--app-color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.contexto-producao__recent-button {
+  border: var(--border-width-sm) solid var(--app-color-border);
+  border-radius: var(--app-radius);
+  background: var(--app-color-surface);
+  color: inherit;
+  cursor: pointer;
+  padding: var(--app-space-xs) var(--app-space-sm);
+}
+
+.contexto-producao__recent-button:hover:not(:disabled) {
+  border-color: var(--app-color-primary);
+  color: var(--app-color-primary);
 }
 
 .contexto-producao__status {
