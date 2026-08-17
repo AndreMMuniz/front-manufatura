@@ -28,6 +28,7 @@
   align-self: end;
   display: block;
   line-height: 0;
+  margin-bottom: calc(var(--app-space-sm) + var(--app-space-xs));
 }
 
 @media (max-width: 480px) {
