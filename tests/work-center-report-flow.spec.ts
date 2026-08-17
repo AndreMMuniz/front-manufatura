@@ -96,6 +96,22 @@ async function createTeamFromContext(
 test.describe('fluxo de Reporte Ordem', () => {
   test.use({ hasTouch: true });
 
+  test('alinha a ação de consulta com os campos do contexto de produção', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 768 });
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
+
+    const areaBox = await page.getByRole('textbox', { name: 'Área de Produção' }).boundingBox();
+    const centerBox = await page.getByRole('combobox', { name: 'Centro de Trabalho' }).boundingBox();
+    const actionBox = await page.getByRole('button', { name: 'Consultar ordens' }).boundingBox();
+
+    expect(areaBox).not.toBeNull();
+    expect(centerBox).not.toBeNull();
+    expect(actionBox).not.toBeNull();
+    expect(Math.max(areaBox!.y, centerBox!.y, actionBox!.y)
+      - Math.min(areaBox!.y, centerBox!.y, actionBox!.y)).toBeLessThanOrEqual(5);
+  });
+
   test('navega para Reporta Operação pelo cartão da Home', async ({ page }) => {
     await login(page);
 

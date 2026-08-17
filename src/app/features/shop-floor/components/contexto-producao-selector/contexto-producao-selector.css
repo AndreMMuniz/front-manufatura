@@ -10,6 +10,10 @@
   min-width: 0;
 }
 
+.contexto-producao__action {
+  margin-bottom: var(--app-space-sm);
+}
+
 .contexto-producao__recent {
   display: flex;
   flex-wrap: wrap;
@@ -59,6 +63,7 @@
 
   .contexto-producao__action {
     grid-column: 1 / -1;
+    margin-bottom: 0;
     width: 100%;
   }
 }
