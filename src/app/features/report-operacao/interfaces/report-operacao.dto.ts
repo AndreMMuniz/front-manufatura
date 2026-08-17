@@ -32,6 +32,9 @@ export interface OrdemCentroTrabalhoResponseDTO {
 }
 
 export interface ReportOperacaoResponseDTO {
+  readonly indReporteMod?: number;
+  readonly responsavelCodigo?: string;
+  readonly responsavelNome?: string;
   readonly ordem: string;
   readonly op: string;
   readonly split: string;

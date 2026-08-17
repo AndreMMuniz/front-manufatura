@@ -23,12 +23,25 @@ describe('ProducaoForm', () => {
     expect(fixture.nativeElement.textContent).toContain('Qtde Refugo');
   });
 
-  it('does not expose editable end date or time controls', () => {
+  it('allows editing only the start date and time before the operation starts', () => {
     const dateFields = fixture.debugElement.queryAll(By.css('po-datepicker'));
     const timeFields = fixture.debugElement.queryAll(By.css('po-input'));
 
-    expect(dateFields.every(field => field.componentInstance.disabled === true)).toBe(true);
-    expect(timeFields.every(field => field.componentInstance.readonly === true)).toBe(true);
+    expect(dateFields[0].componentInstance.disabled).toBe(false);
+    expect(timeFields[0].componentInstance.readonly).toBe(false);
+    expect(dateFields[1].componentInstance.disabled).toBe(true);
+    expect(timeFields[1].componentInstance.readonly).toBe(true);
+  });
+
+  it('locks the start date and time while starting or after the operation starts', () => {
+    fixture.componentInstance.inicioDisabled = true;
+    fixture.detectChanges();
+
+    const dateFields = fixture.debugElement.queryAll(By.css('po-datepicker'));
+    const timeFields = fixture.debugElement.queryAll(By.css('po-input'));
+
+    expect(dateFields[0].componentInstance.disabled).toBe(true);
+    expect(timeFields[0].componentInstance.readonly).toBe(true);
   });
 });
 

@@ -119,6 +119,8 @@ export class ReportOperacaoPage implements OnInit {
   encerrando = false;
   loadingResponsaveis = false;
   responsaveisError = '';
+  dataInicioSelecionada: Date | string | null = null;
+  horaInicioSelecionada = '';
 
   private areasRequest = 0;
   private centersRequest = 0;
@@ -197,6 +199,7 @@ export class ReportOperacaoPage implements OnInit {
       this.normalizeCode(item.code) === this.normalizeCode(this.workCenterCode));
     return this.authSession.isAuthenticated()
       && this.tipoResponsavel === 'EQUIPE'
+      && !this.responsavelDefinidoPelaApi
       && Boolean(area)
       && Boolean(
         center
@@ -210,6 +213,10 @@ export class ReportOperacaoPage implements OnInit {
       && this.gerenciarEquipeSlide?.state() !== 'saving';
   }
 
+  get responsavelDefinidoPelaApi(): boolean {
+    return this.operacao?.indReporteMod === 2 || this.operacao?.indReporteMod === 3;
+  }
+
   get iniciarDisabled(): boolean {
     const podeIniciar =
       this.estado === EstadoOperacao.OPEncontrada
@@ -218,6 +225,8 @@ export class ReportOperacaoPage implements OnInit {
       || this.gerenciarEquipeSlide?.state() === 'saving'
       || !this.operacao
       || !this.responsavelSelecionado
+      || !this.normalizarDataInicio(this.dataInicioSelecionada)
+      || !this.horaInicioValida(this.horaInicioSelecionada)
       || !podeIniciar;
   }
 
@@ -393,6 +402,13 @@ export class ReportOperacaoPage implements OnInit {
       if (this.operacao && !this.responsavelSelecionado) {
         this.feedback = 'Selecione uma equipe ou um operador antes de iniciar.';
         this.notification.warning(this.feedback);
+      } else if (
+        this.operacao
+        && (!this.normalizarDataInicio(this.dataInicioSelecionada)
+          || !this.horaInicioValida(this.horaInicioSelecionada))
+      ) {
+        this.feedback = 'Informe uma data e uma hora de início válidas.';
+        this.notification.warning(this.feedback);
       }
       return;
     }
@@ -407,7 +423,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   alterarTipoResponsavel(tipo: TipoResponsavelOperacao): void {
-    if (this.operacao?.dataInicio || this.isBusy) {
+    if (this.responsavelDefinidoPelaApi || this.operacao?.dataInicio || this.isBusy) {
       return;
     }
 
@@ -417,12 +433,22 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   alterarResponsavel(codigo: string): void {
-    if (this.operacao?.dataInicio || this.isBusy) {
+    if (this.responsavelDefinidoPelaApi || this.operacao?.dataInicio || this.isBusy) {
       return;
     }
 
     this.responsavelCodigo = this.normalizeCode(codigo ?? '');
     this.workflowState.setResponsavel(this.responsavelSelecionado);
+  }
+
+  alterarDataInicio(dataInicio: Date | string | null): void {
+    if (this.operacao?.dataInicio || this.isBusy) return;
+    this.dataInicioSelecionada = dataInicio;
+  }
+
+  alterarHoraInicio(horaInicio: string): void {
+    if (this.operacao?.dataInicio || this.isBusy) return;
+    this.horaInicioSelecionada = horaInicio;
   }
 
   abrirGerenciarEquipe(acionador?: HTMLElement | null): void {
@@ -470,6 +496,7 @@ export class ReportOperacaoPage implements OnInit {
       || !this.authSession.isAuthenticated()
       || this.isBusy
       || Boolean(this.operacao?.dataInicio)
+      || this.responsavelDefinidoPelaApi
     ) {
       return;
     }
@@ -786,6 +813,7 @@ export class ReportOperacaoPage implements OnInit {
           }
 
           this.operacao = result.operacao;
+          this.preencherInicio(result.operacao);
           this.estado = EstadoOperacao.OPEncontrada;
           this.consultaEstado = 'ordens-disponiveis';
           this.contextError = '';
@@ -795,7 +823,11 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setActiveOperation(this.operacao, this.estado);
           this.workflowState.setScrap([], '');
           this.workflowState.setResponsavel(null);
-          this.loadResponsaveis();
+          if (this.responsavelDefinidoPelaApi) {
+            this.applyApiResponsavel(this.operacao);
+          } else {
+            this.loadResponsaveis();
+          }
           this.feedback = `Ordem ${order.ordem} carregada. Inicie a operação.`;
           this.notification.success('OP carregada.');
           this.changeDetector.markForCheck();
@@ -821,8 +853,13 @@ export class ReportOperacaoPage implements OnInit {
       this.notification.warning(this.feedback);
       return;
     }
-    const now = new Date();
-    const horaInicio = this.formatTime(now);
+    const dataInicio = this.normalizarDataInicio(this.dataInicioSelecionada);
+    const horaInicio = this.horaInicioSelecionada.trim();
+    if (!dataInicio || !this.horaInicioValida(horaInicio)) {
+      this.feedback = 'Informe uma data e uma hora de início válidas.';
+      this.notification.warning(this.feedback);
+      return;
+    }
     const operation = this.operacao;
     const activeOrderId = this.workflowState.snapshot().activeOrder?.id;
     const request = ++this.startRequest;
@@ -845,7 +882,7 @@ export class ReportOperacaoPage implements OnInit {
       equipe,
       tipoResponsavel: responsavel.tipo,
       codigoResponsavel: responsavel.codigo,
-      dataInicio: now,
+      dataInicio,
       horaInicio,
     }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: start => {
@@ -864,6 +901,8 @@ export class ReportOperacaoPage implements OnInit {
           dataFim: undefined,
           horaFim: '',
         };
+        this.dataInicioSelecionada = start.dataInicio;
+        this.horaInicioSelecionada = start.horaInicio;
         this.estado = EstadoOperacao.OperacaoIniciada;
         this.workflowState.setActiveOperation(this.operacao, this.estado);
         this.feedback = this.auxiliaryFlow === 'refugo'
@@ -1129,6 +1168,7 @@ export class ReportOperacaoPage implements OnInit {
     this.operacao = snapshot.operation
       ? this.withDerivedTotals({ ...snapshot.operation }, this.reportes)
       : null;
+    this.preencherInicio(this.operacao);
     this.tipoResponsavel = snapshot.responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = snapshot.responsavel?.codigo ?? '';
     if (snapshot.operation) {
@@ -1155,6 +1195,8 @@ export class ReportOperacaoPage implements OnInit {
     this.reportes = [];
     this.responsavelCodigo = '';
     this.tipoResponsavel = 'OPERADOR';
+    this.dataInicioSelecionada = null;
+    this.horaInicioSelecionada = '';
     this.startIdempotencyKey = '';
     this.endIdempotencyKey = '';
   }
@@ -1219,6 +1261,35 @@ export class ReportOperacaoPage implements OnInit {
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   }
 
+  private preencherInicio(operation: ReportOperacao | null): void {
+    if (operation?.dataInicio) {
+      this.dataInicioSelecionada = operation.dataInicio;
+      this.horaInicioSelecionada = operation.horaInicio;
+      return;
+    }
+    const now = new Date();
+    this.dataInicioSelecionada = now;
+    this.horaInicioSelecionada = this.formatTime(now);
+  }
+
+  private normalizarDataInicio(value: Date | string | null): Date | null {
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : new Date(value);
+    }
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? '');
+    if (!match) return null;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return date.getFullYear() === Number(match[1])
+      && date.getMonth() === Number(match[2]) - 1
+      && date.getDate() === Number(match[3])
+      ? date
+      : null;
+  }
+
+  private horaInicioValida(value: string): boolean {
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(value.trim());
+  }
+
   private round3(value: number): number {
     return Math.round((value + Number.EPSILON) * 1000) / 1000;
   }
@@ -1249,6 +1320,10 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private loadResponsaveis(): void {
+    if (this.operacao && this.responsavelDefinidoPelaApi) {
+      this.applyApiResponsavel(this.operacao);
+      return;
+    }
     const request = ++this.responsaveisRequest;
     const areaCode = this.normalizeCode(this.areaCode);
     const workCenterCode = this.normalizeCode(this.workCenterCode);
@@ -1332,6 +1407,31 @@ export class ReportOperacaoPage implements OnInit {
 
     this.tipoResponsavel = responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = responsavel?.codigo ?? '';
+    this.workflowState.setResponsavel(responsavel);
+  }
+
+  private applyApiResponsavel(operacao: ReportOperacao): void {
+    const tipo: TipoResponsavelOperacao = operacao.indReporteMod === 3 ? 'EQUIPE' : 'OPERADOR';
+    const codigo = this.normalizeCode(operacao.responsavelCodigo ?? '');
+    this.tipoResponsavel = tipo;
+    this.responsavelCodigo = codigo;
+    this.loadingResponsaveis = false;
+    this.responsaveis = [];
+    this.responsaveisError = '';
+
+    if (!codigo) {
+      this.responsaveisError = `A API não informou ${tipo === 'OPERADOR' ? 'o operador' : 'a equipe'} definido para esta ordem.`;
+      this.feedback = this.responsaveisError;
+      this.workflowState.setResponsavel(null);
+      return;
+    }
+
+    const responsavel: ResponsavelOperacao = {
+      tipo,
+      codigo,
+      nome: operacao.responsavelNome?.trim() || codigo,
+    };
+    this.responsaveis = [responsavel];
     this.workflowState.setResponsavel(responsavel);
   }
 

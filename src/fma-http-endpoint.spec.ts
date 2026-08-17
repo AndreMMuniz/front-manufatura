@@ -338,6 +338,41 @@ describe('gateway FMA', () => {
     }));
   });
 
+  it('preserva o operador e a equipe definidos pelo modo de reporte da abertura', async () => {
+    const base = {
+      desOperacao: 'CORTAR', qtdOrdem: 1000, qtdAprovada: 0, opCodigo: 10,
+      itCodigo: '30907', desGrupoMaquina: 'PRENSA', desModelTurno: '2T',
+      numSplitOperac: 1, qtdRefugo: 0, qtdSaldo: 1000, nrOrdemProducao: 372562,
+      un: 'UN', codCtrab: 'PRE-006-02', descItem: 'ALAVANCA', codGrupoMaquina: 'PRE-006',
+      qtdRetrabalho: 0, desCtrab: 'PRENSA 45T',
+    };
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response('dadosApontamento', [{
+        ...base, indReporteMod: 2, codOperador: '00016570', nomOperador: 'Ana',
+      }]))
+      .mockResolvedValueOnce(response('dadosApontamento', [{
+        ...base, indReportMod: 3, codEquipe: 'EQ0007', desEquipe: 'Equipe Sete',
+      }]));
+    const root = await startGateway(transport);
+    const authorization = `Bearer ${await token()}`;
+    const url = `${root}/api/production-orders/372562/operations/10?split=1&areaCode=4104&workCenterCode=PRE-006-02`;
+
+    await expect((await fetch(url, { headers: { authorization } })).json()).resolves.toEqual(
+      expect.objectContaining({
+        indReporteMod: 2,
+        responsavelCodigo: '00016570',
+        responsavelNome: 'Ana',
+      }),
+    );
+    await expect((await fetch(url, { headers: { authorization } })).json()).resolves.toEqual(
+      expect.objectContaining({
+        indReporteMod: 3,
+        responsavelCodigo: 'EQ0007',
+        responsavelNome: 'Equipe Sete',
+      }),
+    );
+  });
+
   it('inicia a ordem com identidade confiável e devolve receipt reconciliável', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(response('inicioOrdem', [{ dataInicioReporte: '2026-07-21', horaInicioReporte: '0935', nrOrdemProducao: 372562, opCodigo: 10, numSplitOperac: 1, mensagem: 'Reporte iniciado com sucesso', codCtrab: 'PRE-006-02' }]));
     const root = await startGateway(transport);

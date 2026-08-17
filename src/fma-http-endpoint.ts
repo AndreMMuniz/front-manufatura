@@ -123,6 +123,16 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         numSplitOperac: positiveInteger(req.query['split']),
       });
       const item = objectOfUpstream(single(dataset(upstream, 'dadosApontamento')));
+      const reportModeValue = item['indReporteMod'] ?? item['indReportMod'];
+      const indReporteMod = typeof reportModeValue === 'number' && Number.isSafeInteger(reportModeValue)
+        ? reportModeValue
+        : undefined;
+      const operadorCodigo = text(item['codOperador']) || text(item['operador']);
+      const operadorNome = text(item['nomOperador']) || text(item['nomeOperador']) || operadorCodigo;
+      const equipeCodigo = text(item['codEquipe']) || text(item['equipe']);
+      const equipeNome = text(item['desEquipe']) || text(item['nomeEquipe']) || equipeCodigo;
+      const responsavelCodigo = indReporteMod === 2 ? operadorCodigo : indReporteMod === 3 ? equipeCodigo : '';
+      const responsavelNome = indReporteMod === 2 ? operadorNome : indReporteMod === 3 ? equipeNome : '';
       return {
         ordem: integerText(item['nrOrdemProducao']),
         op: integerText(item['opCodigo']),
@@ -136,7 +146,12 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         linha: text(item['desCtrab']),
         ct: text(item['codCtrab']),
         grupoMaquina: text(item['desGrupoMaquina']),
-        operador: '', equipe: '', turno: text(item['desModelTurno']),
+        ...(indReporteMod === undefined ? {} : { indReporteMod }),
+        responsavelCodigo,
+        responsavelNome,
+        operador: indReporteMod === 2 ? responsavelNome : '',
+        equipe: indReporteMod === 3 ? responsavelNome : '',
+        turno: text(item['desModelTurno']),
       };
     }));
 

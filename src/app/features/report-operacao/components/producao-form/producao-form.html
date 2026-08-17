@@ -3,15 +3,20 @@
     <po-datepicker
       name="dataInicio"
       p-label="Data Início"
-      [p-disabled]="true"
-      [ngModel]="operacao?.dataInicio"
+      [p-disabled]="inicioDisabled"
+      [p-required]="true"
+      [ngModel]="dataInicio"
+      (ngModelChange)="dataInicioChange.emit($event)"
     ></po-datepicker>
 
     <po-input
       name="horaInicio"
       p-label="Hora Início"
-      [p-readonly]="true"
-      [ngModel]="operacao?.horaInicio ?? ''"
+      p-placeholder="HH:mm"
+      [p-readonly]="inicioDisabled"
+      [p-required]="true"
+      [ngModel]="horaInicio"
+      (ngModelChange)="horaInicioChange.emit($event)"
     ></po-input>
 
     <po-datepicker

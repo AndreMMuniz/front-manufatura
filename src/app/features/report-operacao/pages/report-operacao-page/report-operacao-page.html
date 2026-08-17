@@ -44,6 +44,11 @@
 
       <app-producao-form
         [operacao]="operacao"
+        [dataInicio]="dataInicioSelecionada"
+        [horaInicio]="horaInicioSelecionada"
+        [inicioDisabled]="operacao.dataInicio !== undefined || isBusy"
+        (dataInicioChange)="alterarDataInicio($event)"
+        (horaInicioChange)="alterarHoraInicio($event)"
       ></app-producao-form>
 
       <app-operacao-info-card
@@ -51,7 +56,7 @@
         [responsaveis]="responsaveis"
         [tipoResponsavel]="tipoResponsavel"
         [responsavelCodigo]="responsavelCodigo"
-        [responsavelDisabled]="operacao.dataInicio !== undefined || isBusy"
+        [responsavelDisabled]="responsavelDefinidoPelaApi || operacao.dataInicio !== undefined || isBusy"
         [loadingResponsaveis]="loadingResponsaveis"
         [responsaveisError]="responsaveisError"
         [gerenciarEquipeDisabled]="!canManageTeam"

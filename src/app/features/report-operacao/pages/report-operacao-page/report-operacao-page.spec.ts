@@ -15,6 +15,7 @@ import {
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
+import { OperacaoInfoCard } from '../../components/operacao-info-card/operacao-info-card';
 import { EstadoOperacao, OrdemCentroTrabalho, ReportOperacao } from '../../models/report-operacao.model';
 import { ReportOperacaoWorkflowState } from '../../services/report-operacao-workflow-state';
 import { ReportOperacaoService } from '../../services/report-operacao.service';
@@ -260,6 +261,82 @@ describe('ReportOperacaoPage', () => {
     expect(service.carregarOrdemSelecionada).toHaveBeenCalledTimes(1);
     expect(component.operacao?.ordem).toBe('450001');
     expect(component.estado).toBe(EstadoOperacao.OPEncontrada);
+  });
+
+  it('fixa o operador retornado pela API quando o modo de reporte é 2', () => {
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 2,
+        responsavelCodigo: '00016570',
+        responsavelNome: 'Ana da API',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+    component.alterarTipoResponsavel('EQUIPE');
+    component.alterarResponsavel('MONT03');
+    component.iniciarOperacao();
+
+    expect(service.listarResponsaveis).not.toHaveBeenCalled();
+    expect(component.tipoResponsavel).toBe('OPERADOR');
+    expect(component.responsavelCodigo).toBe('00016570');
+    expect(workflow.snapshot().responsavel).toEqual({
+      tipo: 'OPERADOR', codigo: '00016570', nome: 'Ana da API',
+    });
+    expect(service.iniciarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', operador: 'Ana da API', equipe: '',
+    }));
+  });
+
+  it('fixa a equipe retornada pela API quando o modo de reporte é 3', () => {
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 3,
+        responsavelCodigo: 'EQ0007',
+        responsavelNome: 'Equipe Sete',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+    fixture.detectChanges();
+    const card = fixture.debugElement.query(By.directive(OperacaoInfoCard))
+      .componentInstance as OperacaoInfoCard;
+    component.alterarTipoResponsavel('OPERADOR');
+    component.alterarResponsavel('001');
+
+    expect(service.listarResponsaveis).not.toHaveBeenCalled();
+    expect(component.tipoResponsavel).toBe('EQUIPE');
+    expect(component.responsavelCodigo).toBe('EQ0007');
+    expect(component.canManageTeam).toBe(false);
+    expect(card.responsavelDisabled).toBe(true);
+    expect(workflow.snapshot().responsavel).toEqual({
+      tipo: 'EQUIPE', codigo: 'EQ0007', nome: 'Equipe Sete',
+    });
+  });
+
+  it('não escolhe fallback quando o modo fixo vem sem responsável', () => {
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({ indReporteMod: 2, responsavelCodigo: '', responsavelNome: '' }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+
+    expect(service.listarResponsaveis).not.toHaveBeenCalled();
+    expect(component.responsavelSelecionado).toBeNull();
+    expect(component.iniciarDisabled).toBe(true);
+    expect(component.responsaveisError).toContain('API');
   });
 
   it('retries a failed active-order load while preserving the queue', () => {
@@ -733,6 +810,23 @@ describe('ReportOperacaoPage', () => {
     expect(component.reporteDisabled).toBe(false);
   });
 
+  it('starts the operation with the date and time selected by the user', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.alterarDataInicio('2026-08-15');
+    component.alterarHoraInicio('06:45');
+
+    component.iniciarOperacao();
+
+    expect(service.iniciarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      dataInicio: new Date(2026, 7, 15),
+      horaInicio: '06:45',
+    }));
+  });
+
   it('abre a drawer contextual sem navegar e aplica criação por upsert com seleção automática', () => {
     fixture.detectChanges();
     selectContextAndConsult();
@@ -965,7 +1059,11 @@ function context() {
   };
 }
 
-function baseOperacao(overrides: Partial<ReportOperacao> = {}): ReportOperacao {
+function baseOperacao(overrides: Partial<ReportOperacao> & {
+  readonly indReporteMod?: number;
+  readonly responsavelCodigo?: string;
+  readonly responsavelNome?: string;
+} = {}): ReportOperacao {
   return {
     ordem: '450001',
     op: 'OP-10458',
@@ -988,5 +1086,5 @@ function baseOperacao(overrides: Partial<ReportOperacao> = {}): ReportOperacao {
     equipe: 'Equipe A',
     turno: '1o Turno',
     ...overrides,
-  };
+  } as ReportOperacao;
 }
