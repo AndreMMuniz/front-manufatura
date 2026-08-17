@@ -15,6 +15,12 @@
   padding: 0;
 }
 
+.reporte-slide__reason-editor po-button {
+  align-self: end;
+  display: block;
+  line-height: 0;
+}
+
 .reporte-slide__draft-reasons li {
   align-items: center;
   background: var(--app-color-background-soft);

@@ -24,20 +24,31 @@
   min-width: 0;
 }
 
+.operacao-info__responsavel-group po-button {
+  align-self: end;
+  display: block;
+  line-height: 0;
+}
+
 @media (max-width: 480px) {
   .operacao-info__responsavel-group {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (min-width: 481px) and (max-width: 960px) {
+@media (min-width: 481px) and (max-width: 1080px) {
   .operacao-info {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 961px) {
+@media (min-width: 1081px) {
   .operacao-info {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns:
+      minmax(130px, 1fr)
+      minmax(155px, 1fr)
+      minmax(125px, 0.72fr)
+      minmax(270px, 1.55fr)
+      minmax(165px, 1fr);
   }
 }

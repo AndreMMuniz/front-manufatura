@@ -33,6 +33,22 @@ export interface FmaEndpointDependencies {
 }
 
 type JsonObject = Record<string, unknown>;
+type FmaErrorCategory = 'CONFLICT' | 'VALIDATION';
+
+class FmaPublicCommandError extends QualityControlGatewayError {
+  readonly publicBody: {
+    readonly code: string;
+    readonly category: FmaErrorCategory;
+    readonly userMessage: string;
+  };
+
+  constructor(status: number, code: string, category: FmaErrorCategory, userMessage: string) {
+    super(status, code);
+    this.name = 'FmaPublicCommandError';
+    this.publicBody = { code, category, userMessage };
+  }
+}
+
 const COMMAND_CACHE_TTL_MS = 15 * 60_000;
 const COMMAND_CACHE_MAX_ENTRIES = 1_000;
 
@@ -586,11 +602,18 @@ class FmaClient {
     } catch {
       throw new QualityControlGatewayError(502, 'datasul-unavailable');
     }
-    if (!response.ok) throw new QualityControlGatewayError(response.status, 'datasul-request-failed');
+    if (!response.ok) {
+      const upstreamBody = await optionalJson(response);
+      const businessError = stopBusinessError(upstreamBody, observableRoute);
+      if (businessError) throw businessError;
+      throw new QualityControlGatewayError(response.status, 'datasul-request-failed');
+    }
     try {
       const raw = await response.text();
       const parsed = raw.trim() ? JSON.parse(raw) as unknown : allowEmpty ? {} : invalidUpstream();
       if (allowEmpty && raw.trim() && isDatasulErrorEnvelope(parsed)) {
+        const businessError = stopBusinessError(parsed, observableRoute);
+        if (businessError) throw businessError;
         throw new QualityControlGatewayError(502, 'datasul-request-failed');
       }
       reportUpstreamRequestCompleted(this.dependencies.logger ?? noopLogger, observation, response);
@@ -615,6 +638,10 @@ async function handle(
     const userId = await resolveUser(req.header('authorization') ?? '', dependencies, req.path);
     res.status(200).json(await operation(new FmaClient(userId, dependencies)));
   } catch (error) {
+    if (error instanceof FmaPublicCommandError) {
+      res.status(error.status).json(error.publicBody);
+      return;
+    }
     if (error instanceof QualityControlGatewayError) {
       res.status(error.status).json({ code: error.code });
       return;
@@ -807,6 +834,61 @@ function isDatasulErrorEnvelope(value: unknown): boolean {
       && envelope['type'].toLocaleLowerCase('en-US') === 'error')
     || (typeof envelope['message'] === 'string' && Array.isArray(envelope['details']));
 }
+
+async function optionalJson(response: globalThis.Response): Promise<unknown> {
+  try {
+    const raw = await response.text();
+    return raw.trim() ? JSON.parse(raw) as unknown : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function stopBusinessError(value: unknown, route: string): FmaPublicCommandError | undefined {
+  if (!/^\/api\/fma\/v1\/(?:inicia|inclui|finaliza)parada$/u.test(route)) return undefined;
+  const messages = datasulMessages(value);
+  const conflict = messages.find(message => {
+    const normalized = normalizedBusinessMessage(message);
+    return normalized.includes('ja existe reporte') || normalized.includes('reporte ja cadastrado');
+  });
+  if (conflict) {
+    return new FmaPublicCommandError(
+      409,
+      'DATASUL_STOP_INTERVAL_CONFLICT',
+      'CONFLICT',
+      conflict,
+    );
+  }
+  const future = messages.find(message => {
+    const normalized = normalizedBusinessMessage(message);
+    return normalized.includes('reporte parada centro trab para o futuro')
+      || normalized.includes('data de transacao maior que data do processamento');
+  });
+  if (future) {
+    return new FmaPublicCommandError(422, 'DATASUL_FUTURE_STOP', 'VALIDATION', future);
+  }
+  return undefined;
+}
+
+function datasulMessages(value: unknown): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const envelope = value as JsonObject;
+  const details = Array.isArray(envelope['details']) ? envelope['details'] : [];
+  return [envelope, ...details]
+    .flatMap(item => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+      const record = item as JsonObject;
+      return [record['message'], record['detailedMessage']];
+    })
+    .filter((message): message is string => typeof message === 'string')
+    .map(message => message.replace(/[\u0000-\u001f\u007f]/gu, ' ').trim().slice(0, 240))
+    .filter(Boolean);
+}
+
+function normalizedBusinessMessage(message: string): string {
+  return message.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
+}
+
 function safeId(value: unknown): string {
   if (typeof value !== 'string' || !/^[A-Za-z0-9._:/-]{1,160}$/.test(value)) {
     throw new QualityControlGatewayError(400, 'invalid-request');

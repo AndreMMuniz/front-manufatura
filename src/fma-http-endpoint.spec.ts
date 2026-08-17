@@ -229,6 +229,81 @@ describe('gateway FMA', () => {
     ]);
   });
 
+  it('classifica como conflito o erro Datasul documentado para intervalo de parada duplicado', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      detailedMessage: 'Já existe reporte neste intervalo de data e hora.',
+      code: '1',
+      details: [{
+        detailedMessage: 'Reporte já cadastrado com este intervalo de tempo.',
+        code: '2',
+        message: 'Reporte já cadastrado com este intervalo de tempo.',
+        type: 'error',
+      }],
+      message: 'Já existe reporte neste intervalo de data e hora.',
+      type: 'error',
+    }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/production-stops`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-duplicada',
+      },
+      body: JSON.stringify({
+        context: { area: { code: '4113' }, workCenter: { code: 'LASER-01-01' } },
+        reason: { code: '07' },
+        responsible: { tipo: 'OPERADOR', codigo: '00016570' },
+        startDate: '2026-08-14', startTime: '09:04', programmed: false,
+      }),
+    });
+
+    expect(result.status).toBe(409);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_STOP_INTERVAL_CONFLICT',
+      category: 'CONFLICT',
+      userMessage: 'Já existe reporte neste intervalo de data e hora.',
+    });
+  });
+
+  it('classifica como validação o erro Datasul documentado para parada no futuro', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      detailedMessage: 'Não é permitido criar Reporte Parada Centro Trab para o futuro.',
+      code: '1',
+      details: [{
+        detailedMessage: 'Data de Transação maior que Data do Processamento.',
+        code: '2',
+        message: 'Data de Transação maior que Data do Processamento.',
+        type: 'error',
+      }],
+      message: 'Não é permitido criar Reporte Parada Centro Trab para o futuro.',
+      type: 'error',
+    }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/production-stops`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-futura',
+      },
+      body: JSON.stringify({
+        context: { area: { code: '4104' }, workCenter: { code: 'PRE-006-01' } },
+        reason: { code: '05' },
+        responsible: { tipo: 'OPERADOR', codigo: '00016570' },
+        startDate: '2026-08-20', startTime: '09:00',
+        endDate: '2026-08-20', endTime: '11:00', programmed: false,
+      }),
+    });
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_FUTURE_STOP',
+      category: 'VALIDATION',
+      userMessage: 'Não é permitido criar Reporte Parada Centro Trab para o futuro.',
+    });
+  });
+
   it('lista e adapta centros de trabalho sem expor Basic ao browser', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [{ codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T' }]));
     const root = await startGateway(transport);

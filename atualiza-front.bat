@@ -1,64 +1,24 @@
 @echo off
-title Front Manufatura - Atualizar e Iniciar
+setlocal
+title Front Manufatura - Deploy
 
-cd /d C:\node\front-manufatura
+cd /d "%~dp0"
 
 echo ==========================================
-echo Front Manufatura
+echo Front Manufatura - Deploy com rollback
 echo ==========================================
 echo.
 
-echo [1/4] Atualizando codigo do GitHub...
-git pull origin main
-
-if errorlevel 1 (
-    echo.
-    echo ERRO no git pull.
-    pause
-    exit /b 1
-)
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\deploy-front.ps1"
+set "DEPLOY_EXIT_CODE=%ERRORLEVEL%"
 
 echo.
-echo [2/4] Instalando dependencias...
-call npm install
-
-if errorlevel 1 (
-    echo.
-    echo ERRO no npm install.
+if not "%DEPLOY_EXIT_CODE%"=="0" (
+    echo DEPLOY FALHOU. A versao anterior foi preservada ou restaurada quando possivel.
     pause
-    exit /b 1
+    exit /b %DEPLOY_EXIT_CODE%
 )
 
-echo.
-echo [3/4] Gerando build...
-REM MODO TEMPORARIO DE TESTE VIA HTTP/IP:
-REM Este build habilita fallbacks somente para o ambiente interno sem HTTPS.
-REM Quando o servidor receber HTTPS, troque a linha abaixo por: call npm run build
-call npm run build:http-test
-
-if errorlevel 1 (
-    echo.
-    echo ERRO no build.
-    pause
-    exit /b 1
-)
-
-echo.
-echo [4/4] Iniciando servidor com .env...
-REM LOGS DO SERVIDOR:
-REM Por padrao, os eventos de API e do Datasul ficam em C:\node\front-manufatura\logs.
-REM Se APP_LOG_DIR estiver definido no .env, consulte esse valor para localizar os arquivos.
-REM Nao exiba o conteudo do .env no terminal, pois ele possui credenciais e segredos.
-REM Para voltar ao comportamento sem arquivos no futuro, remova as variaveis APP_LOG_ do .env
-REM somente depois de remover/reverter a instrumentacao de logging no codigo.
-echo Logs do servidor: pasta logs ^(ou APP_LOG_DIR configurado no .env^)
-node --env-file=.env dist/plano-de-controle/server/server.mjs
-
-if errorlevel 1 (
-    echo.
-    echo ERRO ao iniciar o servidor.
-    pause
-    exit /b 1
-)
-
+echo Deploy concluido. O servidor continua executando em segundo plano.
 pause
+exit /b 0
