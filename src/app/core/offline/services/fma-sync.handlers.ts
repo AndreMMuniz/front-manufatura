@@ -113,10 +113,30 @@ function abortable<T>(source: Observable<T>, signal: AbortSignal): Promise<T> {
       },
       error: error => {
         signal.removeEventListener('abort', abort);
-        reject(error);
+        reject(publicCommandError(error));
       },
     });
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
   });
+}
+
+function publicCommandError(error: unknown): unknown {
+  if (!error || typeof error !== 'object') return error;
+  const response = error as Readonly<Record<string, unknown>>;
+  const body = response['error'];
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return error;
+  const publicBody = body as Readonly<Record<string, unknown>>;
+  if (
+    typeof response['status'] !== 'number'
+    || typeof publicBody['code'] !== 'string'
+    || typeof publicBody['category'] !== 'string'
+    || typeof publicBody['userMessage'] !== 'string'
+  ) return error;
+  return {
+    status: response['status'],
+    code: publicBody['code'],
+    category: publicBody['category'],
+    userMessage: publicBody['userMessage'],
+  };
 }

@@ -1,9 +1,10 @@
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { SyncCommandRequest } from '../models/sync-command';
 import {
+  CreateStopSyncHandler,
   FinishStopSyncHandler,
   StartOperationSyncHandler,
 } from './fma-sync.handlers';
@@ -36,6 +37,30 @@ describe('FMA sync handlers', () => {
 
     await handler.send(request, new AbortController().signal);
     expect(post).toHaveBeenCalledWith('/api/production-stops/stop%2F01/finish', request.payload, expect.any(Object));
+  });
+
+  it('propaga a classificação e a mensagem pública devolvidas pelo gateway', async () => {
+    const post = vi.fn().mockReturnValue(throwError(() => ({
+      status: 409,
+      error: {
+        code: 'DATASUL_STOP_INTERVAL_CONFLICT',
+        category: 'CONFLICT',
+        userMessage: 'Já existe reporte neste intervalo de data e hora.',
+      },
+    })));
+    const handler = new CreateStopSyncHandler(
+      { post } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+
+    await expect(
+      handler.send(command('CREATE_STOP', {}), new AbortController().signal),
+    ).rejects.toEqual({
+      status: 409,
+      code: 'DATASUL_STOP_INTERVAL_CONFLICT',
+      category: 'CONFLICT',
+      userMessage: 'Já existe reporte neste intervalo de data e hora.',
+    });
   });
 });
 
