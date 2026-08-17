@@ -214,4 +214,40 @@ describe('QualityControlWorkflowState', () => {
     expect(state.isBusy()).toBe(false);
     expect(state.routeFeedback()).toContain('Roteiro parado');
   });
+
+  it('returns to order location while preserving the selected operation', () => {
+    const state = new QualityControlWorkflowState();
+    const operation = {
+      operationCode: route.operationCode,
+      operationDescription: 'Cortar chapa',
+      split: route.split,
+      itemCode: route.itemCode,
+      itemDescription: route.itemDescription,
+      processDescription: route.processDescription,
+    };
+    const token = state.beginOrderLookup(route.currentOrder);
+    state.completeOrderLookup(token, route.currentOrder, [operation]);
+    state.selectOperation(operation);
+    state.setGeneratedRoute(route);
+    const examToken = state.beginExamLoad();
+    state.completeExamLoad(examToken!, exams());
+
+    state.returnToOrderLocation();
+
+    expect(state.orderNumber()).toBe(route.currentOrder);
+    expect(state.operations()).toEqual([operation]);
+    expect(state.selectedOperation()).toEqual(operation);
+    expect(state.route()).toEqual({
+      routeNumber: '',
+      processDescription: route.processDescription,
+      currentOrder: route.currentOrder,
+      operationCode: route.operationCode,
+      operationDescription: `${route.operationCode} - ${operation.operationDescription}`,
+      split: route.split,
+      itemCode: route.itemCode,
+      itemDescription: route.itemDescription,
+    });
+    expect(state.exams()).toEqual([]);
+    expect(state.routeFeedback()).toBe('Operação 10 selecionada.');
+  });
 });

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PoDialogService } from '@po-ui/ng-components';
 
 import { OperationalCommandFacade } from '../../../../core/offline/services/operational-command.facade';
+import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import { OperatorService } from '../../../shop-floor/services/operator';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
@@ -14,6 +15,7 @@ describe('ExamEntryPanel resultado único', () => {
   let component: ExamEntryPanel;
   let state: QualityControlWorkflowState;
   let capture: ReturnType<typeof vi.fn>;
+  let idempotency: { resolve: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     capture = vi.fn(async (request: { idempotencyKey?: string }) => ({
@@ -21,9 +23,11 @@ describe('ExamEntryPanel resultado único', () => {
       idempotencyKey: request.idempotencyKey ?? 'idem', payloadHash: 'hash',
       committedAt: new Date().toISOString(), syncStatus: 'PENDING',
     }));
+    idempotency = { resolve: vi.fn(() => 'idempotency-key') };
     await TestBed.configureTestingModule({ imports: [ExamEntryPanel], providers: [
       QualityControlWorkflowState, QualityControlService, OperatorService,
       { provide: OperationalCommandFacade, useValue: { capture } },
+      { provide: IdempotencyService, useValue: idempotency },
       { provide: PoDialogService, useValue: { confirm: vi.fn() } },
     ] }).compileComponents();
     state = TestBed.inject(QualityControlWorkflowState);
@@ -120,6 +124,19 @@ describe('ExamEntryPanel resultado único', () => {
     expect(state.componentById('numeric')?.measurement).toBeUndefined();
   });
 
+  it('libera o formulário quando a identidade não pode ser gerada', async () => {
+    idempotency.resolve.mockImplementationOnce(() => {
+      throw new Error('identity-unavailable');
+    });
+    component.updateResult('24');
+
+    await expect(firstValueFrom(component.saveCurrentMeasurement())).resolves.toBeNull();
+
+    expect(state.isSaving()).toBe(false);
+    expect(state.examFeedback()).toContain('identidade segura');
+    expect(capture).not.toHaveBeenCalled();
+  });
+
   it('bloqueia finalização e exige motivo quando há reprovação remota', () => {
     state.applyMeasurement('e1', 'numeric', {
       result: 24, status: 'REJECTED', withinRange: false, commandId: 'r1',
@@ -147,6 +164,36 @@ describe('ExamEntryPanel resultado único', () => {
     }));
   });
 
+  it('envia tipoResultado 3 como laudo textual, inclusive quando informado 0', async () => {
+    state.setGeneratedRoute({ nrFicha: 64391, routeNumber: '64391', processDescription: 'CORTE',
+      currentOrder: '372569', operationCode: '10', operationDescription: '10 - CORTE',
+      split: '1', itemCode: 'ITEM', itemDescription: 'ITEM' });
+    const token = state.beginExamLoad()!;
+    state.completeExamLoad(token, [{
+      id: '64391-2000', code: '2000', description: 'CORTE LASER', version: '1',
+      frequency: '60', sample: '2', unit: '', nqa: '0', level: '0', components: [{
+        id: '64391-2000-10', code: '10', examCode: 2000, componentCode: 10,
+        tableNumber: 0, resultType: 3, decimalPlaces: 0,
+        description: 'ESPESSURA CHAPA CONF. DESENHO', reference: '',
+        minValue: 0, maxValue: 0, unit: '', measurementMethod: 'PAQUÍMETRO',
+        sequence: 1, status: 'PENDING',
+      }],
+    }]);
+    state.openPanel('64391-2000-10');
+
+    component.updateReport('0');
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(state.componentById('64391-2000-10')?.measurement).toMatchObject({
+      report: '0', status: 'RECORDED', deliveryStatus: 'PENDING',
+    });
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      commandType: 'SAVE_QUALITY_RESULT',
+      payload: expect.objectContaining({ laudo: '0' }),
+    }));
+    expect(capture.mock.calls.at(-1)?.[0].payload).not.toHaveProperty('resultado');
+  });
+
   it('finaliza a ficha somente após todos os exames e depende de todos os resultados', async () => {
     state.applyMeasurement('e1', 'numeric', { result: 24, status: 'RECORDED', commandId: 'r1' });
     expect(component.canCompleteExam).toBe(false);
@@ -156,5 +203,41 @@ describe('ExamEntryPanel resultado único', () => {
     await vi.waitFor(() => expect(capture).toHaveBeenCalledWith(expect.objectContaining({
       commandType: 'FINALIZE_QUALITY_ROUTE', aggregateId: '64379', dependencyIds: ['r1', 'r2'],
     })));
+  });
+
+  it('restaura finalização e preserva medições quando a identidade segura falha', () => {
+    state.applyMeasurement('e1', 'numeric', { result: 24, status: 'RECORDED', commandId: 'r1' });
+    state.applyMeasurement('e2', 'option', {
+      selectedOption: { tableNumber: 8, sequence: 1, description: 'SIM' },
+      status: 'RECORDED', commandId: 'r2',
+    });
+    idempotency.resolve.mockImplementationOnce(() => { throw new Error('identity'); });
+
+    expect(() => component.completeExam()).not.toThrow();
+
+    expect(state.isFinishing()).toBe(false);
+    expect(state.examFeedback()).toBe('Não foi possível gerar a identidade segura da finalização.');
+    expect(state.componentById('numeric')?.measurement).toMatchObject({ commandId: 'r1' });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('restaura parada e preserva motivo/medições quando a identidade segura falha', () => {
+    state.applyMeasurement('e1', 'numeric', {
+      result: 25, status: 'REJECTED', withinRange: false, commandId: 'r1',
+    });
+    state.applyMeasurement('e2', 'option', {
+      selectedOption: { tableNumber: 8, sequence: 2, description: 'NÃO' },
+      status: 'APPROVED', withinRange: true, commandId: 'r2',
+    });
+    component.updateStopReason('Ajustar processo');
+    idempotency.resolve.mockImplementationOnce(() => { throw new Error('identity'); });
+
+    expect(() => component.stopRoute()).not.toThrow();
+
+    expect(state.isStopping()).toBe(false);
+    expect(state.examFeedback()).toBe('Não foi possível gerar a identidade segura da parada.');
+    expect(component.stopReason).toBe('Ajustar processo');
+    expect(state.componentById('numeric')?.measurement).toMatchObject({ commandId: 'r1' });
+    expect(capture).not.toHaveBeenCalled();
   });
 });

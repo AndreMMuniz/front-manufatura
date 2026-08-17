@@ -2,6 +2,12 @@
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.3.
 
+## Atualização do servidor
+
+O arquivo [`atualiza-front.bat`](atualiza-front.bat) é a ferramenta de CD manual usada no servidor Windows para atualizar a branch `main`, instalar as dependências, gerar o build de produção e iniciar a aplicação com as variáveis do arquivo `.env`.
+
+Consulte o [guia de atualização e inicialização no servidor](docs/atualiza-front.md) antes de executar a ferramenta.
+
 ## Development server
 
 To start a local development server, run:

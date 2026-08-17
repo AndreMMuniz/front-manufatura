@@ -72,6 +72,17 @@
                 }
               ]
             },
+            "http-test": {
+              "optimization": true,
+              "extractLicenses": true,
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/runtime/insecure-http-test-mode.ts",
+                  "with": "src/app/core/runtime/insecure-http-test-mode.http-test.ts"
+                }
+              ]
+            },
             "pwa-e2e-a": {
               "serviceWorker": "ngsw-config.json",
               "outputHashing": "all",
@@ -122,6 +133,37 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "runnerConfig": "vitest.config.ts"
+          },
+          "configurations": {
+            "coverage": {
+              "coverage": true,
+              "watch": false,
+              "coverageInclude": ["src/**/*.ts"],
+              "coverageExclude": [
+                "src/**/*.spec.ts",
+                "src/**/*.test.ts",
+                "src/**/*.e2e.ts",
+                "src/**/*.d.ts",
+                "src/app/core/offline/testing/**",
+                "src/main.ts",
+                "src/main.server.ts",
+                "src/app/app.config.server.ts",
+                "src/app/app.routes.server.ts"
+              ],
+              "coverageReporters": [
+                "text-summary",
+                "html",
+                "json-summary",
+                "lcov"
+              ],
+              "coverageThresholds": {
+                "perFile": false,
+                "statements": 82,
+                "branches": 74,
+                "functions": 83,
+                "lines": 83
+              }
+            }
           }
         }
       }

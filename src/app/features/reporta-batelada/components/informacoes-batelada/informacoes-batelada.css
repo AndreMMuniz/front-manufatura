@@ -6,16 +6,20 @@
 }
 
 .informacoes-batelada__context div {
+  background: var(--app-color-surface-muted);
+  border-radius: var(--app-radius);
   min-width: 0;
+  padding: var(--app-space-sm) var(--app-space-md);
 }
 
 dt {
   color: var(--app-color-text-secondary);
-  font-size: 0.875rem;
+  font-size: var(--app-font-size-caption);
   font-weight: 600;
 }
 
 dd {
+  font-weight: var(--font-weight-semibold);
   margin: var(--app-space-xs) 0 0;
   overflow-wrap: anywhere;
 }
@@ -39,10 +43,10 @@ dd {
 }
 
 .informacoes-batelada__responsavel > po-button {
-  transform: translateY(calc(-1 * var(--app-space-sm)));
+  align-self: end;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .informacoes-batelada__context {
     grid-template-columns: 1fr;
   }
@@ -51,7 +55,4 @@ dd {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .informacoes-batelada__responsavel > po-button {
-    transform: none;
-  }
 }

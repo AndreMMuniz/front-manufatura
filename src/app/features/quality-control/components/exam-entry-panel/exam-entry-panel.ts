@@ -13,7 +13,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, concatMap, Observable, of, tap } from 'rxjs';
 
-import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoDialogService, PoFieldModule, PoIconModule } from '@po-ui/ng-components';
 
 import { SaveMeasurementResponse } from '../../models/inspection-record';
 import { QualityControlService } from '../../services/quality-control';
@@ -23,7 +23,7 @@ import { IdempotencyService } from '../../../../core/offline/services/idempotenc
 
 @Component({
   selector: 'app-exam-entry-panel',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoIconModule, PoProgressModule, PoWidgetModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, PoIconModule],
   templateUrl: './exam-entry-panel.html',
   styleUrls: ['./exam-entry-panel.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,6 +56,7 @@ export class ExamEntryPanel implements AfterViewInit {
     return this.characteristics.findIndex(component => component.id === this.currentCharacteristic?.id);
   }
   get result(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).result : ''; }
+  get report(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).report : ''; }
   get selectedOptionKey(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).selectedOptionKey : ''; }
   get resultOptions(): readonly { label: string; value: string }[] {
     return (this.currentCharacteristic?.resultOptions ?? []).map(option => ({
@@ -64,6 +65,7 @@ export class ExamEntryPanel implements AfterViewInit {
     }));
   }
   get hasResultOptions(): boolean { return this.resultOptions.length > 0; }
+  get isReportResult(): boolean { return this.currentCharacteristic?.resultType === 3; }
   get observation(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).observation : ''; }
   set observation(value: string) {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
@@ -110,7 +112,7 @@ export class ExamEntryPanel implements AfterViewInit {
   }
   get currentMeasurementReference(): string {
     return this.currentCharacteristic
-      ? `${this.currentCharacteristic.reference} ${this.currentCharacteristic.unit}`.trim()
+      ? `${this.currentCharacteristic.reference} ${this.currentCharacteristic.unit}`.trim() || '-'
       : '-';
   }
 
@@ -118,6 +120,12 @@ export class ExamEntryPanel implements AfterViewInit {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
       this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
       this.workflow.updateDraft(this.currentCharacteristic.id, { result: this.sanitizeNumericInput(value) });
+    }
+  }
+
+  updateReport(value: string): void {
+    if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
+      this.workflow.updateDraft(this.currentCharacteristic.id, { report: value });
     }
   }
 
@@ -139,11 +147,16 @@ export class ExamEntryPanel implements AfterViewInit {
     const selectedOption = characteristic.resultOptions?.find(
       option => `${option.tableNumber}:${option.sequence}` === draft.selectedOptionKey,
     );
-    const result = this.hasResultOptions ? null : this.parseNumber(draft.result);
-    if (this.hasResultOptions ? !selectedOption : result === null) {
+    const report = this.isReportResult ? draft.report.trim() : null;
+    const result = this.hasResultOptions || this.isReportResult
+      ? null
+      : this.parseNumber(draft.result);
+    if (this.hasResultOptions ? !selectedOption : this.isReportResult ? !report : result === null) {
       this.validationMessage = this.hasResultOptions
         ? 'Selecione uma opção de resultado.'
-        : 'Informe um resultado numérico.';
+        : this.isReportResult
+          ? 'Informe o laudo.'
+          : 'Informe um resultado numérico.';
       return of(null);
     }
     if (result !== null && !this.hasSupportedPrecision(draft.result, characteristic.decimalPlaces)) {
@@ -165,21 +178,30 @@ export class ExamEntryPanel implements AfterViewInit {
     }
     const fingerprint = JSON.stringify({
       result,
+      report,
       selectedOptionKey: draft.selectedOptionKey,
       observation: draft.observation.trim(),
       operatorId: this.operatorService.selectedOperator?.code ?? '',
     });
-    const idempotencyKey = this.workflow.ensureMeasurementCommandId(
-      exam.id,
-      characteristic.id,
-      fingerprint,
-      () => this.idempotency.resolve(),
-    );
+    let idempotencyKey: string;
+    try {
+      idempotencyKey = this.workflow.ensureMeasurementCommandId(
+        exam.id,
+        characteristic.id,
+        fingerprint,
+        () => this.idempotency.resolve(),
+      );
+    } catch {
+      this.workflow.isSaving.set(false);
+      this.workflow.examFeedback.set('Não foi possível gerar a identidade segura do resultado.');
+      return of(null);
+    }
     const dependencyIds = [
       ...(route.creationCommandId ? [route.creationCommandId] : []),
       ...this.workflow.measurementCommandIds(exam.id).slice(-1),
     ];
     return this.qualityControlService.saveMeasurement({
+      orderNumber: route.currentOrder,
       examId: exam.id,
       componentId: characteristic.id,
       routeNumber: route.routeNumber,
@@ -194,6 +216,7 @@ export class ExamEntryPanel implements AfterViewInit {
       dependencyIds,
       measurement: {
         ...(result !== null ? { result } : {}),
+        ...(report ? { report } : {}),
         ...(selectedOption ? { selectedOption } : {}),
         observation: draft.observation.trim() || undefined,
         status: 'RECORDED',
@@ -267,8 +290,19 @@ export class ExamEntryPanel implements AfterViewInit {
     this.workflow.examFeedback.set('Concluindo exame...');
     const measurementCommandIds = this.workflow.exams()
       .flatMap(item => this.workflow.measurementCommandIds(item.id));
-    const finishCommandId =
-      this.workflow.ensureFinishCommandId(route.routeNumber, () => this.idempotency.resolve());
+    let finishCommandId: string;
+    try {
+      finishCommandId = this.workflow.ensureFinishCommandId(
+        route.routeNumber,
+        () => this.idempotency.resolve(),
+      );
+    } catch {
+      this.workflow.isFinishing.set(false);
+      this.workflow.examFeedback.set(
+        'Não foi possível gerar a identidade segura da finalização.',
+      );
+      return;
+    }
     this.qualityControlService.finishExam({
       examId: `route-${route.routeNumber}`,
       routeNumber: route.routeNumber,
@@ -322,10 +356,19 @@ export class ExamEntryPanel implements AfterViewInit {
     this.workflow.isStopping.set(true);
     this.workflow.examFeedback.set('Parando roteiro...');
     const measurementCommandIds = this.workflow.measurementCommandIds(exam.id);
-    const stopCommandId =
-      this.workflow.ensureStopCommandId(() => this.idempotency.resolve());
-    const inspectionCommandId =
-      this.workflow.ensureInspectionCommandId(exam.id, () => this.idempotency.resolve());
+    let stopCommandId: string;
+    let inspectionCommandId: string;
+    try {
+      stopCommandId = this.workflow.ensureStopCommandId(() => this.idempotency.resolve());
+      inspectionCommandId = this.workflow.ensureInspectionCommandId(
+        exam.id,
+        () => this.idempotency.resolve(),
+      );
+    } catch {
+      this.workflow.isStopping.set(false);
+      this.workflow.examFeedback.set('Não foi possível gerar a identidade segura da parada.');
+      return;
+    }
     this.qualityControlService.stopInspectionRoute({
       routeNumber: route.routeNumber,
       ...(route.localId || route.creationCommandId
@@ -376,6 +419,7 @@ export class ExamEntryPanel implements AfterViewInit {
         componentCode: component.code,
         description: component.description,
         measuredValue: measurement.result,
+        ...(measurement.report ? { report: measurement.report } : {}),
         expectedMin: component.minValue,
         expectedMax: component.maxValue,
         unit: component.unit,

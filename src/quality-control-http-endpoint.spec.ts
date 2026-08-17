@@ -140,6 +140,22 @@ describe('gateway Plano Controle CQ', () => {
     }));
   });
 
+  it('encaminha laudo não vazio como a única representação do tipoResultado 3', () => {
+    expect(buildQualityResultPayload({
+      nrFicha: 64391, codExame: 2000, codComponente: 10, laudo: ' 0 ',
+    }, 'Mjocelio')).toEqual({
+      nrFicha: 64391, codExame: 2000, codComponente: 10,
+      laudo: '0', codUsuario: 'Mjocelio',
+    });
+
+    expect(() => buildQualityResultPayload({
+      nrFicha: 64391, codExame: 2000, codComponente: 10,
+      resultado: 0, laudo: '0',
+    }, 'Mjocelio')).toThrowError(expect.objectContaining({
+      status: 400, code: 'invalid-request',
+    }));
+  });
+
   it('instala rota Express autenticada, no-store e com método fechado', async () => {
     const transport = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
       total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [] } }],

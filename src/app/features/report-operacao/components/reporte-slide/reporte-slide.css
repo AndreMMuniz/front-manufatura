@@ -54,6 +54,7 @@
   grid-template-columns: minmax(132px, 1.4fr) repeat(3, minmax(82px, 1fr));
   min-height: 44px;
   padding: var(--app-space-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .reporte-slide__row--header {
@@ -74,7 +75,7 @@
 .reporte-slide__reasons {
   background: var(--app-color-background-soft);
   display: grid;
-  font-size: 0.875rem;
+  font-size: var(--app-font-size-caption);
   gap: 2px;
   padding: 0 var(--app-space-sm) var(--app-space-sm);
 }

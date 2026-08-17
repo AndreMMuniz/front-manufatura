@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { PoButtonModule, PoFieldModule, PoLoadingModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoFieldModule } from '@po-ui/ng-components';
 
 import { LoginError, LoginService } from '../../services/login.service';
 import { messageForOfflineAvailability } from '../../../../core/offline/models/offline-availability';
@@ -11,7 +11,7 @@ import { buildSafeReturnUrl } from '../../../../core/auth/safe-return-url';
 
 @Component({
   selector: 'app-login-page',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoLoadingModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule],
   templateUrl: './login-page.html',
   styleUrls: ['./login-page.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

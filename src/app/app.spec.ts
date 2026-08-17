@@ -427,7 +427,7 @@ describe('App', () => {
     expect(reloadWhenSafe).toHaveBeenNthCalledWith(2, true);
   });
 
-  it('should render the app name in the authenticated Home toolbar without a side menu', async () => {
+  it('should render the Home name on the left and the session identity on the right', async () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     currentUserValue = { id: 'USR-001', nome: 'Operador Cortag', login: 'operador', permissoes: ALL_MODULE_PERMISSIONS };
     await TestBed.inject(Router).navigateByUrl('/menu');
@@ -437,8 +437,13 @@ describe('App', () => {
     const toolbar = fixture.debugElement.query(By.directive(PoToolbarComponent))
       .componentInstance as PoToolbarComponent;
 
-    expect(app.toolbarTitle).toBe('Apontamento Manufatura - operador');
-    expect(toolbar.title).toBe('Apontamento Manufatura - operador');
+    expect(app.toolbarTitle).toBe('Menu Principal');
+    expect(app.sessionIdentity).toBe('Apontamento Manufatura — operador');
+    expect(toolbar.title).toBe('Menu Principal');
+    const sessionIdentity = fixture.nativeElement.querySelector('[data-testid="session-identity"]');
+    expect(sessionIdentity).not.toBeNull();
+    expect(sessionIdentity.textContent.trim()).toBe('Apontamento Manufatura — operador');
+    expect(sessionIdentity.getAttribute('title')).toBe('Apontamento Manufatura — operador');
     expect(fixture.nativeElement.querySelector('po-toolbar')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('po-menu')).toBeNull();
     expect(fixture.nativeElement.querySelector('[data-testid="synchronization-indicator"]'))
@@ -471,6 +476,7 @@ describe('App', () => {
     const app = fixture.componentInstance;
 
     expect(app.showSideMenu).toBe(true);
+    expect(app.toolbarTitle).toBe('Plano Controle CQ');
     expect(fixture.nativeElement.querySelector('[data-testid="app-side-menu"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('po-menu')).not.toBeNull();
     expect(app.menus[0]).toMatchObject({
@@ -494,6 +500,16 @@ describe('App', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="main-menu-return"]')).toBeNull();
   });
 
+  it('should keep the module name in the toolbar while navigating through a nested route', () => {
+    vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/quality-control/exam-entry?source=toolbar');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.toolbarTitle).toBe('Plano Controle CQ');
+  });
+
   it('should expose Sair as the only toolbar action using the installed PO-UI API', () => {
     vi.mocked(authSessionMock.isAuthenticated).mockReturnValue(true);
     const fixture = TestBed.createComponent(App);
@@ -510,6 +526,8 @@ describe('App', () => {
     expect(
       fixture.nativeElement.querySelector('button[aria-label="Abrir ações da sessão"]'),
     ).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="synchronization-indicator"]'))
+      .not.toBeNull();
   });
 
   it('should redirect to login when the shell logout clears the session', async () => {

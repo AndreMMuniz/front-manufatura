@@ -1,6 +1,8 @@
 .ordens-centro-list__table {
+  font-variant-numeric: tabular-nums;
   max-width: 100%;
   overflow-x: auto;
+  scrollbar-gutter: stable;
 }
 
 .ordens-centro-list__loading {
@@ -8,9 +10,12 @@
 }
 
 .ordens-centro-list__empty {
-  margin: var(--app-space-lg) 0;
-  color: var(--app-color-text);
-  font-weight: 600;
+  background: var(--app-color-surface-muted);
+  border-radius: var(--app-radius);
+  color: var(--app-color-text-muted);
+  margin: 0;
+  padding: var(--app-space-lg);
+  text-align: center;
 }
 
 .ordens-centro-list__footer {
@@ -19,9 +24,11 @@
   align-items: center;
   justify-content: space-between;
   margin-top: var(--app-space-md);
+  padding-top: var(--app-space-md);
+  border-top: 1px solid var(--app-color-border);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .ordens-centro-list__footer {
     align-items: stretch;
     flex-direction: column;

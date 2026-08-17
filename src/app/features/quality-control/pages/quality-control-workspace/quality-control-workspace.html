@@ -1,5 +1,5 @@
-<po-page-default p-title="Plano Controle CQ">
-  <main class="quality-workspace">
+<po-page-default>
+  <section class="quality-workspace" aria-label="Plano Controle CQ">
     <app-operational-correction-notice />
     <app-route-generation-section></app-route-generation-section>
 
@@ -16,5 +16,5 @@
       <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="goBack()"></po-button>
       <po-button p-label="Sair" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="exit()"></po-button>
     </nav>
-  </main>
+  </section>
 </po-page-default>

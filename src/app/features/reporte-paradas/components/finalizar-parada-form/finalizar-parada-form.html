@@ -31,13 +31,13 @@
       <p class="finish-stop__error" role="alert">{{ externalError }}</p>
     }
 
-    <button
+    <po-button
       class="finish-stop__submit"
-      type="submit"
-      [disabled]="form.disabled || loading"
-      [attr.aria-busy]="loading"
-    >
-      {{ loading ? 'Finalizando...' : 'Finalizar parada' }}
-    </button>
+      p-label="Finalizar parada"
+      p-kind="primary"
+      p-type="submit"
+      [p-disabled]="form.disabled || loading"
+      [p-loading]="loading"
+    ></po-button>
   </form>
 </po-widget>

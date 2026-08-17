@@ -63,6 +63,7 @@ dev-debug.log
 .opencode/
 .serena/
 .taskmaster/
+/graphify-out/
 memories/
 .mcp.json
 .bmad/
@@ -80,6 +81,7 @@ opencode.json
 # Local/AI generated documentation and notes
 *.md
 !README.md
+/Makefile
 docs/
 doc/
 documentation/
@@ -87,9 +89,15 @@ ai-docs/
 generated-docs/
 token-usage-output.txt
 
+# Keep the Windows server update runbook versioned
+!docs/
+docs/*
+!docs/atualiza-front.md
+
 # Keep Plano de Controle CQ API documentation versioned
 !project-specs/
 project-specs/*
+!project-specs/acessos-datasul-frontend.md
 !project-specs/planodecontrole-api/
 !project-specs/planodecontrole-api/**
 
@@ -105,6 +113,9 @@ SKILL.md
 
 # Engram AI agent memory
 .engram/
+
+# Isolated implementation worktrees
+.worktrees/
 
 # Playwright
 node_modules/

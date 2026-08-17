@@ -85,6 +85,7 @@
 
 .batch-report__history-table {
   border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
   table-layout: fixed;
   width: 100%;
 }
@@ -94,6 +95,7 @@
   min-height: 44px;
   padding: var(--app-space-sm);
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .batch-report__history-row--header {
@@ -103,7 +105,7 @@
 
 .batch-report__history-reasons {
   background: var(--app-color-background-soft);
-  font-size: 0.875rem;
+  font-size: var(--app-font-size-caption);
 }
 
 .batch-report__history-reasons td {

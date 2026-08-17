@@ -1,12 +1,30 @@
 .ordem-search {
   display: grid;
-  gap: 16px;
+  gap: var(--app-space-md);
 }
 
 .ordem-search__actions {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--app-space-sm);
   justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .ordem-search__actions {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ordem-search__actions > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  .ordem-search__actions app-scanner-button,
+  .ordem-search__actions po-button {
+    display: block;
+    min-width: 0;
+  }
 }

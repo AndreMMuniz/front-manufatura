@@ -2,6 +2,8 @@
 
 Registra o resultado de um componente de exame associado a uma ficha de inspeção.
 
+> Diagnóstico relacionado: [incidente de resultado tipo 3 enviado como número](./incidents/2026-08-14-plano-controle-tipo-3-laudo.md).
+
 ## Requisição
 
 - Método: `PUT`
@@ -22,6 +24,10 @@ Registra o resultado de um componente de exame associado a uma ficha de inspeç�
 
 ### Corpo da requisição
 
+O corpo usa uma única representação de resultado, determinada por `tipoResultado` retornado anteriormente pelo endpoint de roteiros.
+
+#### Tipo 2 — opção tabelada
+
 ```json
 {
   "nrFicha": 64378,
@@ -33,13 +39,41 @@ Registra o resultado de um componente de exame associado a uma ficha de inspeç�
 }
 ```
 
+#### Tipo 3 — laudo textual
+
+Evidência confirmada em 2026-08-14: o Datasul rejeitou a ausência de `laudo` com a mensagem `Laudo e obrigatório para tipo-result=3` e aceitou HTTP 200 quando recebeu `"laudo": "0"`. O teste de confirmação ainda continha `nrTabela` e `seqOpcao` residuais; o exemplo abaixo representa o corpo canônico adotado pelo cliente, sem misturar representações de resultado.
+
+```json
+{
+  "nrFicha": 64391,
+  "codExame": 2000,
+  "codComponente": 10,
+  "laudo": "0",
+  "codUsuario": "Mjocelio"
+}
+```
+
+#### Tipo 4 — resultado numérico
+
+```json
+{
+  "nrFicha": 64396,
+  "codExame": 164,
+  "codComponente": 10,
+  "resultado": 347,
+  "codUsuario": "Mjocelio"
+}
+```
+
 | Campo | Tipo observado | Obrigatório | Descrição |
 | --- | --- | --- | --- |
 | `nrFicha` | integer | Sim | Número da ficha de inspeção. |
 | `codExame` | integer | Sim | Código do exame. |
 | `codComponente` | integer | Sim | Código do componente avaliado. |
-| `nrTabela` | integer | Sim | Número da tabela de opções associada ao componente. |
-| `seqOpcao` | integer | Sim | Sequência da opção selecionada na tabela. |
+| `nrTabela` | integer | Condicional | Número da tabela de opções; usado em `tipoResultado: 2`. |
+| `seqOpcao` | integer | Condicional | Sequência da opção; usado em `tipoResultado: 2`. |
+| `laudo` | string | Condicional | Laudo textual obrigatório em `tipoResultado: 3`. O texto `"0"` foi aceito. |
+| `resultado` | number | Condicional | Medição numérica usada em `tipoResultado: 4`. |
 | `codUsuario` | string | Sim | Código do usuário responsável pelo registro. O valor observado foi `Mjocelio`. |
 
 ## Resposta fornecida
@@ -68,8 +102,11 @@ Cada item de `items` contém:
 
 ## Observações do contrato
 
+- Enviar `resultadoMin` e `resultadoMax` não faz parte do PUT. Esses campos pertencem ao roteiro e servem de referência apenas para tipos numéricos que utilizam faixa.
+- Para `tipoResultado: 3`, `resultadoMin: 0.0`, `resultadoMax: 0.0`, `nrTabela: 0` e `referenciaTecnica` vazia não significam que o resultado esperado seja zero; o PUT exige `laudo`.
+- O cliente deve enviar somente a representação correspondente ao tipo: tabela, laudo ou número.
 - Esta é uma operação de escrita. Repetições, tentativas automáticas e sincronização offline precisam considerar a idempotência efetiva do endpoint, que não foi informada.
 - Esta documentação descreve uma requisição e uma resposta fornecidas e não substitui um contrato OpenAPI oficial.
-- O significado funcional de `tipoResultado`, `seqComp`, `numeroTeste` e dos limites retornados precisa ser confirmado com a regra de negócio.
+- Os significados observados de `tipoResultado` são: 2 para opção tabelada, 3 para laudo textual e 4 para resultado numérico. Outros códigos ainda precisam ser confirmados.
 - Na resposta fornecida, `dentroFaixa` foi `false`, embora a opção selecionada tenha sido `seqOpcao: 1`; a documentação preserva os valores recebidos sem inferir aprovação ou reprovação.
 - A cardinalidade fornecida foi `total: 1` e `hasNext: false`, com `componentesSalvos: 6` de `componentesTotal: 6`.

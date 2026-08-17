@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, ViewChildren, QueryList, inject } from '@angular/core';
 
-import { PoButtonModule, PoDialogService, PoProgressModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoDialogService } from '@po-ui/ng-components';
 
 import { formatExamFrequency } from '../../models/format-exam-frequency';
 import { QualityExamComponent } from '../../models/quality-exam';
@@ -8,7 +8,7 @@ import { QualityControlWorkflowState } from '../../services/quality-control-work
 
 @Component({
   selector: 'app-inspection-section',
-  imports: [PoButtonModule, PoProgressModule, PoWidgetModule],
+  imports: [PoButtonModule],
   templateUrl: './inspection-section.html',
   styleUrls: ['./inspection-section.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,10 +20,6 @@ export class InspectionSection {
   readonly workflow = inject(QualityControlWorkflowState);
   readonly formatExamFrequency = formatExamFrequency;
   private readonly dialog = inject(PoDialogService);
-
-  get progressText(): string {
-    return `${this.workflow.completedCount()} de ${this.workflow.components().length} componentes concluídos`;
-  }
 
   get canOpenExamEntry(): boolean {
     const selected = this.workflow.selectedComponent();
@@ -119,6 +115,6 @@ export class InspectionSection {
     if (Number.isNaN(date.getTime())) return null;
 
     const pad = (value: number) => value.toString().padStart(2, '0');
-    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 }

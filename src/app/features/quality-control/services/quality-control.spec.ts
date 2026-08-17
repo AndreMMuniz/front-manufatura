@@ -63,13 +63,14 @@ describe('QualityControlService real Datasul contracts', () => {
   it('captura resultado único sem classificar localmente como aprovado', async () => {
     const { service, capture } = createService();
     const response = await firstValueFrom(service.saveMeasurement({
-      nrFicha: 64379, routeNumber: '64379', examId: '64379-1845', examCode: 1845,
+      orderNumber: '372562', nrFicha: 64379, routeNumber: '64379', examId: '64379-1845', examCode: 1845,
       componentId: '64379-1845-1', componentCode: 1, operatorId: 'OP1',
       measurement: { result: 24.01, status: 'RECORDED' },
     }));
     expect(response.measurement).toMatchObject({ result: 24.01, status: 'RECORDED', deliveryStatus: 'PENDING' });
     expect(capture).toHaveBeenCalledWith(expect.objectContaining({
-      commandType: 'SAVE_QUALITY_RESULT', payload: expect.objectContaining({ resultado: 24.01 }),
+      commandType: 'SAVE_QUALITY_RESULT',
+      payload: expect.objectContaining({ orderNumber: '372562', resultado: 24.01 }),
     }));
   });
 });

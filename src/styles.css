@@ -5,25 +5,39 @@
   --app-color-primary-dark: #a91419;
   --app-color-primary-soft: #fde7e8;
   --app-color-background: #ffffff;
+  --app-color-background-soft: var(--app-color-surface-muted);
   --app-color-surface: #ffffff;
   --app-color-surface-muted: #f6f7f8;
   --app-color-border: #dadedf;
   --app-color-text: #2c373b;
   --app-color-text-muted: #5b6871;
+  --app-color-text-secondary: var(--app-color-text-muted);
   --app-color-success: #0f6b2f;
   --app-color-success-soft: #dff3e7;
   --app-color-warning: #9a6a00;
   --app-color-warning-soft: #fff8e1;
   --app-color-error: #9f1c1c;
   --app-color-error-soft: #fde7e7;
+  --app-color-danger: var(--app-color-error);
   --app-color-info: #005c9e;
+  --app-color-info-soft: #e5f2fb;
+  --app-color-focus: var(--color-action-focus);
   --app-space-xs: 4px;
   --app-space-sm: 8px;
   --app-space-md: 16px;
   --app-space-lg: 24px;
   --app-space-xl: 32px;
   --app-radius: 4px;
+  --app-radius-container: var(--border-radius-lg);
   --app-touch-target: 48px;
+  --app-container-form: 960px;
+  --app-container-content: 1120px;
+  --app-container-operational: 1200px;
+  --app-font-size-caption: var(--font-size-sm);
+  --app-font-size-body: var(--font-size-default);
+  --app-font-size-section-title: var(--font-size-md);
+  --app-line-height-body: var(--line-height-md);
+  --app-z-dialog: 1000;
 
   --color-brand-01-base: var(--app-color-primary);
   --color-brand-01-dark: var(--app-color-primary-dark);
@@ -57,19 +71,126 @@
 
 html,
 body {
-  background: var(--app-color-background);
+  min-height: 100%;
+  background: var(--app-color-background-soft);
   color: var(--app-color-text);
+}
+
+body {
+  line-height: var(--app-line-height-body);
+}
+
+/* Keep the PO-UI structure while giving operational pages a clearer visual
+   hierarchy: neutral canvas, distinct page header and consistent surfaces. */
+.po-page {
+  height: auto !important;
+  background: var(--app-color-background-soft);
+}
+
+.po-page-header {
+  background: var(--app-color-surface);
+  border-bottom: var(--border-width-sm) solid var(--app-color-border);
+}
+
+.po-page-header-title {
+  color: var(--app-color-text);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-neg-1);
+}
+
+table,
+.app-tabular-numbers {
+  font-variant-numeric: tabular-nums;
 }
 
 po-page-default {
   display: block;
 }
 
-/* PO UI 21.21 can leave page content transparent when the asynchronous
-   viewport calculation does not complete. Keep its calculated height so the
-   internal scroll area still accounts for the toolbar and page header. */
+/* The PO UI viewport calculation starts at 90% and is updated asynchronously.
+   Let the page grow naturally so there is no temporary nested scrollbar or
+   uncovered viewport while preserving the PO UI page structure. */
+po-page-content {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
 .po-page-content {
+  flex: 1 0 auto;
+  height: auto !important;
+  max-height: none;
+  overflow-y: visible;
+  background: var(--app-color-background-soft);
   opacity: 1 !important;
+}
+
+po-widget {
+  --background: var(--app-color-surface);
+  --border-color: var(--app-color-border);
+  --border-radius: var(--app-radius-container);
+  --padding-header: var(--spacing-sm) var(--spacing-sm) var(--spacing-xs);
+  --padding-body: 0 var(--spacing-sm) var(--spacing-sm);
+  --shadow: var(--shadow-sm);
+}
+
+po-widget .po-widget-text {
+  color: var(--app-color-text);
+  font-size: var(--app-font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-neg-1);
+}
+
+po-table .po-table-header {
+  background: var(--app-color-surface-muted);
+}
+
+.synchronization-center__summary {
+  align-items: center;
+  background: var(--app-color-surface);
+  border: 1px solid var(--app-color-border);
+  border-radius: var(--app-radius-container);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--app-font-size-body);
+  gap: var(--app-space-sm) var(--app-space-lg);
+  min-height: var(--app-touch-target);
+  padding: var(--app-space-sm) var(--app-space-md);
+}
+
+.synchronization-center__summary strong {
+  color: var(--app-color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.synchronization-center__summary span {
+  color: var(--app-color-text-muted);
+}
+
+@media (min-width: 961px) {
+  .po-page-content {
+    padding: var(--app-space-lg) var(--app-space-xl);
+  }
+}
+
+@media (max-width: 480px) {
+  .po-page-header {
+    padding-inline: var(--app-space-md);
+  }
+
+  .po-page-content {
+    padding: var(--app-space-md);
+  }
+
+  .contexto-producao__action .po-button,
+  .footer-acoes-batelada .po-button,
+  .ordem-search__actions .po-button,
+  .quality-workspace__actions .po-button,
+  .report-actions .po-button,
+  .reporte-paradas__actions .po-button {
+    width: 100%;
+  }
 }
 
 /* Keep floating event notifications compact and centered at the top.

@@ -19,7 +19,13 @@ import {
 } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { PoFieldModule, PoSelectOption, PoWidgetModule } from '@po-ui/ng-components';
+import {
+  PoButtonModule,
+  PoCheckboxModule,
+  PoFieldModule,
+  PoSelectOption,
+  PoWidgetModule,
+} from '@po-ui/ng-components';
 
 import { StopReason } from '../../models/reporte-paradas.model';
 import { ParadaDraft } from '../../services/reporte-paradas-workflow-state';
@@ -35,7 +41,7 @@ type ParadaFormControls = {
 
 @Component({
   selector: 'app-parada-form',
-  imports: [ReactiveFormsModule, PoFieldModule, PoWidgetModule],
+  imports: [ReactiveFormsModule, PoButtonModule, PoCheckboxModule, PoFieldModule, PoWidgetModule],
   templateUrl: './parada-form.html',
   styleUrls: ['./parada-form.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -46,7 +46,15 @@
 
         @if (submitting) {
           <div class="login-page__loading" role="status" aria-live="polite">
-            <po-loading p-text="Autenticando"></po-loading>
+            <span class="login-page__loading-label">Autenticando...</span>
+            <span
+              class="login-page__loading-track"
+              role="progressbar"
+              aria-label="Autenticando"
+              aria-valuetext="Em andamento"
+            >
+              <span class="login-page__loading-bar"></span>
+            </span>
           </div>
         }
 
@@ -60,6 +68,4 @@
       </form>
     }
   </div>
-
-  <footer class="login-page__version">Plano de Controle CQ</footer>
 </section>

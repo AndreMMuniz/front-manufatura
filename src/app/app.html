@@ -1,15 +1,34 @@
-<div class="app-shell" [class.po-wrapper]="showSideMenu">
+<div
+  class="app-shell"
+  [class.po-wrapper]="showSideMenu"
+  [class.po-collapsed-menu]="showSideMenu && !sideMenuExpanded()"
+>
   @if (isAuthenticated) {
     <ng-template #sessionActionsIcon>
       <span class="app-shell__session-actions">
+        <span
+          class="app-shell__session-identity"
+          data-testid="session-identity"
+          [attr.title]="sessionIdentity"
+        >{{ sessionIdentity }}</span>
         <app-synchronization-indicator data-testid="synchronization-indicator" />
         <button
+          #sessionActionsTrigger
           type="button"
           class="app-shell__session-actions-trigger"
           aria-label="Abrir ações da sessão"
+          (click)="sessionActionsPopup.toggle(); $event.stopPropagation()"
         >
           <po-icon p-icon="an an-sign-out" aria-hidden="true" />
         </button>
+        <po-popup
+          #sessionActionsPopup
+          data-testid="session-actions-popup"
+          p-position="bottom"
+          p-size="medium"
+          [p-actions]="toolbarActions"
+          [p-target]="sessionActionsTrigger"
+        />
       </span>
     </ng-template>
 
@@ -21,7 +40,11 @@
 
     @if (showSideMenu) {
       <nav class="app-shell__menu" aria-label="Menu lateral principal" data-testid="app-side-menu">
-        <po-menu [p-menus]="menus"></po-menu>
+        <po-menu
+          [p-menus]="menus"
+          [p-collapsed]="!sideMenuExpanded()"
+          (p-toggle)="sideMenuExpanded.set($event)"
+        ></po-menu>
       </nav>
     }
   }

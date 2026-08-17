@@ -112,7 +112,7 @@ test('indicador abre a Central owner-scoped, preserva reload, teclado, foco e vi
   await expect(page.getByTestId('sync-status-error-a')).toHaveCount(0);
 });
 
-test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro', async ({ page }) => {
+test('retry, correção e cancelamento usam a Outbox real e mantêm feedback seguro', async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto('/login');
   await login(page, 'owner-a');
@@ -184,6 +184,7 @@ test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro'
   await expect(page).toHaveURL(/\/synchronization$/);
 
   const abandon = page.getByTestId('sync-abandon-abandon-a');
+  await expect(abandon).toHaveText(/Cancelar sincronização/);
   await abandon.focus();
   await abandon.click();
   await expect(page.getByTestId('sync-abandon-dialog')).toContainText(
@@ -198,12 +199,12 @@ test('retry, correção e abandono usam a Outbox real e mantêm feedback seguro'
   await page.locator('#sync-status').selectOption('ABANDONED');
   await page.getByTestId('sync-apply-filters').click();
   await expect(page.getByTestId('sync-status-abandon-a')).toContainText(
-    'Abandonado com justificativa',
+    'Cancelado com justificativa',
   );
   expect(await readPairDisposition(page, 'abandon-a')).toEqual(['ABANDONED', 'ABANDONED']);
 });
 
-test('abandono é default-deny e apenas uma aba vence a race transacional', async ({
+test('cancelamento tem liberação de desenvolvimento e apenas uma aba vence a race transacional', async ({
   context,
 }) => {
   const first = await context.newPage();
@@ -237,8 +238,7 @@ test('abandono é default-deny e apenas uma aba vence a race transacional', asyn
     { localId: 'denied', ownerId: 'operator-denied', status: 'ERROR', aggregateId: 'OP-DENIED' },
   ]);
   await denied.goto('/synchronization');
-  await expect(denied.getByTestId('sync-abandon-denied')).toHaveCount(0);
-  await expect(denied.getByText(/sessão não possui a permissão homologada/)).toBeVisible();
+  await expect(denied.getByTestId('sync-abandon-denied')).toHaveText(/Cancelar sincronização/);
   expect(await readPairDisposition(denied, 'denied')).toEqual(['ACTIVE', 'ACTIVE']);
 });
 

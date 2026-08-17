@@ -189,7 +189,9 @@ export class SynchronizationCenterPage implements AfterViewChecked {
       this.abandonReason = '';
       this.abandonTrigger = null;
       this.abandonTriggerId = null;
-      this.actionFeedback.set('Registro abandonado com justificativa e mantido no histórico.');
+      this.actionFeedback.set(
+        'Sincronização cancelada com justificativa; o registro foi mantido no histórico.',
+      );
       await this.center.refresh();
       this.pendingAbandonFocus = { id: triggerId, fallback: trigger };
       this.changeDetector.markForCheck();
@@ -310,13 +312,13 @@ function abandonMessage(result: AbandonmentResult): string {
     case 'secret-detected':
       return 'A justificativa parece conter senha, token ou credencial. Remova o segredo.';
     case 'denied':
-      return 'Sua sessão não possui permissão para abandonar este registro.';
+      return 'Sua sessão não possui permissão para cancelar esta sincronização.';
     case 'has-dependents':
       return 'Resolva primeiro os registros que dependem deste comando.';
     case 'has-later-commands':
-      return 'Resolva a cauda mais recente deste processo antes de abandonar este registro.';
+      return 'Resolva a cauda mais recente deste processo antes de cancelar esta sincronização.';
     case 'stale-or-ineligible':
-      return 'O registro mudou ou não pode mais ser abandonado.';
+      return 'O registro mudou ou não pode mais ter a sincronização cancelada.';
     case 'storage-error':
       return 'Falha local: o registro permanece preservado e ativo.';
     case 'abandoned':

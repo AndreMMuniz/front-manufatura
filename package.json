@@ -5,8 +5,11 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:http-test": "ng build --configuration http-test",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:coverage": "ng test --configuration coverage --reporters=default --reporters=./tools/dev-test-summary-reporter.ts",
+    "test:ci": "ng test --configuration coverage",
     "e2e": "playwright test",
     "build:pwa:e2e:a": "ng build --configuration pwa-e2e-a --output-path dist/pwa-e2e-a",
     "build:pwa:e2e:b": "ng build --configuration pwa-e2e-b --output-path dist/pwa-e2e-b",
@@ -32,8 +35,11 @@
     "@po-ui/ng-templates": "^21.21.0",
     "express": "^5.1.0",
     "jose": "^6.2.8",
+    "js-sha256": "^0.11.1",
     "rxjs": "~7.8.1",
     "tslib": "^2.6.2",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0",
     "zone.js": "~0.15.0"
   },
   "devDependencies": {

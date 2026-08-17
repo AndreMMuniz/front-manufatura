@@ -5,6 +5,7 @@ import {
   type DatasulAuthConfig,
   type HttpTransport,
 } from './datasul-auth-client';
+import type { ApplicationLogger } from './logging/log-contracts';
 
 export { AuthLoginError } from './auth-login-error';
 
@@ -32,6 +33,8 @@ export interface LoginDependencies {
   now?: () => Date;
   timeoutSignal?: (timeoutMs: number) => AbortSignal;
   issueToken?: typeof createAppSessionToken;
+  logger?: ApplicationLogger;
+  clock?: () => number;
 }
 
 interface AuthGatewayConfig extends DatasulAuthConfig {
@@ -128,6 +131,8 @@ export async function authenticateExternalLogin(
     {
       transport: dependencies.transport ?? fetch,
       timeoutSignal: dependencies.timeoutSignal ?? (timeoutMs => AbortSignal.timeout(timeoutMs)),
+      logger: dependencies.logger,
+      clock: dependencies.clock,
     },
   );
   const issued = await (dependencies.issueToken ?? createAppSessionToken)({

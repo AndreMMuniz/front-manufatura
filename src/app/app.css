@@ -1,13 +1,67 @@
 .app-shell {
-  min-height: 100vh;
-  background: var(--app-color-background);
+  min-height: 100dvh;
+  background: var(--app-color-background-soft);
+}
+
+.app-shell.po-wrapper {
+  max-height: none;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .app-shell__content {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  background: var(--app-color-background);
+  background: var(--app-color-background-soft);
+}
+
+/* PO UI keeps menu-aware dimensions on its page and toolbar elements. When
+   the contextual menu is absent (Login/Home), explicitly reset every layer
+   to the viewport so no reserved menu column remains on the right. */
+.app-shell:not(.po-wrapper),
+.app-shell:not(.po-wrapper) .app-shell__content,
+.app-shell:not(.po-wrapper) po-toolbar,
+.app-shell:not(.po-wrapper) po-page-default {
+  box-sizing: border-box;
+  max-width: none;
+  width: 100vw;
+}
+
+.app-shell:not(.po-wrapper) .po-toolbar,
+.app-shell:not(.po-wrapper) .po-page {
+  box-sizing: border-box;
+  left: 0;
+  margin-left: 0;
+  max-width: none;
+  right: 0;
+  width: 100vw;
+}
+
+@media (min-width: 961px) {
+  .app-shell.po-wrapper .po-page {
+    box-sizing: border-box;
+    margin-left: var(--menu-width);
+    max-width: none;
+    width: auto;
+  }
+
+  .app-shell.po-wrapper .po-toolbar {
+    box-sizing: border-box;
+    left: var(--menu-width);
+    margin-left: 0;
+    max-width: none;
+    right: 0;
+    width: auto;
+  }
+
+  .app-shell.po-wrapper.po-collapsed-menu .po-page {
+    margin-left: var(--collapsed-menu-width);
+  }
+
+  .app-shell.po-wrapper.po-collapsed-menu .po-toolbar {
+    left: var(--collapsed-menu-width);
+  }
 }
 
 .app-shell__menu {
@@ -44,6 +98,22 @@
   color: inherit;
   cursor: pointer;
   font-weight: 600;
+  transition:
+    background-color var(--duration-normal) ease,
+    border-color var(--duration-normal) ease,
+    color var(--duration-normal) ease;
+}
+
+.app-shell__update-action:hover {
+  background: var(--color-brand-01-lightest);
+  border-color: var(--color-action-hover);
+  color: var(--color-action-hover);
+}
+
+.app-shell__update-action:active {
+  background: var(--color-brand-01-lighter);
+  border-color: var(--color-action-pressed);
+  color: var(--color-action-pressed);
 }
 
 .app-shell__update-action:focus-visible {
@@ -55,7 +125,21 @@
   display: inline-flex;
   align-items: center;
   gap: var(--app-space-xs);
+  min-width: 0;
   font-size: var(--font-size-default-normal);
+}
+
+.app-shell__session-identity {
+  display: block;
+  max-width: min(34vw, 28rem);
+  overflow: hidden;
+  color: var(--color-brand-01-base);
+  font-size: var(--font-size-default-small);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-shell__session-actions-trigger {
@@ -80,4 +164,11 @@
 .app-shell__session-actions-trigger:focus-visible {
   outline: 2px solid var(--color-action-focus);
   outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .app-shell__session-identity {
+    max-width: 25vw;
+    font-size: 0.625rem;
+  }
 }

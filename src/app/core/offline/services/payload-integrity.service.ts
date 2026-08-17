@@ -1,7 +1,9 @@
 import { Inject, Injectable, InjectionToken } from '@angular/core';
+import { sha256 } from 'js-sha256';
 
 import { JsonValue } from '../models/local-record';
 import { OfflineStorageError } from '../models/offline-storage-error';
+import { INSECURE_HTTP_TEST_MODE } from '../../runtime/insecure-http-test-mode';
 
 export interface PreparedPayload {
   readonly snapshot: JsonValue;
@@ -10,12 +12,21 @@ export interface PreparedPayload {
 }
 
 export type SubtleCryptoProvider = () => SubtleCrypto | undefined;
+export type SoftwareSha256Provider = () => typeof sha256 | undefined;
 
 export const SUBTLE_CRYPTO_PROVIDER = new InjectionToken<SubtleCryptoProvider>(
   'OFFLINE_SUBTLE_CRYPTO_PROVIDER',
   {
     providedIn: 'root',
     factory: () => provideBrowserSubtleCrypto,
+  },
+);
+
+export const SOFTWARE_SHA256_PROVIDER = new InjectionToken<SoftwareSha256Provider>(
+  'OFFLINE_SOFTWARE_SHA256_PROVIDER',
+  {
+    providedIn: 'root',
+    factory: provideSoftwareSha256,
   },
 );
 
@@ -52,7 +63,11 @@ const SANITIZED_AUTHORIZATION_METADATA = new Set([
 
 @Injectable({ providedIn: 'root' })
 export class PayloadIntegrityService {
-  constructor(@Inject(SUBTLE_CRYPTO_PROVIDER) private readonly provideSubtle: SubtleCryptoProvider) {}
+  constructor(
+    @Inject(SUBTLE_CRYPTO_PROVIDER) private readonly provideSubtle: SubtleCryptoProvider,
+    @Inject(SOFTWARE_SHA256_PROVIDER)
+    private readonly provideSoftwareSha256: SoftwareSha256Provider = () => undefined,
+  ) {}
 
   async prepare(payload: unknown): Promise<PreparedPayload> {
     let snapshot: JsonValue;
@@ -71,25 +86,37 @@ export class PayloadIntegrityService {
 
   async hashCanonical(canonicalPayload: string): Promise<string> {
     const subtle = this.provideSubtle();
-    if (!subtle || typeof globalThis.TextEncoder !== 'function') {
-      throw new OfflineStorageError(
-        'CAPABILITY_UNAVAILABLE',
-        'SHA-256 não está disponível neste contexto.',
-      );
+    if (typeof subtle?.digest === 'function' && typeof globalThis.TextEncoder === 'function') {
+      try {
+        const digest = await subtle.digest(
+          'SHA-256',
+          new globalThis.TextEncoder().encode(canonicalPayload),
+        );
+        return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      } catch {
+        throw new OfflineStorageError(
+          'PAYLOAD_INVALID',
+          'Não foi possível calcular a integridade do comando.',
+        );
+      }
     }
 
     try {
-      const digest = await subtle.digest(
-        'SHA-256',
-        new globalThis.TextEncoder().encode(canonicalPayload),
-      );
-      return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      const softwareSha256 = this.provideSoftwareSha256();
+      if (softwareSha256) {
+        return softwareSha256(canonicalPayload);
+      }
     } catch {
       throw new OfflineStorageError(
         'PAYLOAD_INVALID',
         'Não foi possível calcular a integridade do comando.',
       );
     }
+
+    throw new OfflineStorageError(
+      'CAPABILITY_UNAVAILABLE',
+      'SHA-256 não está disponível neste contexto.',
+    );
   }
 }
 
@@ -98,6 +125,12 @@ export function provideBrowserSubtleCrypto(): SubtleCrypto | undefined {
     return undefined;
   }
   return globalThis.crypto?.subtle;
+}
+
+export function provideSoftwareSha256(
+  allowInsecureFallback = INSECURE_HTTP_TEST_MODE,
+): SoftwareSha256Provider {
+  return () => allowInsecureFallback ? sha256 : undefined;
 }
 
 function canonicalize(

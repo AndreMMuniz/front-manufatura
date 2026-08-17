@@ -53,7 +53,11 @@
     @if (responsaveisErrorMessage) {
       <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">
         {{ responsaveisErrorMessage }}
-        <button type="button" (click)="tentarCarregarResponsaveisNovamente()">Tentar novamente</button>
+        <po-button
+          p-label="Tentar novamente"
+          p-kind="secondary"
+          (p-click)="tentarCarregarResponsaveisNovamente()"
+        ></po-button>
       </p>
     } @else if (view.errorMessage && view.estado !== 'OrdensDisponiveis') {
       <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">

@@ -82,15 +82,18 @@ export class QualityControlWorkspacePage {
 
   goBack(): void {
     if (this.workflow.isBusy()) return;
-    this.runAfterGlobalDiscard('Voltar ao centro de trabalho?', () => {
-      this.workflow.reset();
-      void this.router.navigate(['/work-center']);
-    });
+    this.runAfterGlobalDiscard(
+      'Voltar à localização da Ordem?',
+      () => this.workflow.returnToOrderLocation(),
+    );
   }
 
   exit(): void {
     if (this.workflow.isBusy()) return;
-    this.runAfterGlobalDiscard('Sair do Plano Controle CQ?', () => this.workflow.reset());
+    this.runAfterGlobalDiscard('Sair do Plano Controle CQ?', () => {
+      this.workflow.reset();
+      void this.router.navigate(['/menu']);
+    });
   }
 
   restoreInspectionFocus(componentId?: string): void {

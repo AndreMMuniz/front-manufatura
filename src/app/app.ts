@@ -8,12 +8,16 @@ import {
   PoIconModule,
   PoMenuItem,
   PoMenuModule,
+  PoPopupModule,
   PoToolbarAction,
   PoToolbarModule,
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from './core/auth/auth-session.service';
-import { navigationForPermissions } from './core/navigation/app-navigation';
+import {
+  APP_MODULE_NAVIGATION,
+  navigationForPermissions,
+} from './core/navigation/app-navigation';
 import { ConnectivityService } from './core/offline/services/connectivity.service';
 import { PwaUpdateService } from './core/offline/pwa/pwa-update.service';
 import { SynchronizationIndicator } from './features/synchronization/components/synchronization-indicator/synchronization-indicator';
@@ -33,6 +37,7 @@ const HOME_MENU: PoMenuItem = {
     RouterOutlet,
     PoIconModule,
     PoMenuModule,
+    PoPopupModule,
     PoToolbarModule,
     SynchronizationIndicator,
   ],
@@ -53,6 +58,7 @@ export class App {
 
   readonly pwaUpdateState = this.pwaUpdate.state;
   readonly pwaUpdateFeedback = signal('');
+  readonly sideMenuExpanded = signal(true);
 
   readonly toolbarActions: Array<PoToolbarAction> = [
     {
@@ -165,14 +171,29 @@ export class App {
   }
 
   get toolbarTitle(): string {
+    const path = this.primaryPath;
+    if (path === '/' || path === '/menu') {
+      return HOME_MENU.label;
+    }
+
+    return APP_MODULE_NAVIGATION.find(
+      item => path === item.route || path.startsWith(`${item.route}/`),
+    )?.label ?? APP_NAME;
+  }
+
+  get sessionIdentity(): string {
     const user = this.authSession.currentUser;
-    return user ? `${APP_NAME} - ${user.login}` : APP_NAME;
+    return user ? `${APP_NAME} — ${user.login}` : APP_NAME;
   }
 
   get showSideMenu(): boolean {
-    const primaryRoute = this.router.parseUrl(this.router.url).root.children[PRIMARY_OUTLET];
-    const path = `/${primaryRoute?.segments.map(segment => segment.path).join('/') ?? ''}`;
+    const path = this.primaryPath;
     return this.isAuthenticated && path !== '/' && path !== '/menu' && path !== '/login';
+  }
+
+  private get primaryPath(): string {
+    const primaryRoute = this.router.parseUrl(this.router.url).root.children[PRIMARY_OUTLET];
+    return `/${primaryRoute?.segments.map(segment => segment.path).join('/') ?? ''}`;
   }
 
   logout(): void {

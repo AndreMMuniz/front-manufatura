@@ -57,13 +57,13 @@ test.describe('workspace unificado do Plano Controle CQ', () => {
     await result.fill('484');
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByText('Salvo neste dispositivo — envio pendente.')).toBeVisible();
-    await expect(page.getByText('1 de 3 componentes concluídos')).toBeVisible();
+    await expect(page.getByText('1 de 3 concluídos')).toBeVisible();
     await expect(page.getByText('Característica 2 / 3')).toBeVisible();
 
     await result.fill('255');
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByText('Salvo neste dispositivo — envio pendente.')).toBeVisible();
-    await expect(page.getByText('2 de 3 componentes concluídos')).toBeVisible();
+    await expect(page.getByText('2 de 3 concluídos')).toBeVisible();
     await expect(page).toHaveURL(/\/quality-control$/);
 
     const outbox = await readOperationalOutbox(page);

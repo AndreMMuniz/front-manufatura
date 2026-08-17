@@ -51,9 +51,9 @@
 
       @for (item of itens; track item.codigo + item.descricao + item.quantidade + $index) {
         <div class="refugo-slide__row">
-          <span>{{ item.codigo }}</span>
-          <span>{{ item.descricao }}</span>
-          <span>{{ formatQuantidade(item.quantidade) }}</span>
+          <span data-label="Código">{{ item.codigo }}</span>
+          <span data-label="Descrição">{{ item.descricao }}</span>
+          <span data-label="Quantidade">{{ formatQuantidade(item.quantidade) }}</span>
           <po-button
             p-label="Remover"
             p-kind="tertiary"

@@ -1,6 +1,8 @@
 import { Inject, Injectable, InjectionToken } from '@angular/core';
 
+import { INSECURE_HTTP_TEST_MODE } from '../../runtime/insecure-http-test-mode';
 import { OfflineStorageError } from '../models/offline-storage-error';
+import { ClientLogService } from '../../logging/client-log.service';
 
 export type RandomUuidCapability = Pick<Crypto, 'randomUUID'>;
 export type RandomUuidProvider = () => RandomUuidCapability | undefined;
@@ -18,7 +20,12 @@ const UUID_V4 =
 
 @Injectable({ providedIn: 'root' })
 export class IdempotencyService {
-  constructor(@Inject(RANDOM_UUID_PROVIDER) private readonly provideCrypto: RandomUuidProvider) {}
+  constructor(
+    @Inject(RANDOM_UUID_PROVIDER) private readonly provideCrypto: RandomUuidProvider,
+    private readonly clientLogs: ClientLogService = {
+      capture: () => undefined,
+    } as unknown as ClientLogService,
+  ) {}
 
   resolve(supplied?: string): string {
     if (supplied !== undefined) {
@@ -31,16 +38,24 @@ export class IdempotencyService {
       return supplied.toLowerCase();
     }
 
-    const cryptoCapability = this.provideCrypto();
+    let cryptoCapability: RandomUuidCapability | undefined;
+    try {
+      cryptoCapability = this.provideCrypto();
+    } catch {
+      this.throwCapabilityUnavailable(false);
+    }
     if (!cryptoCapability) {
-      throw new OfflineStorageError(
-        'CAPABILITY_UNAVAILABLE',
-        'Geração segura de identidade não está disponível neste contexto.',
-      );
+      this.throwCapabilityUnavailable(false);
     }
 
-    const generated = cryptoCapability.randomUUID();
+    let generated: string;
+    try {
+      generated = cryptoCapability.randomUUID();
+    } catch {
+      this.throwCapabilityUnavailable(true);
+    }
     if (!UUID_V4.test(generated)) {
+      this.captureCapabilityUnavailable(true);
       throw new OfflineStorageError(
         'CAPABILITY_UNAVAILABLE',
         'A identidade segura gerada pelo navegador é inválida.',
@@ -48,12 +63,56 @@ export class IdempotencyService {
     }
     return generated.toLowerCase();
   }
+
+  private throwCapabilityUnavailable(available: boolean): never {
+    this.captureCapabilityUnavailable(available);
+    throw new OfflineStorageError(
+      'CAPABILITY_UNAVAILABLE',
+      'Geração segura de identidade não está disponível neste contexto.',
+    );
+  }
+
+  private captureCapabilityUnavailable(available: boolean): void {
+    try {
+      this.clientLogs.capture({
+        level: 'error',
+        category: 'capability',
+        event: 'identity_capability_unavailable',
+        context: {
+          cryptoAvailable: available,
+          randomUuidAvailable: available,
+          insecureHttpTestMode: INSECURE_HTTP_TEST_MODE,
+        },
+      });
+    } catch {
+      // Identity semantics must not depend on the diagnostics sink.
+    }
+  }
 }
 
-export function provideBrowserRandomUuid(): RandomUuidCapability | undefined {
+export function provideBrowserRandomUuid(
+  allowInsecureFallback = INSECURE_HTTP_TEST_MODE,
+  candidate = globalThis.crypto,
+): RandomUuidCapability | undefined {
   if (typeof globalThis.window === 'undefined') {
     return undefined;
   }
-  const candidate = globalThis.crypto;
-  return typeof candidate?.randomUUID === 'function' ? candidate : undefined;
+  if (typeof candidate?.randomUUID === 'function') {
+    return candidate;
+  }
+  if (!allowInsecureFallback || typeof candidate?.getRandomValues !== 'function') {
+    return undefined;
+  }
+  return {
+    randomUUID: () => uuidV4FromRandomValues(candidate) as ReturnType<Crypto['randomUUID']>,
+  };
+}
+
+export function uuidV4FromRandomValues(crypto: Pick<Crypto, 'getRandomValues'>): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

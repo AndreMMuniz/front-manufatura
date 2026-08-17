@@ -8,6 +8,7 @@ import { QualityExam, QualityExamComponent, QualityMeasurement } from '../models
 
 export interface MeasurementDraft {
   result: string;
+  report: string;
   selectedOptionKey: string;
   observation: string;
 }
@@ -247,9 +248,7 @@ export class QualityControlWorkflowState {
     const firstPending = this.components().find(component => !this.isCompleted(component));
     this.selectedComponentId.set(firstPending?.id);
     this.inspectionFeedback.set(
-      this.components().length
-        ? 'Componentes carregados. Inicie pelo componente destacado.'
-        : 'Nenhum componente retornado para o roteiro.',
+      this.components().length ? '' : 'Nenhum componente retornado para o roteiro.',
     );
     return true;
   }
@@ -379,6 +378,13 @@ export class QualityControlWorkflowState {
     this.routeFeedback.set('Roteiro parado. Gere um novo roteiro após a conferência do supervisor.');
   }
 
+  returnToOrderLocation(): void {
+    const operation = this.selectedOperation();
+    this.contextId += 1;
+    this.clearRouteContext();
+    if (operation) this.selectOperation(operation);
+  }
+
   componentById(componentId: string | undefined): QualityExamComponent | undefined {
     return componentId
       ? this.exams().flatMap(exam => exam.components).find(component => component.id === componentId)
@@ -430,6 +436,7 @@ export class QualityControlWorkflowState {
   private draftFromMeasurement(measurement?: QualityMeasurement): MeasurementDraft {
     return {
       result: measurement?.result?.toString() ?? '',
+      report: measurement?.report ?? '',
       selectedOptionKey: measurement?.selectedOption
         ? `${measurement.selectedOption.tableNumber}:${measurement.selectedOption.sequence}`
         : '',
@@ -440,6 +447,7 @@ export class QualityControlWorkflowState {
   private sameDraft(draft: MeasurementDraft, measurement?: QualityMeasurement): boolean {
     const saved = this.draftFromMeasurement(measurement);
     return this.normalizeNumber(draft.result) === this.normalizeNumber(saved.result)
+      && draft.report.trim() === saved.report.trim()
       && draft.selectedOptionKey === saved.selectedOptionKey
       && draft.observation.trim() === saved.observation.trim();
   }

@@ -9,13 +9,19 @@ function readJson<T>(path: string): T {
 
 describe('configuração dos artefatos PWA', () => {
   it('mantém o Service Worker na linha Angular 21.2 e somente no build de produção', () => {
-    const packageJson = readJson<{ dependencies: Record<string, string> }>('package.json');
+    const packageJson = readJson<{
+      dependencies: Record<string, string>;
+      scripts: Record<string, string>;
+    }>('package.json');
     const angular = readJson<{
       projects: {
         'plano-de-controle': {
           architect: {
             build: {
-              configurations: Record<string, { serviceWorker?: string }>;
+              configurations: Record<string, {
+                serviceWorker?: string;
+                fileReplacements?: Array<{ replace: string; with: string }>;
+              }>;
             };
           };
         };
@@ -27,6 +33,15 @@ describe('configuração dos artefatos PWA', () => {
     expect(configurations['production'].serviceWorker).toBe('ngsw-config.json');
     expect(configurations['development'].serviceWorker).toBeUndefined();
     expect(configurations['e2e'].serviceWorker).toBeUndefined();
+    expect(packageJson.scripts['build:http-test'])
+      .toBe('ng build --configuration http-test');
+    expect(configurations['http-test'].serviceWorker).toBeUndefined();
+    expect(configurations['http-test'].fileReplacements).toContainEqual({
+      replace: 'src/app/core/runtime/insecure-http-test-mode.ts',
+      with: 'src/app/core/runtime/insecure-http-test-mode.http-test.ts',
+    });
+    const appConfigSource = readFileSync(resolve(process.cwd(), 'src/app/app.config.ts'), 'utf8');
+    expect(appConfigSource).toContain('!INSECURE_HTTP_TEST_MODE');
   });
 
   it('faz prefetch somente do shell e de assets essenciais, sem cache de API', () => {

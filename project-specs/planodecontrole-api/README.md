@@ -2,6 +2,9 @@
 
 Esta pasta reúne as chamadas da API utilizadas pela tela **Plano de Controle CQ**.
 
+Os grupos de usuários e programas Datasul que controlam o acesso estão
+consolidados em [Grupos de usuários e acessos Datasul para o frontend](../acessos-datasul-frontend.md).
+
 ## Endpoints documentados
 
 | Recurso | Método | Endpoint | Documentação |

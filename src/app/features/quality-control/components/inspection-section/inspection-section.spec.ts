@@ -58,7 +58,7 @@ describe('InspectionSection estados local/remoto', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Resultado: 5,25');
-    expect(fixture.nativeElement.textContent).toContain('08/08/2026 14:05');
+    expect(fixture.nativeElement.textContent).toContain('Apontado 08/08 14:05');
   });
 
   it('abre o componente selecionado sem alterar o roteiro', () => {

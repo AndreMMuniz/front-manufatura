@@ -1,5 +1,5 @@
 <po-page-default p-title="Central de Sincronização">
-  <main class="synchronization-center">
+  <section class="synchronization-center" aria-label="Central de sincronização">
     <header class="synchronization-center__summary" aria-live="polite">
       <strong>{{ totalActive() }} registros ativos</strong>
       <span>{{ state().counts.pending }} pendências</span>
@@ -29,7 +29,7 @@
           <option value="BLOCKED_AUTH">Bloqueado por autenticação</option>
           <option value="BLOCKED_DEPENDENCY">Aguardando dependência</option>
           <option value="ERROR">Precisa de atenção</option>
-          <option value="ABANDONED">Abandonado</option>
+          <option value="ABANDONED">Cancelado</option>
           <option value="SUPERSEDED">Substituído</option>
         </select>
       </label>
@@ -179,10 +179,10 @@
                         [attr.data-testid]="'sync-abandon-' + item.localId"
                         (click)="openAbandon(item, $event)"
                       >
-                        Abandonar registro
+                        Cancelar sincronização
                       </button>
                     } @else {
-                      <span>Abandono indisponível: a sessão não possui a permissão homologada.</span>
+                      <span>Cancelamento indisponível: ação restrita ao administrador do sistema.</span>
                     }
                   }
                 </div>
@@ -209,9 +209,25 @@
           tabindex="-1"
         >
           <h2 id="synchronization-detail-title">Detalhes do registro</h2>
+          @if (item.operationalDetails.length) {
+            <section
+              class="synchronization-center__feedback synchronization-detail__identification"
+              aria-labelledby="synchronization-detail-identification-title"
+              data-testid="sync-operational-details"
+            >
+              <h3 id="synchronization-detail-identification-title">Dados do resultado</h3>
+              <dl>
+                @for (detail of item.operationalDetails; track detail.label) {
+                  <div><dt>{{ detail.label }}</dt><dd>{{ detail.value }}</dd></div>
+                }
+              </dl>
+            </section>
+          }
           <dl>
             <div><dt>Módulo</dt><dd>{{ item.moduleLabel }}</dd></div>
-            <div><dt>Identificação</dt><dd>{{ item.operationalIdentification }}</dd></div>
+            @if (!item.operationalDetails.length) {
+              <div><dt>Identificação</dt><dd>{{ item.operationalIdentification }}</dd></div>
+            }
             <div><dt>Horário operacional</dt><dd>{{ formatDate(item.occurredAt) }}</dd></div>
             <div><dt>Commit local</dt><dd>{{ formatDate(item.createdAt) }}</dd></div>
             <div><dt>Status do negócio</dt><dd>{{ item.businessStatus }}</dd></div>
@@ -240,7 +256,7 @@
           tabindex="-1"
           data-testid="sync-abandon-dialog"
         >
-          <h2 id="sync-abandon-title">Abandonar registro preservado?</h2>
+          <h2 id="sync-abandon-title">Cancelar sincronização deste registro?</h2>
           <p>
             O registro não será mais enviado ao Datasul, mas continuará no histórico local para
             auditoria. Esta ação não exclui dados.
@@ -273,11 +289,11 @@
               data-testid="sync-confirm-abandon"
               (click)="confirmAbandon()"
             >
-              {{ isAbandoning() ? 'Confirmando…' : 'Confirmar abandono' }}
+              {{ isAbandoning() ? 'Cancelando…' : 'Confirmar cancelamento' }}
             </button>
           </div>
         </section>
       </div>
     }
-  </main>
+  </section>
 </po-page-default>

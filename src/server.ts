@@ -7,8 +7,12 @@ import {
 import express from 'express';
 import { join } from 'node:path';
 import { installAuthLoginEndpoint } from './auth-http-endpoint';
+import { installClientLogEndpoint } from './client-log-http-endpoint';
 import { installQualityControlEndpoints } from './quality-control-http-endpoint';
 import { installFmaEndpoints } from './fma-http-endpoint';
+import { createServerLogger } from './server-logger';
+import { installServerLifecycle } from './server-lifecycle';
+import { requestObservabilityMiddleware, serverErrorHandler } from './server-observability';
 import {
   PWA_REVALIDATE_CACHE_CONTROL,
   cacheControlForStaticAsset,
@@ -18,10 +22,13 @@ const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
+const logger = createServerLogger(process.env);
 
-installAuthLoginEndpoint(app, { env: process.env });
-installQualityControlEndpoints(app, { env: process.env });
-installFmaEndpoints(app, { env: process.env });
+app.use(requestObservabilityMiddleware(logger));
+installClientLogEndpoint(app, { logger });
+installAuthLoginEndpoint(app, { env: process.env, logger });
+installQualityControlEndpoints(app, { env: process.env, logger });
+installFmaEndpoints(app, { env: process.env, logger });
 
 app.head('/api/health', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -56,6 +63,7 @@ app.use((req, res, next) => {
     )
     .catch(next);
 });
+app.use(serverErrorHandler(logger));
 
 /**
  * Start the server if this module is the main entry point, or it is ran via PM2.
@@ -63,13 +71,16 @@ app.use((req, res, next) => {
  */
 if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const port = process.env['PORT'] || 4000;
-  app.listen(port, (error) => {
+  const server = app.listen(port, (error) => {
     if (error) {
       throw error;
     }
-
-    console.log(`Node Express server listening on http://localhost:${port}`);
+    logger.info('server_started', {
+      port: Number(port) || port,
+      logDirectory: logger.config.directory,
+    });
   });
+  installServerLifecycle(server, logger);
 }
 
 /**

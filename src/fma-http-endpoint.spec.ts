@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppSessionToken } from './app-session-token';
 import { APP_PERMISSIONS } from './app-permissions';
 import { installFmaEndpoints } from './fma-http-endpoint';
+import type { ApplicationLogger } from './logging/log-contracts';
 
 const ENV = {
   DATASUL_BASE_URL: 'https://datasul.example.test',
@@ -35,15 +36,29 @@ async function token(permissions: readonly string[] = [APP_PERMISSIONS.operation
   })).token;
 }
 
-async function startGateway(transport: typeof fetch): Promise<string> {
+async function startGateway(transport: typeof fetch, logger?: ApplicationLogger): Promise<string> {
   const app = express();
-  installFmaEndpoints(app, { env: ENV, transport });
+  installFmaEndpoints(app, { env: ENV, transport, logger });
   let server!: RunningServer;
   await new Promise<void>((resolve, reject) => {
     server = app.listen(0, '127.0.0.1', error => error ? reject(error) : resolve());
   });
   servers.push(server);
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+}
+
+function logSink() {
+  const events: Array<{ level: string; event: string; metadata?: Record<string, unknown> }> = [];
+  const write = (level: string) => (event: string, metadata?: Record<string, unknown>) => {
+    events.push({ level, event, metadata });
+  };
+  return {
+    events,
+    logger: {
+      debug: write('debug'), info: write('info'), warn: write('warn'), error: write('error'),
+      close: () => Promise.resolve(),
+    } satisfies ApplicationLogger,
+  };
 }
 
 function response(dataset: string, rows: unknown[]): Response {
@@ -160,5 +175,39 @@ describe('gateway FMA', () => {
     await expect(retry.json()).resolves.toEqual(expect.objectContaining({ duplicate: true }));
     expect(conflict.status).toBe(409);
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it('registra sucesso FMA sem query, usuário ou credenciais', async () => {
+    const sink = logSink();
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', []));
+    const root = await startGateway(transport, sink.logger);
+    const result = await fetch(`${root}/api/work-centers?areaCode=4104`, {
+      headers: { authorization: `Bearer ${await token()}` },
+    });
+
+    expect(result.status).toBe(200);
+    expect(sink.events).toContainEqual(expect.objectContaining({
+      event: 'upstream_request_completed',
+      metadata: expect.objectContaining({ route: '/api/fma/v1/centrostrabalho', status: 200 }),
+    }));
+    expect(JSON.stringify(sink.events)).not.toMatch(/mjocelio|4104|segredo-tecnico|Basic|companyId/);
+  });
+
+  it.each([
+    ['timeout', async () => { throw Object.assign(new Error('Bearer segredo'), { name: 'TimeoutError' }); }, 502],
+    ['http_status', async () => new Response('{}', { status: 503 }), 503],
+  ])('registra falha FMA %s com categoria pública', async (category, transport, status) => {
+    const sink = logSink();
+    const root = await startGateway(vi.fn<typeof fetch>().mockImplementation(transport), sink.logger);
+    const result = await fetch(`${root}/api/work-centers?areaCode=4104`, {
+      headers: { authorization: `Bearer ${await token()}` },
+    });
+
+    expect(result.status).toBe(status);
+    expect(sink.events).toContainEqual(expect.objectContaining({
+      event: 'upstream_request_failed',
+      metadata: expect.objectContaining({ failureCategory: category }),
+    }));
+    expect(JSON.stringify(sink.events)).not.toMatch(/segredo-tecnico|Bearer segredo|mjocelio|4104/);
   });
 });

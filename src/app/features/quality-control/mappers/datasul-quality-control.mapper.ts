@@ -99,6 +99,7 @@ function mapComponent(
   if (integerOf(component['codExame']) !== examCode) throw invalidContract();
   const minValue = numberOf(component['resultadoMin']);
   const maxValue = numberOf(component['resultadoMax']);
+  const resultType = integerOf(component['tipoResultado']);
   const options = component['opcoesResultado'] === undefined
     ? []
     : arrayOf(component['opcoesResultado']).map(optionValue => {
@@ -121,10 +122,11 @@ function mapComponent(
     examCode,
     componentCode: code,
     tableNumber: integerOf(component['nrTabela']),
-    resultType: integerOf(component['tipoResultado']),
+    resultType,
     decimalPlaces: nonNegativeIntegerOf(component['numeroDecimais']),
     description: textOf(component['descricao']),
-    reference: optionalText(component['referenciaTecnica']) || `${minValue} - ${maxValue}`,
+    reference: optionalText(component['referenciaTecnica'])
+      || (resultType === 3 ? '' : `${minValue} - ${maxValue}`),
     measurementMethod: optionalText(component['equipamento']) || optionalText(component['metodo']),
     minValue,
     maxValue,
