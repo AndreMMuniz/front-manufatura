@@ -7,8 +7,6 @@ const MAX_RECENT_CONTEXTS = 5;
 
 export interface RecentProductionContext {
   readonly areaCode: string;
-  readonly workCenterCode: string;
-  readonly workCenterDescription: string;
   readonly lastUsedAt: string;
 }
 
@@ -37,30 +35,45 @@ export class RecentProductionContextService {
     }
     try {
       const parsed: unknown = JSON.parse(this.storage.getItem(key) ?? '[]');
-      return Array.isArray(parsed)
-        ? parsed.filter(isRecentContext).slice(0, MAX_RECENT_CONTEXTS).map(item => ({ ...item }))
-        : [];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      const seen = new Set<string>();
+      const contexts: RecentProductionContext[] = [];
+      for (const item of parsed) {
+        if (!isRecentContext(item)) continue;
+        const areaCode = normalizeCode(item.areaCode);
+        if (seen.has(areaCode)) continue;
+        seen.add(areaCode);
+        contexts.push({ areaCode, lastUsedAt: item.lastUsedAt });
+        if (contexts.length === MAX_RECENT_CONTEXTS) break;
+      }
+      if (JSON.stringify(parsed) !== JSON.stringify(contexts)) {
+        try {
+          this.storage.setItem(key, JSON.stringify(contexts));
+        } catch {
+          // O histórico sanitizado ainda pode ser exibido quando o storage está somente leitura.
+        }
+      }
+      return contexts.map(item => ({ ...item }));
     } catch {
       return [];
     }
   }
 
-  remember(areaCode: string, workCenterCode: string, workCenterDescription: string): void {
+  remember(areaCode: string): void {
     const key = this.storageKey();
     const area = normalizeCode(areaCode);
-    const center = normalizeCode(workCenterCode);
-    if (!key || !this.storage || !area || !center) {
+    if (!key || !this.storage || !area) {
       return;
     }
     const context: RecentProductionContext = {
       areaCode: area,
-      workCenterCode: center,
-      workCenterDescription: workCenterDescription.trim(),
       lastUsedAt: this.clock().toISOString(),
     };
     const contexts = [
       context,
-      ...this.list().filter(item => item.areaCode !== area || item.workCenterCode !== center),
+      ...this.list().filter(item => item.areaCode !== area),
     ].slice(0, MAX_RECENT_CONTEXTS);
     try {
       this.storage.setItem(key, JSON.stringify(contexts));
@@ -85,8 +98,6 @@ function isRecentContext(value: unknown): value is RecentProductionContext {
   }
   const item = value as Partial<RecentProductionContext>;
   return typeof item.areaCode === 'string' && Boolean(item.areaCode.trim())
-    && typeof item.workCenterCode === 'string' && Boolean(item.workCenterCode.trim())
-    && typeof item.workCenterDescription === 'string'
     && typeof item.lastUsedAt === 'string' && Number.isFinite(Date.parse(item.lastUsedAt));
 }
 

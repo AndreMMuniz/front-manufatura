@@ -35,16 +35,16 @@
   </div>
 
   @if (recentContexts.length) {
-    <div class="contexto-producao__recent" aria-label="Últimos centros utilizados">
+    <div class="contexto-producao__recent" aria-label="Últimas Áreas de Produção utilizadas">
       <span>Últimos utilizados:</span>
-      @for (context of recentContexts; track context.areaCode + ':' + context.workCenterCode) {
+      @for (context of recentContexts; track context.areaCode) {
         <button
           class="contexto-producao__recent-button"
           type="button"
           [disabled]="disabled || loadingCenters || loadingAction"
           (click)="recentContextSelect.emit(context)"
         >
-          {{ context.areaCode }} · {{ context.workCenterCode }} - {{ context.workCenterDescription }}
+          {{ context.areaCode }}
         </button>
       }
     </div>

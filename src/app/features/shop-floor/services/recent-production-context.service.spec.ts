@@ -23,30 +23,30 @@ describe('RecentProductionContextService', () => {
     ] });
   });
 
-  it('guarda, normaliza e move o contexto repetido para o início', () => {
+  it('guarda somente a Área e deduplica usos com Centros diferentes', () => {
     const service = TestBed.inject(RecentProductionContextService);
 
-    service.remember(' 4104 ', ' ban-012-01 ', 'Bancada');
-    service.remember('4113', 'CT-02', 'Linha 2');
-    service.remember('4104', 'BAN-012-01', 'Bancada atualizada');
+    service.remember(' 4104 ');
+    service.remember('4113');
+    service.remember('4104');
 
     expect(service.list()).toEqual([
-      expect.objectContaining({ areaCode: '4104', workCenterCode: 'BAN-012-01', workCenterDescription: 'Bancada atualizada' }),
-      expect.objectContaining({ areaCode: '4113', workCenterCode: 'CT-02' }),
+      { areaCode: '4104', lastUsedAt: '2026-08-17T12:00:00.000Z' },
+      { areaCode: '4113', lastUsedAt: '2026-08-17T12:00:00.000Z' },
     ]);
   });
 
   it('mantém somente os cinco últimos e isola os dados por usuário', () => {
     const service = TestBed.inject(RecentProductionContextService);
     for (let index = 1; index <= 6; index += 1) {
-      service.remember(`41${index.toString().padStart(2, '0')}`, `CT-${index}`, `Centro ${index}`);
+      service.remember(`41${index.toString().padStart(2, '0')}`);
     }
     expect(service.list()).toHaveLength(5);
-    expect(service.list()[0].workCenterCode).toBe('CT-6');
+    expect(service.list()[0].areaCode).toBe('4106');
 
     currentUser = { id: 'operador-2' };
     expect(service.list()).toEqual([]);
-    service.remember('4104', 'CT-OUTRO', 'Outro');
+    service.remember('4104');
     expect(service.list()).toHaveLength(1);
 
     currentUser = { id: 'operador-1' };
@@ -58,9 +58,49 @@ describe('RecentProductionContextService', () => {
     storage.setItem('plano-de-controle.recent-production-contexts.operador-1', '{inválido');
     expect(service.list()).toEqual([]);
 
-    service.remember('', 'CT-01', 'Centro');
+    service.remember('');
     currentUser = null;
-    service.remember('4104', 'CT-01', 'Centro');
+    service.remember('4104');
     expect(service.list()).toEqual([]);
+  });
+
+  it('migra o histórico anterior removendo Centros e Áreas duplicadas', () => {
+    storage.setItem('plano-de-controle.recent-production-contexts.operador-1', JSON.stringify([
+      {
+        areaCode: '4104', workCenterCode: 'CT-01', workCenterDescription: 'Centro 1',
+        lastUsedAt: '2026-08-17T12:00:00.000Z',
+      },
+      {
+        areaCode: '4104', workCenterCode: 'CT-02', workCenterDescription: 'Centro 2',
+        lastUsedAt: '2026-08-16T12:00:00.000Z',
+      },
+    ]));
+
+    expect(TestBed.inject(RecentProductionContextService).list()).toEqual([
+      { areaCode: '4104', lastUsedAt: '2026-08-17T12:00:00.000Z' },
+    ]);
+  });
+
+  it('continua exibindo as Áreas quando a migração não pode regravar o storage', () => {
+    const readOnlyStorage = {
+      getItem: () => JSON.stringify([{
+        areaCode: '4104', workCenterCode: 'CT-01', workCenterDescription: 'Centro 1',
+        lastUsedAt: '2026-08-17T12:00:00.000Z',
+      }]),
+      setItem: () => { throw new Error('somente leitura'); },
+      removeItem: () => undefined,
+      clear: () => undefined,
+      key: () => null,
+      length: 1,
+    } satisfies Storage;
+    const service = new RecentProductionContextService(
+      { currentUser: { id: 'operador-1' } } as AuthSessionService,
+      readOnlyStorage,
+      () => new Date('2026-08-17T12:00:00Z'),
+    );
+
+    expect(service.list()).toEqual([
+      { areaCode: '4104', lastUsedAt: '2026-08-17T12:00:00.000Z' },
+    ]);
   });
 });

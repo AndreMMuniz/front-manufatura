@@ -289,7 +289,7 @@ export class ReportaBateladaPage implements OnInit {
 
   selecionarContextoRecente(context: RecentProductionContext): void {
     this.selecionarAreaInput(context.areaCode);
-    this.carregarCentros(context.areaCode, context.workCenterCode);
+    this.carregarCentros(context.areaCode);
   }
 
   selecionarCentro(code: string): void {
@@ -329,7 +329,7 @@ export class ReportaBateladaPage implements OnInit {
         this.workflow.setOrders(orders);
         const center = this.workflow.snapshot().workCenter;
         if (center) {
-          this.recentContextService.remember(areaCode, center.code, center.description);
+          this.recentContextService.remember(areaCode);
           this.recentContexts = this.recentContextService.list();
         }
         this.syncView();

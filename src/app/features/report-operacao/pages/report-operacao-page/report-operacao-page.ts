@@ -315,7 +315,7 @@ export class ReportOperacaoPage implements OnInit {
   selectRecentContext(context: RecentProductionContext): void {
     const apply = () => {
       this.applyAreaChange(context.areaCode);
-      this.loadCenters(context.areaCode, context.workCenterCode);
+      this.loadCenters(context.areaCode);
     };
     this.confirmDiscardIfRequired(apply);
   }
@@ -744,7 +744,7 @@ export class ReportOperacaoPage implements OnInit {
           this.feedback = orders.length
             ? `${orders.length} ordem(ns) liberada(s) encontrada(s).`
             : 'Nenhuma ordem liberada para este Centro de Trabalho.';
-          this.recentContextService.remember(area.code, center.code, center.description);
+          this.recentContextService.remember(area.code);
           this.recentContexts = this.recentContextService.list();
           this.changeDetector.markForCheck();
         },

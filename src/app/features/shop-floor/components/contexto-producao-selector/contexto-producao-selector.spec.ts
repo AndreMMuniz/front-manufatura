@@ -104,8 +104,7 @@ describe('ContextoProducaoSelector', () => {
 
   it('mostra os contextos recentes e emite a escolha sem aceitá-la localmente', () => {
     const recent: RecentProductionContext = {
-      areaCode: '4104', workCenterCode: 'BAN-012-01',
-      workCenterDescription: 'Bancada', lastUsedAt: '2026-08-17T12:00:00.000Z',
+      areaCode: '4104', lastUsedAt: '2026-08-17T12:00:00.000Z',
     };
     component.recentContexts = [recent];
     const selected: RecentProductionContext[] = [];
@@ -114,7 +113,7 @@ describe('ContextoProducaoSelector', () => {
 
     const button = fixture.debugElement.query(By.css('.contexto-producao__recent-button'));
     expect(button.nativeElement.textContent).toContain('4104');
-    expect(button.nativeElement.textContent).toContain('BAN-012-01');
+    expect(button.nativeElement.textContent).not.toContain('BAN-012-01');
     button.triggerEventHandler('click');
 
     expect(selected).toEqual([recent]);

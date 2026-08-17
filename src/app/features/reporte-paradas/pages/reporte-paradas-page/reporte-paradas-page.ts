@@ -156,7 +156,7 @@ export class ReporteParadasPage implements OnInit {
       this.areaCode.set(context.areaCode);
       this.applyArea(null);
       this.areaCode.set(context.areaCode);
-      this.loadCenters(context.areaCode, context.workCenterCode);
+      this.loadCenters(context.areaCode);
     });
   }
 
@@ -540,7 +540,7 @@ export class ReporteParadasPage implements OnInit {
           if (this.workflow.acceptContextData(token, responsibles, reasons)) {
             const center = this.centers().find(item => this.sameCode(item.code, workCenterCode));
             if (center) {
-              this.recentContextService.remember(areaCode, center.code, center.description);
+              this.recentContextService.remember(areaCode);
               this.recentContexts.set(this.recentContextService.list());
             }
             this.syncView();
