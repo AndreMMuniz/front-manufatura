@@ -110,6 +110,27 @@ describe('gateway FMA', () => {
     });
   });
 
+  it('compõe responsáveis operacionais a partir do endpoint FMA de operadores', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('operadores', [
+      { codAreaProduc: '4104', codOperador: '00016570', nomOperador: 'Ana', numTurno: 1 },
+      { codAreaProduc: '', codOperador: '00016580', nomOperador: 'Bruno', numTurno: 2 },
+    ]));
+    const root = await startGateway(transport);
+    const result = await fetch(
+      `${root}/api/operational-responsibles?areaCode=4104&workCenterCode=PRE-006-02`,
+      { headers: { authorization: `Bearer ${await token()}` } },
+    );
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual([
+      { tipo: 'OPERADOR', codigo: '00016570', nome: 'Ana' },
+      { tipo: 'OPERADOR', codigo: '00016580', nome: 'Bruno' },
+    ]);
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/operadores?companyId=1&codUsuario=mjocelio',
+    );
+  });
+
   it('traduz reporte final individual, exige motivo único e mantém encerramento apenas local', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
     const root = await startGateway(transport);

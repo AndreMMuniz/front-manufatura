@@ -202,6 +202,18 @@ function installAdaptedRoutes(
     }).filter(operator => !term || `${operator.code} ${operator.name}`.toLocaleLowerCase('pt-BR').includes(term));
   }));
 
+  app.get('/api/operational-responsibles', (req, res) => handle(req, res, dependencies, async client => {
+    const upstream = await client.request('GET', '/api/fma/v1/operadores');
+    return dataset(upstream, 'operadores').map(row => {
+      const item = objectOfUpstream(row);
+      return {
+        tipo: 'OPERADOR',
+        codigo: requiredUpstreamText(item['codOperador']),
+        nome: requiredUpstreamText(item['nomOperador']),
+      };
+    });
+  }));
+
   app.get('/api/scrap-reasons', (req, res) => handle(req, res, dependencies, async client => {
     const upstream = await client.request('GET', '/api/fma/v1/motivosrefugo');
     const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
@@ -341,7 +353,7 @@ function installAdaptedRoutes(
   }));
 
   const reads = [
-    '/api/operational-responsibles', '/api/teams', '/api/teams/:code',
+    '/api/teams', '/api/teams/:code',
   ];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
     client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));
