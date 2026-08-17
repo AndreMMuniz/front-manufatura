@@ -68,6 +68,27 @@ function response(dataset: string, rows: unknown[]): Response {
 }
 
 describe('gateway FMA', () => {
+  it('lista areas unicas a partir dos centros de trabalho do FMA', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [
+      { codAreaProduc: '4113', codCtrab: 'LASER-01-01', desCtrab: 'LASER' },
+      { codAreaProduc: '4104', codCtrab: 'PRE-006-01', desCtrab: 'PRENSA 25T' },
+      { codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T' },
+    ]));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/production-areas`, {
+      headers: { authorization: `Bearer ${await token()}` },
+    });
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual([
+      { code: '4104', description: 'Área de Produção' },
+      { code: '4113', description: 'Área de Produção' },
+    ]);
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/centrostrabalho?companyId=1&codUsuario=mjocelio',
+    );
+  });
+
   it('normaliza operadores, motivos e geração de equipe preservando códigos string', async () => {
     const transport = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response('operadores', [{ codOperador: '00016570', nomOperador: 'Ana' }]))

@@ -55,6 +55,18 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
   });
   app.use('/api', express.json({ limit: '64kb' }));
 
+  app.get('/api/production-areas', (req, res) => handle(req, res, dependencies, async client => {
+    const upstream = await client.request('GET', '/api/fma/v1/centrostrabalho');
+    const areas = new Map<string, string>();
+    for (const row of dataset(upstream, 'centrosTrabalho')) {
+      const item = objectOfUpstream(row);
+      const code = requiredUpstreamText(item['codAreaProduc']);
+      areas.set(code, text(item['desAreaProduc']) || 'Área de Produção');
+    }
+    return [...areas].sort(([left], [right]) => left.localeCompare(right, 'pt-BR'))
+      .map(([code, description]) => ({ code, description }));
+  }));
+
   app.get('/api/work-centers', (req, res) => handle(req, res, dependencies, async client => {
     const areaCode = optionalText(req.query['areaCode']);
     const upstream = await client.request('GET', '/api/fma/v1/centrostrabalho', undefined, {
@@ -341,8 +353,7 @@ function installAdaptedRoutes(
   }));
 
   const reads = [
-    '/api/production-areas', '/api/operational-responsibles',
-    '/api/teams', '/api/teams/:code',
+    '/api/operational-responsibles', '/api/teams', '/api/teams/:code',
   ];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
     client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));
