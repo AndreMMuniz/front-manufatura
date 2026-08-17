@@ -1,0 +1,14 @@
+{
+  "detailedMessage": "Não é permitido criar Reporte Parada Centro Trab para o futuro.",
+  "code": "1",
+  "details": [
+    {
+      "detailedMessage": "Data de Transação maior que Data do Processamento",
+      "code": "2",
+      "message": "Data de Transação maior que Data do Processamento",
+      "type": "error"
+    }
+  ],
+  "message": "Não é permitido criar Reporte Parada Centro Trab para o futuro.",
+  "type": "error"
+}

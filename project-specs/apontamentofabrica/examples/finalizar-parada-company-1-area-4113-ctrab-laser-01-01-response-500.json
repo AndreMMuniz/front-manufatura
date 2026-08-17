@@ -1,0 +1,14 @@
+{
+  "detailedMessage": "A operação de finalizar a Parada não é válida.",
+  "code": "1",
+  "details": [
+    {
+      "detailedMessage": "Reporte já cadastrado com este intervalo de tempo.",
+      "code": "2",
+      "message": "Reporte já cadastrado com este intervalo de tempo.",
+      "type": "error"
+    }
+  ],
+  "message": "A operação de finalizar a Parada não é válida.",
+  "type": "error"
+}

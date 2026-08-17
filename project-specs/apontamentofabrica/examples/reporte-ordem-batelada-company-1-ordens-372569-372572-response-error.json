@@ -1,0 +1,26 @@
+{
+  "detailedMessage": "Ordem 372569 / Operacao 20: split nao esta iniciado (ind-estado-split=3). Use IniciaOrdem/IniciarOrdemBatelada antes.",
+  "code": "1",
+  "details": [
+    {
+      "detailedMessage": "Ordem 372570 / Operacao 20: split nao esta iniciado (ind-estado-split=3). Use IniciaOrdem/IniciarOrdemBatelada antes.",
+      "code": "2",
+      "message": "Ordem 372570 / Operacao 20: split nao esta iniciado (ind-estado-split=3). Use IniciaOrdem/IniciarOrdemBatelada antes.",
+      "type": "error"
+    },
+    {
+      "detailedMessage": "Ordem 372571 / Operacao 20: split nao esta iniciado (ind-estado-split=3). Use IniciaOrdem/IniciarOrdemBatelada antes.",
+      "code": "3",
+      "message": "Ordem 372571 / Operacao 20: split nao esta iniciado (ind-estado-split=3). Use IniciaOrdem/IniciarOrdemBatelada antes.",
+      "type": "error"
+    },
+    {
+      "detailedMessage": "Ordem 372572 / Operacao 10: codMotivoRefugo e obrigatorio quando qtdRefugada > 0 OU qtdRetrabalho > 0 (motiv-refugo tambem justifica retrabalho - log-retrabalho)",
+      "code": "4",
+      "message": "Ordem 372572 / Operacao 10: codMotivoRefugo e obrigatorio quando qtdRefugada > 0 OU qtdRetrabalho > 0 (motiv-refugo tambem justifica retrabalho - log-retrabalho)",
+      "type": "error"
+    }
+  ],
+  "message": "Ordem 372569 / Operacao 20: split nao esta iniciado (ind-estado-split=3). Use IniciaOrdem/IniciarOrdemBatelada antes.",
+  "type": "error"
+}

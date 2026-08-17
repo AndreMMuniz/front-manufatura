@@ -1,0 +1,311 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "motivosRefugo": [
+        {
+          "desMotivoRefugo": "MATERIAL ERRADO",
+          "codigoRejeicao": 3,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "01"
+        },
+        {
+          "desMotivoRefugo": "DIMENSIONAL",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "02"
+        },
+        {
+          "desMotivoRefugo": "REBARBA/ACABAMENTO",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "03"
+        },
+        {
+          "desMotivoRefugo": "RISCOS/AMASSADOS",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "04"
+        },
+        {
+          "desMotivoRefugo": "PROD. NÃO CONFORME",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "05"
+        },
+        {
+          "desMotivoRefugo": "MANCHAS",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "06"
+        },
+        {
+          "desMotivoRefugo": "TRINCAS / RASGADO",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "07"
+        },
+        {
+          "desMotivoRefugo": "DESPLACAMENTO / DESCOLADO",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "08"
+        },
+        {
+          "desMotivoRefugo": "FALHA CORTE",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "09"
+        },
+        {
+          "desMotivoRefugo": "PROBLEMA QUALIDADE",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "10"
+        },
+        {
+          "desMotivoRefugo": "RESTO BARRA",
+          "codigoRejeicao": 10,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "100"
+        },
+        {
+          "desMotivoRefugo": "SETUP",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "11"
+        },
+        {
+          "desMotivoRefugo": "PONTAS / RETRABALHO MANUAL",
+          "codigoRejeicao": 3,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "12"
+        },
+        {
+          "desMotivoRefugo": "ALTERAÇÃO PROJETO",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "13"
+        },
+        {
+          "desMotivoRefugo": "FORNECEDOR",
+          "codigoRejeicao": 3,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "14"
+        },
+        {
+          "desMotivoRefugo": "RPD",
+          "codigoRejeicao": 3,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "15"
+        },
+        {
+          "desMotivoRefugo": "REFUGO PRIMARIO",
+          "codigoRejeicao": 10,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "150"
+        },
+        {
+          "desMotivoRefugo": "PROB. SELAGEM",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "16"
+        },
+        {
+          "desMotivoRefugo": "QUEBRA FERRAMENTA",
+          "codigoRejeicao": 3,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "17"
+        },
+        {
+          "desMotivoRefugo": "DISP. DEFEITUOSO",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "18"
+        },
+        {
+          "desMotivoRefugo": "VARIAÇÃO DIMENSIONAL",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "19"
+        },
+        {
+          "desMotivoRefugo": "ASS. TECNICA",
+          "codigoRejeicao": 8,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "20"
+        },
+        {
+          "desMotivoRefugo": "AJUSTES",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "21"
+        },
+        {
+          "desMotivoRefugo": "PEÇA CONTAMINADA",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "22"
+        },
+        {
+          "desMotivoRefugo": "CÓD. BARRA ERRADO",
+          "codigoRejeicao": 9,
+          "refugoMaterial": false,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "23"
+        },
+        {
+          "desMotivoRefugo": "TESTE DE QUEBRA",
+          "codigoRejeicao": 10,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "24"
+        },
+        {
+          "desMotivoRefugo": "OXIDAÇÃO / FERRUGEM",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "25"
+        },
+        {
+          "desMotivoRefugo": "DOSAGEM INCORRETA",
+          "codigoRejeicao": 11,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "26"
+        },
+        {
+          "desMotivoRefugo": "FALHA NA TRAÇÃO",
+          "codigoRejeicao": 10,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "27"
+        },
+        {
+          "desMotivoRefugo": "FALHA SELAGEM VERTICAL/HORIZONTAL",
+          "codigoRejeicao": 11,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "28"
+        },
+        {
+          "desMotivoRefugo": "TROCA DE BOBINA",
+          "codigoRejeicao": 11,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "29"
+        },
+        {
+          "desMotivoRefugo": "Torto / Empenado",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "30"
+        },
+        {
+          "desMotivoRefugo": "PERCA NO PROCESSO",
+          "codigoRejeicao": 10,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "31"
+        },
+        {
+          "desMotivoRefugo": "DESPLACAMENTO TINTA",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "33"
+        },
+        {
+          "desMotivoRefugo": "DESPLACAMENTO ALUMÍNIO",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "34"
+        },
+        {
+          "desMotivoRefugo": "PROVENIENTE DE DESMONTAGEM",
+          "codigoRejeicao": 11,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "35"
+        },
+        {
+          "desMotivoRefugo": "PORCA / PARAFUSO ESPANADO",
+          "codigoRejeicao": 11,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "36"
+        },
+        {
+          "desMotivoRefugo": "EMPENAMENTO",
+          "codigoRejeicao": 1,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "37"
+        },
+        {
+          "desMotivoRefugo": "OXIDAÇÃO",
+          "codigoRejeicao": 2,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "38"
+        },
+        {
+          "desMotivoRefugo": "CORTE TESTE",
+          "codigoRejeicao": 3,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "39"
+        },
+        {
+          "desMotivoRefugo": "TRYOUT",
+          "codigoRejeicao": 13,
+          "refugoMaterial": true,
+          "refugoRetrabalho": false,
+          "codMotivoRefugo": "44"
+        },
+        {
+          "desMotivoRefugo": "REQ. CONSUMO",
+          "codigoRejeicao": 3,
+          "refugoMaterial": true,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "89"
+        },
+        {
+          "desMotivoRefugo": "TRANSF. DEPOSITO",
+          "codigoRejeicao": 3,
+          "refugoMaterial": false,
+          "refugoRetrabalho": true,
+          "codMotivoRefugo": "99"
+        }
+      ]
+    }
+  ]
+}

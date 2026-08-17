@@ -1,0 +1,14 @@
+{
+  "detailedMessage": "Já existe reporte neste intervalo de data e hora.",
+  "code": "1",
+  "details": [
+    {
+      "detailedMessage": "Reporte já cadastrado com este intervalo de tempo.",
+      "code": "2",
+      "message": "Reporte já cadastrado com este intervalo de tempo.",
+      "type": "error"
+    }
+  ],
+  "message": "Já existe reporte neste intervalo de data e hora.",
+  "type": "error"
+}

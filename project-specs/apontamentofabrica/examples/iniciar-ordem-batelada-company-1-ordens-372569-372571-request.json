@@ -1,0 +1,30 @@
+{
+  "codAreaProduc": "4114",
+  "codCtrab": "DOBR-01-01",
+  "dataInicioReporte": "2026-04-30",
+  "horaInicioReporte": "09:35",
+  "codOperador": "00016570",
+  "codEquipe": "",
+  "codFerramenta": "",
+  "dataInicioSetup": "",
+  "horaInicioSetup": "",
+  "dataFimSetup": "",
+  "horaFimSetup": "",
+  "splits": [
+    {
+      "nrOrdemProducao": 372569,
+      "opCodigo": 20,
+      "numSplitOperac": 1
+    },
+    {
+      "nrOrdemProducao": 372570,
+      "opCodigo": 20,
+      "numSplitOperac": 1
+    },
+    {
+      "nrOrdemProducao": 372571,
+      "opCodigo": 20,
+      "numSplitOperac": 1
+    }
+  ]
+}

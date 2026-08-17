@@ -1,0 +1,54 @@
+{
+  "codAreaProduc": "4113",
+  "codCtrab": "LASER-01-01",
+  "dataInicioReporte": "2026-08-14",
+  "horaInicioReporte": "07:18",
+  "dataFimReporte": "2026-08-14",
+  "horaFimReporte": "08:25",
+  "codOperador": "00016570",
+  "codEquipe": "",
+  "codFerramenta": "",
+  "dataInicioSetup": "",
+  "horaInicioSetup": "",
+  "dataFimSetup": "",
+  "horaFimSetup": "",
+  "finalizarSplit": false,
+  "splits": [
+    {
+      "nrOrdemProducao": 372569,
+      "opCodigo": 20,
+      "numSplitOperac": 1,
+      "qtdAprovada": 10,
+      "qtdRetrabalho": 1,
+      "qtdRefugada": 2,
+      "codMotivoRefugo": "05"
+    },
+    {
+      "nrOrdemProducao": 372570,
+      "opCodigo": 20,
+      "numSplitOperac": 1,
+      "qtdAprovada": 2,
+      "qtdRetrabalho": 0,
+      "qtdRefugada": 0,
+      "codMotivoRefugo": ""
+    },
+    {
+      "nrOrdemProducao": 372571,
+      "opCodigo": 20,
+      "numSplitOperac": 1,
+      "qtdAprovada": 40,
+      "qtdRetrabalho": 2,
+      "qtdRefugada": 1,
+      "codMotivoRefugo": "05"
+    },
+    {
+      "nrOrdemProducao": 372572,
+      "opCodigo": 10,
+      "numSplitOperac": 1,
+      "qtdAprovada": 10,
+      "qtdRetrabalho": 1,
+      "qtdRefugada": 0,
+      "codMotivoRefugo": ""
+    }
+  ]
+}
