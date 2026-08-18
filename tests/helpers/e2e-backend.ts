@@ -102,8 +102,24 @@ const QUALITY_ROUTE = {
   }],
 };
 
+const ROUTES_PENDING_AUTHORIZATION = [
+  {
+    liberada: false, componentesTotal: 1, sequenciaOperacao: 1, situacao: 2,
+    nrFicha: 64382, descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+    nrOrdemProducao: 372562, inspecionado: false, componentesForaFaixa: 1,
+    narrativa: '', codItem: '30907',
+  },
+  {
+    liberada: false, componentesTotal: 4, sequenciaOperacao: 1, situacao: 2,
+    nrFicha: 64442, descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+    nrOrdemProducao: 372562, inspecionado: false, componentesForaFaixa: 1,
+    narrativa: '', codItem: '30907',
+  },
+];
+
 export async function mockE2eBackend(context: BrowserContext): Promise<void> {
   const teams = new Map<string, Team>();
+  const pendingAuthorizationSheets = new Set(ROUTES_PENDING_AUTHORIZATION.map(item => item.nrFicha));
 
   await context.route('**/api/**', async route => {
     const request = route.request();
@@ -114,9 +130,14 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       const body = request.postDataJSON() as { login?: unknown };
       const login = typeof body.login === 'string' ? body.login.trim() : 'operador';
       const tokenExpiresAt = new Date(Date.now() + 28_800_000).toISOString();
-      const permissoes = login.toLocaleLowerCase('pt-BR') === 'mjocelio'
+      const normalizedLogin = login.toLocaleLowerCase('pt-BR');
+      const permissoes = normalizedLogin === 'mjocelio'
         ? ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'REPORTE_ORDEM']
-        : [
+        : normalizedLogin === 'sem-autorizacao'
+          ? ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ']
+          : normalizedLogin === 'autorizador'
+            ? ['MENU_PRINCIPAL', 'AUTORIZACAO_ROTEIRO_DIVERGENCIA']
+          : [
             'MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'AUTORIZACAO_ROTEIRO_DIVERGENCIA',
             'REPORTE_ORDEM', 'REPORTE_BATELADA', 'REPORTE_PARADAS',
           ];
@@ -126,6 +147,41 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
           id: `E2E-${login}`, nome: 'Operador E2E', login,
           permissoes,
         },
+      });
+      return;
+    }
+
+    if (path === '/api/quality-control/route-authorizations' && request.method() === 'GET') {
+      const validQuery = url.searchParams.get('nrOrdemProducao') === '372562'
+        && url.searchParams.get('opCodigo') === '10';
+      await json(route, {
+        total: validQuery ? 1 : 0,
+        hasNext: false,
+        items: validQuery ? [{
+          roteirosEmAnalise: ROUTES_PENDING_AUTHORIZATION.filter(item =>
+            pendingAuthorizationSheets.has(item.nrFicha)),
+        }] : [],
+      });
+      return;
+    }
+    if (path === '/api/quality-control/route-authorizations/finalize'
+      && request.method() === 'POST') {
+      const body = request.postDataJSON() as { nrFicha?: unknown };
+      const sheetNumber = typeof body.nrFicha === 'number' ? body.nrFicha : 0;
+      if (!pendingAuthorizationSheets.delete(sheetNumber)) {
+        await json(route, { code: 'route-not-found' }, 404);
+        return;
+      }
+      await json(route, {
+        total: 1, hasNext: false, items: [{ 'ds-finaliza': { roteiro: [{
+          componentesTotal: 1, situacao: 4, componentesSalvos: 1, nrFicha: sheetNumber,
+          mensagem: `Roteiro ${sheetNumber} finalizado com AUTORIZACAO (1 exame(s), 1 componente(s) fora da faixa aceito(s))`,
+          inspecionado: true, componentesForaFaixa: 1, finalizado: true,
+          componentesPendentes: 0, exames: [{
+            componentesTotal: 1, componentesSalvos: 1, nrFicha: sheetNumber,
+            componentesPendentes: 0, codExame: 164,
+          }],
+        }] } }],
       });
       return;
     }

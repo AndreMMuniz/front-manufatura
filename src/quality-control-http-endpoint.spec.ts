@@ -179,4 +179,102 @@ describe('gateway Plano Controle CQ', () => {
     expect(wrongMethod.status).toBe(405);
     expect(wrongMethod.headers.get('allow')).toBe('PUT');
   });
+
+  it('consulta todas as fichas pendentes com identidade e empresa definidas no servidor', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      total: 1, hasNext: false, items: [{ roteirosEmAnalise: [{
+        liberada: false, componentesTotal: 1, sequenciaOperacao: 1, situacao: 2,
+        nrFicha: 64382, descricaoItem: 'ALAVANCA', nrOrdemProducao: 372562,
+        inspecionado: false, componentesForaFaixa: 1, narrativa: '', codItem: '30907',
+      }] }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations?nrOrdemProducao=372562&opCodigo=10`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+    });
+
+    expect(response.status).toBe(200);
+    const [url, init] = transport.mock.calls[0];
+    expect(String(url)).toBe(
+      'https://datasul.example.test/api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=Mjocelio&nrOrdemProducao=372562&opCodigo=10',
+    );
+    expect(init?.method).toBe('GET');
+  });
+
+  it('finaliza com autorização por POST usando somente nrFicha controlada pelo browser', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      total: 1, hasNext: false, items: [{ 'ds-finaliza': { roteiro: [{
+        componentesTotal: 1, situacao: 4, componentesSalvos: 1, nrFicha: 64461,
+        mensagem: 'Finalizado', inspecionado: true, componentesForaFaixa: 1,
+        finalizado: true, componentesPendentes: 0, exames: [],
+      }] } }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations/finalize`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64461, codUsuario: 'NAO_CONFIAR', companyId: 999 }),
+    });
+
+    expect(response.status).toBe(200);
+    const [url, init] = transport.mock.calls[0];
+    expect(String(url)).toBe(
+      'https://datasul.example.test/api/fcq/v1/finalizaroteirosautorizado?companyId=1',
+    );
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(String(init?.body))).toEqual({ nrFicha: 64461, codUsuario: 'Mjocelio' });
+  });
+
+  it('sanitiza envelope inválido do Datasul antes de responder ao browser', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      total: 1, hasNext: false, items: [{ roteirosEmAnalise: [{ nrFicha: 64382 }] }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations?nrOrdemProducao=372562&opCodigo=10`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ code: 'invalid-upstream-response' });
+  });
+
+  it('nega as rotas de autorização para sessão que possui somente fcq-0001', async () => {
+    const transport = vi.fn<typeof fetch>();
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations?nrOrdemProducao=372562&opCodigo=10`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+    });
+    const finalization = await fetch(`${root}/route-authorizations/finalize`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64461 }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(finalization.status).toBe(403);
+    expect(transport).not.toHaveBeenCalled();
+  });
 });

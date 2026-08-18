@@ -6,7 +6,7 @@ import express, {
 } from 'express';
 
 import { verifyAppSessionToken } from './app-session-token';
-import { APP_PERMISSIONS } from './app-permissions';
+import { APP_PERMISSIONS, type AppPermission } from './app-permissions';
 import {
   QualityControlDatasulClient,
   QualityControlGatewayError,
@@ -73,10 +73,31 @@ export function installQualityControlEndpoints(
     });
   });
 
+  app.get(`${ROOT}/route-authorizations`, async (req, res) => {
+    await handle(req, res, dependencies, async (client, userId) =>
+      client.getRoutesPendingAuthorization({
+        nrOrdemProducao: positiveInteger(req.query['nrOrdemProducao']),
+        opCodigo: positiveInteger(req.query['opCodigo']),
+        codUsuario: userId,
+      }), APP_PERMISSIONS.divergentRouteAuthorization);
+  });
+
+  app.post(`${ROOT}/route-authorizations/finalize`, async (req, res) => {
+    await handle(req, res, dependencies, async (client, userId) => {
+      const body = objectBody(req.body);
+      return client.finalizeRouteWithAuthorization({
+        nrFicha: positiveInteger(body['nrFicha']),
+        codUsuario: userId,
+      });
+    }, APP_PERMISSIONS.divergentRouteAuthorization);
+  });
+
   installMethodGuard(app, `${ROOT}/orders/:orderNumber`, 'GET');
   installMethodGuard(app, `${ROOT}/routes`, 'POST');
   installMethodGuard(app, `${ROOT}/results`, 'PUT');
   installMethodGuard(app, `${ROOT}/routes/finalize`, 'PUT');
+  installMethodGuard(app, `${ROOT}/route-authorizations`, 'GET');
+  installMethodGuard(app, `${ROOT}/route-authorizations/finalize`, 'POST');
 
   const sanitizedParserError: ErrorRequestHandler = (error, _req, res, next) => {
     const candidate = typeof error === 'object' && error !== null
@@ -135,6 +156,7 @@ async function handle(
   res: Response,
   dependencies: QualityControlEndpointDependencies,
   operation: (client: QualityControlDatasulClient, userId: string) => Promise<unknown>,
+  requiredPermission: AppPermission = APP_PERMISSIONS.qualityControl,
 ): Promise<void> {
   try {
     const header = req.header('authorization') ?? '';
@@ -142,6 +164,7 @@ async function handle(
       header,
       dependencies.env,
       dependencies.now?.(),
+      requiredPermission,
     );
     const config = readQualityControlDatasulConfig(dependencies.env);
     const client = new QualityControlDatasulClient(
@@ -165,6 +188,7 @@ export async function resolveQualityControlUserId(
   authorization: string,
   env: QualityControlEnvironment,
   now?: Date,
+  requiredPermission: AppPermission = APP_PERMISSIONS.qualityControl,
 ): Promise<string> {
   const secret = env['APP_AUTH_TOKEN_SECRET'];
   if (!secret || Buffer.byteLength(secret, 'utf8') < 32) {
@@ -189,7 +213,7 @@ export async function resolveQualityControlUserId(
     || !payload['permissions'].every(permission => typeof permission === 'string')) {
     throw new QualityControlGatewayError(401, 'invalid-session');
   }
-  if (!payload['permissions'].includes(APP_PERMISSIONS.qualityControl)) {
+  if (!payload['permissions'].includes(requiredPermission)) {
     throw new QualityControlGatewayError(403, 'access-denied');
   }
   return subject;

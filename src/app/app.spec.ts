@@ -27,6 +27,7 @@ import { ConnectivityService } from './core/offline/services/connectivity.servic
 import { PwaUpdateService, PwaUpdateState } from './core/offline/pwa/pwa-update.service';
 import { SynchronizationCenterPage } from './features/synchronization/pages/synchronization-center/synchronization-center';
 import { AuthenticatedApiService } from './core/http/authenticated-api.service';
+import { RouteAuthorizationPage } from './features/route-authorization/pages/route-authorization-page/route-authorization-page';
 
 const ALL_MODULE_PERMISSIONS = APP_MODULE_NAVIGATION.map(item => item.permission);
 
@@ -129,15 +130,18 @@ describe('App', () => {
     });
 
     it('should route divergent route authorization to its protected module', async () => {
+      currentUserValue = {
+        id: 'USR-AUTH', nome: 'Autorizador', login: 'autorizador',
+        permissoes: ['AUTORIZACAO_ROTEIRO_DIVERGENCIA'],
+      };
       const harness = await RouterTestingHarness.create();
 
       const component = await harness.navigateByUrl(
         '/quality-control/route-authorization',
-        SfcPlaceholderPage,
+        RouteAuthorizationPage,
       );
 
-      expect(component).toBeInstanceOf(SfcPlaceholderPage);
-      expect(component.title).toBe('Autoriza Roteiro CQ');
+      expect(component).toBeInstanceOf(RouteAuthorizationPage);
       expect(TestBed.inject(Router).url).toBe('/quality-control/route-authorization');
     });
 

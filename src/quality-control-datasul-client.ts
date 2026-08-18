@@ -94,6 +94,31 @@ export class QualityControlDatasulClient {
       'finalize_quality_route', '/api/fcq/v1/FinalizaRoteiros');
   }
 
+  getRoutesPendingAuthorization(query: {
+    readonly nrOrdemProducao: number;
+    readonly opCodigo: number;
+    readonly codUsuario: string;
+  }): Promise<unknown> {
+    const search = new URLSearchParams({
+      companyId: String(this.config.companyId),
+      codUsuario: query.codUsuario,
+      nrOrdemProducao: String(query.nrOrdemProducao),
+      opCodigo: String(query.opCodigo),
+    });
+    return this.request('GET', `/api/fcq/v1/autorizacaoroteiros?${search}`, undefined, undefined,
+      'list_quality_route_authorizations', '/api/fcq/v1/autorizacaoroteiros',
+      validatePendingAuthorizationsEnvelope);
+  }
+
+  finalizeRouteWithAuthorization(body: {
+    readonly nrFicha: number;
+    readonly codUsuario: string;
+  }): Promise<unknown> {
+    return this.request('POST', '/api/fcq/v1/finalizaroteirosautorizado', body, 'companyId',
+      'finalize_quality_route_authorized', '/api/fcq/v1/finalizaroteirosautorizado',
+      validateAuthorizedFinalizationEnvelope);
+  }
+
   private async request(
     method: 'GET' | 'POST' | 'PUT',
     path: string,
@@ -101,6 +126,7 @@ export class QualityControlDatasulClient {
     companyParameter?: 'companyid' | 'companyId',
     operation = 'quality_control_request',
     observableRoute = '/api/fcq/v1',
+    validateResponse?: (value: unknown) => void,
   ): Promise<unknown> {
     const url = new URL(path, this.config.baseUrl);
     if (companyParameter) url.searchParams.set(companyParameter, String(this.config.companyId));
@@ -139,6 +165,7 @@ export class QualityControlDatasulClient {
     }
     try {
       const parsed = await response.json() as unknown;
+      validateResponse?.(parsed);
       reportUpstreamRequestCompleted(this.logger, observation, response);
       return parsed;
     } catch (error) {
@@ -149,4 +176,102 @@ export class QualityControlDatasulClient {
       throw new QualityControlGatewayError(502, 'invalid-upstream-response');
     }
   }
+}
+
+function validatePendingAuthorizationsEnvelope(value: unknown): void {
+  const envelope = authorizationEnvelope(value);
+  const sheetNumbers: number[] = [];
+  for (const itemValue of optionalArray(envelope['items'])) {
+    const item = upstreamObject(itemValue);
+    for (const routeValue of optionalArray(item['roteirosEmAnalise'])) {
+      const route = upstreamObject(routeValue);
+      sheetNumbers.push(upstreamPositiveInteger(route['nrFicha']));
+      upstreamPositiveInteger(route['nrOrdemProducao']);
+      upstreamText(route['codItem'], false);
+      upstreamText(route['descricaoItem'], false);
+      upstreamPositiveInteger(route['sequenciaOperacao']);
+      upstreamNonNegativeInteger(route['situacao']);
+      upstreamBoolean(route['liberada']);
+      upstreamBoolean(route['inspecionado']);
+      const total = upstreamNonNegativeInteger(route['componentesTotal']);
+      if (upstreamNonNegativeInteger(route['componentesForaFaixa']) > total) throw invalidUpstream();
+      upstreamText(route['narrativa'], true);
+    }
+  }
+  if (new Set(sheetNumbers).size !== sheetNumbers.length) throw invalidUpstream();
+}
+
+function validateAuthorizedFinalizationEnvelope(value: unknown): void {
+  const envelope = authorizationEnvelope(value);
+  for (const itemValue of optionalArray(envelope['items'])) {
+    const item = upstreamObject(itemValue);
+    if (item['ds-finaliza'] === undefined) continue;
+    const result = upstreamObject(item['ds-finaliza']);
+    for (const routeValue of optionalArray(result['roteiro'])) {
+      const route = upstreamObject(routeValue);
+      upstreamPositiveInteger(route['nrFicha']);
+      upstreamNonNegativeInteger(route['situacao']);
+      upstreamText(route['mensagem'], false);
+      upstreamBoolean(route['inspecionado']);
+      upstreamBoolean(route['finalizado']);
+      const total = upstreamNonNegativeInteger(route['componentesTotal']);
+      const saved = upstreamNonNegativeInteger(route['componentesSalvos']);
+      const pending = upstreamNonNegativeInteger(route['componentesPendentes']);
+      if (saved + pending !== total
+        || upstreamNonNegativeInteger(route['componentesForaFaixa']) > total) throw invalidUpstream();
+      for (const examValue of optionalArray(route['exames'])) {
+        const exam = upstreamObject(examValue);
+        upstreamPositiveInteger(exam['nrFicha']);
+        upstreamPositiveInteger(exam['codExame']);
+        const examTotal = upstreamNonNegativeInteger(exam['componentesTotal']);
+        const examSaved = upstreamNonNegativeInteger(exam['componentesSalvos']);
+        const examPending = upstreamNonNegativeInteger(exam['componentesPendentes']);
+        if (examSaved + examPending !== examTotal) throw invalidUpstream();
+      }
+    }
+  }
+}
+
+function authorizationEnvelope(value: unknown): Record<string, unknown> {
+  const envelope = upstreamObject(value);
+  upstreamNonNegativeInteger(envelope['total']);
+  if (upstreamBoolean(envelope['hasNext'])) throw invalidUpstream();
+  optionalArray(envelope['items']);
+  return envelope;
+}
+
+function upstreamObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidUpstream();
+  return value as Record<string, unknown>;
+}
+
+function optionalArray(value: unknown): readonly unknown[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw invalidUpstream();
+  return value;
+}
+
+function upstreamPositiveInteger(value: unknown): number {
+  const result = upstreamNonNegativeInteger(value);
+  if (result === 0) throw invalidUpstream();
+  return result;
+}
+
+function upstreamNonNegativeInteger(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalidUpstream();
+  return value as number;
+}
+
+function upstreamBoolean(value: unknown): boolean {
+  if (typeof value !== 'boolean') throw invalidUpstream();
+  return value;
+}
+
+function upstreamText(value: unknown, allowEmpty: boolean): string {
+  if (typeof value !== 'string' || (!allowEmpty && !value.trim())) throw invalidUpstream();
+  return value;
+}
+
+function invalidUpstream(): Error {
+  return new Error('invalid-upstream-response');
 }

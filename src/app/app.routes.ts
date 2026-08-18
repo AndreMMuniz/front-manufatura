@@ -72,11 +72,11 @@ export const routes: Routes = [
   { path: 'quality-control/exam-entry', pathMatch: 'full', redirectTo: 'quality-control' },
   {
     path: 'quality-control/route-authorization',
-    component: SfcPlaceholderPage,
+    loadComponent: () => import(
+      './features/route-authorization/pages/route-authorization-page/route-authorization-page'
+    ).then(module => module.RouteAuthorizationPage),
     canActivate: [authGuard],
     data: {
-      title: 'Autoriza Roteiro CQ',
-      description: 'A autorização de roteiros com divergência será implementada em uma próxima etapa.',
       requiresOnlineData: true,
       requiredPermission: APP_PERMISSIONS.divergentRouteAuthorization,
     },

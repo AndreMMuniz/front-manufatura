@@ -1,0 +1,86 @@
+<po-page-default>
+  <main class="route-authorization" aria-labelledby="route-authorization-title">
+    <header class="route-authorization__header">
+      <div>
+        <p class="route-authorization__eyebrow">Plano Controle CQ</p>
+        <h1 id="route-authorization-title">Autoriza Roteiro CQ</h1>
+        <p>Localize fichas com pendências para analisar e finalizar com autorização.</p>
+      </div>
+    </header>
+
+    <po-widget p-title="Consulta de pendências">
+      <form class="route-authorization__filters" (ngSubmit)="search()">
+        <po-input
+          name="orderNumber"
+          p-label="Ordem de produção"
+          p-placeholder="Ex.: 372562"
+          p-required="true"
+          [p-disabled]="state() === 'loading' || finalizingSheet() !== null"
+          [ngModel]="orderNumber()"
+          (ngModelChange)="orderNumber.set($event)"
+        ></po-input>
+        <po-input
+          name="operationCode"
+          p-label="Operação"
+          p-placeholder="Ex.: 10"
+          p-required="true"
+          [p-disabled]="state() === 'loading' || finalizingSheet() !== null"
+          [ngModel]="operationCode()"
+          (ngModelChange)="operationCode.set($event)"
+        ></po-input>
+        <po-button
+          p-type="submit"
+          p-label="Consultar"
+          [p-loading]="state() === 'loading'"
+          [p-disabled]="state() === 'loading' || finalizingSheet() !== null"
+        ></po-button>
+      </form>
+    </po-widget>
+
+    <p class="route-authorization__feedback" aria-live="polite" [attr.aria-busy]="state() === 'loading'">
+      {{ feedback() }}
+    </p>
+
+    @if (state() === 'error') {
+      <po-button p-label="Tentar novamente" p-kind="secondary" (p-click)="retry()"></po-button>
+    }
+
+    @if (state() === 'ready' && routes().length) {
+      <section class="route-authorization__results" aria-label="Roteiros pendentes">
+        @for (route of routes(); track route.sheetNumber) {
+          <article class="route-card">
+            <div class="route-card__heading">
+              <div>
+                <span class="route-card__label">Ficha</span>
+                <strong>{{ route.sheetNumber }}</strong>
+              </div>
+              <span class="route-card__status">Situação {{ route.statusCode }}</span>
+            </div>
+            <dl class="route-card__details">
+              <div><dt>OP</dt><dd>{{ route.productionOrderNumber }}</dd></div>
+              <div><dt>Operação</dt><dd>{{ route.operationSequence }}</dd></div>
+              <div class="route-card__item"><dt>Item</dt><dd>{{ route.itemCode }} — {{ route.itemDescription }}</dd></div>
+              <div><dt>Componentes</dt><dd>{{ route.totalComponents }}</dd></div>
+              <div><dt>Fora da faixa</dt><dd class="route-card__warning">{{ route.outOfRangeComponents }}</dd></div>
+            </dl>
+            @if (route.narrative) {
+              <p class="route-card__narrative"><strong>Narrativa:</strong> {{ route.narrative }}</p>
+            }
+            <div class="route-card__actions">
+              <po-button
+                [p-label]="finalizingSheet() === route.sheetNumber ? 'Finalizando...' : 'Analisar e finalizar'"
+                [p-loading]="finalizingSheet() === route.sheetNumber"
+                [p-disabled]="state() !== 'ready' || finalizingSheet() !== null"
+                (p-click)="requestFinalization(route)"
+              ></po-button>
+            </div>
+          </article>
+        }
+      </section>
+    }
+
+    <nav class="route-authorization__actions" aria-label="Ações da página">
+      <po-button p-label="Voltar ao menu" p-kind="secondary" [p-disabled]="finalizingSheet() !== null" (p-click)="goBack()"></po-button>
+    </nav>
+  </main>
+</po-page-default>
