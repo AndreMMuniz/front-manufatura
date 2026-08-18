@@ -1,5 +1,6 @@
 import {
-  AuthorizedRouteFinalization,
+  AuthorizedComponentSaveResult,
+  AuthorizedRouteFinalizationOutcome,
   PendingAuthorizedRoute,
 } from '../models/route-authorization.model';
 
@@ -28,7 +29,7 @@ export function mapPendingRoutesEnvelope(value: unknown): PendingAuthorizedRoute
 export function mapAuthorizedFinalizationEnvelope(
   value: unknown,
   expectedSheetNumber: number,
-): AuthorizedRouteFinalization {
+): AuthorizedRouteFinalizationOutcome {
   const envelope = envelopeOf(value);
   const matches = envelope.items.flatMap(item => {
     const resultValue = objectOf(item)['ds-finaliza'];
@@ -36,9 +37,7 @@ export function mapAuthorizedFinalizationEnvelope(
     return optionalArrayOf(objectOf(resultValue)['roteiro']).map(objectOf);
   }).filter(route => route['nrFicha'] === expectedSheetNumber);
   const route = matches.length === 1 ? matches[0] : undefined;
-  if (!route || route['finalizado'] !== true || route['componentesPendentes'] !== 0) {
-    throw new Error('route-authorization-not-completed');
-  }
+  if (!route) throw invalidContract();
   const exams = optionalArrayOf(route['exames']).map(value => {
     const exam = objectOf(value);
     if (positiveIntegerOf(exam['nrFicha']) !== expectedSheetNumber) throw invalidContract();
@@ -51,24 +50,63 @@ export function mapAuthorizedFinalizationEnvelope(
   });
   const totalComponents = nonNegativeIntegerOf(route['componentesTotal']);
   const savedComponents = nonNegativeIntegerOf(route['componentesSalvos']);
+  const pendingComponents = nonNegativeIntegerOf(route['componentesPendentes']);
   const outOfRangeComponents = nonNegativeIntegerOf(route['componentesForaFaixa']);
   if (
-    savedComponents !== totalComponents
+    savedComponents + pendingComponents !== totalComponents
     || outOfRangeComponents > totalComponents
-    || exams.some(exam => exam.pendingComponents !== 0
-      || exam.savedComponents !== exam.totalComponents)
+    || exams.some(exam => exam.savedComponents + exam.pendingComponents !== exam.totalComponents)
   ) throw invalidContract();
-  return {
+  const common = {
     sheetNumber: positiveIntegerOf(route['nrFicha']),
-    finalized: true,
     inspected: booleanOf(route['inspecionado']),
     totalComponents,
     savedComponents,
-    pendingComponents: 0,
+    pendingComponents,
     outOfRangeComponents,
     statusCode: nonNegativeIntegerOf(route['situacao']),
     message: textOf(route['mensagem'], false),
     exams,
+  } as const;
+  if (route['finalizado'] === false) return { ...common, finalized: false };
+  if (route['finalizado'] !== true || pendingComponents !== 0) throw invalidContract();
+  return {
+    ...common,
+    finalized: true,
+    pendingComponents: 0,
+  };
+}
+
+export function mapAuthorizedComponentResultEnvelope(
+  value: unknown,
+  expectedSheetNumber: number,
+  expectedExamCode: number,
+  expectedComponentCode: number,
+): AuthorizedComponentSaveResult {
+  if (![expectedSheetNumber, expectedExamCode, expectedComponentCode].every(isPositiveInteger)) {
+    throw invalidContract();
+  }
+  const envelope = resultEnvelopeOf(value);
+  const item = objectOf(envelope.items[0]);
+  const sheetNumber = positiveIntegerOf(item['nrFicha']);
+  const examCode = positiveIntegerOf(item['codExame']);
+  const componentCode = positiveIntegerOf(item['codComponente']);
+  if (
+    sheetNumber !== expectedSheetNumber
+    || examCode !== expectedExamCode
+    || componentCode !== expectedComponentCode
+  ) throw invalidContract();
+  const savedComponents = nonNegativeIntegerOf(item['componentesSalvos']);
+  const totalComponents = nonNegativeIntegerOf(item['componentesTotal']);
+  if (savedComponents > totalComponents) throw invalidContract();
+  validateResultRepresentation(item);
+  return {
+    sheetNumber,
+    examCode,
+    componentCode,
+    withinRange: booleanOf(item['dentroFaixa']),
+    savedComponents,
+    totalComponents,
   };
 }
 
@@ -77,6 +115,31 @@ function envelopeOf(value: unknown): { readonly items: readonly unknown[] } {
   nonNegativeIntegerOf(envelope['total']);
   if (booleanOf(envelope['hasNext'])) throw invalidContract();
   return { items: optionalArrayOf(envelope['items']) };
+}
+
+function resultEnvelopeOf(value: unknown): { readonly items: readonly unknown[] } {
+  const envelope = objectOf(value);
+  if (envelope['total'] !== 1 || envelope['hasNext'] !== false) throw invalidContract();
+  const items = arrayOf(envelope['items']);
+  if (items.length !== 1) throw invalidContract();
+  return { items };
+}
+
+function validateResultRepresentation(item: Record<string, unknown>): void {
+  const hasResult = item['resultado'] !== undefined;
+  const hasTableNumber = item['nrTabela'] !== undefined;
+  const hasOptionSequence = item['seqOpcao'] !== undefined;
+  const report = typeof item['laudo'] === 'string' ? item['laudo'].trim() : '';
+  const hasTableResult = hasTableNumber && hasOptionSequence;
+  if (hasTableNumber !== hasOptionSequence
+    || [hasResult, hasTableResult, Boolean(report)].filter(Boolean).length !== 1) throw invalidContract();
+  if (hasResult) {
+    finiteNumberOf(item['resultado']);
+    return;
+  }
+  if (report) return;
+  positiveIntegerOf(item['nrTabela']);
+  positiveIntegerOf(item['seqOpcao']);
 }
 
 function objectOf(value: unknown): Record<string, unknown> {
@@ -102,6 +165,15 @@ function positiveIntegerOf(value: unknown): number {
 function nonNegativeIntegerOf(value: unknown): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalidContract();
   return value as number;
+}
+
+function isPositiveInteger(value: number): boolean {
+  return Number.isSafeInteger(value) && value > 0;
+}
+
+function finiteNumberOf(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidContract();
+  return value;
 }
 
 function booleanOf(value: unknown): boolean {

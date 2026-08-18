@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  mapAuthorizedComponentResultEnvelope,
   mapAuthorizedFinalizationEnvelope,
   mapPendingRoutesEnvelope,
 } from './route-authorization.mapper';
@@ -43,9 +44,20 @@ describe('route authorization mapper', () => {
       exams: [{ examCode: 164, totalComponents: 6, savedComponents: 6, pendingComponents: 0 }],
     });
     expect(() => mapAuthorizedFinalizationEnvelope(envelope, 99999))
-      .toThrow('route-authorization-not-completed');
-    expect(() => mapAuthorizedFinalizationEnvelope(finalization(64461, false, 1), 64461))
-      .toThrow('route-authorization-not-completed');
+      .toThrow('invalid-upstream-response');
+  });
+
+  it('preserva a recusa funcional de finalização para a ficha esperada', () => {
+    expect(mapAuthorizedFinalizationEnvelope(finalization(64462, false, 5), 64462))
+      .toMatchObject({
+        finalized: false,
+        message: 'Roteiro 64462 finalizado com AUTORIZACAO',
+        totalComponents: 6,
+        savedComponents: 1,
+        pendingComponents: 5,
+        statusCode: 4,
+        exams: [{ examCode: 164, totalComponents: 6, savedComponents: 1, pendingComponents: 5 }],
+      });
   });
 
   it('aceita exames ausentes e rejeita totais ou exames incoerentes', () => {
@@ -63,6 +75,27 @@ describe('route authorization mapper', () => {
     expect(() => mapAuthorizedFinalizationEnvelope(inconsistentTotals, 64461))
       .toThrow('invalid-upstream-response');
   });
+
+  it.each([
+    [true, { resultado: 24 }],
+    [false, { nrTabela: 8, seqOpcao: 1 }],
+  ])('mapeia recibo do componente com identidade exata e dentroFaixa %s', (
+    withinRange,
+    representation,
+  ) => {
+    const envelope = resultReceipt(64462, 1845, 1, withinRange, representation);
+
+    expect(mapAuthorizedComponentResultEnvelope(envelope, 64462, 1845, 1)).toMatchObject({
+      sheetNumber: 64462,
+      examCode: 1845,
+      componentCode: 1,
+      withinRange,
+      savedComponents: 1,
+      totalComponents: 2,
+    });
+    expect(() => mapAuthorizedComponentResultEnvelope(envelope, 64462, 1845, 99))
+      .toThrow('invalid-upstream-response');
+  });
 });
 
 function pending(nrFicha: number) {
@@ -76,12 +109,32 @@ function pending(nrFicha: number) {
 function finalization(nrFicha: number, finalizado: boolean, componentesPendentes: number) {
   return {
     total: 1, hasNext: false, items: [{ 'ds-finaliza': { roteiro: [{
-      componentesTotal: 6, situacao: 4, componentesSalvos: 6, nrFicha,
+      componentesTotal: 6, situacao: 4, componentesSalvos: 6 - componentesPendentes, nrFicha,
       mensagem: `Roteiro ${nrFicha} finalizado com AUTORIZACAO`, inspecionado: true,
       componentesForaFaixa: 1, finalizado, componentesPendentes, exames: [{
-        componentesTotal: 6, componentesSalvos: 6, nrFicha,
+        componentesTotal: 6, componentesSalvos: 6 - componentesPendentes, nrFicha,
         componentesPendentes, codExame: 164,
       }],
     }] } }],
+  };
+}
+
+function resultReceipt(
+  nrFicha: number,
+  codExame: number,
+  codComponente: number,
+  dentroFaixa: boolean,
+  representation: Record<string, unknown>,
+) {
+  return {
+    total: 1, hasNext: false, items: [{
+      nrFicha,
+      codExame,
+      codComponente,
+      dentroFaixa,
+      componentesSalvos: 1,
+      componentesTotal: 2,
+      ...representation,
+    }],
   };
 }

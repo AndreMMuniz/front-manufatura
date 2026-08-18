@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapInspectionRouteEnvelope, mapProductionOrderEnvelope } from './datasul-quality-control.mapper';
+import {
+  mapInspectionRouteEnvelope,
+  mapInspectionRouteEnvelopeForSheet,
+  mapProductionOrderEnvelope,
+} from './datasul-quality-control.mapper';
 
 describe('Datasul quality-control mapper', () => {
   it('mapeia ordem, operações e splits na ordem recebida', () => {
@@ -49,6 +53,24 @@ describe('Datasul quality-control mapper', () => {
       componentCode: 3, decimalPlaces: 0, tableNumber: 8,
       resultOptions: [{ sequence: 1, description: 'SIM' }, { sequence: 2, description: 'NÃO' }],
     });
+  });
+
+  it('seleciona somente a ficha solicitada para a análise autorizada', () => {
+    const envelope = {
+      total: 2, hasNext: false, items: [routeItem(64379), routeItem(64462)],
+    };
+    const context = {
+      orderNumber: '372562',
+      operation: {
+        operationCode: '10', operationDescription: 'CORTE', itemCode: '30907',
+        itemDescription: 'ALAVANCA', processDescription: 'CORTE', split: '1',
+      },
+    };
+
+    expect(mapInspectionRouteEnvelopeForSheet(envelope, context, 64462).route.nrFicha)
+      .toBe(64462);
+    expect(() => mapInspectionRouteEnvelopeForSheet(envelope, context, 99999))
+      .toThrow('invalid-upstream-response');
   });
 
   it('preserva tipo 3 como laudo sem transformar limites zerados em referência', () => {
@@ -104,3 +126,17 @@ describe('Datasul quality-control mapper', () => {
     })).toThrow('invalid-upstream-response');
   });
 });
+
+function routeItem(nrFicha: number) {
+  return {
+    nrFicha,
+    'ds-roteiro': { exames: [{
+      codExame: 1845, descricao: 'ALAVANCA', versao: 1, frequencia: 60,
+      amostra: 2, nivel: 0, nqa: 0, responsavel: '', observacao: '', componentes: [{
+        codExame: 1845, codComponente: 1, descricao: 'MEDIDA', referenciaTecnica: '',
+        metodo: 'PAQUÍMETRO', equipamento: '', tipoResultado: 1, unidade: 'MM',
+        numeroDecimais: 2, resultadoMin: 20, resultadoMax: 30, nrTabela: 0,
+      }],
+    }] },
+  };
+}

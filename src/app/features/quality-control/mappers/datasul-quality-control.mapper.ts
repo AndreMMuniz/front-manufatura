@@ -39,15 +39,38 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
 
 export function mapInspectionRouteEnvelope(
   value: unknown,
-  context: {
-    readonly orderNumber: string;
-    readonly operation: ProductionOrderOperation;
-  },
+  context: InspectionRouteContext,
 ): { readonly route: ProductionOrderRoute; readonly exams: QualityExam[] } {
   const envelope = envelopeOf(value);
-  const first = objectOf(envelope.items[0]);
-  const nrFicha = integerOf(first['nrFicha']);
-  const dataset = objectOf(first['ds-roteiro']);
+  return mapInspectionRouteItem(envelope.items[0], context);
+}
+
+export function mapInspectionRouteEnvelopeForSheet(
+  value: unknown,
+  context: InspectionRouteContext,
+  expectedSheetNumber: number,
+): { readonly route: ProductionOrderRoute; readonly exams: QualityExam[] } {
+  if (!Number.isSafeInteger(expectedSheetNumber) || expectedSheetNumber <= 0) {
+    throw invalidContract();
+  }
+  const envelope = envelopeOf(value);
+  const matches = envelope.items.filter(item => integerOf(objectOf(item)['nrFicha']) === expectedSheetNumber);
+  if (matches.length !== 1) throw invalidContract();
+  return mapInspectionRouteItem(matches[0], context);
+}
+
+interface InspectionRouteContext {
+  readonly orderNumber: string;
+  readonly operation: ProductionOrderOperation;
+}
+
+function mapInspectionRouteItem(
+  item: unknown,
+  context: InspectionRouteContext,
+): { readonly route: ProductionOrderRoute; readonly exams: QualityExam[] } {
+  const routeItem = objectOf(item);
+  const nrFicha = integerOf(routeItem['nrFicha']);
+  const dataset = objectOf(routeItem['ds-roteiro']);
   const exams = uniqueById(arrayOf(dataset['exames']).map((exam, index) =>
     mapExam(exam, nrFicha, index)));
   const operation = context.operation;

@@ -25,6 +25,37 @@ export interface AuthorizedRouteFinalization {
   readonly exams: readonly AuthorizedRouteExamSummary[];
 }
 
+export interface AuthorizedRouteFinalizationRefusal {
+  readonly sheetNumber: number;
+  readonly finalized: false;
+  readonly inspected: boolean;
+  readonly totalComponents: number;
+  readonly savedComponents: number;
+  readonly pendingComponents: number;
+  readonly outOfRangeComponents: number;
+  readonly statusCode: number;
+  readonly message: string;
+  readonly exams: readonly AuthorizedRouteExamSummary[];
+}
+
+export type AuthorizedRouteFinalizationOutcome =
+  | AuthorizedRouteFinalization
+  | AuthorizedRouteFinalizationRefusal;
+
+export type AuthorizedComponentResultRequest =
+  | { readonly kind: 'numeric'; readonly result: number }
+  | { readonly kind: 'table'; readonly tableNumber: number; readonly optionSequence: number }
+  | { readonly kind: 'report'; readonly report: string };
+
+export interface AuthorizedComponentSaveResult {
+  readonly sheetNumber: number;
+  readonly examCode: number;
+  readonly componentCode: number;
+  readonly withinRange: boolean;
+  readonly savedComponents: number;
+  readonly totalComponents: number;
+}
+
 export interface AuthorizedRouteExamSummary {
   readonly examCode: number;
   readonly totalComponents: number;
