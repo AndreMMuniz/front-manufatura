@@ -128,7 +128,7 @@ describe('RouteAuthorizationPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Tentar novamente');
   });
 
-  it('remove somente a ficha finalizada e restaura o foco ao fechar a análise', () => {
+  it('remove somente a ficha finalizada e restaura o foco real ao fechar a análise', async () => {
     fixture.detectChanges();
     const analysisSlideDebug = fixture.debugElement.query(By.directive(RouteAnalysisSlide));
     expect(analysisSlideDebug).not.toBeNull();
@@ -140,9 +140,14 @@ describe('RouteAuthorizationPage', () => {
     fixture.detectChanges();
     const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
       .componentInstance as PoButtonComponent;
-    const focus = vi.spyOn(analysisButton, 'focus');
+    const nativeButton = analysisButton.elementRef.nativeElement.querySelector('button') as HTMLButtonElement;
 
     analysisButton.click.emit(null);
+    fixture.detectChanges();
+    expect(nativeButton.disabled).toBe(true);
+    const focusSink = document.createElement('button');
+    document.body.append(focusSink);
+    focusSink.focus();
     analysisSlide.routeFinalized.emit({
       sheetNumber: 64382, finalized: false, inspected: false,
       totalComponents: 1, savedComponents: 0, pendingComponents: 1,
@@ -150,7 +155,10 @@ describe('RouteAuthorizationPage', () => {
     });
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64382, 64442]);
     analysisSlide.analysisClosed.emit();
-    expect(focus).toHaveBeenCalledOnce();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(nativeButton);
+    focusSink.remove();
     analysisSlide.routeFinalized.emit({
       sheetNumber: 64382, finalized: true, inspected: true,
       totalComponents: 1, savedComponents: 1, pendingComponents: 0,
@@ -160,6 +168,32 @@ describe('RouteAuthorizationPage', () => {
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64442]);
     expect(component.state()).toBe('ready');
     expect(component.feedback()).toBe('Ficha finalizada');
+  });
+
+  it('não tenta focar uma ficha removida após finalização bem-sucedida', async () => {
+    fixture.detectChanges();
+    const analysisSlide = fixture.debugElement.query(By.directive(RouteAnalysisSlide)).componentInstance as RouteAnalysisSlide;
+    vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
+    component.routes.set([route(64382)]);
+    component.state.set('ready');
+    component.operationCode.set('10');
+    fixture.detectChanges();
+    const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
+      .componentInstance as PoButtonComponent;
+
+    analysisButton.click.emit(null);
+    analysisSlide.routeFinalized.emit({
+      sheetNumber: 64382, finalized: true, inspected: true,
+      totalComponents: 1, savedComponents: 1, pendingComponents: 0,
+      outOfRangeComponents: 1, statusCode: 4, message: 'Ficha finalizada', exams: [],
+    });
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.css('.route-card__actions po-button'))).toBeNull();
+
+    expect(() => analysisSlide.analysisClosed.emit()).not.toThrow();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(component.routes()).toEqual([]);
   });
 });
 

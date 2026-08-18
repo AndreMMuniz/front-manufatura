@@ -1,4 +1,15 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, QueryList, ViewChild, ViewChildren, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  Injector,
+  QueryList,
+  ViewChild,
+  ViewChildren,
+  afterNextRender,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -30,9 +41,11 @@ export class RouteAuthorizationPage {
   private readonly service = inject(RouteAuthorizationService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private searchSequence = 0;
   private queriedOperation: number | null = null;
   private analysisTriggerSheet: number | null = null;
+  private focusRestoreSequence = 0;
 
   readonly orderNumber = signal('');
   readonly operationCode = signal('');
@@ -83,6 +96,7 @@ export class RouteAuthorizationPage {
     const operation = this.queriedOperation ?? positiveInteger(this.operationCode());
     if (operation === null) return;
 
+    ++this.focusRestoreSequence;
     this.analysisTriggerSheet = route.sheetNumber;
     this.analyzing.set(true);
     this.analysisSlide.open(route, operation);
@@ -99,13 +113,17 @@ export class RouteAuthorizationPage {
 
   onAnalysisClosed(): void {
     const sheetNumber = this.analysisTriggerSheet;
+    const focusRestoreSequence = ++this.focusRestoreSequence;
     this.analysisTriggerSheet = null;
     this.analyzing.set(false);
     if (sheetNumber === null) return;
 
-    const trigger = this.analysisTriggers.find(button =>
-      button.elementRef.nativeElement.dataset.routeSheet === String(sheetNumber));
-    if (trigger?.elementRef.nativeElement.isConnected) trigger.focus();
+    afterNextRender(() => {
+      if (focusRestoreSequence !== this.focusRestoreSequence || this.analyzing()) return;
+      const trigger = this.analysisTriggers.find(button =>
+        button.elementRef.nativeElement.dataset.routeSheet === String(sheetNumber));
+      if (trigger?.elementRef.nativeElement.isConnected) trigger.focus();
+    }, { injector: this.injector });
   }
 
   goBack(): void {
