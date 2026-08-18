@@ -2,6 +2,41 @@
 
 Contratos observados para o módulo **Autorização de Roteiros CQ**. A tela deverá localizar roteiros com pendências que não puderam ser finalizados, permitir a análise e alteração dos dados aplicáveis e, após decisão do usuário autorizado, finalizar o roteiro com autorização.
 
+## Contrato implementado no BFF
+
+O frontend não acessa o Datasul diretamente. O fluxo usa os endpoints abaixo, todos
+sob `/api/quality-control/route-authorizations` e protegidos pela permissão
+`AUTORIZACAO_ROTEIRO_DIVERGENCIA`, associada ao programa Datasul `fcq-0002`.
+O token Bearer da sessão identifica o usuário no servidor; `codUsuario` não é
+aceito do navegador e `companyId` vem da configuração do BFF.
+
+| Método | Endpoint BFF | Uso |
+| --- | --- | --- |
+| `GET` | `/api/quality-control/route-authorizations` | Lista fichas pendentes por `nrOrdemProducao` e `opCodigo`. |
+| `POST` | `/api/quality-control/route-authorizations/route` | Carrega a ficha selecionada por `nrFicha`, usando `nrOrdemProducao` e `codOperacao`. O BFF devolve somente a correspondência única da ficha. |
+| `PUT` | `/api/quality-control/route-authorizations/results` | Salva um componente com `nrFicha`, `codExame`, `codComponente` e exatamente uma representação: `resultado`, `nrTabela` + `seqOpcao` ou `laudo`. |
+| `POST` | `/api/quality-control/route-authorizations/finalize` | Solicita a finalização autorizada da ficha informada por `nrFicha`. |
+
+As rotas de carregamento, salvamento e finalização rejeitam métodos incorretos e
+retornam `403` quando a sessão não possui `fcq-0002`. O BFF encaminha ao Datasul
+somente os identificadores e valores necessários, preservando a identidade da
+sessão autenticada.
+
+### Estado da análise
+
+O carregamento da ficha não representa resultados históricos nem consulta um
+histórico de alterações. Ao abrir a análise, cada componente começa no estado
+provisório **Não verificado**; esse estado vale até que o componente seja salvo
+com sucesso nesta sessão. O frontend não calcula `dentroFaixa`: somente o recibo
+do Datasul define **Aprovado** ou **Fora da faixa confirmado pelo Datasul**.
+Depois de editar um componente já salvo, ele volta a **Não verificado** e precisa
+ser salvo novamente antes da finalização.
+
+Uma resposta HTTP bem-sucedida de finalização não basta para concluir a operação.
+Quando `finalizado` for `false`, a ficha permanece na lista e o painel continua
+aberto, exibindo a `mensagem` de negócio retornada pelo Datasul, além dos totais e
+pendências. A ficha só é removida da lista quando `finalizado: true`.
+
 ## Fluxo funcional esperado
 
 1. O usuário informa ou seleciona a ordem de produção e a operação.
