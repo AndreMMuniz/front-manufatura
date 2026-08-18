@@ -37,6 +37,10 @@
   align-items: end;
 }
 
+.route-authorization__submit {
+  margin-bottom: 0.5rem;
+}
+
 .route-authorization__feedback {
   min-height: 1.5rem;
 }
@@ -131,6 +135,10 @@
 
   .route-authorization__filters po-button {
     grid-column: 1 / -1;
+  }
+
+  .route-authorization__submit {
+    margin-bottom: 0;
   }
 }
 

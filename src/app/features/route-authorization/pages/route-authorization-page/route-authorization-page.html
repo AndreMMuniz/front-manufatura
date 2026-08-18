@@ -29,6 +29,7 @@
           (ngModelChange)="operationCode.set($event)"
         ></po-input>
         <po-button
+          class="route-authorization__submit"
           p-type="submit"
           p-label="Consultar"
           [p-loading]="state() === 'loading'"
