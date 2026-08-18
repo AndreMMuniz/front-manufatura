@@ -211,6 +211,10 @@ export class ReportOperacaoPage implements OnInit {
       && this.gerenciarEquipeSlide?.state() !== 'saving';
   }
 
+  get tipoResponsavelDefinidoPelaApi(): boolean {
+    return this.operacao?.indReporteMod === 2 || this.operacao?.indReporteMod === 3;
+  }
+
   get iniciarDisabled(): boolean {
     const podeIniciar =
       this.estado === EstadoOperacao.OPEncontrada
@@ -379,7 +383,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   alterarTipoResponsavel(tipo: TipoResponsavelOperacao): void {
-    if (this.operacao?.dataInicio || this.isBusy) {
+    if (this.tipoResponsavelDefinidoPelaApi || this.operacao?.dataInicio || this.isBusy) {
       return;
     }
 
@@ -778,6 +782,7 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setActiveOperation(this.operacao, this.estado);
           this.workflowState.setScrap([], '');
           this.workflowState.setResponsavel(null);
+          this.applyApiReportType(this.operacao);
           this.loadResponsaveis();
           this.feedback = `Ordem ${order.ordem} carregada. Inicie a operação.`;
           this.notification.success('OP carregada.');
@@ -1271,12 +1276,22 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private loadResponsaveis(): void {
+    const tipoApi = this.apiReportType(this.operacao);
+    if (tipoApi && this.tipoResponsavel !== tipoApi) {
+      this.tipoResponsavel = tipoApi;
+      this.responsavelCodigo = '';
+      this.workflowState.setResponsavel(null);
+    }
     const request = ++this.responsaveisRequest;
     const areaCode = this.normalizeCode(this.areaCode);
     const workCenterCode = this.normalizeCode(this.workCenterCode);
     this.loadingResponsaveis = true;
     this.responsaveisError = '';
-    this.reportOperacaoService.listarResponsaveis(this.areaCode, this.workCenterCode)
+    this.reportOperacaoService.listarResponsaveis(
+      this.areaCode,
+      this.workCenterCode,
+      ...(tipoApi ? [tipoApi] : []),
+    )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: responsaveis => {
@@ -1307,7 +1322,7 @@ export class ReportOperacaoPage implements OnInit {
               : 'Nenhuma equipe ou operador elegível. Tente novamente.';
             this.feedback = this.responsaveisError;
           }
-          if (this.operacao && !this.responsavelCodigo) {
+          if (this.operacao && !this.responsavelCodigo && !tipoApi) {
             this.selectInitialResponsavel(this.operacao);
           }
           this.changeDetector.markForCheck();
@@ -1355,6 +1370,19 @@ export class ReportOperacaoPage implements OnInit {
     this.tipoResponsavel = responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = responsavel?.codigo ?? '';
     this.workflowState.setResponsavel(responsavel);
+  }
+
+  private applyApiReportType(operacao: ReportOperacao): void {
+    const tipo = this.apiReportType(operacao);
+    if (!tipo) return;
+    this.tipoResponsavel = tipo;
+    this.responsavelCodigo = '';
+  }
+
+  private apiReportType(operacao: ReportOperacao | null): TipoResponsavelOperacao | null {
+    if (operacao?.indReporteMod === 2) return 'OPERADOR';
+    if (operacao?.indReporteMod === 3) return 'EQUIPE';
+    return null;
   }
 
   private invalidateTeamContext(): void {

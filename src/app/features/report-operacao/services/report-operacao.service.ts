@@ -8,6 +8,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
+import { EquipeResponseDTO } from '../../equipes/interfaces/equipe.dto';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
   EncerrarOperacaoRequest,
@@ -22,6 +23,7 @@ import {
   ReporteParcialOperacao,
   ResponsavelOperacao,
   ResultadoConsultaOP,
+  TipoResponsavelOperacao,
 } from '../models/report-operacao.model';
 
 @Injectable({ providedIn: 'root' })
@@ -112,9 +114,27 @@ export class ReportOperacaoService {
   listarResponsaveis(
     areaCode: string,
     workCenterCode: string,
+    tipo?: TipoResponsavelOperacao,
   ): Observable<ReadonlyArray<ResponsavelOperacao>> {
-    return this.productionCatalog.listarResponsaveis(areaCode, workCenterCode).pipe(
-      map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))),
+    const area = this.normalizeCode(areaCode);
+    const center = this.normalizeCode(workCenterCode);
+    if (!area || !center) return of([]);
+
+    if (tipo === 'EQUIPE') {
+      return this.api.get<ReadonlyArray<EquipeResponseDTO>>('/api/teams', {
+        areaCode: area,
+        workCenterCode: center,
+      }).pipe(map(equipes => equipes.map(equipe => ({
+        tipo: 'EQUIPE' as const,
+        codigo: equipe.codigo,
+        nome: equipe.descricao,
+      }))));
+    }
+
+    return this.productionCatalog.listarResponsaveis(area, center).pipe(
+      map(responsaveis => responsaveis
+        .filter(responsavel => tipo !== 'OPERADOR' || responsavel.tipo === 'OPERADOR')
+        .map(responsavel => ({ ...responsavel }))),
     );
   }
 

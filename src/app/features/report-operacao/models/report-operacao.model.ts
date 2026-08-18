@@ -33,6 +33,7 @@ export type EstadoConsultaOrdens =
 
 export interface ReportOperacao {
   readonly startCommandId?: string;
+  readonly indReporteMod?: number;
   readonly ordem: string;
   readonly op: string;
   readonly split: string;

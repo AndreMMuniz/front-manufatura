@@ -21,6 +21,7 @@ export class OperacaoInfoCard {
   @Input() responsaveis: ReadonlyArray<ResponsavelOperacao> = [];
   @Input() tipoResponsavel: TipoResponsavelOperacao = 'OPERADOR';
   @Input() responsavelCodigo = '';
+  @Input() tipoResponsavelDisabled = true;
   @Input() responsavelDisabled = true;
   @Input() loadingResponsaveis = false;
   @Input() responsaveisError = '';

@@ -219,7 +219,7 @@ describe('ReportOperacaoService', () => {
   });
 
   it('carrega somente operadores ou equipes conforme o tipo definido pela abertura', async () => {
-    const listarPorTipo = service.listarResponsaveis as unknown as (
+    const listarPorTipo = service.listarResponsaveis.bind(service) as unknown as (
       areaCode: string,
       workCenterCode: string,
       tipo: 'OPERADOR' | 'EQUIPE',

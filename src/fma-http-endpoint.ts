@@ -123,6 +123,10 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         numSplitOperac: positiveInteger(req.query['split']),
       });
       const item = objectOfUpstream(single(dataset(upstream, 'dadosApontamento')));
+      const reportModeValue = item['indReporteMod'] ?? item['indReportMod'];
+      const indReporteMod = typeof reportModeValue === 'number' && Number.isSafeInteger(reportModeValue)
+        ? reportModeValue
+        : undefined;
       return {
         ordem: integerText(item['nrOrdemProducao']),
         op: integerText(item['opCodigo']),
@@ -136,6 +140,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         linha: text(item['desCtrab']),
         ct: text(item['codCtrab']),
         grupoMaquina: text(item['desGrupoMaquina']),
+        ...(indReporteMod === undefined ? {} : { indReporteMod }),
         operador: '', equipe: '', turno: text(item['desModelTurno']),
       };
     }));
