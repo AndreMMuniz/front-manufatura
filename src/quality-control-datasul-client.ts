@@ -244,24 +244,6 @@ function validateResultEnvelope(value: unknown): void {
   const saved = upstreamNonNegativeInteger(item['componentesSalvos']);
   const total = upstreamNonNegativeInteger(item['componentesTotal']);
   if (saved > total) throw invalidUpstream();
-  validateResultRepresentation(item);
-}
-
-function validateResultRepresentation(item: Record<string, unknown>): void {
-  const hasResult = item['resultado'] !== undefined;
-  const hasTableNumber = item['nrTabela'] !== undefined;
-  const hasOptionSequence = item['seqOpcao'] !== undefined;
-  const report = typeof item['laudo'] === 'string' ? item['laudo'].trim() : '';
-  const hasTableResult = hasTableNumber && hasOptionSequence;
-  if (hasTableNumber !== hasOptionSequence
-    || [hasResult, hasTableResult, Boolean(report)].filter(Boolean).length !== 1) throw invalidUpstream();
-  if (hasResult) {
-    upstreamFiniteNumber(item['resultado']);
-    return;
-  }
-  if (report) return;
-  upstreamPositiveInteger(item['nrTabela']);
-  upstreamPositiveInteger(item['seqOpcao']);
 }
 
 function authorizationEnvelope(value: unknown): Record<string, unknown> {
@@ -296,11 +278,6 @@ function upstreamNonNegativeInteger(value: unknown): number {
 
 function upstreamBoolean(value: unknown): boolean {
   if (typeof value !== 'boolean') throw invalidUpstream();
-  return value;
-}
-
-function upstreamFiniteNumber(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidUpstream();
   return value;
 }
 

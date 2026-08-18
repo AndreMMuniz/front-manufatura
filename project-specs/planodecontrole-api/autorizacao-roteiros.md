@@ -30,7 +30,18 @@ provisório **Não verificado**; esse estado vale até que o componente seja sal
 com sucesso nesta sessão. O frontend não calcula `dentroFaixa`: somente o recibo
 do Datasul define **Aprovado** ou **Fora da faixa confirmado pelo Datasul**.
 Depois de editar um componente já salvo, ele volta a **Não verificado** e precisa
-ser salvo novamente antes da finalização.
+ser salvo novamente antes da finalização. Como a consulta não oferece histórico,
+componentes que permanecem **Não verificados** ou cujo tipo está indisponível para
+edição não bloqueiam a tentativa de finalização. O botão fica bloqueado somente
+enquanto houver rascunho alterado e não salvo, carregamento, salvamento ou
+finalização em andamento; a resposta `finalizado` do Datasul continua sendo a
+decisão final.
+
+O contrato de exclusividade das representações (`resultado`, `nrTabela` com
+`seqOpcao`, ou `laudo`) aplica-se ao corpo da **requisição**. O recibo de resposta
+do Datasul pode trazer campos auxiliares e representações combinadas de acordo
+com o tipo do componente. O BFF valida o envelope, a identidade, os totais e
+`dentroFaixa`, sem exigir que o recibo repita a forma exclusiva enviada.
 
 Uma resposta HTTP bem-sucedida de finalização não basta para concluir a operação.
 Quando `finalizado` for `false`, a ficha permanece na lista e o painel continua

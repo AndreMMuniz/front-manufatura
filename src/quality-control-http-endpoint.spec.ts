@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,6 +25,11 @@ const ENV = {
   DATASUL_REQUEST_TIMEOUT_MS: '1000',
   APP_AUTH_TOKEN_SECRET: '0123456789abcdef0123456789abcdef',
 };
+
+const REAL_RESULT_EXAM_RECEIPT = JSON.parse(readFileSync(new URL(
+  '../project-specs/planodecontrole-api/examples/result-exames-ficha-64378-componente-3-response.json',
+  import.meta.url,
+), 'utf8')) as unknown;
 
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
@@ -73,6 +79,27 @@ describe('gateway Plano Controle CQ', () => {
     expect(String(url)).toBe('https://datasul.example.test/api/fcq/v1/resultexames?companyId=1');
     expect((init?.headers as Record<string, string>)['Authorization'])
       .toBe(`Basic ${Buffer.from('integracao:segredo-tecnico', 'utf8').toString('base64')}`);
+  });
+
+  it('mantém o endpoint normal compatível com o recibo real de ResultExames', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      JSON.stringify(REAL_RESULT_EXAM_RECEIPT),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/results`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64378, codExame: 1845, codComponente: 3, nrTabela: 8, seqOpcao: 1 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(REAL_RESULT_EXAM_RECEIPT);
   });
 
   it('preserva a capitalização observada em roteiros e finalização', async () => {

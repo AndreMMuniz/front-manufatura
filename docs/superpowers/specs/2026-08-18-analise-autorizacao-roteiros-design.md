@@ -79,7 +79,10 @@ Cada componente terá salvamento individual. Os estados visuais serão:
 O rodapé apresentará a quantidade de componentes verificados na sessão e as
 ações **Cancelar análise** e **Finalizar com autorização**. A finalização não
 exigirá que todos os componentes estejam verdes, pois componentes fora da faixa
-podem ser aceitos pelo próprio fluxo de autorização.
+podem ser aceitos pelo próprio fluxo de autorização. Enquanto o roteiro não
+fornecer histórico, componentes **Não verificados** ou indisponíveis também não
+bloqueiam a tentativa: somente rascunhos alterados e operações em andamento a
+impedem. O Datasul confirma ou recusa a conclusão por `finalizado` e `mensagem`.
 
 ### Finalização
 

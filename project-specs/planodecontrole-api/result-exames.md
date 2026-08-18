@@ -105,6 +105,11 @@ Cada item de `items` contém:
 - Enviar `resultadoMin` e `resultadoMax` não faz parte do PUT. Esses campos pertencem ao roteiro e servem de referência apenas para tipos numéricos que utilizam faixa.
 - Para `tipoResultado: 3`, `resultadoMin: 0.0`, `resultadoMax: 0.0`, `nrTabela: 0` e `referenciaTecnica` vazia não significam que o resultado esperado seja zero; o PUT exige `laudo`.
 - O cliente deve enviar somente a representação correspondente ao tipo: tabela, laudo ou número.
+- A exclusividade acima é uma regra do corpo da requisição. O recibo pode trazer
+  simultaneamente campos auxiliares como `resultado`, `nrTabela` e `laudo`, e não
+  precisa repetir `seqOpcao`; o exemplo real versionado demonstra essa forma.
+  Consumidores devem validar envelope, identidade, totais e `dentroFaixa`, sem
+  reaplicar ao recibo a união exclusiva usada para montar o PUT.
 - Esta é uma operação de escrita. Repetições, tentativas automáticas e sincronização offline precisam considerar a idempotência efetiva do endpoint, que não foi informada.
 - Esta documentação descreve uma requisição e uma resposta fornecidas e não substitui um contrato OpenAPI oficial.
 - Os significados observados de `tipoResultado` são: 2 para opção tabelada, 3 para laudo textual e 4 para resultado numérico. Outros códigos ainda precisam ser confirmados.

@@ -3,9 +3,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   EventEmitter,
+  Injector,
   Output,
   ViewChild,
+  afterNextRender,
   computed,
   inject,
   signal,
@@ -62,11 +65,13 @@ export class RouteAnalysisSlide {
   @Output() readonly routeFinalized = new EventEmitter<AuthorizedRouteFinalizationOutcome>();
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
+  @ViewChild('analysisTitle', { static: true }) private analysisTitle!: ElementRef<HTMLHeadingElement>;
 
   private readonly service = inject(RouteAuthorizationService);
   private readonly dialog = inject(PoDialogService);
   private readonly notification = inject(PoNotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private loadVersion = 0;
   private suppressPageSlideClose = false;
   private isOpen = false;
@@ -78,12 +83,17 @@ export class RouteAnalysisSlide {
   readonly feedback = signal('');
   private readonly drafts = signal<Record<string, ComponentDraft>>({});
 
+  readonly totalComponents = computed(() =>
+    this.exams().reduce((total, exam) => total + exam.components.length, 0));
+  readonly verifiedComponents = computed(() =>
+    Object.values(this.drafts()).filter(draft =>
+      draft.status === 'approved' || draft.status === 'out-of-range').length);
   readonly canFinalize = computed(() => {
-    const components = this.exams().flatMap(exam => exam.components);
-    return components.length > 0 && components.every(component => {
-      const status = this.statusFor(component);
-      return status === 'approved' || status === 'out-of-range';
-    });
+    return Boolean(this.route()?.nrFicha)
+      && !this.loading()
+      && !this.finalizing()
+      && !this.hasSavingComponent()
+      && !this.hasUnsavedDraft();
   });
 
   open(route: PendingAuthorizedRoute, operationCode: number): void {
@@ -100,6 +110,7 @@ export class RouteAnalysisSlide {
     this.feedback.set('Carregando ficha para análise...');
     this.loading.set(true);
     this.pageSlide.open();
+    this.focusTitleAfterOpen(version);
 
     this.service.loadRoute(route, operationCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -135,7 +146,9 @@ export class RouteAnalysisSlide {
       case 'approved': return 'Aprovado pelo Datasul';
       case 'out-of-range': return 'Fora da faixa confirmado pelo Datasul';
       case 'error': return draft.message || 'Não foi possível salvar o resultado';
-      default: return 'Não verificado';
+      default: return this.isSupported(component)
+        ? 'Não verificado'
+        : 'Não verificado — resultado indisponível para edição';
     }
   }
 
@@ -148,7 +161,19 @@ export class RouteAnalysisSlide {
   }
 
   isSupported(component: QualityExamComponent): boolean {
-    return component.resultType === 1 || component.resultType === 2 || component.resultType === 3;
+    return component.resultType === 1
+      || component.resultType === 2
+      || component.resultType === 3
+      || component.resultType === 4;
+  }
+
+  canSave(component: QualityExamComponent): boolean {
+    return this.isSupported(component)
+      && this.draftFor(component).isDirty
+      && !this.isLocked(component)
+      && !this.isSaving(component)
+      && !this.loading()
+      && !this.finalizing();
   }
 
   tableOptionsFor(component: QualityExamComponent): ReadonlyArray<PoSelectOption> {
@@ -171,7 +196,16 @@ export class RouteAnalysisSlide {
   }
 
   save(exam: QualityExam, component: QualityExamComponent): void {
-    if (this.loading() || this.finalizing() || this.isLocked(component) || this.isSaving(component)) return;
+    if (!this.isSupported(component)) {
+      const draft = this.draftFor(component);
+      this.setDraft(component, {
+        ...draft,
+        status: 'error',
+        message: 'Tipo de resultado não suportado para salvamento.',
+      });
+      return;
+    }
+    if (!this.canSave(component)) return;
     const request = this.requestFor(component);
     if (!request) return;
 
@@ -288,7 +322,7 @@ export class RouteAnalysisSlide {
 
   private requestFor(component: QualityExamComponent): AuthorizedComponentResultRequest | null {
     const draft = this.draftFor(component);
-    if (component.resultType === 1) {
+    if (component.resultType === 1 || component.resultType === 4) {
       const result = parseNumericResult(draft.result, component.decimalPlaces);
       if (result === null) {
         this.setDraft(component, { ...draft, status: 'error', message: numericValidationMessage(component.decimalPlaces) });
@@ -347,6 +381,15 @@ export class RouteAnalysisSlide {
     return Object.values(this.drafts()).some(draft => draft.isDirty);
   }
 
+  private focusTitleAfterOpen(version: number): void {
+    afterNextRender(() => {
+      setTimeout(() => {
+        const title = this.analysisTitle.nativeElement;
+        if (this.isOpen && version === this.loadVersion && title.isConnected) title.focus();
+      }, 0);
+    }, { injector: this.injector });
+  }
+
   private close(fromNativeClose: boolean): void {
     ++this.loadVersion;
     this.isOpen = false;
@@ -377,7 +420,7 @@ function matchesConfirmation(draft: ComponentDraft, confirmation: ComponentDraft
 }
 
 function hasDraftValue(draft: ComponentDraft): boolean {
-  return Boolean(draft.result.trim() || draft.report.trim() || draft.selectedOptionKey);
+  return Boolean(draft.result || draft.report || draft.selectedOptionKey);
 }
 
 function confirmationMessage(confirmation: ComponentDraftConfirmation | undefined): string {

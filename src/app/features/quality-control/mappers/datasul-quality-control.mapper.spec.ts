@@ -51,6 +51,7 @@ describe('Datasul quality-control mapper', () => {
     expect(result.route.exams).toHaveLength(1);
     expect(result.exams[0].components[0]).toMatchObject({
       componentCode: 3, decimalPlaces: 0, tableNumber: 8,
+      equipment: 'VISUAL',
       resultOptions: [{ sequence: 1, description: 'SIM' }, { sequence: 2, description: 'NÃO' }],
     });
   });

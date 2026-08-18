@@ -1,3 +1,6 @@
+// @vitest-environment node
+
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -12,6 +15,11 @@ const ENV = {
   DATASUL_INTEGRATION_PASSWORD: 'segredo-tecnico',
   DATASUL_REQUEST_TIMEOUT_MS: '1000',
 };
+
+const REAL_RESULT_EXAM_RECEIPT = JSON.parse(readFileSync(new URL(
+  '../project-specs/planodecontrole-api/examples/result-exames-ficha-64378-componente-3-response.json',
+  import.meta.url,
+), 'utf8')) as unknown;
 
 function resultEnvelope(item: Record<string, unknown>) {
   return { total: 1, hasNext: false, items: [item] };
@@ -39,6 +47,15 @@ function clientRespondingWith(value: unknown): QualityControlDatasulClient {
 }
 
 describe('QualityControlDatasulClient ResultExames receipt', () => {
+  it('aceita o recibo real versionado com campos auxiliares e representações combinadas', async () => {
+    const client = clientRespondingWith(REAL_RESULT_EXAM_RECEIPT);
+
+    await expect(client.saveResult({
+      nrFicha: 64378, codExame: 1845, codComponente: 3,
+      nrTabela: 8, seqOpcao: 1, codUsuario: 'Mjocelio',
+    })).resolves.toEqual(REAL_RESULT_EXAM_RECEIPT);
+  });
+
   it.each([
     ['numérico', { resultado: 24.01 }],
     ['tabelado', { nrTabela: 8, seqOpcao: 1 }],
@@ -57,9 +74,6 @@ describe('QualityControlDatasulClient ResultExames receipt', () => {
     ['identidade não positiva', resultEnvelope(resultItem({ resultado: 1, codComponente: 0 }))],
     ['dentroFaixa não booleano', resultEnvelope(resultItem({ resultado: 1, dentroFaixa: 'sim' }))],
     ['totais incoerentes', resultEnvelope(resultItem({ resultado: 1, componentesSalvos: 3, componentesTotal: 2 }))],
-    ['representação ausente', resultEnvelope(resultItem({}))],
-    ['representações misturadas', resultEnvelope(resultItem({ resultado: 1, laudo: 'Aprovado' }))],
-    ['opção tabelada incompleta', resultEnvelope(resultItem({ nrTabela: 8 }))],
   ])('rejeita recibo ResultExames com %s', async (_name, envelope) => {
     const client = clientRespondingWith(envelope);
 

@@ -6,9 +6,29 @@
   (p-close)="onPageSlideClose()"
 >
   <section class="route-analysis" aria-labelledby="route-analysis-title">
-    <h2 id="route-analysis-title">Análise da ficha {{ route()?.nrFicha }}</h2>
-    <p class="route-analysis__authorization-alert" role="note">
-      A aprovação é confirmada somente pela resposta do Datasul.
+    <h2 #analysisTitle id="route-analysis-title" tabindex="-1">
+      Análise da ficha {{ route()?.nrFicha }}
+    </h2>
+
+    @if (route(); as activeRoute) {
+      <div class="route-analysis__context" aria-label="Contexto da ficha">
+        <p><strong>OP:</strong> {{ activeRoute.currentOrder }}</p>
+        <p>
+          <strong>Operação:</strong> {{ activeRoute.operationCode }}
+          @if (activeRoute.operationDescription) { — {{ activeRoute.operationDescription }} }
+        </p>
+        <p>
+          <strong>Item:</strong> {{ activeRoute.itemCode }}
+          @if (activeRoute.itemDescription) { — {{ activeRoute.itemDescription }} }
+        </p>
+      </div>
+    }
+
+    <p class="route-analysis__authorization-alert" role="alert">
+      <strong>Atenção:</strong> a consulta atual não informa os resultados já registrados no Datasul.
+      Por isso, os componentes aparecem inicialmente como “Não verificado”. Preencha somente os
+      componentes que precisam ser corrigidos ou concluídos. Após salvar, o status será atualizado
+      conforme a resposta do Datasul.
     </p>
 
     <p class="route-analysis__feedback" aria-live="polite" aria-atomic="true">
@@ -23,13 +43,22 @@
       <section class="route-analysis__exam" [attr.aria-label]="'Exame ' + exam.code + ' ' + exam.description">
         <h3>{{ exam.code }} — {{ exam.description }}</h3>
         @for (component of exam.components; track component.id) {
-          <article class="route-analysis__component">
+          <article
+            class="route-analysis__component"
+            [attr.data-component-status]="statusFor(component)"
+          >
             <header>
               <h4>{{ component.code }} — {{ component.description }}</h4>
               <p>{{ component.reference }} @if (component.unit) { ({{ component.unit }}) }</p>
+              @if (component.equipment) {
+                <p><strong>Equipamento:</strong> {{ component.equipment }}</p>
+              }
+              @if (component.inspectionMethod) {
+                <p><strong>Método:</strong> {{ component.inspectionMethod }}</p>
+              }
             </header>
 
-            @if (component.resultType === 1) {
+            @if (component.resultType === 1 || component.resultType === 4) {
               <po-decimal
                 [name]="'route-analysis-' + exam.code + '-' + component.code"
                 p-label="Resultado"
@@ -66,12 +95,18 @@
               aria-live="polite"
               [attr.data-status]="statusFor(component)"
             >
-              Status: {{ statusTextFor(component) }}
+              Status:
+              @if (statusFor(component) === 'approved') {
+                <span class="route-analysis__status-icon" aria-hidden="true">✓</span>
+              } @else if (statusFor(component) === 'out-of-range') {
+                <span class="route-analysis__status-icon" aria-hidden="true">⚠</span>
+              }
+              {{ statusTextFor(component) }}
             </p>
             <po-button
               p-label="Salvar"
               [p-loading]="isSaving(component)"
-              [p-disabled]="!isSupported(component) || isLocked(component) || isSaving(component) || loading() || finalizing()"
+              [p-disabled]="!canSave(component)"
               (p-click)="save(exam, component)"
             ></po-button>
           </article>
@@ -82,6 +117,9 @@
 
   <po-page-slide-footer>
     <div class="route-analysis__footer">
+      <p class="route-analysis__counter" aria-live="polite">
+        {{ verifiedComponents() }} de {{ totalComponents() }} componentes verificados nesta sessão
+      </p>
       <po-button
         [p-label]="finalizing() ? 'Finalizando...' : 'Finalizar ficha'"
         [p-loading]="finalizing()"

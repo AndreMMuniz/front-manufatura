@@ -13,6 +13,8 @@ export interface QualityExamComponent {
   description: string;
   reference: string;
   measurementMethod?: string;
+  equipment?: string;
+  inspectionMethod?: string;
   minValue: number;
   maxValue: number;
   unit: string;

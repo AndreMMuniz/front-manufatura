@@ -99,7 +99,6 @@ export function mapAuthorizedComponentResultEnvelope(
   const savedComponents = nonNegativeIntegerOf(item['componentesSalvos']);
   const totalComponents = nonNegativeIntegerOf(item['componentesTotal']);
   if (savedComponents > totalComponents) throw invalidContract();
-  validateResultRepresentation(item);
   return {
     sheetNumber,
     examCode,
@@ -123,23 +122,6 @@ function resultEnvelopeOf(value: unknown): { readonly items: readonly unknown[] 
   const items = arrayOf(envelope['items']);
   if (items.length !== 1) throw invalidContract();
   return { items };
-}
-
-function validateResultRepresentation(item: Record<string, unknown>): void {
-  const hasResult = item['resultado'] !== undefined;
-  const hasTableNumber = item['nrTabela'] !== undefined;
-  const hasOptionSequence = item['seqOpcao'] !== undefined;
-  const report = typeof item['laudo'] === 'string' ? item['laudo'].trim() : '';
-  const hasTableResult = hasTableNumber && hasOptionSequence;
-  if (hasTableNumber !== hasOptionSequence
-    || [hasResult, hasTableResult, Boolean(report)].filter(Boolean).length !== 1) throw invalidContract();
-  if (hasResult) {
-    finiteNumberOf(item['resultado']);
-    return;
-  }
-  if (report) return;
-  positiveIntegerOf(item['nrTabela']);
-  positiveIntegerOf(item['seqOpcao']);
 }
 
 function objectOf(value: unknown): Record<string, unknown> {
@@ -169,11 +151,6 @@ function nonNegativeIntegerOf(value: unknown): number {
 
 function isPositiveInteger(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
-}
-
-function finiteNumberOf(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidContract();
-  return value;
 }
 
 function booleanOf(value: unknown): boolean {

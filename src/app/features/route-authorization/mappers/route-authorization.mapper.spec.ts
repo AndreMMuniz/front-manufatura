@@ -1,3 +1,6 @@
+// @vitest-environment node
+
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,6 +8,11 @@ import {
   mapAuthorizedFinalizationEnvelope,
   mapPendingRoutesEnvelope,
 } from './route-authorization.mapper';
+
+const REAL_RESULT_EXAM_RECEIPT = JSON.parse(readFileSync(new URL(
+  '../../../../../project-specs/planodecontrole-api/examples/result-exames-ficha-64378-componente-3-response.json',
+  import.meta.url,
+), 'utf8')) as unknown;
 
 describe('route authorization mapper', () => {
   it('achata todos os contêineres sem interpretar total como quantidade de fichas', () => {
@@ -95,6 +103,22 @@ describe('route authorization mapper', () => {
     });
     expect(() => mapAuthorizedComponentResultEnvelope(envelope, 64462, 1845, 99))
       .toThrow('invalid-upstream-response');
+  });
+
+  it('mapeia o recibo real versionado sem aplicar exclusividade da requisição à resposta', () => {
+    expect(mapAuthorizedComponentResultEnvelope(
+      REAL_RESULT_EXAM_RECEIPT,
+      64378,
+      1845,
+      3,
+    )).toEqual({
+      sheetNumber: 64378,
+      examCode: 1845,
+      componentCode: 3,
+      withinRange: false,
+      savedComponents: 6,
+      totalComponents: 6,
+    });
   });
 });
 

@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import {
+  PoButtonComponent,
   PoDecimalComponent,
   PoDialogService,
   PoNotificationService,
@@ -51,14 +52,35 @@ describe('RouteAnalysisSlide', () => {
   it('abre a ficha, mostra o alerta de autorização e inicia todos os componentes como não verificados', () => {
     component.open(route(), 10);
     fixture.detectChanges();
+    const text = normalizedText(fixture.nativeElement);
 
     expect(service.loadRoute).toHaveBeenCalledWith(route(), 10);
     expect(pageSlide.open).toHaveBeenCalledOnce();
-    expect(fixture.nativeElement.textContent).toContain('A aprovação é confirmada somente pela resposta do Datasul.');
+    expect(text).toContain('a consulta atual não informa os resultados já registrados no Datasul');
+    expect(text).toContain('Preencha somente os componentes que precisam ser corrigidos ou concluídos');
+    expect(text).toContain('OP: 372562');
+    expect(text).toContain('Operação: 10');
+    expect(text).toContain('Item: 30907 — ALAVANCA');
+    expect(text).toContain('Equipamento: PAQUÍMETRO');
+    expect(text).toContain('0 de 4 componentes verificados nesta sessão');
     expect(component.statusFor(component.exams()[0].components[0])).toBe('unverified');
     expect(fixture.nativeElement.textContent).toContain('Não verificado');
     expect(fixture.nativeElement.querySelector('[data-status="unverified"]').getAttribute('aria-live'))
       .toBe('polite');
+  });
+
+  it('move o foco programaticamente para o título depois de abrir o painel', async () => {
+    fixture.detectChanges();
+    const focusSink = document.createElement('button');
+    document.body.append(focusSink);
+    focusSink.focus();
+
+    component.open(route(), 10);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#route-analysis-title'));
+    focusSink.remove();
   });
 
   it('exibe o controle correspondente para cada tipo de resultado e informa tipo desconhecido', () => {
@@ -69,6 +91,27 @@ describe('RouteAnalysisSlide', () => {
     expect(fixture.debugElement.query(By.directive(PoSelectComponent))).not.toBeNull();
     expect(fixture.debugElement.query(By.directive(PoTextareaComponent))).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Tipo de resultado não suportado para salvamento.');
+  });
+
+  it('trata explicitamente tipoResultado 4 como entrada e requisição numérica', () => {
+    service.loadRoute.mockReturnValue(of(loadedRouteWithType4()));
+    const exam = openLoaded(component);
+    const numericType4 = exam.components[0];
+    service.saveComponent.mockReturnValue(of(saveResult(true, 5)));
+    fixture.detectChanges();
+
+    expect(component.isSupported(numericType4)).toBe(true);
+    expect(fixture.debugElement.query(By.directive(PoDecimalComponent))).not.toBeNull();
+
+    component.updateResult(numericType4, '347');
+    component.save(exam, numericType4);
+
+    expect(service.saveComponent).toHaveBeenCalledWith(
+      64462,
+      1845,
+      5,
+      { kind: 'numeric', result: 347 },
+    );
   });
 
   it('confirma aprovação somente após a resposta remota e bloqueia o componente aprovado', () => {
@@ -82,6 +125,10 @@ describe('RouteAnalysisSlide', () => {
     expect(service.saveComponent).toHaveBeenCalledWith(64462, 1845, 1, { kind: 'numeric', result: 24.5 });
     expect(component.statusFor(numeric)).toBe('approved');
     expect(component.isLocked(numeric)).toBe(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-component-status="approved"]').textContent)
+      .toContain('✓ Aprovado pelo Datasul');
+    expect(fixture.nativeElement.textContent).toContain('1 de 4 componentes verificados nesta sessão');
   });
 
   it('mantém editável e anuncia o retorno textual quando o Datasul informa fora da faixa', () => {
@@ -95,8 +142,39 @@ describe('RouteAnalysisSlide', () => {
 
     expect(component.statusFor(numeric)).toBe('out-of-range');
     expect(component.isLocked(numeric)).toBe(false);
-    expect(fixture.nativeElement.querySelector('[data-status="out-of-range"]').textContent)
-      .toContain('Fora da faixa confirmado pelo Datasul');
+    expect(fixture.nativeElement.querySelector('[data-component-status="out-of-range"]').textContent)
+      .toContain('⚠ Fora da faixa confirmado pelo Datasul');
+  });
+
+  it('salva somente draft alterado e exige nova edição para reenviar fora da faixa confirmado', () => {
+    const exam = openLoaded(component);
+    const numeric = exam.components[0];
+    service.saveComponent.mockReturnValue(of(saveResult(false)));
+    fixture.detectChanges();
+    const saveButton = fixture.debugElement.query(By.css('.route-analysis__component po-button'))
+      .componentInstance as PoButtonComponent;
+
+    expect(component.draftFor(numeric).isDirty).toBe(false);
+    expect(saveButton.disabled).toBe(true);
+    component.save(exam, numeric);
+    expect(service.saveComponent).not.toHaveBeenCalled();
+
+    component.updateResult(numeric, '24,5');
+    fixture.detectChanges();
+    expect(component.draftFor(numeric).isDirty).toBe(true);
+    expect(saveButton.disabled).toBe(false);
+    component.save(exam, numeric);
+    fixture.detectChanges();
+    expect(component.draftFor(numeric).isDirty).toBe(false);
+    expect(saveButton.disabled).toBe(true);
+
+    component.save(exam, numeric);
+    expect(service.saveComponent).toHaveBeenCalledOnce();
+
+    component.updateResult(numeric, '25');
+    fixture.detectChanges();
+    expect(component.draftFor(numeric).isDirty).toBe(true);
+    expect(saveButton.disabled).toBe(false);
   });
 
   it('exige novo salvamento remoto ao editar um resultado fora da faixa já confirmado', () => {
@@ -207,6 +285,7 @@ describe('RouteAnalysisSlide', () => {
 
     component.updateResult(numeric, '24,555');
     component.save(exam, numeric);
+    component.updateSelectedOption(table, '8:99');
     component.save(exam, table);
     component.updateReport(report, '   ');
     component.save(exam, report);
@@ -273,6 +352,32 @@ describe('RouteAnalysisSlide', () => {
 
     expect(dialog.confirm).not.toHaveBeenCalled();
     expect(component.feedback()).toContain('Aguarde a operação');
+  });
+
+  it('permite solicitar finalização imediatamente após carregar componentes não verificados', () => {
+    openLoaded(component);
+    service.finalize.mockReturnValue(new Subject());
+
+    expect(component.canFinalize()).toBe(true);
+    component.finalizeRoute();
+
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+    expect(service.finalize).not.toHaveBeenCalled();
+  });
+
+  it('permite finalizar após salvamento parcial mantendo os demais componentes não verificados', () => {
+    const exam = openLoaded(component);
+    const numeric = exam.components[0];
+    service.saveComponent.mockReturnValue(of(saveResult(true)));
+    service.finalize.mockReturnValue(new Subject());
+
+    component.updateResult(numeric, '24,5');
+    component.save(exam, numeric);
+
+    expect(component.statusFor(exam.components[1])).toBe('unverified');
+    expect(component.canFinalize()).toBe(true);
+    component.finalizeRoute();
+    expect(dialog.confirm).toHaveBeenCalledOnce();
   });
 
   it('emite a finalização remota e fecha somente quando ela é confirmada', () => {
@@ -441,6 +546,14 @@ function loadedRouteWithSupportedComponents() {
   return { route: { ...loaded.route, exams }, exams };
 }
 
+function loadedRouteWithType4() {
+  const loaded = loadedRoute();
+  const exams = [{ ...loaded.exams[0], components: [
+    component(5, 4, 'Numérico tipo 4'),
+  ] }];
+  return { route: { ...loaded.route, exams }, exams };
+}
+
 function component(
   componentCode: number,
   resultType: number,
@@ -460,19 +573,25 @@ function component(
     sequence: componentCode,
     resultType,
     decimalPlaces: 2,
+    equipment: 'PAQUÍMETRO',
+    inspectionMethod: 'Medição dimensional',
     resultOptions: [],
     status: 'PENDING' as const,
     ...overrides,
   };
 }
 
-function saveResult(withinRange: boolean) {
+function saveResult(withinRange: boolean, componentCode = 1) {
   return {
     sheetNumber: 64462,
     examCode: 1845,
-    componentCode: 1,
+    componentCode,
     withinRange,
     savedComponents: 2,
     totalComponents: 6,
   };
+}
+
+function normalizedText(element: HTMLElement): string {
+  return element.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 }

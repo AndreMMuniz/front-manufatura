@@ -4,6 +4,7 @@
 }
 
 .route-analysis,
+.route-analysis__context,
 .route-analysis__exam,
 .route-analysis__component,
 .route-analysis__footer {
@@ -44,19 +45,42 @@
   border: 1px solid var(--app-color-border);
 }
 
+.route-analysis__component[data-component-status='approved'] {
+  background: var(--app-color-success-soft);
+  border-color: var(--app-color-success);
+}
+
+.route-analysis__component[data-component-status='out-of-range'] {
+  background: var(--app-color-error-soft);
+  border-color: var(--app-color-error);
+}
+
 .route-analysis__status[data-status='approved'] {
+  color: var(--app-color-success);
   font-weight: 700;
 }
 
-.route-analysis__status[data-status='out-of-range'],
-.route-analysis__unsupported {
-  color: var(--app-color-warning);
+.route-analysis__status[data-status='out-of-range'] {
+  color: var(--app-color-error);
+  font-weight: 700;
 }
 
+.route-analysis__unsupported,
 .route-analysis__status[data-status='error'] {
   color: var(--app-color-error);
 }
 
 .route-analysis__footer {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, auto));
+}
+
+.route-analysis__counter {
+  font-weight: 600;
+}
+
+@media (max-width: 48rem) {
+  .route-analysis__footer {
+    grid-template-columns: 1fr;
+  }
 }

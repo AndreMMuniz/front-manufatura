@@ -125,6 +125,8 @@ function mapComponent(
   const minValue = numberOf(component['resultadoMin']);
   const maxValue = numberOf(component['resultadoMax']);
   const resultType = integerOf(component['tipoResultado']);
+  const equipment = optionalText(component['equipamento']);
+  const inspectionMethod = optionalText(component['metodo']);
   const options = component['opcoesResultado'] === undefined
     ? []
     : arrayOf(component['opcoesResultado']).map(optionValue => {
@@ -152,7 +154,9 @@ function mapComponent(
     description: textOf(component['descricao']),
     reference: optionalText(component['referenciaTecnica'])
       || (resultType === 3 ? '' : `${minValue} - ${maxValue}`),
-    measurementMethod: optionalText(component['equipamento']) || optionalText(component['metodo']),
+    measurementMethod: equipment || inspectionMethod,
+    equipment,
+    inspectionMethod,
     minValue,
     maxValue,
     unit: optionalText(component['unidade']),
