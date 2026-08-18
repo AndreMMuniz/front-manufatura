@@ -95,6 +95,38 @@ describe('RouteAnalysisSlide', () => {
       .toContain('Fora da faixa confirmado pelo Datasul');
   });
 
+  it('exige novo salvamento remoto ao editar um resultado fora da faixa já confirmado', () => {
+    service.loadRoute.mockReturnValue(of(loadedRouteWithSupportedComponents()));
+    const exam = openLoaded(component);
+    const [numeric, table, report] = exam.components;
+    service.saveComponent.mockReturnValueOnce(of(saveResult(false)))
+      .mockReturnValueOnce(of(saveResult(true)))
+      .mockReturnValueOnce(of(saveResult(true)));
+
+    component.updateResult(numeric, '24,5');
+    component.save(exam, numeric);
+    component.updateSelectedOption(table, '8:1');
+    component.save(exam, table);
+    component.updateReport(report, 'Conforme');
+    component.save(exam, report);
+    expect(component.canFinalize()).toBe(true);
+
+    service.finalize.mockReturnValue(new Subject());
+    component.updateResult(numeric, '25');
+    component.finalizeRoute();
+    component.requestClose();
+
+    expect(component.canFinalize()).toBe(false);
+    expect(service.finalize).not.toHaveBeenCalled();
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+
+    service.saveComponent.mockReturnValueOnce(of(saveResult(false)));
+    component.save(exam, numeric);
+    expect(component.canFinalize()).toBe(true);
+    component.requestClose();
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+  });
+
   it('preserva o rascunho quando o salvamento falha', () => {
     const exam = openLoaded(component);
     const report = exam.components[2];

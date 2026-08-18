@@ -286,7 +286,7 @@ export class RouteAnalysisSlide {
     this.setDraft(component, {
       ...previous,
       ...change,
-      status: previous.status === 'out-of-range' ? 'out-of-range' : 'unverified',
+      status: 'unverified',
       message: '',
     });
   }
