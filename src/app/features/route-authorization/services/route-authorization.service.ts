@@ -51,9 +51,9 @@ export class RouteAuthorizationService {
       orderNumber: String(route.productionOrderNumber),
       operation: {
         operationCode: String(operationCode),
-        operationDescription: route.narrative,
-        processDescription: route.narrative,
-        split: String(route.operationSequence),
+        operationDescription: '',
+        processDescription: '',
+        split: '1',
         itemCode: route.itemCode,
         itemDescription: route.itemDescription,
       },

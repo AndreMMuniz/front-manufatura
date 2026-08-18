@@ -38,13 +38,21 @@ describe('RouteAuthorizationService', () => {
       put: vi.fn(),
     };
     const service = new RouteAuthorizationService(api as never);
+    const card = {
+      ...route(),
+      narrative: 'Componente pendente da autorização',
+      operationSequence: 7,
+    };
 
-    const result = await firstValueFrom(service.loadRoute(route(), 10));
+    const result = await firstValueFrom(service.loadRoute(card, 10));
 
     expect(result.route).toMatchObject({
       nrFicha: 64462,
       currentOrder: '372562',
       operationCode: '10',
+      operationDescription: '',
+      processDescription: '',
+      split: '1',
       itemCode: '30907',
       itemDescription: 'ALAVANCA',
     });

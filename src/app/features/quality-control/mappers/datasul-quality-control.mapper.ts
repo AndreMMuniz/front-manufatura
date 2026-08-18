@@ -81,7 +81,9 @@ function mapInspectionRouteItem(
       processDescription: operation.processDescription,
       currentOrder: context.orderNumber,
       operationCode: operation.operationCode,
-      operationDescription: `${operation.operationCode} - ${operation.operationDescription}`,
+      operationDescription: operation.operationDescription
+        ? `${operation.operationCode} - ${operation.operationDescription}`
+        : '',
       split: operation.split?.trim() || '1',
       itemCode: operation.itemCode,
       itemDescription: operation.itemDescription,
