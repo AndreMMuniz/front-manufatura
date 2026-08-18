@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ViewChild, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, QueryList, ViewChild, ViewChildren, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   PoButtonModule,
+  PoButtonComponent,
   PoFieldModule,
   PoPageModule,
   PoWidgetModule,
@@ -24,19 +25,21 @@ type PageState = 'initial' | 'loading' | 'ready' | 'empty' | 'validation-error' 
 })
 export class RouteAuthorizationPage {
   @ViewChild(RouteAnalysisSlide) private analysisSlide!: RouteAnalysisSlide;
+  @ViewChildren('analysisTrigger') private analysisTriggers!: QueryList<PoButtonComponent>;
 
   private readonly service = inject(RouteAuthorizationService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private searchSequence = 0;
   private queriedOperation: number | null = null;
-  private analysisTrigger: HTMLElement | null = null;
+  private analysisTriggerSheet: number | null = null;
 
   readonly orderNumber = signal('');
   readonly operationCode = signal('');
   readonly routes = signal<PendingAuthorizedRoute[]>([]);
   readonly state = signal<PageState>('initial');
   readonly feedback = signal('Informe a ordem de produção e a operação para consultar.');
+  readonly analyzing = signal(false);
 
   search(): void {
     if (this.state() === 'loading') return;
@@ -75,11 +78,13 @@ export class RouteAuthorizationPage {
     this.search();
   }
 
-  requestAnalysis(route: PendingAuthorizedRoute, trigger: HTMLElement): void {
+  requestAnalysis(route: PendingAuthorizedRoute): void {
+    if (this.analyzing()) return;
     const operation = this.queriedOperation ?? positiveInteger(this.operationCode());
     if (operation === null) return;
 
-    this.analysisTrigger = trigger;
+    this.analysisTriggerSheet = route.sheetNumber;
+    this.analyzing.set(true);
     this.analysisSlide.open(route, operation);
   }
 
@@ -93,9 +98,14 @@ export class RouteAuthorizationPage {
   }
 
   onAnalysisClosed(): void {
-    const trigger = this.analysisTrigger;
-    this.analysisTrigger = null;
-    if (trigger?.isConnected) trigger.focus();
+    const sheetNumber = this.analysisTriggerSheet;
+    this.analysisTriggerSheet = null;
+    this.analyzing.set(false);
+    if (sheetNumber === null) return;
+
+    const trigger = this.analysisTriggers.find(button =>
+      button.elementRef.nativeElement.dataset.routeSheet === String(sheetNumber));
+    if (trigger?.elementRef.nativeElement.isConnected) trigger.focus();
   }
 
   goBack(): void {

@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
+import { PoButtonComponent, PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
 import { PendingAuthorizedRoute } from '../../models/route-authorization.model';
 import { RouteAuthorizationService } from '../../services/route-authorization.service';
@@ -62,22 +62,24 @@ describe('RouteAuthorizationPage', () => {
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64382]);
   });
 
-  it('abre a análise com a operação validada, sem finalizar diretamente na página', () => {
+  it('abre a análise pelo p-click do PO UI sem depender de payload do evento', () => {
     fixture.detectChanges();
     const analysisSlideDebug = fixture.debugElement.query(By.directive(RouteAnalysisSlide));
     expect(analysisSlideDebug).not.toBeNull();
     const analysisSlide = analysisSlideDebug!.componentInstance as RouteAnalysisSlide;
     const open = vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
-    const trigger = document.createElement('button');
+    component.routes.set([route(64382)]);
+    component.state.set('ready');
     component.operationCode.set('10');
-    const requestAnalysis = (component as unknown as {
-      requestAnalysis?: (route: PendingAuthorizedRoute, trigger: HTMLElement) => void;
-    }).requestAnalysis;
+    fixture.detectChanges();
+    const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
+      .componentInstance as PoButtonComponent;
 
-    expect(requestAnalysis).toBeTypeOf('function');
-    requestAnalysis?.call(component, route(64382), trigger);
+    expect(() => analysisButton.click.emit(null)).not.toThrow();
 
     expect(open).toHaveBeenCalledWith(route(64382), 10);
+    fixture.detectChanges();
+    expect(analysisButton.disabled).toBe(true);
     expect(dialog.confirm).not.toHaveBeenCalled();
     expect(service.finalize).not.toHaveBeenCalled();
   });
@@ -93,7 +95,7 @@ describe('RouteAuthorizationPage', () => {
     component.search();
     component.operationCode.set('20');
 
-    component.requestAnalysis(route(64382), document.createElement('button'));
+    component.requestAnalysis(route(64382));
 
     expect(open).toHaveBeenCalledWith(route(64382), 10);
   });
@@ -132,35 +134,32 @@ describe('RouteAuthorizationPage', () => {
     expect(analysisSlideDebug).not.toBeNull();
     const analysisSlide = analysisSlideDebug!.componentInstance as RouteAnalysisSlide;
     vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
-    const trigger = document.createElement('button');
-    const focus = vi.spyOn(trigger, 'focus');
-    document.body.append(trigger);
     component.routes.set([route(64382), route(64442)]);
     component.state.set('ready');
     component.operationCode.set('10');
-    const requestAnalysis = (component as unknown as {
-      requestAnalysis?: (route: PendingAuthorizedRoute, trigger: HTMLElement) => void;
-    }).requestAnalysis;
+    fixture.detectChanges();
+    const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
+      .componentInstance as PoButtonComponent;
+    const focus = vi.spyOn(analysisButton, 'focus');
 
-    requestAnalysis?.call(component, route(64382), trigger);
+    analysisButton.click.emit(null);
     analysisSlide.routeFinalized.emit({
       sheetNumber: 64382, finalized: false, inspected: false,
       totalComponents: 1, savedComponents: 0, pendingComponents: 1,
       outOfRangeComponents: 1, statusCode: 2, message: 'Há componentes pendentes', exams: [],
     });
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64382, 64442]);
+    analysisSlide.analysisClosed.emit();
+    expect(focus).toHaveBeenCalledOnce();
     analysisSlide.routeFinalized.emit({
       sheetNumber: 64382, finalized: true, inspected: true,
       totalComponents: 1, savedComponents: 1, pendingComponents: 0,
       outOfRangeComponents: 1, statusCode: 4, message: 'Ficha finalizada', exams: [],
     });
-    analysisSlide.analysisClosed.emit();
 
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64442]);
     expect(component.state()).toBe('ready');
     expect(component.feedback()).toBe('Ficha finalizada');
-    expect(focus).toHaveBeenCalledOnce();
-    trigger.remove();
   });
 });
 

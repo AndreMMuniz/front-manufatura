@@ -15,7 +15,7 @@
           p-label="Ordem de produção"
           p-placeholder="Ex.: 372562"
           p-required="true"
-          [p-disabled]="state() === 'loading'"
+          [p-disabled]="state() === 'loading' || analyzing()"
           [ngModel]="orderNumber()"
           (ngModelChange)="orderNumber.set($event)"
         ></po-input>
@@ -24,7 +24,7 @@
           p-label="Operação"
           p-placeholder="Ex.: 10"
           p-required="true"
-          [p-disabled]="state() === 'loading'"
+          [p-disabled]="state() === 'loading' || analyzing()"
           [ngModel]="operationCode()"
           (ngModelChange)="operationCode.set($event)"
         ></po-input>
@@ -33,7 +33,7 @@
           p-type="submit"
           p-label="Consultar"
           [p-loading]="state() === 'loading'"
-          [p-disabled]="state() === 'loading'"
+          [p-disabled]="state() === 'loading' || analyzing()"
         ></po-button>
       </form>
     </po-widget>
@@ -69,9 +69,11 @@
             }
             <div class="route-card__actions">
               <po-button
+                #analysisTrigger
                 p-label="Analisar e finalizar"
-                [p-disabled]="state() !== 'ready'"
-                (p-click)="requestAnalysis(route, $any($event.currentTarget))"
+                [attr.data-route-sheet]="route.sheetNumber"
+                [p-disabled]="state() !== 'ready' || analyzing()"
+                (p-click)="requestAnalysis(route)"
               ></po-button>
             </div>
           </article>

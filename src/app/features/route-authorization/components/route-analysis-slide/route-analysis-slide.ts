@@ -69,6 +69,7 @@ export class RouteAnalysisSlide {
   private readonly destroyRef = inject(DestroyRef);
   private loadVersion = 0;
   private suppressPageSlideClose = false;
+  private isOpen = false;
 
   readonly route = signal<ProductionOrderRoute | null>(null);
   readonly exams = signal<ReadonlyArray<QualityExam>>([]);
@@ -86,12 +87,13 @@ export class RouteAnalysisSlide {
   });
 
   open(route: PendingAuthorizedRoute, operationCode: number): void {
-    if (this.finalizing() || this.hasSavingComponent()) {
-      this.feedback.set('Aguarde a operação em andamento antes de abrir outra ficha.');
+    if (this.isOpen || this.loading() || this.finalizing() || this.hasSavingComponent()) {
+      this.feedback.set('Feche a análise atual antes de abrir outra ficha.');
       return;
     }
 
     const version = ++this.loadVersion;
+    this.isOpen = true;
     this.route.set(null);
     this.exams.set([]);
     this.drafts.set({});
@@ -347,6 +349,7 @@ export class RouteAnalysisSlide {
 
   private close(fromNativeClose: boolean): void {
     ++this.loadVersion;
+    this.isOpen = false;
     this.loading.set(false);
     this.finalizing.set(false);
     this.route.set(null);

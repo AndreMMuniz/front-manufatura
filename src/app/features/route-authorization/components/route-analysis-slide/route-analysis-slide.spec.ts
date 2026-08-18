@@ -219,12 +219,27 @@ describe('RouteAnalysisSlide', () => {
     expect(component.statusTextFor(unsupported)).toContain('não suportado');
   });
 
-  it('ignora a resposta de carregamento de uma abertura que já foi substituída', () => {
+  it('ignora novas aberturas enquanto o carregamento da ficha atual está pendente', () => {
+    const first = new Subject<ReturnType<typeof loadedRoute>>();
+    service.loadRoute.mockReturnValue(first);
+
+    component.open(route(), 10);
+    component.open({ ...route(), sheetNumber: 64463 }, 20);
+
+    expect(service.loadRoute).toHaveBeenCalledOnce();
+    expect(service.loadRoute).toHaveBeenCalledWith(route(), 10);
+    expect(pageSlide.open).toHaveBeenCalledOnce();
+    expect(component.loading()).toBe(true);
+  });
+
+  it('ignora respostas obsoletas após fechar e reabrir uma análise', () => {
     const first = new Subject<ReturnType<typeof loadedRoute>>();
     const second = new Subject<ReturnType<typeof loadedRoute>>();
     service.loadRoute.mockReturnValueOnce(first).mockReturnValueOnce(second);
 
     component.open(route(), 10);
+    first.next(loadedRoute());
+    component.requestClose();
     component.open({ ...route(), sheetNumber: 64463 }, 20);
     first.next(loadedRoute());
     second.next({ ...loadedRoute(), route: { ...loadedRoute().route, nrFicha: 64463 } });
