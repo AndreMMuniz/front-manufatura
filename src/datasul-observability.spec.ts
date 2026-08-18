@@ -59,7 +59,22 @@ describe('instrumentação dos clientes Datasul', () => {
   it('CQ registra sucesso e status não-OK sem query ou payload', async () => {
     const target = sink();
     const success = new QualityControlDatasulClient(
-      qualityConfig, async () => Response.json({ ok: true }), AbortSignal.timeout, target.logger,
+      qualityConfig,
+      async () => Response.json({
+        total: 1,
+        hasNext: false,
+        items: [{
+          nrFicha: 444444,
+          codExame: 1845,
+          codComponente: 1,
+          dentroFaixa: true,
+          componentesSalvos: 1,
+          componentesTotal: 1,
+          resultado: 346,
+        }],
+      }),
+      AbortSignal.timeout,
+      target.logger,
     );
     await success.saveResult({ resultado: 346, observacao: 'observacao-sentinela' });
 

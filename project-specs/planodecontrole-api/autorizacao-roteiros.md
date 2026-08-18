@@ -46,7 +46,7 @@ pendências. A ficha só é removida da lista quando `finalizado: true`.
 5. Após a validação, o usuário solicita a finalização autorizada da ficha.
 6. A interface confirma o sucesso apenas quando a resposta indicar `finalizado: true`.
 
-> O contrato para carregar e alterar o conteúdo completo da ficha não foi incluído nesta evidência. A implementação deverá verificar se os endpoints já documentados em [roteiros.md](./roteiros.md) e [result-exames.md](./result-exames.md) atendem a essa parte do fluxo.
+> O carregamento e a alteração do conteúdo da ficha são realizados pelos endpoints BFF documentados acima. O BFF delega ao Datasul os contratos de [roteiros.md](./roteiros.md) e [result-exames.md](./result-exames.md); consumidores do frontend devem usar somente as rotas BFF, sem enviar credenciais, empresa ou usuário diretamente ao Datasul.
 
 ## Consultar roteiros pendentes de autorização
 
