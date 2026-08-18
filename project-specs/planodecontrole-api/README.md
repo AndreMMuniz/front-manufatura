@@ -13,6 +13,8 @@ consolidados em [Grupos de usuários e acessos Datasul para o frontend](../acess
 | Roteiros de inspeção | `POST` | `/api/fcq/v1/roteiros?companyid={companyId}` | [roteiros.md](./roteiros.md) |
 | Resultados de exames | `PUT` | `/api/fcq/v1/resultexames?companyId={companyId}` | [result-exames.md](./result-exames.md) |
 | Finalização de roteiros | `PUT` | `/api/fcq/v1/FinalizaRoteiros?companyId={companyId}` | [finaliza-roteiros.md](./finaliza-roteiros.md) |
+| Roteiros pendentes de autorização | `GET` | `/api/fcq/v1/autorizacaoroteiros` | [autorizacao-roteiros.md](./autorizacao-roteiros.md) |
+| Finalização autorizada de roteiros | `POST` | `/api/fcq/v1/finalizaroteirosautorizado?companyId={companyId}` | [autorizacao-roteiros.md](./autorizacao-roteiros.md) |
 
 ## Autenticação
 

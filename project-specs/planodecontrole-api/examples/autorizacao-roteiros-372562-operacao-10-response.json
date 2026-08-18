@@ -1,0 +1,36 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "roteirosEmAnalise": [
+        {
+          "liberada": false,
+          "componentesTotal": 1,
+          "sequenciaOperacao": 1,
+          "situacao": 2,
+          "nrFicha": 64382,
+          "descricaoItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
+          "nrOrdemProducao": 372562,
+          "inspecionado": false,
+          "componentesForaFaixa": 1,
+          "narrativa": "",
+          "codItem": "30907"
+        },
+        {
+          "liberada": false,
+          "componentesTotal": 4,
+          "sequenciaOperacao": 1,
+          "situacao": 2,
+          "nrFicha": 64442,
+          "descricaoItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
+          "nrOrdemProducao": 372562,
+          "inspecionado": false,
+          "componentesForaFaixa": 1,
+          "narrativa": "",
+          "codItem": "30907"
+        }
+      ]
+    }
+  ]
+}

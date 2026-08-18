@@ -1,0 +1,126 @@
+# Autorização de roteiros CQ
+
+Contratos observados para o módulo **Autorização de Roteiros CQ**. A tela deverá localizar roteiros com pendências que não puderam ser finalizados, permitir a análise e alteração dos dados aplicáveis e, após decisão do usuário autorizado, finalizar o roteiro com autorização.
+
+## Fluxo funcional esperado
+
+1. O usuário informa ou seleciona a ordem de produção e a operação.
+2. O frontend consulta os roteiros em análise para a empresa e o usuário autenticado.
+3. A tela apresenta cada ficha pendente, seus totais e a quantidade de componentes fora da faixa.
+4. O usuário abre a ficha no fluxo de roteiro já existente para consultar ou alterar os resultados permitidos.
+5. Após a validação, o usuário solicita a finalização autorizada da ficha.
+6. A interface confirma o sucesso apenas quando a resposta indicar `finalizado: true`.
+
+> O contrato para carregar e alterar o conteúdo completo da ficha não foi incluído nesta evidência. A implementação deverá verificar se os endpoints já documentados em [roteiros.md](./roteiros.md) e [result-exames.md](./result-exames.md) atendem a essa parte do fluxo.
+
+## Consultar roteiros pendentes de autorização
+
+- Método: `GET`
+- URL base observada: `http://10.101.195.111:51080`
+- Endpoint: `/api/fcq/v1/autorizacaoroteiros`
+- Autenticação: HTTP Basic Auth
+- Exemplo:
+
+```http
+GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio&nrOrdemProducao=372562&opCodigo=10
+```
+
+### Parâmetros de consulta
+
+| Parâmetro | Tipo observado | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `companyId` | integer | Sim | Identificador da empresa. O valor observado foi `1`. |
+| `codUsuario` | string | Sim | Código do usuário que realizará a análise/autorização. |
+| `nrOrdemProducao` | integer | Sim | Número da ordem de produção. |
+| `opCodigo` | integer | Sim | Código da operação. A nomenclatura difere de `codOperacao`, usado na consulta de roteiros. |
+
+### Resposta observada
+
+- Status HTTP observado: `200 OK`
+- Exemplo integral: [`examples/autorizacao-roteiros-372562-operacao-10-response.json`](./examples/autorizacao-roteiros-372562-operacao-10-response.json)
+
+| Campo | Tipo observado | Descrição |
+| --- | --- | --- |
+| `total` | integer | Quantidade de itens do envelope de resposta. |
+| `hasNext` | boolean | Indica se há uma próxima página. Não foram fornecidos parâmetros de paginação. |
+| `items` | array | Lista de contêineres retornados pela API. |
+| `items[].roteirosEmAnalise` | array | Fichas pendentes encontradas para os filtros informados. |
+| `roteirosEmAnalise[].nrFicha` | integer | Identificador da ficha a ser consultada e posteriormente finalizada. |
+| `roteirosEmAnalise[].nrOrdemProducao` | integer | Ordem de produção vinculada à ficha. |
+| `roteirosEmAnalise[].codItem` | string | Código do item produzido. |
+| `roteirosEmAnalise[].descricaoItem` | string | Descrição do item produzido. |
+| `roteirosEmAnalise[].sequenciaOperacao` | integer | Sequência da operação no roteiro. |
+| `roteirosEmAnalise[].situacao` | integer | Código da situação da ficha. O exemplo pendente retornou `2`. |
+| `roteirosEmAnalise[].liberada` | boolean | Indica se a ficha está liberada. |
+| `roteirosEmAnalise[].inspecionado` | boolean | Indica se a ficha já foi inspecionada. |
+| `roteirosEmAnalise[].componentesTotal` | integer | Total de componentes da ficha. |
+| `roteirosEmAnalise[].componentesForaFaixa` | integer | Quantidade de componentes fora da faixa esperada. |
+| `roteirosEmAnalise[].narrativa` | string | Narrativa associada à análise; veio vazia na evidência. |
+
+## Finalizar roteiro com autorização
+
+- Método informado e observado na requisição: `POST`
+- URL base observada: `http://10.101.195.111:51080`
+- Endpoint: `/api/fcq/v1/finalizaroteirosautorizado?companyId={companyId}`
+- Autenticação: HTTP Basic Auth
+- Content-Type: `application/json`
+- Exemplo: `POST http://10.101.195.111:51080/api/fcq/v1/finalizaroteirosautorizado?companyId=1`
+
+> A coleção exibida na lateral do Postman identifica essa operação como `PUT`, mas o seletor da requisição e a especificação fornecida usam `POST`. Confirmar o método oficial com o backend antes da implementação definitiva.
+
+### Parâmetros de consulta
+
+| Parâmetro | Tipo observado | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `companyId` | integer | Sim | Identificador da empresa. |
+
+### Corpo da requisição
+
+```json
+{
+  "nrFicha": 64461,
+  "codUsuario": "Mjocelio"
+}
+```
+
+| Campo | Tipo observado | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `nrFicha` | integer | Sim | Ficha que será finalizada com autorização. Deve vir do resultado da consulta. |
+| `codUsuario` | string | Sim | Código do usuário responsável pela autorização. |
+
+### Resposta observada
+
+- Status HTTP observado: `200 OK`
+- Exemplo integral: [`examples/finaliza-roteiro-autorizado-ficha-64461-response.json`](./examples/finaliza-roteiro-autorizado-ficha-64461-response.json)
+
+| Campo | Tipo observado | Descrição |
+| --- | --- | --- |
+| `items[].ds-finaliza` | object | Contêiner da finalização. Por conter hífen, exige acesso por colchetes em JavaScript/TypeScript. |
+| `items[].ds-finaliza.roteiro` | array | Resultado da finalização de cada roteiro. |
+| `roteiro[].nrFicha` | integer | Ficha processada. |
+| `roteiro[].situacao` | integer | Situação após a operação. O sucesso observado retornou `4`. |
+| `roteiro[].mensagem` | string | Mensagem de negócio pronta para apresentação ao usuário. |
+| `roteiro[].inspecionado` | boolean | Indica se o roteiro ficou inspecionado. |
+| `roteiro[].finalizado` | boolean | Indicador principal de sucesso da finalização. |
+| `roteiro[].componentesTotal` | integer | Total de componentes. |
+| `roteiro[].componentesSalvos` | integer | Componentes efetivamente salvos. |
+| `roteiro[].componentesPendentes` | integer | Componentes que permaneceram pendentes. |
+| `roteiro[].componentesForaFaixa` | integer | Componentes fora da faixa aceitos mediante autorização. |
+| `roteiro[].exames` | array | Resumo dos exames vinculados à ficha. |
+| `roteiro[].exames[].codExame` | integer | Código do exame. |
+
+## Regras e cuidados para a implementação
+
+- Não assumir que `total` representa diretamente a quantidade de fichas: no exemplo, `total` é `1`, enquanto `items[0].roteirosEmAnalise` contém duas fichas.
+- Tratar `items`, `roteirosEmAnalise`, `roteiro` e `exames` ausentes ou vazios sem quebrar a tela.
+- Não considerar apenas o status HTTP como sucesso: validar também `finalizado`, `componentesPendentes` e a mensagem retornada.
+- Solicitar confirmação explícita antes da finalização autorizada, pois a ação aceita componentes fora da faixa.
+- Impedir envios repetidos enquanto a finalização estiver em andamento e atualizar a listagem após o sucesso.
+- Obter `codUsuario` da sessão autenticada; não manter usuário fixo no frontend.
+- Preservar `codItem` como string, inclusive quando contiver somente dígitos.
+- Os significados oficiais de `situacao = 2` e `situacao = 4` ainda precisam ser confirmados com a regra de negócio.
+- A diferença de capitalização observada em `mjocelio` e `Mjocelio` sugere que a sensibilidade a maiúsculas/minúsculas deve ser confirmada.
+
+## Evidência e limitações
+
+Esta documentação foi produzida a partir das requisições, respostas e capturas fornecidas em 18/08/2026. Ela registra o comportamento observado e não substitui um contrato OpenAPI oficial. Não foram fornecidos exemplos de lista vazia, validação negada, erro de autenticação, erro de negócio ou indisponibilidade do backend.

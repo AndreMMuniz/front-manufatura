@@ -1,0 +1,32 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "ds-finaliza": {
+        "roteiro": [
+          {
+            "componentesTotal": 6,
+            "situacao": 4,
+            "componentesSalvos": 6,
+            "nrFicha": 64461,
+            "mensagem": "Roteiro 64461 finalizado com AUTORIZACAO (1 exame(s), 1 componente(s) fora da faixa aceito(s))",
+            "inspecionado": true,
+            "componentesForaFaixa": 1,
+            "finalizado": true,
+            "componentesPendentes": 0,
+            "exames": [
+              {
+                "componentesTotal": 6,
+                "componentesSalvos": 6,
+                "nrFicha": 64461,
+                "componentesPendentes": 0,
+                "codExame": 164
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
