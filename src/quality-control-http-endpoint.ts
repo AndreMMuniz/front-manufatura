@@ -92,12 +92,32 @@ export function installQualityControlEndpoints(
     }, APP_PERMISSIONS.divergentRouteAuthorization);
   });
 
+  app.post(`${ROOT}/route-authorizations/route`, async (req, res) => {
+    await handle(req, res, dependencies, async client => {
+      const body = objectBody(req.body);
+      const expected = positiveInteger(body['nrFicha']);
+      const upstream = await client.getRoute({
+        nrOrdemProducao: positiveInteger(body['nrOrdemProducao']),
+        codOperacao: positiveInteger(body['codOperacao']),
+      });
+      return selectAuthorizedRouteEnvelope(upstream, expected);
+    }, APP_PERMISSIONS.divergentRouteAuthorization);
+  });
+
+  app.put(`${ROOT}/route-authorizations/results`, async (req, res) => {
+    await handle(req, res, dependencies, (client, userId) =>
+      client.saveResult(buildQualityResultPayload(objectBody(req.body), userId)),
+    APP_PERMISSIONS.divergentRouteAuthorization);
+  });
+
   installMethodGuard(app, `${ROOT}/orders/:orderNumber`, 'GET');
   installMethodGuard(app, `${ROOT}/routes`, 'POST');
   installMethodGuard(app, `${ROOT}/results`, 'PUT');
   installMethodGuard(app, `${ROOT}/routes/finalize`, 'PUT');
   installMethodGuard(app, `${ROOT}/route-authorizations`, 'GET');
   installMethodGuard(app, `${ROOT}/route-authorizations/finalize`, 'POST');
+  installMethodGuard(app, `${ROOT}/route-authorizations/route`, 'POST');
+  installMethodGuard(app, `${ROOT}/route-authorizations/results`, 'PUT');
 
   const sanitizedParserError: ErrorRequestHandler = (error, _req, res, next) => {
     const candidate = typeof error === 'object' && error !== null
@@ -149,6 +169,23 @@ export function buildQualityResultPayload(
     nrTabela: positiveInteger(body['nrTabela']),
     seqOpcao: positiveInteger(body['seqOpcao']),
   };
+}
+
+function selectAuthorizedRouteEnvelope(value: unknown, expectedSheetNumber: number): JsonObject {
+  const envelope = upstreamObject(value);
+  const total = upstreamNonNegativeInteger(envelope['total']);
+  if (envelope['hasNext'] !== false || !Array.isArray(envelope['items']) || total !== envelope['items'].length) {
+    throw invalidUpstream();
+  }
+  const matches: JsonObject[] = [];
+  for (const itemValue of envelope['items']) {
+    const item = upstreamObject(itemValue);
+    const sheetNumber = upstreamPositiveInteger(item['nrFicha']);
+    upstreamObject(item['ds-roteiro']);
+    if (sheetNumber === expectedSheetNumber) matches.push(item);
+  }
+  if (matches.length !== 1) throw invalidUpstream();
+  return { total: 1, hasNext: false, items: [matches[0]] };
 }
 
 async function handle(
@@ -246,4 +283,24 @@ function finiteNumber(value: unknown): number {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
   return value;
+}
+
+function upstreamObject(value: unknown): JsonObject {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidUpstream();
+  return value as JsonObject;
+}
+
+function upstreamNonNegativeInteger(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) throw invalidUpstream();
+  return value as number;
+}
+
+function upstreamPositiveInteger(value: unknown): number {
+  const result = upstreamNonNegativeInteger(value);
+  if (result === 0) throw invalidUpstream();
+  return result;
+}
+
+function invalidUpstream(): QualityControlGatewayError {
+  return new QualityControlGatewayError(502, 'invalid-upstream-response');
 }

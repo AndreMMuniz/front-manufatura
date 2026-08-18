@@ -86,7 +86,7 @@ export class QualityControlDatasulClient {
 
   saveResult(body: Record<string, number | string>): Promise<unknown> {
     return this.request('PUT', '/api/fcq/v1/resultexames', body, 'companyId',
-      'save_quality_result', '/api/fcq/v1/resultexames');
+      'save_quality_result', '/api/fcq/v1/resultexames', validateResultEnvelope);
   }
 
   finalizeRoute(body: { readonly nrFicha: number; readonly codUsuario: string }): Promise<unknown> {
@@ -232,6 +232,38 @@ function validateAuthorizedFinalizationEnvelope(value: unknown): void {
   }
 }
 
+function validateResultEnvelope(value: unknown): void {
+  const envelope = upstreamObject(value);
+  if (envelope['total'] !== 1 || envelope['hasNext'] !== false || !Array.isArray(envelope['items'])
+    || envelope['items'].length !== 1) throw invalidUpstream();
+  const item = upstreamObject(envelope['items'][0]);
+  upstreamPositiveInteger(item['nrFicha']);
+  upstreamPositiveInteger(item['codExame']);
+  upstreamPositiveInteger(item['codComponente']);
+  upstreamBoolean(item['dentroFaixa']);
+  const saved = upstreamNonNegativeInteger(item['componentesSalvos']);
+  const total = upstreamNonNegativeInteger(item['componentesTotal']);
+  if (saved > total) throw invalidUpstream();
+  validateResultRepresentation(item);
+}
+
+function validateResultRepresentation(item: Record<string, unknown>): void {
+  const hasResult = item['resultado'] !== undefined;
+  const hasTableNumber = item['nrTabela'] !== undefined;
+  const hasOptionSequence = item['seqOpcao'] !== undefined;
+  const report = typeof item['laudo'] === 'string' ? item['laudo'].trim() : '';
+  const hasTableResult = hasTableNumber && hasOptionSequence;
+  if (hasTableNumber !== hasOptionSequence
+    || [hasResult, hasTableResult, Boolean(report)].filter(Boolean).length !== 1) throw invalidUpstream();
+  if (hasResult) {
+    upstreamFiniteNumber(item['resultado']);
+    return;
+  }
+  if (report) return;
+  upstreamPositiveInteger(item['nrTabela']);
+  upstreamPositiveInteger(item['seqOpcao']);
+}
+
 function authorizationEnvelope(value: unknown): Record<string, unknown> {
   const envelope = upstreamObject(value);
   upstreamNonNegativeInteger(envelope['total']);
@@ -264,6 +296,11 @@ function upstreamNonNegativeInteger(value: unknown): number {
 
 function upstreamBoolean(value: unknown): boolean {
   if (typeof value !== 'boolean') throw invalidUpstream();
+  return value;
+}
+
+function upstreamFiniteNumber(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidUpstream();
   return value;
 }
 
