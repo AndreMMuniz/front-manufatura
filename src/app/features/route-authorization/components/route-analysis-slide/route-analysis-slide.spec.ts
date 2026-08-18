@@ -127,6 +127,49 @@ describe('RouteAnalysisSlide', () => {
     expect(dialog.confirm).toHaveBeenCalledOnce();
   });
 
+  it('confirma descarte ao limpar um resultado numérico previamente salvo fora da faixa', () => {
+    const exam = openLoaded(component);
+    const numeric = exam.components[0];
+    service.saveComponent.mockReturnValue(of(saveResult(false)));
+
+    component.updateResult(numeric, '24,5');
+    component.save(exam, numeric);
+    component.updateResult(numeric, '');
+    component.requestClose();
+
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+    const confirmation = dialog.confirm.mock.calls[0][0].confirm as () => void;
+    confirmation();
+    expect(component.route()).toBeNull();
+    expect(component.exams()).toEqual([]);
+  });
+
+  it('mantém seleção de tabela limpa como rascunho até novo salvamento remoto', () => {
+    const exam = openLoaded(component);
+    const table = exam.components[1];
+    service.saveComponent.mockReturnValue(of(saveResult(false)));
+
+    component.updateSelectedOption(table, '8:1');
+    component.save(exam, table);
+    component.updateSelectedOption(table, '');
+    component.requestClose();
+
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+    component.updateSelectedOption(table, '8:1');
+    component.save(exam, table);
+    component.requestClose();
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+    expect(pageSlide.close).toHaveBeenCalledOnce();
+  });
+
+  it('não pede descarte para os drafts iniciais vazios e não editados', () => {
+    openLoaded(component);
+
+    component.requestClose();
+
+    expect(dialog.confirm).not.toHaveBeenCalled();
+  });
+
   it('preserva o rascunho quando o salvamento falha', () => {
     const exam = openLoaded(component);
     const report = exam.components[2];

@@ -38,6 +38,15 @@ export interface ComponentDraft {
   readonly report: string;
   readonly selectedOptionKey: string;
   readonly message: string;
+  readonly isDirty: boolean;
+  readonly confirmation?: ComponentDraftConfirmation;
+}
+
+interface ComponentDraftConfirmation {
+  readonly status: 'approved' | 'out-of-range';
+  readonly result: string;
+  readonly report: string;
+  readonly selectedOptionKey: string;
 }
 
 @Component({
@@ -183,6 +192,13 @@ export class RouteAnalysisSlide {
             message: result.withinRange
               ? 'Aprovado pelo Datasul.'
               : 'Fora da faixa confirmado pelo Datasul; o resultado continua editável.',
+            isDirty: false,
+            confirmation: {
+              status: result.withinRange ? 'approved' : 'out-of-range',
+              result: previous.result,
+              report: previous.report,
+              selectedOptionKey: previous.selectedOptionKey,
+            },
           });
         },
         error: () => {
@@ -283,11 +299,15 @@ export class RouteAnalysisSlide {
   private updateDraft(component: QualityExamComponent, change: Partial<ComponentDraft>): void {
     if (this.isLocked(component) || this.isSaving(component) || this.finalizing()) return;
     const previous = this.draftFor(component);
+    const next = { ...previous, ...change };
+    const isDirty = next.confirmation
+      ? !matchesConfirmation(next, next.confirmation)
+      : hasDraftValue(next);
     this.setDraft(component, {
-      ...previous,
-      ...change,
-      status: 'unverified',
-      message: '',
+      ...next,
+      isDirty,
+      status: isDirty ? 'unverified' : next.confirmation?.status ?? 'unverified',
+      message: isDirty ? '' : confirmationMessage(next.confirmation),
     });
   }
 
@@ -304,9 +324,7 @@ export class RouteAnalysisSlide {
   }
 
   private hasUnsavedDraft(): boolean {
-    return Object.values(this.drafts()).some(draft =>
-      draft.status !== 'approved' && draft.status !== 'out-of-range'
-      && Boolean(draft.result.trim() || draft.report.trim() || draft.selectedOptionKey));
+    return Object.values(this.drafts()).some(draft => draft.isDirty);
   }
 
   private close(fromNativeClose: boolean): void {
@@ -326,7 +344,26 @@ export class RouteAnalysisSlide {
 }
 
 function emptyDraft(): ComponentDraft {
-  return { status: 'unverified', result: '', report: '', selectedOptionKey: '', message: '' };
+  return {
+    status: 'unverified', result: '', report: '', selectedOptionKey: '', message: '', isDirty: false,
+  };
+}
+
+function matchesConfirmation(draft: ComponentDraft, confirmation: ComponentDraftConfirmation): boolean {
+  return draft.result === confirmation.result
+    && draft.report === confirmation.report
+    && draft.selectedOptionKey === confirmation.selectedOptionKey;
+}
+
+function hasDraftValue(draft: ComponentDraft): boolean {
+  return Boolean(draft.result.trim() || draft.report.trim() || draft.selectedOptionKey);
+}
+
+function confirmationMessage(confirmation: ComponentDraftConfirmation | undefined): string {
+  if (!confirmation) return '';
+  return confirmation.status === 'approved'
+    ? 'Aprovado pelo Datasul.'
+    : 'Fora da faixa confirmado pelo Datasul; o resultado continua editável.';
 }
 
 function initialDrafts(exams: ReadonlyArray<QualityExam>): Record<string, ComponentDraft> {
