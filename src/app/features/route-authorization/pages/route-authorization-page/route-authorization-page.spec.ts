@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +8,7 @@ import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
 import { PendingAuthorizedRoute } from '../../models/route-authorization.model';
 import { RouteAuthorizationService } from '../../services/route-authorization.service';
+import { RouteAnalysisSlide } from '../../components/route-analysis-slide/route-analysis-slide';
 import { RouteAuthorizationPage } from './route-authorization-page';
 
 describe('RouteAuthorizationPage', () => {
@@ -31,8 +33,6 @@ describe('RouteAuthorizationPage', () => {
     }).compileComponents();
     fixture = TestBed.createComponent(RouteAuthorizationPage);
     component = fixture.componentInstance;
-    const actualDialog = (component as unknown as { dialog: PoDialogService }).dialog;
-    dialog = { confirm: vi.spyOn(actualDialog, 'confirm').mockImplementation(() => undefined) };
   });
 
   it('mantém estado inicial até receber filtros válidos e exibe todas as fichas', () => {
@@ -62,19 +62,40 @@ describe('RouteAuthorizationPage', () => {
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64382]);
   });
 
-  it('cancelar confirmação não finaliza e confirmar bloqueia envio concorrente', () => {
-    const pending = new Subject<never>();
-    service.finalize.mockReturnValue(pending);
-    component.routes.set([route(64382)]);
+  it('abre a análise com a operação validada, sem finalizar diretamente na página', () => {
+    fixture.detectChanges();
+    const analysisSlideDebug = fixture.debugElement.query(By.directive(RouteAnalysisSlide));
+    expect(analysisSlideDebug).not.toBeNull();
+    const analysisSlide = analysisSlideDebug!.componentInstance as RouteAnalysisSlide;
+    const open = vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
+    const trigger = document.createElement('button');
+    component.operationCode.set('10');
+    const requestAnalysis = (component as unknown as {
+      requestAnalysis?: (route: PendingAuthorizedRoute, trigger: HTMLElement) => void;
+    }).requestAnalysis;
 
-    component.requestFinalization(route(64382));
+    expect(requestAnalysis).toBeTypeOf('function');
+    requestAnalysis?.call(component, route(64382), trigger);
+
+    expect(open).toHaveBeenCalledWith(route(64382), 10);
+    expect(dialog.confirm).not.toHaveBeenCalled();
     expect(service.finalize).not.toHaveBeenCalled();
-    const options = dialog.confirm.mock.calls[0][0];
-    options.confirm();
-    options.confirm();
+  });
 
-    expect(service.finalize).toHaveBeenCalledTimes(1);
-    expect(component.finalizingSheet()).toBe(64382);
+  it('usa a operação da consulta que retornou a ficha, mesmo após editar o filtro', () => {
+    fixture.detectChanges();
+    const analysisSlideDebug = fixture.debugElement.query(By.directive(RouteAnalysisSlide));
+    expect(analysisSlideDebug).not.toBeNull();
+    const analysisSlide = analysisSlideDebug!.componentInstance as RouteAnalysisSlide;
+    const open = vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
+    component.orderNumber.set('372562');
+    component.operationCode.set('10');
+    component.search();
+    component.operationCode.set('20');
+
+    component.requestAnalysis(route(64382), document.createElement('button'));
+
+    expect(open).toHaveBeenCalledWith(route(64382), 10);
   });
 
   it('preserva filtros, descarta fichas antigas em falha e permite retry manual', () => {
@@ -105,35 +126,41 @@ describe('RouteAuthorizationPage', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Tentar novamente');
   });
 
-  it('retira a ficha e preserva a mensagem quando a finalização tem sucesso', () => {
-    service.finalize.mockReturnValue(of({
+  it('remove somente a ficha finalizada e restaura o foco ao fechar a análise', () => {
+    fixture.detectChanges();
+    const analysisSlideDebug = fixture.debugElement.query(By.directive(RouteAnalysisSlide));
+    expect(analysisSlideDebug).not.toBeNull();
+    const analysisSlide = analysisSlideDebug!.componentInstance as RouteAnalysisSlide;
+    vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
+    const trigger = document.createElement('button');
+    const focus = vi.spyOn(trigger, 'focus');
+    document.body.append(trigger);
+    component.routes.set([route(64382), route(64442)]);
+    component.state.set('ready');
+    component.operationCode.set('10');
+    const requestAnalysis = (component as unknown as {
+      requestAnalysis?: (route: PendingAuthorizedRoute, trigger: HTMLElement) => void;
+    }).requestAnalysis;
+
+    requestAnalysis?.call(component, route(64382), trigger);
+    analysisSlide.routeFinalized.emit({
+      sheetNumber: 64382, finalized: false, inspected: false,
+      totalComponents: 1, savedComponents: 0, pendingComponents: 1,
+      outOfRangeComponents: 1, statusCode: 2, message: 'Há componentes pendentes', exams: [],
+    });
+    expect(component.routes().map(item => item.sheetNumber)).toEqual([64382, 64442]);
+    analysisSlide.routeFinalized.emit({
       sheetNumber: 64382, finalized: true, inspected: true,
       totalComponents: 1, savedComponents: 1, pendingComponents: 0,
       outOfRangeComponents: 1, statusCode: 4, message: 'Ficha finalizada', exams: [],
-    }));
-    component.routes.set([route(64382), route(64442)]);
-    component.state.set('ready');
-
-    component.requestFinalization(route(64382));
-    dialog.confirm.mock.calls[0][0].confirm();
+    });
+    analysisSlide.analysisClosed.emit();
 
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64442]);
     expect(component.state()).toBe('ready');
     expect(component.feedback()).toBe('Ficha finalizada');
-    expect(notification.success).toHaveBeenCalledWith('Ficha finalizada');
-  });
-
-  it('mantém a ficha disponível e anuncia erro quando a finalização falha', () => {
-    service.finalize.mockReturnValue(throwError(() => new Error('network')));
-    component.routes.set([route(64382)]);
-    component.state.set('ready');
-
-    component.requestFinalization(route(64382));
-    dialog.confirm.mock.calls[0][0].confirm();
-
-    expect(component.routes().map(item => item.sheetNumber)).toEqual([64382]);
-    expect(component.feedback()).toContain('Não foi possível finalizar');
-    expect(notification.error).toHaveBeenCalled();
+    expect(focus).toHaveBeenCalledOnce();
+    trigger.remove();
   });
 });
 

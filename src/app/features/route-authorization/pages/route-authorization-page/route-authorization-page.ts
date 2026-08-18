@@ -1,47 +1,45 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ViewChild, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs';
-
 import {
   PoButtonModule,
-  PoDialogService,
   PoFieldModule,
-  PoNotificationService,
   PoPageModule,
   PoWidgetModule,
 } from '@po-ui/ng-components';
 
-import { PendingAuthorizedRoute } from '../../models/route-authorization.model';
+import { RouteAnalysisSlide } from '../../components/route-analysis-slide/route-analysis-slide';
+import { AuthorizedRouteFinalizationOutcome, PendingAuthorizedRoute } from '../../models/route-authorization.model';
 import { RouteAuthorizationService } from '../../services/route-authorization.service';
 
 type PageState = 'initial' | 'loading' | 'ready' | 'empty' | 'validation-error' | 'error';
 
 @Component({
   selector: 'app-route-authorization-page',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoPageModule, PoWidgetModule],
+  imports: [FormsModule, PoButtonModule, PoFieldModule, PoPageModule, PoWidgetModule, RouteAnalysisSlide],
   templateUrl: './route-authorization-page.html',
   styleUrls: ['./route-authorization-page.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RouteAuthorizationPage {
+  @ViewChild(RouteAnalysisSlide) private analysisSlide!: RouteAnalysisSlide;
+
   private readonly service = inject(RouteAuthorizationService);
-  private readonly dialog = inject(PoDialogService);
-  private readonly notification = inject(PoNotificationService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private searchSequence = 0;
+  private queriedOperation: number | null = null;
+  private analysisTrigger: HTMLElement | null = null;
 
   readonly orderNumber = signal('');
   readonly operationCode = signal('');
   readonly routes = signal<PendingAuthorizedRoute[]>([]);
   readonly state = signal<PageState>('initial');
   readonly feedback = signal('Informe a ordem de produção e a operação para consultar.');
-  readonly finalizingSheet = signal<number | null>(null);
 
   search(): void {
-    if (this.state() === 'loading' || this.finalizingSheet() !== null) return;
+    if (this.state() === 'loading') return;
     const order = positiveInteger(this.orderNumber());
     const operation = positiveInteger(this.operationCode());
     if (order === null || operation === null) {
@@ -49,6 +47,7 @@ export class RouteAuthorizationPage {
       this.feedback.set('Informe números inteiros positivos para a ordem e a operação.');
       return;
     }
+    this.queriedOperation = operation;
     const sequence = ++this.searchSequence;
     this.routes.set([]);
     this.state.set('loading');
@@ -76,41 +75,31 @@ export class RouteAuthorizationPage {
     this.search();
   }
 
-  requestFinalization(route: PendingAuthorizedRoute): void {
-    if (this.finalizingSheet() !== null) return;
-    this.dialog.confirm({
-      title: `Finalizar ficha ${route.sheetNumber} com autorização?`,
-      message: `Esta ação aceitará ${route.outOfRangeComponents} componente(s) fora da faixa e não poderá ser desfeita.`,
-      literals: { cancel: 'Cancelar', confirm: 'Finalizar com autorização' },
-      confirm: () => this.finalizeRoute(route.sheetNumber),
-    });
+  requestAnalysis(route: PendingAuthorizedRoute, trigger: HTMLElement): void {
+    const operation = this.queriedOperation ?? positiveInteger(this.operationCode());
+    if (operation === null) return;
+
+    this.analysisTrigger = trigger;
+    this.analysisSlide.open(route, operation);
+  }
+
+  onRouteFinalized(outcome: AuthorizedRouteFinalizationOutcome): void {
+    this.feedback.set(outcome.message);
+    if (!outcome.finalized) return;
+
+    const remainingRoutes = this.routes().filter(route => route.sheetNumber !== outcome.sheetNumber);
+    this.routes.set(remainingRoutes);
+    this.state.set(remainingRoutes.length ? 'ready' : 'empty');
+  }
+
+  onAnalysisClosed(): void {
+    const trigger = this.analysisTrigger;
+    this.analysisTrigger = null;
+    if (trigger?.isConnected) trigger.focus();
   }
 
   goBack(): void {
-    if (this.finalizingSheet() !== null) return;
     void this.router.navigate(['/menu']);
-  }
-
-  private finalizeRoute(sheetNumber: number): void {
-    if (this.finalizingSheet() !== null) return;
-    this.finalizingSheet.set(sheetNumber);
-    this.feedback.set(`Finalizando ficha ${sheetNumber}...`);
-    this.service.finalize(sheetNumber).pipe(
-      finalize(() => this.finalizingSheet.set(null)),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe({
-      next: result => {
-        this.notification.success(result.message);
-        const remainingRoutes = this.routes().filter(route => route.sheetNumber !== sheetNumber);
-        this.routes.set(remainingRoutes);
-        this.state.set(remainingRoutes.length ? 'ready' : 'empty');
-        this.feedback.set(result.message);
-      },
-      error: () => {
-        this.feedback.set(`Não foi possível finalizar a ficha ${sheetNumber}. Tente novamente.`);
-        this.notification.error(this.feedback());
-      },
-    });
   }
 }
 

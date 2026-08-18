@@ -15,7 +15,7 @@
           p-label="Ordem de produção"
           p-placeholder="Ex.: 372562"
           p-required="true"
-          [p-disabled]="state() === 'loading' || finalizingSheet() !== null"
+          [p-disabled]="state() === 'loading'"
           [ngModel]="orderNumber()"
           (ngModelChange)="orderNumber.set($event)"
         ></po-input>
@@ -24,7 +24,7 @@
           p-label="Operação"
           p-placeholder="Ex.: 10"
           p-required="true"
-          [p-disabled]="state() === 'loading' || finalizingSheet() !== null"
+          [p-disabled]="state() === 'loading'"
           [ngModel]="operationCode()"
           (ngModelChange)="operationCode.set($event)"
         ></po-input>
@@ -33,7 +33,7 @@
           p-type="submit"
           p-label="Consultar"
           [p-loading]="state() === 'loading'"
-          [p-disabled]="state() === 'loading' || finalizingSheet() !== null"
+          [p-disabled]="state() === 'loading'"
         ></po-button>
       </form>
     </po-widget>
@@ -69,10 +69,9 @@
             }
             <div class="route-card__actions">
               <po-button
-                [p-label]="finalizingSheet() === route.sheetNumber ? 'Finalizando...' : 'Analisar e finalizar'"
-                [p-loading]="finalizingSheet() === route.sheetNumber"
-                [p-disabled]="state() !== 'ready' || finalizingSheet() !== null"
-                (p-click)="requestFinalization(route)"
+                p-label="Analisar e finalizar"
+                [p-disabled]="state() !== 'ready'"
+                (p-click)="requestAnalysis(route, $any($event.currentTarget))"
               ></po-button>
             </div>
           </article>
@@ -81,7 +80,12 @@
     }
 
     <nav class="route-authorization__actions" aria-label="Ações da página">
-      <po-button p-label="Voltar ao menu" p-kind="secondary" [p-disabled]="finalizingSheet() !== null" (p-click)="goBack()"></po-button>
+      <po-button p-label="Voltar ao menu" p-kind="secondary" (p-click)="goBack()"></po-button>
     </nav>
   </main>
 </po-page-default>
+
+<app-route-analysis-slide
+  (analysisClosed)="onAnalysisClosed()"
+  (routeFinalized)="onRouteFinalized($event)"
+></app-route-analysis-slide>

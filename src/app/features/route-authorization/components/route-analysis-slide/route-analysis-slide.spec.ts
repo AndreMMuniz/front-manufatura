@@ -4,6 +4,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import {
   PoDecimalComponent,
   PoDialogService,
+  PoNotificationService,
   PoPageSlideComponent,
   PoSelectComponent,
   PoTextareaComponent,
@@ -21,6 +22,7 @@ describe('RouteAnalysisSlide', () => {
   let service: { loadRoute: ReturnType<typeof vi.fn>; saveComponent: ReturnType<typeof vi.fn>; finalize: ReturnType<typeof vi.fn> };
   let pageSlide: { open: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
   let dialog: { confirm: ReturnType<typeof vi.fn> };
+  let notification: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     service = {
@@ -28,11 +30,13 @@ describe('RouteAnalysisSlide', () => {
       saveComponent: vi.fn(),
       finalize: vi.fn(),
     };
+    notification = { success: vi.fn(), error: vi.fn() };
     await TestBed.configureTestingModule({
       imports: [RouteAnalysisSlide],
       providers: [
         provideNoopAnimations(),
         { provide: RouteAuthorizationService, useValue: service },
+        { provide: PoNotificationService, useValue: notification },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(RouteAnalysisSlide);
@@ -276,10 +280,99 @@ describe('RouteAnalysisSlide', () => {
     component.routeFinalized.subscribe(finalized);
 
     component.finalizeRoute();
+    dialog.confirm.mock.calls[0][0].confirm();
 
     expect(service.finalize).toHaveBeenCalledWith(64462);
     expect(finalized).toHaveBeenCalledWith(outcome);
+    expect(notification.success).toHaveBeenCalledWith('Ficha finalizada');
     expect(pageSlide.close).toHaveBeenCalledOnce();
+  });
+
+  it('pede confirmação antes de iniciar a finalização remota', () => {
+    service.loadRoute.mockReturnValue(of(loadedRouteWithSupportedComponents()));
+    const exam = openLoaded(component);
+    service.saveComponent.mockReturnValue(of(saveResult(true)));
+    for (const componentModel of exam.components) {
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
+      if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
+      component.save(exam, componentModel);
+    }
+    service.finalize.mockReturnValue(new Subject());
+
+    component.finalizeRoute();
+
+    expect(dialog.confirm).toHaveBeenCalledOnce();
+    expect(service.finalize).not.toHaveBeenCalled();
+  });
+
+  it('ignora confirmações duplicadas enquanto a finalização está pendente', () => {
+    service.loadRoute.mockReturnValue(of(loadedRouteWithSupportedComponents()));
+    const exam = openLoaded(component);
+    service.saveComponent.mockReturnValue(of(saveResult(true)));
+    for (const componentModel of exam.components) {
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
+      if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
+      component.save(exam, componentModel);
+    }
+    service.finalize.mockReturnValue(new Subject());
+
+    component.finalizeRoute();
+    const confirm = dialog.confirm.mock.calls[0][0].confirm as () => void;
+    confirm();
+    confirm();
+
+    expect(service.finalize).toHaveBeenCalledOnce();
+    expect(component.finalizing()).toBe(true);
+  });
+
+  it('preserva a mensagem de negócio e mantém o painel aberto quando a ficha não é finalizada', () => {
+    service.loadRoute.mockReturnValue(of(loadedRouteWithSupportedComponents()));
+    const exam = openLoaded(component);
+    service.saveComponent.mockReturnValue(of(saveResult(true)));
+    for (const componentModel of exam.components) {
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
+      if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
+      component.save(exam, componentModel);
+    }
+    const outcome = {
+      sheetNumber: 64462, finalized: false as const, inspected: false, totalComponents: 4,
+      savedComponents: 4, pendingComponents: 1, outOfRangeComponents: 1, statusCode: 2,
+      message: 'Ainda há resultados pendentes para a ficha.', exams: [],
+    };
+    const finalized = vi.fn();
+    component.routeFinalized.subscribe(finalized);
+    service.finalize.mockReturnValue(of(outcome));
+
+    component.finalizeRoute();
+    dialog.confirm.mock.calls[0][0].confirm();
+
+    expect(component.feedback()).toBe('Ainda há resultados pendentes para a ficha.');
+    expect(finalized).toHaveBeenCalledWith(outcome);
+    expect(pageSlide.close).not.toHaveBeenCalled();
+    expect(component.route()?.nrFicha).toBe(64462);
+  });
+
+  it('informa indisponibilidade sem fechar o painel quando a finalização falha', () => {
+    service.loadRoute.mockReturnValue(of(loadedRouteWithSupportedComponents()));
+    const exam = openLoaded(component);
+    service.saveComponent.mockReturnValue(of(saveResult(true)));
+    for (const componentModel of exam.components) {
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
+      if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
+      component.save(exam, componentModel);
+    }
+    service.finalize.mockReturnValue(throwError(() => new Error('network')));
+
+    component.finalizeRoute();
+    dialog.confirm.mock.calls[0][0].confirm();
+
+    expect(component.feedback()).toContain('indisponível');
+    expect(pageSlide.close).not.toHaveBeenCalled();
+    expect(component.route()?.nrFicha).toBe(64462);
   });
 });
 

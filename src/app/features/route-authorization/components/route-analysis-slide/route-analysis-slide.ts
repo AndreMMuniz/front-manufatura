@@ -15,6 +15,7 @@ import {
   PoButtonModule,
   PoDialogService,
   PoFieldModule,
+  PoNotificationService,
   PoPageSlideComponent,
   PoPageSlideModule,
   PoSelectOption,
@@ -64,6 +65,7 @@ export class RouteAnalysisSlide {
 
   private readonly service = inject(RouteAuthorizationService);
   private readonly dialog = inject(PoDialogService);
+  private readonly notification = inject(PoNotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private loadVersion = 0;
   private suppressPageSlideClose = false;
@@ -216,6 +218,18 @@ export class RouteAnalysisSlide {
     const route = this.route();
     if (!route?.nrFicha || !this.canFinalize() || this.finalizing() || this.hasSavingComponent()) return;
 
+    this.dialog.confirm({
+      title: `Finalizar ficha ${route.nrFicha} com autorização?`,
+      message: 'Esta ação aceitará componentes fora da faixa e não poderá ser desfeita.',
+      literals: { cancel: 'Cancelar', confirm: 'Finalizar com autorização' },
+      confirm: () => this.confirmFinalization(),
+    });
+  }
+
+  private confirmFinalization(): void {
+    const route = this.route();
+    if (!route?.nrFicha || !this.canFinalize() || this.finalizing() || this.hasSavingComponent()) return;
+
     this.finalizing.set(true);
     this.feedback.set(`Finalizando ficha ${route.nrFicha}...`);
     this.service.finalize(route.nrFicha)
@@ -225,11 +239,15 @@ export class RouteAnalysisSlide {
           this.finalizing.set(false);
           this.feedback.set(result.message);
           this.routeFinalized.emit(result);
-          if (result.finalized) this.close(false);
+          if (result.finalized) {
+            this.notification.success(result.message);
+            this.close(false);
+          }
         },
         error: () => {
           this.finalizing.set(false);
-          this.feedback.set(`Não foi possível finalizar a ficha ${route.nrFicha}. Tente novamente.`);
+          this.feedback.set('A finalização está indisponível no momento. Tente novamente.');
+          this.notification.error(this.feedback());
         },
       });
   }
