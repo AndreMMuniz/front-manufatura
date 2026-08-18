@@ -1,0 +1,99 @@
+<po-page-slide
+  #pageSlide
+  p-title="Análise de roteiro autorizado"
+  p-size="lg"
+  [p-click-out]="false"
+  (p-close)="onPageSlideClose()"
+>
+  <section class="route-analysis" aria-labelledby="route-analysis-title">
+    <h2 id="route-analysis-title">Análise da ficha {{ route()?.nrFicha }}</h2>
+    <p class="route-analysis__authorization-alert" role="note">
+      A aprovação é confirmada somente pela resposta do Datasul.
+    </p>
+
+    <p class="route-analysis__feedback" aria-live="polite" aria-atomic="true">
+      {{ feedback() }}
+    </p>
+
+    @if (loading()) {
+      <p aria-busy="true">Carregando componentes da ficha...</p>
+    }
+
+    @for (exam of exams(); track exam.id) {
+      <section class="route-analysis__exam" [attr.aria-label]="'Exame ' + exam.code + ' ' + exam.description">
+        <h3>{{ exam.code }} — {{ exam.description }}</h3>
+        @for (component of exam.components; track component.id) {
+          <article class="route-analysis__component">
+            <header>
+              <h4>{{ component.code }} — {{ component.description }}</h4>
+              <p>{{ component.reference }} @if (component.unit) { ({{ component.unit }}) }</p>
+            </header>
+
+            @if (component.resultType === 1) {
+              <po-decimal
+                [name]="'route-analysis-' + exam.code + '-' + component.code"
+                p-label="Resultado"
+                [p-decimals-length]="component.decimalPlaces ?? 0"
+                [p-disabled]="isLocked(component) || isSaving(component) || finalizing()"
+                [ngModel]="draftFor(component).result"
+                (ngModelChange)="updateResult(component, $event)"
+              ></po-decimal>
+            } @else if (component.resultType === 2) {
+              <po-select
+                [name]="'route-analysis-' + exam.code + '-' + component.code"
+                p-label="Opção da tabela"
+                [p-options]="tableOptionsFor(component)"
+                [p-disabled]="isLocked(component) || isSaving(component) || finalizing()"
+                [ngModel]="draftFor(component).selectedOptionKey"
+                (ngModelChange)="updateSelectedOption(component, $event)"
+              ></po-select>
+            } @else if (component.resultType === 3) {
+              <po-textarea
+                [name]="'route-analysis-' + exam.code + '-' + component.code"
+                p-label="Laudo"
+                [p-disabled]="isLocked(component) || isSaving(component) || finalizing()"
+                [ngModel]="draftFor(component).report"
+                (ngModelChange)="updateReport(component, $event)"
+              ></po-textarea>
+            } @else {
+              <p class="route-analysis__unsupported" role="alert">
+                Tipo de resultado não suportado para salvamento.
+              </p>
+            }
+
+            <p
+              class="route-analysis__status"
+              aria-live="polite"
+              [attr.data-status]="statusFor(component)"
+            >
+              Status: {{ statusTextFor(component) }}
+            </p>
+            <po-button
+              p-label="Salvar"
+              [p-loading]="isSaving(component)"
+              [p-disabled]="!isSupported(component) || isLocked(component) || isSaving(component) || loading() || finalizing()"
+              (p-click)="save(exam, component)"
+            ></po-button>
+          </article>
+        }
+      </section>
+    }
+  </section>
+
+  <po-page-slide-footer>
+    <div class="route-analysis__footer">
+      <po-button
+        [p-label]="finalizing() ? 'Finalizando...' : 'Finalizar ficha'"
+        [p-loading]="finalizing()"
+        [p-disabled]="!canFinalize() || loading() || finalizing()"
+        (p-click)="finalizeRoute()"
+      ></po-button>
+      <po-button
+        p-label="Fechar"
+        p-kind="secondary"
+        [p-disabled]="loading() || finalizing() || hasSavingComponent()"
+        (p-click)="requestClose()"
+      ></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>

@@ -1,0 +1,62 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.route-analysis,
+.route-analysis__exam,
+.route-analysis__component,
+.route-analysis__footer {
+  display: grid;
+  gap: var(--app-space-md);
+  min-width: 0;
+}
+
+.route-analysis {
+  padding: var(--app-space-md);
+}
+
+.route-analysis h2,
+.route-analysis h3,
+.route-analysis h4,
+.route-analysis p {
+  margin: 0;
+}
+
+.route-analysis__authorization-alert,
+.route-analysis__component {
+  border-radius: var(--app-radius);
+  padding: var(--app-space-md);
+}
+
+.route-analysis__authorization-alert {
+  background: var(--app-color-warning-soft);
+  border: 1px solid var(--app-color-warning);
+}
+
+.route-analysis__exam {
+  border-top: 1px solid var(--app-color-border);
+  padding-top: var(--app-space-md);
+}
+
+.route-analysis__component {
+  background: var(--app-color-surface-muted);
+  border: 1px solid var(--app-color-border);
+}
+
+.route-analysis__status[data-status='approved'] {
+  font-weight: 700;
+}
+
+.route-analysis__status[data-status='out-of-range'],
+.route-analysis__unsupported {
+  color: var(--app-color-warning);
+}
+
+.route-analysis__status[data-status='error'] {
+  color: var(--app-color-error);
+}
+
+.route-analysis__footer {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
