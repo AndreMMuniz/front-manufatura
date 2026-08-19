@@ -247,8 +247,8 @@ export class ReportOperacaoService {
         ordem: request.ordem,
         op: request.op,
         split: request.split,
-        dataFim: request.dataFim.toISOString(),
-        horaFim: request.horaFim,
+        areaCode: request.areaCode,
+        ct: request.ct,
       },
     })).pipe(map(confirmation => ({
       apontamentoId: confirmation.localId,

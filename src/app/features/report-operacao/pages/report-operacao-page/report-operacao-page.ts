@@ -817,7 +817,8 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
     const operation = this.operacao;
-    const activeOrderId = this.workflowState.snapshot().activeOrder?.id;
+    const activeOrder = this.workflowState.snapshot().activeOrder;
+    const activeOrderId = activeOrder?.id;
     const request = ++this.startRequest;
     const operador = responsavel.tipo === 'OPERADOR' ? responsavel.nome : '';
     const equipe = responsavel.tipo === 'EQUIPE' ? responsavel.nome : '';
@@ -960,7 +961,7 @@ export class ReportOperacaoPage implements OnInit {
 
     this.reportOperacaoService.reportarOperacao(
       this.toReportRequest(
-        parcial, responsavel, refugoItens, idempotencyKey, Boolean(draft.finalizarSplit),
+        parcial, responsavel, refugoItens, idempotencyKey,
       ),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -1022,7 +1023,8 @@ export class ReportOperacaoPage implements OnInit {
     const operation = this.operacao;
     if (this.encerrando || !operation?.dataInicio || !operation.horaInicio || !this.canEditProduction) return;
     const end = this.ensureEnd();
-    const activeOrderId = this.workflowState.snapshot().activeOrder?.id;
+    const activeOrder = this.workflowState.snapshot().activeOrder;
+    const activeOrderId = activeOrder?.id;
     const request = ++this.endRequest;
     const dependencyIds = [
       ...(operation.startCommandId ? [operation.startCommandId] : []),
@@ -1036,6 +1038,8 @@ export class ReportOperacaoPage implements OnInit {
       ordem: operation.ordem,
       op: operation.op,
       split: operation.split,
+      areaCode: activeOrder?.areaCode ?? this.areaCode,
+      ct: operation.ct,
       dataFim: end.dataFim ?? new Date(),
       horaFim: end.horaFim,
       ...(dependencyIds.length > 0 ? { dependencyIds } : {}),
@@ -1183,7 +1187,6 @@ export class ReportOperacaoPage implements OnInit {
     responsavel: ResponsavelOperacao,
     refugoItens: ReportarOperacaoRequest['refugoItens'],
     idempotencyKey: string,
-    finalizarSplit: boolean,
   ): ReportarOperacaoRequest {
     const dependencyIds = [
       ...(operation.startCommandId ? [operation.startCommandId] : []),
@@ -1195,7 +1198,7 @@ export class ReportOperacaoPage implements OnInit {
       op: operation.op,
       split: operation.split,
       areaCode: this.areaCode,
-      finalizarSplit,
+      finalizarSplit: false,
       quantidadeAprovada: operation.quantidadeAprovada,
       quantidadeRetrabalho: operation.quantidadeRetrabalho,
       quantidadeRefugo: operation.quantidadeRefugo,

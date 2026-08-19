@@ -55,8 +55,14 @@ describe('ReportOperacaoPage', () => {
   };
 
   const orders: OrdemCentroTrabalho[] = [
-    { id: 'first', ordem: '450001', itemOp: 'PERFIL-100 / OP-10458', operacao: '10', split: '01' },
-    { id: 'second', ordem: '450002', itemOp: 'PERFIL-200 / OP-10459', operacao: '20', split: '01' },
+    {
+      id: 'first', ordem: '450001', itemOp: 'PERFIL-100 / OP-10458', operacao: '10', split: '01',
+      areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    },
+    {
+      id: 'second', ordem: '450002', itemOp: 'PERFIL-200 / OP-10459', operacao: '20', split: '01',
+      areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    },
   ];
 
   beforeEach(async () => {
@@ -431,6 +437,41 @@ describe('ReportOperacaoPage', () => {
     expect(abrir).toHaveBeenCalledWith(component.reportes, true);
     expect(service.encerrarOperacao).not.toHaveBeenCalled();
     expect(component.operacao).not.toBeNull();
+  });
+
+  it('captures the final report without closing the split and makes END depend on it', () => {
+    const finalReport = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+    service.reportarOperacao.mockReturnValueOnce(finalReport);
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
+
+    component.salvarReporte({
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      finalizarSplit: true,
+    });
+    component.areaCode = 'contexto-visual-obsoleto';
+    finalReport.next({ apontamentoId: 'APT-1', reportadoEm: new Date() });
+    finalReport.complete();
+
+    expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      areaCode: '4001',
+      ct: 'CT-EXT-01',
+      finalizarSplit: false,
+    }));
+    expect(service.encerrarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      ordem: '450001',
+      op: 'OP-10458',
+      split: '01',
+      areaCode: '4001',
+      ct: 'CT-EXT-01',
+      dependencyIds: ['APT-1'],
+    }));
   });
 
   it('does not mutate Datasul while only opening repeated final-report confirmations', () => {

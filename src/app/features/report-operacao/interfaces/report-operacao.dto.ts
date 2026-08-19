@@ -74,6 +74,8 @@ export interface EncerrarOperacaoRequest {
   readonly ordem: string;
   readonly op: string;
   readonly split: string;
+  readonly areaCode: string;
+  readonly ct: string;
   readonly dataFim: Date;
   readonly horaFim: string;
 }

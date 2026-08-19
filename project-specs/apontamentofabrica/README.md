@@ -16,6 +16,7 @@ consolidados em [Grupos de usuários e acessos Datasul para o frontend](../acess
 | Início de ordens em batelada | `POST` | `/api/fma/v1/iniciarordembatelada` | [iniciar-ordem-batelada.md](./iniciar-ordem-batelada.md) |
 | Reporte de ordens em batelada | `POST` | `/api/fma/v1/reporteordembatelada` | [reporte-ordem-batelada.md](./reporte-ordem-batelada.md) |
 | Reporte de ordem | `POST` | `/api/fma/v1/reporteordem` | [reporte-ordem.md](./reporte-ordem.md) |
+| Encerramento de split | `POST` | `/api/fma/v1/encerrasplit` | [encerrar-split.md](./encerrar-split.md) |
 | Início de parada | `POST` | `/api/fma/v1/iniciaparada` | [iniciar-parada.md](./iniciar-parada.md) |
 | Inclusão de parada | `POST` | `/api/fma/v1/incluiparada` | [incluir-parada.md](./incluir-parada.md) |
 | Parada programada | `POST` | `/api/fma/v1/programaparada` | [parada-programada.md](./parada-programada.md) |

@@ -5,6 +5,7 @@ import { AuthSessionService } from '../../auth/auth-session.service';
 import { SyncCommandRequest } from '../models/sync-command';
 import {
   CreateStopSyncHandler,
+  EndOperationSyncHandler,
   FinishStopSyncHandler,
   StartOperationSyncHandler,
 } from './fma-sync.handlers';
@@ -37,6 +38,21 @@ describe('FMA sync handlers', () => {
 
     await handler.send(request, new AbortController().signal);
     expect(post).toHaveBeenCalledWith('/api/production-stops/stop%2F01/finish', request.payload, expect.any(Object));
+  });
+
+  it('sends END_OPERATION to the operation end gateway endpoint', async () => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new EndOperationSyncHandler(
+      { post } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+    const request = command('END_OPERATION', {
+      ordem: '372561', op: '10', split: '1', areaCode: '4104', ct: 'PRE-006-02',
+    });
+
+    await handler.send(request, new AbortController().signal);
+
+    expect(post).toHaveBeenCalledWith('/api/operations/end', request.payload, expect.any(Object));
   });
 
   it('propaga a classificação e a mensagem pública devolvidas pelo gateway', async () => {

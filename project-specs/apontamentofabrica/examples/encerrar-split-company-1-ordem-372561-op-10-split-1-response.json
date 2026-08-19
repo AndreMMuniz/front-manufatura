@@ -1,0 +1,18 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "splitResultado": [
+        {
+          "operacaoFechada": true,
+          "opCodigo": 10,
+          "nrOrdemProducao": 372561,
+          "mensagem": "Split encerrado e operacao finalizada (era o unico split ainda aberto)",
+          "numSplitOperac": 1,
+          "estadoSplit": 5
+        }
+      ]
+    }
+  ]
+}

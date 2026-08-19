@@ -131,8 +131,13 @@ describe('gateway FMA', () => {
     );
   });
 
-  it('traduz reporte final individual, exige motivo único e mantém encerramento apenas local', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+  it('traduz reporte final individual sem fechar o split e encerra o split em chamada dependente', async () => {
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(response('splitResultado', [{
+        operacaoFechada: true, opCodigo: 10, nrOrdemProducao: 372572,
+        mensagem: 'Split encerrado', numSplitOperac: 1, estadoSplit: 5,
+      }]));
     const root = await startGateway(transport);
     const authorization = `Bearer ${await token()}`;
     const headers = {
@@ -144,13 +149,13 @@ describe('gateway FMA', () => {
       refugoItens: [{ codigo: '05', descricao: 'Retrabalho', quantidade: 1 }],
       dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
       dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
-      tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: true,
+      tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
     };
     const result = await fetch(`${root}/api/operations/report`, { method: 'POST', headers, body: JSON.stringify(body) });
     expect(result.status).toBe(200);
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({
       codAreaProduc: '4113', codCtrab: 'LASER-01-01', codOperador: '00016570', codEquipe: '',
-      finalizarSplit: true,
+      finalizarSplit: false,
       splits: [{ nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1, qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 0, codMotivoRefugo: '05' }],
     }));
 
@@ -160,10 +165,132 @@ describe('gateway FMA', () => {
     });
     expect(invalid.status).toBe(400);
     const ending = await fetch(`${root}/api/operations/end`, {
-      method: 'POST', headers: { ...headers, 'idempotency-key': 'local-end-1' }, body: JSON.stringify({ ordem: '372572' }),
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'end-1' }, body: JSON.stringify({
+        ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+      }),
     });
     expect(ending.status).toBe(200);
+    expect(String(transport.mock.calls[1][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/encerrasplit?companyId=1&codUsuario=mjocelio',
+    );
+    expect(JSON.parse(String(transport.mock.calls[1][1]?.body))).toEqual({
+      codAreaProduc: '4113', codCtrab: 'LASER-01-01', nrOrdemProducao: 372572,
+      opCodigo: 10, numSplitOperac: 1,
+    });
+  });
+
+  it.each([true, false])('aceita encerramento com operacaoFechada=%s e mantém retry idempotente', async operacaoFechada => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('splitResultado', [{
+      operacaoFechada, opCodigo: 10, nrOrdemProducao: 372561,
+      mensagem: 'Split encerrado', numSplitOperac: 1, estadoSplit: 5,
+    }]));
+    const root = await startGateway(transport);
+    const headers = {
+      authorization: `Bearer ${await token()}`,
+      'content-type': 'application/json',
+      'idempotency-key': `end-${String(operacaoFechada)}`,
+    };
+    const body = JSON.stringify({
+      ordem: '372561', op: '10', split: '1', areaCode: '4104', ct: 'PRE-006-02',
+    });
+
+    const first = await fetch(`${root}/api/operations/end`, { method: 'POST', headers, body });
+    const retry = await fetch(`${root}/api/operations/end`, { method: 'POST', headers, body });
+
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual(expect.objectContaining({ duplicate: false }));
+    expect(await retry.json()).toEqual(expect.objectContaining({ duplicate: true }));
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejeita reutilização divergente da chave de encerramento', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('splitResultado', [{
+      operacaoFechada: true, opCodigo: 10, nrOrdemProducao: 372561,
+      numSplitOperac: 1, estadoSplit: 5,
+    }]));
+    const root = await startGateway(transport);
+    const headers = {
+      authorization: `Bearer ${await token()}`,
+      'content-type': 'application/json',
+      'idempotency-key': 'same-end-key',
+    };
+    const firstBody = {
+      ordem: '372561', op: '10', split: '1', areaCode: '4104', ct: 'PRE-006-02',
+    };
+
+    expect((await fetch(`${root}/api/operations/end`, {
+      method: 'POST', headers, body: JSON.stringify(firstBody),
+    })).status).toBe(200);
+    const conflict = await fetch(`${root}/api/operations/end`, {
+      method: 'POST', headers, body: JSON.stringify({ ...firstBody, split: '2' }),
+    });
+
+    expect(conflict.status).toBe(409);
+    await expect(conflict.json()).resolves.toEqual({ code: 'idempotency-conflict' });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it('não confirma falha HTTP do EncerrarSplit e permite nova tentativa', async () => {
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(response('splitResultado', [{
+        operacaoFechada: true, opCodigo: 10, nrOrdemProducao: 372561,
+        numSplitOperac: 1, estadoSplit: 5,
+      }]));
+    const root = await startGateway(transport);
+    const headers = {
+      authorization: `Bearer ${await token()}`,
+      'content-type': 'application/json',
+      'idempotency-key': 'retry-after-http-failure',
+    };
+    const request = {
+      method: 'POST', headers, body: JSON.stringify({
+        ordem: '372561', op: '10', split: '1', areaCode: '4104', ct: 'PRE-006-02',
+      }),
+    } as const;
+
+    const failed = await fetch(`${root}/api/operations/end`, request);
+    const retry = await fetch(`${root}/api/operations/end`, request);
+
+    expect(failed.status).toBe(503);
+    await expect(failed.json()).resolves.toEqual({ code: 'datasul-request-failed' });
+    expect(retry.status).toBe(200);
+    await expect(retry.json()).resolves.toEqual(expect.objectContaining({ duplicate: false }));
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['sem envelope', {}],
+    ['sem resultado', { total: 1, hasNext: false, items: [{ splitResultado: [] }] }],
+    ['com ordem divergente', { total: 1, hasNext: false, items: [{ splitResultado: [{
+      operacaoFechada: true, opCodigo: 10, nrOrdemProducao: 999999,
+      numSplitOperac: 1, estadoSplit: 5,
+    }] }] }],
+    ['com operação divergente', { total: 1, hasNext: false, items: [{ splitResultado: [{
+      operacaoFechada: true, opCodigo: 20, nrOrdemProducao: 372561,
+      numSplitOperac: 1, estadoSplit: 5,
+    }] }] }],
+    ['com split divergente', { total: 1, hasNext: false, items: [{ splitResultado: [{
+      operacaoFechada: true, opCodigo: 10, nrOrdemProducao: 372561,
+      numSplitOperac: 2, estadoSplit: 5,
+    }] }] }],
+  ])('rejeita resposta de EncerrarSplit %s', async (_scenario, upstream) => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(upstream), { status: 200 }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/operations/end`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'invalid-end-response',
+      },
+      body: JSON.stringify({
+        ordem: '372561', op: '10', split: '1', areaCode: '4104', ct: 'PRE-006-02',
+      }),
+    });
+
+    expect(result.status).toBe(502);
+    await expect(result.json()).resolves.toEqual({ code: 'invalid-upstream-response' });
   });
 
   it('traduz início e reporte em batelada com receipts completos por ordem', async () => {

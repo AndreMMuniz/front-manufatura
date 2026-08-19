@@ -13,6 +13,7 @@ import { ReportOperacaoService } from './report-operacao.service';
 describe('ReportOperacaoService', () => {
   let service: ReportOperacaoService;
   let apiGet: ReturnType<typeof vi.fn>;
+  let capture: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     const session$ = new BehaviorSubject<AuthSession | null>({
@@ -54,25 +55,24 @@ describe('ReportOperacaoService', () => {
       }] : []);
       return of([]);
     });
+    capture = vi.fn(async (request: { idempotencyKey?: string }) => {
+      const idempotencyKey =
+        request.idempotencyKey ?? '123e4567-e89b-42d3-a456-426614174000';
+      return {
+        localId: idempotencyKey,
+        idempotencyKey,
+        payloadHash: 'hash',
+        committedAt: '2026-07-30T12:00:00.000Z',
+        syncStatus: 'PENDING',
+      };
+    });
     TestBed.configureTestingModule({
       providers: [
         { provide: AuthSessionService, useValue: { session$ } },
         { provide: AuthenticatedApiService, useValue: { get: apiGet } },
         {
           provide: OperationalCommandFacade,
-          useValue: {
-            capture: vi.fn(async (request: { idempotencyKey?: string }) => {
-              const idempotencyKey =
-                request.idempotencyKey ?? '123e4567-e89b-42d3-a456-426614174000';
-              return {
-                localId: idempotencyKey,
-                idempotencyKey,
-                payloadHash: 'hash',
-                committedAt: '2026-07-30T12:00:00.000Z',
-                syncStatus: 'PENDING',
-              };
-            }),
-          },
+          useValue: { capture },
         },
       ],
     });
@@ -273,6 +273,32 @@ describe('ReportOperacaoService', () => {
 
     expect(retry.apontamentoId).toBe(first.apontamentoId);
     expect(retry.reportadoEm).toEqual(first.reportadoEm);
+  });
+
+  it('freezes area and work center in the END_OPERATION payload', async () => {
+    await firstValueFrom(service.encerrarOperacao({
+      idempotencyKey: 'end-372561-10-1',
+      dependencyIds: ['report-final-local-id'],
+      ordem: '372561',
+      op: '10',
+      split: '1',
+      areaCode: '4104',
+      ct: 'PRE-006-02',
+      dataFim: new Date('2026-08-19T13:30:00.000Z'),
+      horaFim: '10:30',
+    }));
+
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      commandType: 'END_OPERATION',
+      dependencyIds: ['report-final-local-id'],
+      payload: {
+        ordem: '372561',
+        op: '10',
+        split: '1',
+        areaCode: '4104',
+        ct: 'PRE-006-02',
+      },
+    }));
   });
 });
 

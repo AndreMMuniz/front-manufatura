@@ -288,8 +288,27 @@ function installAdaptedRoutes(
     return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/reporteordem', command, 'operation-report');
   }));
 
-  app.post('/api/operations/end', (req, res) => handle(req, res, dependencies, client =>
-    localOnlyCommand(req, client, dependencies, commandRequests, objectOf(req.body), 'operation-end')));
+  app.post('/api/operations/end', (req, res) => handle(req, res, dependencies, client => {
+    const body = objectOf(req.body);
+    const command = {
+      codAreaProduc: requiredText(body['areaCode']),
+      codCtrab: requiredText(body['ct']),
+      nrOrdemProducao: positiveInteger(body['ordem']),
+      opCodigo: positiveInteger(body['op']),
+      numSplitOperac: positiveInteger(body['split']),
+    };
+    return idempotentCommand(
+      req,
+      client,
+      dependencies,
+      commandRequests,
+      '/api/fma/v1/encerrasplit',
+      command,
+      'operation-end',
+      [],
+      upstream => validateEndSplitResponse(upstream, command),
+    );
+  }));
 
   app.post('/api/batches/start', (req, res) => handle(req, res, dependencies, client => {
     const body = objectOf(req.body);
@@ -483,6 +502,7 @@ async function idempotentCommand(
   command: JsonObject,
   resource: string,
   orderIds: readonly string[] = [],
+  validateResponse?: (upstream: unknown) => void,
 ): Promise<ReturnType<typeof receipt>> {
   const idempotencyKey = safeId(req.header('idempotency-key'));
   const cacheKey = `${client.subject}\u0000${endpoint}\u0000${idempotencyKey}`;
@@ -495,7 +515,8 @@ async function idempotentCommand(
     return { ...(await existing.promise), duplicate: true };
   }
   const promise = (async () => {
-    await client.request('POST', endpoint, command, {}, endpoint, true);
+    const upstream = await client.request('POST', endpoint, command, {}, endpoint, !validateResponse);
+    validateResponse?.(upstream);
     return receipt(
       idempotencyKey,
       `datasul:${resource}:${idempotencyKey}`,
@@ -511,6 +532,19 @@ async function idempotentCommand(
     return result;
   }
   catch (error) { commandRequests.delete(cacheKey); throw error; }
+}
+
+function validateEndSplitResponse(upstream: unknown, command: JsonObject): void {
+  const result = objectOfUpstream(single(dataset(upstream, 'splitResultado')));
+  booleanOf(result['operacaoFechada']);
+  const returnedOrder = positiveIntegerUpstream(result['nrOrdemProducao']);
+  const returnedOperation = positiveIntegerUpstream(result['opCodigo']);
+  const returnedSplit = positiveIntegerUpstream(result['numSplitOperac']);
+  if (
+    returnedOrder !== command['nrOrdemProducao']
+    || returnedOperation !== command['opCodigo']
+    || returnedSplit !== command['numSplitOperac']
+  ) invalidUpstream();
 }
 
 async function localOnlyCommand(
@@ -773,6 +807,10 @@ function requiredUpstreamText(value: unknown): string {
 }
 function nonNegativeIntegerUpstream(value: unknown): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) return invalidUpstream();
+  return value as number;
+}
+function positiveIntegerUpstream(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) return invalidUpstream();
   return value as number;
 }
 function requiredObjects(value: unknown): JsonObject[] {
