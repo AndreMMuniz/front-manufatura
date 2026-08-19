@@ -93,14 +93,22 @@ export function installQualityControlEndpoints(
   });
 
   app.post(`${ROOT}/route-authorizations/route`, async (req, res) => {
-    await handle(req, res, dependencies, async client => {
+    await handle(req, res, dependencies, async (client, userId) => {
       const body = objectBody(req.body);
-      const expected = positiveInteger(body['nrFicha']);
-      const upstream = await client.getRoute({
-        nrOrdemProducao: positiveInteger(body['nrOrdemProducao']),
-        codOperacao: positiveInteger(body['codOperacao']),
+      const expectedSheetNumber = positiveInteger(body['nrFicha']);
+      const orderNumber = positiveInteger(body['nrOrdemProducao']);
+      const operationCode = positiveInteger(body['codOperacao']);
+      const pending = await client.getRoutesPendingAuthorization({
+        nrOrdemProducao: orderNumber,
+        opCodigo: operationCode,
+        codUsuario: userId,
       });
-      return selectAuthorizedRouteEnvelope(upstream, expected);
+      assertPendingAuthorizedRoute(pending, expectedSheetNumber, orderNumber);
+      const upstream = await client.getRoute({
+        nrOrdemProducao: orderNumber,
+        codOperacao: operationCode,
+      });
+      return selectAuthorizedRouteEnvelope(upstream, expectedSheetNumber);
     }, APP_PERMISSIONS.divergentRouteAuthorization);
   });
 
@@ -174,18 +182,33 @@ export function buildQualityResultPayload(
 function selectAuthorizedRouteEnvelope(value: unknown, expectedSheetNumber: number): JsonObject {
   const envelope = upstreamObject(value);
   const total = upstreamNonNegativeInteger(envelope['total']);
-  if (envelope['hasNext'] !== false || !Array.isArray(envelope['items']) || total !== envelope['items'].length) {
+  if (
+    envelope['hasNext'] !== false
+    || !Array.isArray(envelope['items'])
+    || total !== 1
+    || envelope['items'].length !== 1
+  ) {
     throw invalidUpstream();
   }
-  const matches: JsonObject[] = [];
-  for (const itemValue of envelope['items']) {
+  const item = upstreamObject(envelope['items'][0]);
+  upstreamPositiveInteger(item['nrFicha']);
+  upstreamObject(item['ds-roteiro']);
+  return { total: 1, hasNext: false, items: [{ ...item, nrFicha: expectedSheetNumber }] };
+}
+
+function assertPendingAuthorizedRoute(value: unknown, expectedSheetNumber: number, expectedOrderNumber: number): void {
+  const envelope = upstreamObject(value);
+  if (!Array.isArray(envelope['items'])) throw invalidUpstream();
+  const matches = envelope['items'].flatMap(itemValue => {
     const item = upstreamObject(itemValue);
-    const sheetNumber = upstreamPositiveInteger(item['nrFicha']);
-    upstreamObject(item['ds-roteiro']);
-    if (sheetNumber === expectedSheetNumber) matches.push(item);
-  }
+    const dataset = item['ds-autorizacao'] === undefined ? item : upstreamObject(item['ds-autorizacao']);
+    if (dataset['roteirosEmAnalise'] === undefined) return [];
+    if (!Array.isArray(dataset['roteirosEmAnalise'])) throw invalidUpstream();
+    return dataset['roteirosEmAnalise']
+      .map(upstreamObject)
+      .filter(route => route['nrFicha'] === expectedSheetNumber && route['nrOrdemProducao'] === expectedOrderNumber);
+  });
   if (matches.length !== 1) throw invalidUpstream();
-  return { total: 1, hasNext: false, items: [matches[0]] };
 }
 
 async function handle(

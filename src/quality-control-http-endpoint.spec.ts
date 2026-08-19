@@ -33,6 +33,16 @@ const REAL_RESULT_EXAM_RECEIPT = JSON.parse(
   ),
 ) as unknown;
 
+const REAL_ROUTE_AUTHORIZATION = JSON.parse(
+  readFileSync(
+    new URL(
+      '../project-specs/planodecontrole-api/examples/autorizacao-roteiros-372562-operacao-10-response.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as unknown;
+
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
@@ -486,20 +496,55 @@ describe('gateway Plano Controle CQ', () => {
     expect(transport).not.toHaveBeenCalled();
   });
 
+  it('associa a ficha pendente validada ao roteiro único mesmo quando o Datasul devolve outro nrFicha', async () => {
+    const transport = vi.fn<typeof fetch>().mockImplementation(async input => {
+      const url = new URL(String(input));
+      const value = url.pathname.endsWith('/autorizacaoroteiros')
+        ? REAL_ROUTE_AUTHORIZATION
+        : {
+            total: 1,
+            hasNext: false,
+            items: [{ nrFicha: 99999, 'ds-roteiro': { exames: [] } }],
+          };
+      return new Response(JSON.stringify(value), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations/route`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64382, nrOrdemProducao: 372562, codOperacao: 10 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      total: 1,
+      hasNext: false,
+      items: [{ nrFicha: 64382, 'ds-roteiro': { exames: [] } }],
+    });
+  });
+
   it('busca o roteiro autorizado com empresa e identidade definidas no servidor', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          total: 2,
-          hasNext: false,
-          items: [
-            { nrFicha: 64461, 'ds-roteiro': { exames: [] } },
-            { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
-          ],
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
-    );
+    const transport = vi.fn<typeof fetch>().mockImplementation(async input => {
+      const url = new URL(String(input));
+      const value = url.pathname.endsWith('/autorizacaoroteiros')
+        ? REAL_ROUTE_AUTHORIZATION
+        : { total: 1, hasNext: false, items: [{ nrFicha: 99999, 'ds-roteiro': { exames: [] } }] };
+      return new Response(JSON.stringify(value), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
       subject: 'Mjocelio',
@@ -513,7 +558,7 @@ describe('gateway Plano Controle CQ', () => {
       method: 'POST',
       headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
-        nrFicha: 64462,
+        nrFicha: 64382,
         nrOrdemProducao: 372562,
         codOperacao: 10,
         companyId: 999,
@@ -522,37 +567,27 @@ describe('gateway Plano Controle CQ', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(String(transport.mock.calls[0][0])).toBe('https://datasul.example.test/api/fcq/v1/roteiros?companyid=1');
-    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=Mjocelio&nrOrdemProducao=372562&opCodigo=10',
+    );
+    expect(String(transport.mock.calls[1][0])).toBe('https://datasul.example.test/api/fcq/v1/roteiros?companyid=1');
+    expect(JSON.parse(String(transport.mock.calls[1][1]?.body))).toEqual({
       nrOrdemProducao: 372562,
       codOperacao: 10,
     });
     await expect(response.json()).resolves.toEqual({
       total: 1,
       hasNext: false,
-      items: [{ nrFicha: 64462, 'ds-roteiro': { exames: [] } }],
+      items: [{ nrFicha: 64382, 'ds-roteiro': { exames: [] } }],
     });
   });
 
-  it.each([
-    ['não encontrada', [{ nrFicha: 64461, 'ds-roteiro': { exames: [] } }]],
-    [
-      'duplicada',
-      [
-        { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
-        { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
-      ],
-    ],
-  ])('recusa ficha autorizada %s', async (_caseName, items) => {
+  it('recusa ficha que não pertence às pendências retornadas pelo Datasul', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          total: items.length,
-          hasNext: false,
-          items,
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
+      new Response(JSON.stringify(REAL_ROUTE_AUTHORIZATION), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
     );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
@@ -566,7 +601,41 @@ describe('gateway Plano Controle CQ', () => {
     const response = await fetch(`${root}/route-authorizations/route`, {
       method: 'POST',
       headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ nrFicha: 64462, nrOrdemProducao: 372562, codOperacao: 10 }),
+      body: JSON.stringify({ nrFicha: 99999, nrOrdemProducao: 372562, codOperacao: 10 }),
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ code: 'invalid-upstream-response' });
+    expect(transport).toHaveBeenCalledOnce();
+  });
+
+  it('recusa definição ambígua de roteiro para a ordem e operação autorizadas', async () => {
+    const transport = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(REAL_ROUTE_AUTHORIZATION))
+      .mockResolvedValueOnce(
+        Response.json({
+          total: 2,
+          hasNext: false,
+          items: [
+            { nrFicha: 64461, 'ds-roteiro': { exames: [] } },
+            { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
+          ],
+        }),
+      );
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations/route`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64382, nrOrdemProducao: 372562, codOperacao: 10 }),
     });
 
     expect(response.status).toBe(502);

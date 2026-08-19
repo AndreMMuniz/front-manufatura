@@ -10,10 +10,17 @@ sob `/api/quality-control/route-authorizations` e protegidos pela permissão
 O token Bearer da sessão identifica o usuário no servidor; `codUsuario` não é
 aceito do navegador e `companyId` vem da configuração do BFF.
 
+No carregamento da análise, o BFF consulta novamente `autorizacaoroteiros` com
+a identidade da sessão antes de buscar `roteiros`. A API de `roteiros` é
+consultada somente por ordem e operação e pode devolver um `nrFicha` diferente;
+por isso, após validar que há uma única definição de roteiro, o BFF a associa ao
+`nrFicha` pendente confirmado. Uma ficha ausente das pendências ou uma definição
+de roteiro vazia/ambígua continua sendo recusada com `invalid-upstream-response`.
+
 | Método | Endpoint BFF                                         | Uso                                                                                                                                             |
 | ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`  | `/api/quality-control/route-authorizations`          | Lista fichas pendentes por `nrOrdemProducao` e `opCodigo`.                                                                                      |
-| `POST` | `/api/quality-control/route-authorizations/route`    | Carrega a ficha selecionada por `nrFicha`, usando `nrOrdemProducao` e `codOperacao`. O BFF devolve somente a correspondência única da ficha.    |
+| `POST` | `/api/quality-control/route-authorizations/route`    | Confirma `nrFicha` nas pendências da ordem/operação e associa a definição única do roteiro à ficha autorizada.                                  |
 | `PUT`  | `/api/quality-control/route-authorizations/results`  | Salva um componente com `nrFicha`, `codExame`, `codComponente` e exatamente uma representação: `resultado`, `nrTabela` + `seqOpcao` ou `laudo`. |
 | `POST` | `/api/quality-control/route-authorizations/finalize` | Solicita a finalização autorizada da ficha informada por `nrFicha`.                                                                             |
 
