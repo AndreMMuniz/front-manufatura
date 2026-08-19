@@ -17,6 +17,7 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
   if (!order) throw invalidContract();
   const orderNumber = integerOf(order['nrOrdemProducao']).toString();
   const orderItem = textOf(order['codItem']);
+  const orderItemDescription = optionalText(order['descricaoItem']);
   const operations = arrayOf(order['operacoes']).flatMap(operationValue => {
     const operation = objectOf(operationValue);
     const splits = arrayOf(operation['splits']);
@@ -24,7 +25,7 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
       operationCode: integerOf(operation['codOperacao']).toString(),
       operationDescription: textOf(operation['descricaoOperacao']),
       itemCode: optionalText(operation['codItem']) || orderItem,
-      itemDescription: '',
+      itemDescription: orderItemDescription,
       processDescription: textOf(operation['descricaoOperacao']),
     };
     return splits.length

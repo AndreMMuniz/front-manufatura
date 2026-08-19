@@ -49,6 +49,7 @@ Campos relevantes observados:
 
 - `nrOrdemProducao`: número da ordem de produção.
 - `codItem`: código do item fabricado.
+- `descricaoItem`: descrição do item fabricado.
 - `qtdOrdem`: quantidade total da ordem.
 - `qtdProduzida`, `qtdReportada`, `qtdRefugada`, `qtdRequisitada` e `qtdAprovadaCondicional`: quantidades acumuladas da ordem.
 - `dtEmissao`, `dtInicio`, `dtTermino` e `dtOriginalTermino`: datas no formato observado `YYYY-MM-DD`.

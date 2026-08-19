@@ -11,7 +11,8 @@ describe('Datasul quality-control mapper', () => {
     expect(mapProductionOrderEnvelope({
       total: 1, hasNext: false, items: [{
         'ds-ordem-producao': { ordem: [{
-          nrOrdemProducao: 372562, codItem: '30907', operacoes: [{
+          nrOrdemProducao: 372562, codItem: '30907',
+          descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO', operacoes: [{
             codOperacao: 20, descricaoOperacao: 'USINAR', codItem: '30907',
             centroTrabalho: 'GL-170', codGrupoMaquina: 'TOR-004',
             splits: [{ numSplit: 2 }],
@@ -20,7 +21,10 @@ describe('Datasul quality-control mapper', () => {
       }],
     })).toMatchObject({
       orderNumber: '372562',
-      operations: [{ operationCode: '20', split: '2', operationDescription: 'USINAR' }],
+      operations: [{
+        operationCode: '20', split: '2', operationDescription: 'USINAR',
+        itemDescription: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+      }],
     });
   });
 

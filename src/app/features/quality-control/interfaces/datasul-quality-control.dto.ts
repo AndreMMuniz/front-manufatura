@@ -13,6 +13,7 @@ export interface DatasulOrderItem {
 export interface DatasulProductionOrder {
   readonly nrOrdemProducao: number;
   readonly codItem: string;
+  readonly descricaoItem?: string;
   readonly operacoes: readonly DatasulOperation[];
 }
 
