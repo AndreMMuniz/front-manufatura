@@ -149,7 +149,9 @@ describe('formatE2eRunSummary', () => {
 
     expect(output).not.toContain('\u001b[31m');
     expect(output).toContain('Leitura para correção: o valor exibido ficou diferente do esperado');
-    expect(output).toContain('[mensagem reduzida; consulte o relatório HTML para o detalhe completo]');
+    expect(output).toContain(
+      '[mensagem reduzida; consulte o relatório HTML para o detalhe completo]',
+    );
   });
 });
 
@@ -239,7 +241,10 @@ describe('DevE2eSummaryReporter', () => {
     expect(terminalOutput).toContain('tests/menu.spec.ts:21:5');
     expect(terminalOutput).toContain('Falha global de preparação');
     expect(markdownPath).toBe('test-results/relatorio-e2e.md');
-    expect(markdownOutput).toBe(terminalOutput);
+    expect(markdownOutput).toContain('# Relatório E2E');
+    expect(markdownOutput).toContain('```text');
+    expect(markdownOutput).toContain(terminalOutput.trim());
+    expect(markdownOutput).not.toBe(terminalOutput);
   });
 
   it('não gera relatório quando o Playwright apenas lista testes sem executá-los', () => {
@@ -258,10 +263,7 @@ describe('DevE2eSummaryReporter', () => {
       outcome: () => 'skipped',
     };
 
-    reporter.onBegin(
-      {} as never,
-      { allTests: () => [discoveredTest] } as never,
-    );
+    reporter.onBegin({} as never, { allTests: () => [discoveredTest] } as never);
     reporter.onEnd({
       status: 'passed',
       duration: 10,

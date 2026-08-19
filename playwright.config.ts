@@ -25,10 +25,7 @@ export default defineConfig({
   // parallelism to avoid browser starvation and false navigation timeouts.
   workers: process.env.CI ? 1 : 3,
   /* Relatório detalhado no navegador + resumo humano no terminal e em Markdown local. */
-  reporter: [
-    ['html', { open: 'never' }],
-    ['./tools/dev-e2e-summary-reporter.ts'],
-  ],
+  reporter: [['html', { open: 'never' }], ['./tools/dev-e2e-summary-reporter.ts']],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
@@ -92,7 +89,8 @@ export default defineConfig({
   webServer: process.env['PLAYWRIGHT_BASE_URL']
     ? undefined
     : {
-        command: 'APP_OFFLINE_SESSION_TTL_MS=28800000 npm start -- --configuration e2e --host 127.0.0.1 --port 4201 --allowed-hosts',
+        command:
+          'APP_OFFLINE_SESSION_TTL_MS=28800000 npm start -- --configuration e2e --host 127.0.0.1 --port 4201 --allowed-hosts',
         url: 'http://127.0.0.1:4201',
         reuseExistingServer: !process.env.CI,
       },

@@ -5,11 +5,7 @@ export default defineConfig({
   testMatch: 'pwa-offline.spec.ts',
   fullyParallel: false,
   workers: 1,
-  reporter: [
-    ['list'],
-    ['html', { open: 'never' }],
-    ['./tools/dev-e2e-summary-reporter.ts'],
-  ],
+  reporter: [['list'], ['html', { open: 'never' }], ['./tools/dev-e2e-summary-reporter.ts']],
   use: {
     baseURL: 'http://127.0.0.1:4301',
     trace: 'on-first-retry',

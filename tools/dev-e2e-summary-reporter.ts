@@ -132,7 +132,8 @@ function interpretFailure(message: string): string {
 }
 
 export function formatE2eRunSummary(summary: E2eRunSummary): string {
-  const succeeded = summary.status === 'passed' && summary.failed === 0 && summary.interrupted === 0;
+  const succeeded =
+    summary.status === 'passed' && summary.failed === 0 && summary.interrupted === 0;
   const lines = [
     '',
     '════════════════ RELATÓRIO E2E ═════════════════════',
@@ -163,7 +164,8 @@ export function formatE2eRunSummary(summary: E2eRunSummary): string {
       if (failure.retry > 0) lines.push(`   Tentativa: ${failure.retry + 1}`);
       lines.push(`   Causa informada: ${indent(message)}`);
       lines.push(`   Leitura para correção: ${interpretFailure(message)}`);
-      if (failure.snippet) lines.push(`   Trecho relacionado: ${indent(normalizeMessage(failure.snippet))}`);
+      if (failure.snippet)
+        lines.push(`   Trecho relacionado: ${indent(normalizeMessage(failure.snippet))}`);
       if (failure.attachments.length > 0) {
         lines.push('   Evidências locais:');
         failure.attachments.forEach((attachment) => {
@@ -178,11 +180,7 @@ export function formatE2eRunSummary(summary: E2eRunSummary): string {
     summary.externalErrors.forEach((error) => lines.push(`- ${indent(normalizeMessage(error))}`));
   }
 
-  if (
-    summary.flakyTests.length > 0 ||
-    summary.skippedTests.length > 0 ||
-    summary.slow.length > 0
-  ) {
+  if (summary.flakyTests.length > 0 || summary.skippedTests.length > 0 || summary.slow.length > 0) {
     lines.push('', 'PONTOS DE ATENÇÃO');
     summary.flakyTests.forEach((test) => {
       lines.push(
@@ -223,11 +221,28 @@ export function formatE2eRunSummary(summary: E2eRunSummary): string {
       'Próximo passo: confirme por que a execução foi interrompida e execute novamente o mesmo comando `make`.',
     );
   } else if (summary.flaky > 0 || summary.skipped > 0 || summary.slow.length > 0) {
-    lines.push('', 'Próximo passo: a suíte passou, mas revise os pontos de atenção antes de encerrar a tarefa.');
+    lines.push(
+      '',
+      'Próximo passo: a suíte passou, mas revise os pontos de atenção antes de encerrar a tarefa.',
+    );
   }
 
   lines.push('══════════════════════════════════════════════════════', '');
   return lines.join('\n');
+}
+
+export function formatE2eRunMarkdown(summary: E2eRunSummary): string {
+  const terminalReport = formatE2eRunSummary(summary).trim().replace(/```/g, '` ` `');
+  return [
+    '# Relatório E2E',
+    '',
+    '> Gerado localmente pelo Playwright. Este arquivo é substituído pela execução E2E mais recente.',
+    '',
+    '```text',
+    terminalReport,
+    '```',
+    '',
+  ].join('\n');
 }
 
 function localPath(file: string): string {
@@ -298,7 +313,7 @@ export default class DevE2eSummaryReporter implements Reporter {
     let output = formatE2eRunSummary(summary);
 
     try {
-      this.writeMarkdown(this.outputFile, output);
+      this.writeMarkdown(this.outputFile, formatE2eRunMarkdown(summary));
     } catch (error) {
       summary.externalErrors.push(
         `Não foi possível gravar o relatório Markdown em ${this.outputFile}: ${error instanceof Error ? error.message : String(error)}`,
