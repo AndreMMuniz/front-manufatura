@@ -12,10 +12,7 @@ import {
   installQualityControlEndpoints,
   resolveQualityControlUserId,
 } from './quality-control-http-endpoint';
-import {
-  QualityControlDatasulClient,
-  readQualityControlDatasulConfig,
-} from './quality-control-datasul-client';
+import { QualityControlDatasulClient, readQualityControlDatasulConfig } from './quality-control-datasul-client';
 
 const ENV = {
   DATASUL_BASE_URL: 'https://datasul.example.test',
@@ -26,20 +23,33 @@ const ENV = {
   APP_AUTH_TOKEN_SECRET: '0123456789abcdef0123456789abcdef',
 };
 
-const REAL_RESULT_EXAM_RECEIPT = JSON.parse(readFileSync(new URL(
-  '../project-specs/planodecontrole-api/examples/result-exames-ficha-64378-componente-3-response.json',
-  import.meta.url,
-), 'utf8')) as unknown;
+const REAL_RESULT_EXAM_RECEIPT = JSON.parse(
+  readFileSync(
+    new URL(
+      '../project-specs/planodecontrole-api/examples/result-exames-ficha-64378-componente-3-response.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as unknown;
 
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
 afterEach(async () => {
-  await Promise.all(servers.splice(0).map(server => new Promise<void>((resolve, reject) => {
-    server.closeAllConnections();
-    if (!server.listening) { resolve(); return; }
-    server.close(error => error ? reject(error) : resolve());
-  })));
+  await Promise.all(
+    servers.splice(0).map(
+      server =>
+        new Promise<void>((resolve, reject) => {
+          server.closeAllConnections();
+          if (!server.listening) {
+            resolve();
+            return;
+          }
+          server.close(error => (error ? reject(error) : resolve()));
+        }),
+    ),
+  );
 });
 
 async function startGateway(transport: typeof fetch): Promise<string> {
@@ -47,7 +57,7 @@ async function startGateway(transport: typeof fetch): Promise<string> {
   installQualityControlEndpoints(app, { env: ENV, transport });
   let server!: RunningServer;
   await new Promise<void>((resolve, reject) => {
-    server = app.listen(0, '127.0.0.1', error => error ? reject(error) : resolve());
+    server = app.listen(0, '127.0.0.1', error => (error ? reject(error) : resolve()));
   });
   servers.push(server);
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/quality-control`;
@@ -55,19 +65,36 @@ async function startGateway(transport: typeof fetch): Promise<string> {
 
 describe('gateway Plano Controle CQ', () => {
   it('falha fechado quando a conta técnica não está configurada', () => {
-    expect(() => readQualityControlDatasulConfig({ ...ENV, DATASUL_INTEGRATION_PASSWORD: '' }))
-      .toThrowError(expect.objectContaining({
-        status: 503, code: 'quality-control-gateway-not-configured',
-      }));
+    expect(() => readQualityControlDatasulConfig({ ...ENV, DATASUL_INTEGRATION_PASSWORD: '' })).toThrowError(
+      expect.objectContaining({
+        status: 503,
+        code: 'quality-control-gateway-not-configured',
+      }),
+    );
   });
 
   it('preserva companyId e Basic somente no cliente server-side', async () => {
-    const transport = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
-      total: 1, hasNext: false, items: [{
-        nrFicha: 64378, codExame: 1845, codComponente: 3, resultado: 1,
-        dentroFaixa: true, componentesSalvos: 1, componentesTotal: 1,
-      }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            total: 1,
+            hasNext: false,
+            items: [
+              {
+                nrFicha: 64378,
+                codExame: 1845,
+                codComponente: 3,
+                resultado: 1,
+                dentroFaixa: true,
+                componentesSalvos: 1,
+                componentesTotal: 1,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
     const client = new QualityControlDatasulClient(
       readQualityControlDatasulConfig(ENV),
       transport,
@@ -77,25 +104,37 @@ describe('gateway Plano Controle CQ', () => {
 
     const [url, init] = transport.mock.calls[0];
     expect(String(url)).toBe('https://datasul.example.test/api/fcq/v1/resultexames?companyId=1');
-    expect((init?.headers as Record<string, string>)['Authorization'])
-      .toBe(`Basic ${Buffer.from('integracao:segredo-tecnico', 'utf8').toString('base64')}`);
+    expect((init?.headers as Record<string, string>)['Authorization']).toBe(
+      `Basic ${Buffer.from('integracao:segredo-tecnico', 'utf8').toString('base64')}`,
+    );
   });
 
   it('mantém o endpoint normal compatível com o recibo real de ResultExames', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(
-      JSON.stringify(REAL_RESULT_EXAM_RECEIPT),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(REAL_RESULT_EXAM_RECEIPT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
-      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+      subject: 'OPERADOR1',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl],
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const response = await fetch(`${root}/results`, {
       method: 'PUT',
       headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ nrFicha: 64378, codExame: 1845, codComponente: 3, nrTabela: 8, seqOpcao: 1 }),
+      body: JSON.stringify({
+        nrFicha: 64378,
+        codExame: 1845,
+        codComponente: 3,
+        nrTabela: 8,
+        seqOpcao: 1,
+      }),
     });
 
     expect(response.status).toBe(200);
@@ -103,9 +142,17 @@ describe('gateway Plano Controle CQ', () => {
   });
 
   it('preserva a capitalização observada em roteiros e finalização', async () => {
-    const transport = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
-      total: 1, hasNext: false, items: [{ nrFicha: 64378 }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            total: 1,
+            hasNext: false,
+            items: [{ nrFicha: 64378 }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
     const client = new QualityControlDatasulClient(
       readQualityControlDatasulConfig(ENV),
       transport,
@@ -115,10 +162,10 @@ describe('gateway Plano Controle CQ', () => {
     await client.getRoute({ nrOrdemProducao: 372562, codOperacao: 20 });
     await client.finalizeRoute({ nrFicha: 64378, codUsuario: 'OPERADOR1' });
 
-    expect(String(transport.mock.calls[0][0]))
-      .toBe('https://datasul.example.test/api/fcq/v1/roteiros?companyid=1');
-    expect(String(transport.mock.calls[1][0]))
-      .toBe('https://datasul.example.test/api/fcq/v1/FinalizaRoteiros?companyId=1');
+    expect(String(transport.mock.calls[0][0])).toBe('https://datasul.example.test/api/fcq/v1/roteiros?companyid=1');
+    expect(String(transport.mock.calls[1][0])).toBe(
+      'https://datasul.example.test/api/fcq/v1/FinalizaRoteiros?companyId=1',
+    );
   });
 
   it('aceita somente JWT válido e deriva codUsuario do subject', async () => {
@@ -131,10 +178,11 @@ describe('gateway Plano Controle CQ', () => {
       now,
     });
 
-    await expect(resolveQualityControlUserId(`Bearer ${issued.token}`, ENV, now))
-      .resolves.toBe('OPERADOR1');
-    await expect(resolveQualityControlUserId('Bearer token-invalido', ENV, now))
-      .rejects.toMatchObject({ status: 401, code: 'invalid-session' });
+    await expect(resolveQualityControlUserId(`Bearer ${issued.token}`, ENV, now)).resolves.toBe('OPERADOR1');
+    await expect(resolveQualityControlUserId('Bearer token-invalido', ENV, now)).rejects.toMatchObject({
+      status: 401,
+      code: 'invalid-session',
+    });
   });
 
   it('bloqueia token válido sem permissão do Plano Controle CQ', async () => {
@@ -147,54 +195,113 @@ describe('gateway Plano Controle CQ', () => {
       now,
     });
 
-    await expect(resolveQualityControlUserId(`Bearer ${issued.token}`, ENV, now))
-      .rejects.toMatchObject({ status: 403, code: 'access-denied' });
+    await expect(resolveQualityControlUserId(`Bearer ${issued.token}`, ENV, now)).rejects.toMatchObject({
+      status: 403,
+      code: 'access-denied',
+    });
   });
 
   it('ignora codUsuario do browser e usa exclusivamente o subject validado', () => {
-    expect(buildQualityResultPayload({
-      nrFicha: 64378, codExame: 1845, codComponente: 3,
-      nrTabela: 8, seqOpcao: 1, codUsuario: 'NAO_CONFIAR',
-    }, 'OPERADOR1')).toEqual({
-      nrFicha: 64378, codExame: 1845, codComponente: 3,
-      nrTabela: 8, seqOpcao: 1, codUsuario: 'OPERADOR1',
+    expect(
+      buildQualityResultPayload(
+        {
+          nrFicha: 64378,
+          codExame: 1845,
+          codComponente: 3,
+          nrTabela: 8,
+          seqOpcao: 1,
+          codUsuario: 'NAO_CONFIAR',
+        },
+        'OPERADOR1',
+      ),
+    ).toEqual({
+      nrFicha: 64378,
+      codExame: 1845,
+      codComponente: 3,
+      nrTabela: 8,
+      seqOpcao: 1,
+      codUsuario: 'OPERADOR1',
     });
   });
 
   it('rejeita payload que mistura resultado numérico e opção tabelada', () => {
-    expect(() => buildQualityResultPayload({
-      nrFicha: 64378, codExame: 1845, codComponente: 3,
-      resultado: 1, nrTabela: 8, seqOpcao: 1,
-    }, 'OPERADOR1')).toThrowError(expect.objectContaining({
-      status: 400, code: 'invalid-request',
-    }));
+    expect(() =>
+      buildQualityResultPayload(
+        {
+          nrFicha: 64378,
+          codExame: 1845,
+          codComponente: 3,
+          resultado: 1,
+          nrTabela: 8,
+          seqOpcao: 1,
+        },
+        'OPERADOR1',
+      ),
+    ).toThrowError(
+      expect.objectContaining({
+        status: 400,
+        code: 'invalid-request',
+      }),
+    );
   });
 
   it('encaminha laudo não vazio como a única representação do tipoResultado 3', () => {
-    expect(buildQualityResultPayload({
-      nrFicha: 64391, codExame: 2000, codComponente: 10, laudo: ' 0 ',
-    }, 'Mjocelio')).toEqual({
-      nrFicha: 64391, codExame: 2000, codComponente: 10,
-      laudo: '0', codUsuario: 'Mjocelio',
+    expect(
+      buildQualityResultPayload(
+        {
+          nrFicha: 64391,
+          codExame: 2000,
+          codComponente: 10,
+          laudo: ' 0 ',
+        },
+        'Mjocelio',
+      ),
+    ).toEqual({
+      nrFicha: 64391,
+      codExame: 2000,
+      codComponente: 10,
+      laudo: '0',
+      codUsuario: 'Mjocelio',
     });
 
-    expect(() => buildQualityResultPayload({
-      nrFicha: 64391, codExame: 2000, codComponente: 10,
-      resultado: 0, laudo: '0',
-    }, 'Mjocelio')).toThrowError(expect.objectContaining({
-      status: 400, code: 'invalid-request',
-    }));
+    expect(() =>
+      buildQualityResultPayload(
+        {
+          nrFicha: 64391,
+          codExame: 2000,
+          codComponente: 10,
+          resultado: 0,
+          laudo: '0',
+        },
+        'Mjocelio',
+      ),
+    ).toThrowError(
+      expect.objectContaining({
+        status: 400,
+        code: 'invalid-request',
+      }),
+    );
   });
 
   it('instala rota Express autenticada, no-store e com método fechado', async () => {
-    const transport = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
-      total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [] } }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            total: 1,
+            hasNext: false,
+            items: [{ 'ds-ordem-producao': { ordem: [] } }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      subject: 'OPERADOR1',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
       permissions: [APP_PERMISSIONS.qualityControl],
-      ttlMs: 60_000, now: new Date(),
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const success = await fetch(`${root}/orders/372562`, {
@@ -204,25 +311,62 @@ describe('gateway Plano Controle CQ', () => {
 
     expect(success.status).toBe(200);
     expect(success.headers.get('cache-control')).toBe('no-store');
-    expect(String(transport.mock.calls[0][0]))
-      .toBe('https://datasul.example.test/api/fcq/v1/ordens/372562');
+    expect(String(transport.mock.calls[0][0])).toBe('https://datasul.example.test/api/fcq/v1/ordens/372562');
     expect(wrongMethod.status).toBe(405);
     expect(wrongMethod.headers.get('allow')).toBe('PUT');
   });
 
   it('consulta todas as fichas pendentes com identidade e empresa definidas no servidor', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      total: 1, hasNext: false, items: [{ roteirosEmAnalise: [{
-        liberada: false, componentesTotal: 1, sequenciaOperacao: 1, situacao: 2,
-        nrFicha: 64382, descricaoItem: 'ALAVANCA', nrOrdemProducao: 372562,
-        inspecionado: false, componentesForaFaixa: 1, narrativa: '', codItem: '30907',
-      }] }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          total: 1,
+          hasNext: false,
+          items: [
+            {
+              'ds-autorizacao': {
+                roteirosEmAnalise: [
+                  {
+                    liberada: false,
+                    componentesTotal: 1,
+                    sequenciaOperacao: 1,
+                    situacao: 2,
+                    nrFicha: 64382,
+                    descricaoItem: 'ALAVANCA',
+                    nrOrdemProducao: 372562,
+                    inspecionado: false,
+                    componentesForaFaixa: 1,
+                    narrativa: '',
+                    codItem: '30907',
+                    resultados: [
+                      {
+                        nrFicha: 64382,
+                        codExame: 164,
+                        codComponente: 10,
+                        seqComp: 10,
+                        tipoResultado: 1,
+                        resultado: 0,
+                        laudo: '',
+                        nrTabela: 0,
+                        dentroFaixa: false,
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
       permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
-      ttlMs: 60_000, now: new Date(),
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const response = await fetch(`${root}/route-authorizations?nrOrdemProducao=372562&opCodigo=10`, {
@@ -238,18 +382,42 @@ describe('gateway Plano Controle CQ', () => {
   });
 
   it('finaliza com autorização por POST usando somente nrFicha controlada pelo browser', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      total: 1, hasNext: false, items: [{ 'ds-finaliza': { roteiro: [{
-        componentesTotal: 1, situacao: 4, componentesSalvos: 1, nrFicha: 64461,
-        mensagem: 'Finalizado', inspecionado: true, componentesForaFaixa: 1,
-        finalizado: true, componentesPendentes: 0, exames: [],
-      }] } }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          total: 1,
+          hasNext: false,
+          items: [
+            {
+              'ds-finaliza': {
+                roteiro: [
+                  {
+                    componentesTotal: 1,
+                    situacao: 4,
+                    componentesSalvos: 1,
+                    nrFicha: 64461,
+                    mensagem: 'Finalizado',
+                    inspecionado: true,
+                    componentesForaFaixa: 1,
+                    finalizado: true,
+                    componentesPendentes: 0,
+                    exames: [],
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
       permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
-      ttlMs: 60_000, now: new Date(),
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const response = await fetch(`${root}/route-authorizations/finalize`, {
@@ -260,22 +428,29 @@ describe('gateway Plano Controle CQ', () => {
 
     expect(response.status).toBe(200);
     const [url, init] = transport.mock.calls[0];
-    expect(String(url)).toBe(
-      'https://datasul.example.test/api/fcq/v1/finalizaroteirosautorizado?companyId=1',
-    );
+    expect(String(url)).toBe('https://datasul.example.test/api/fcq/v1/finalizaroteirosautorizado?companyId=1');
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({ nrFicha: 64461, codUsuario: 'Mjocelio' });
   });
 
   it('sanitiza envelope inválido do Datasul antes de responder ao browser', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      total: 1, hasNext: false, items: [{ roteirosEmAnalise: [{ nrFicha: 64382 }] }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          total: 1,
+          hasNext: false,
+          items: [{ roteirosEmAnalise: [{ nrFicha: 64382 }] }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
       permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
-      ttlMs: 60_000, now: new Date(),
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const response = await fetch(`${root}/route-authorizations?nrOrdemProducao=372562&opCodigo=10`, {
@@ -290,8 +465,11 @@ describe('gateway Plano Controle CQ', () => {
     const transport = vi.fn<typeof fetch>();
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
-      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+      subject: 'OPERADOR1',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl],
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const response = await fetch(`${root}/route-authorizations?nrOrdemProducao=372562&opCodigo=10`, {
@@ -309,55 +487,80 @@ describe('gateway Plano Controle CQ', () => {
   });
 
   it('busca o roteiro autorizado com empresa e identidade definidas no servidor', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      total: 2, hasNext: false, items: [
-        { nrFicha: 64461, 'ds-roteiro': { exames: [] } },
-        { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
-      ],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          total: 2,
+          hasNext: false,
+          items: [
+            { nrFicha: 64461, 'ds-roteiro': { exames: [] } },
+            { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
       permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
-      ttlMs: 60_000, now: new Date(),
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const response = await fetch(`${root}/route-authorizations/route`, {
       method: 'POST',
       headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
-        nrFicha: 64462, nrOrdemProducao: 372562, codOperacao: 10,
-        companyId: 999, codUsuario: 'NAO_CONFIAR',
+        nrFicha: 64462,
+        nrOrdemProducao: 372562,
+        codOperacao: 10,
+        companyId: 999,
+        codUsuario: 'NAO_CONFIAR',
       }),
     });
 
     expect(response.status).toBe(200);
-    expect(String(transport.mock.calls[0][0])).toBe(
-      'https://datasul.example.test/api/fcq/v1/roteiros?companyid=1',
-    );
+    expect(String(transport.mock.calls[0][0])).toBe('https://datasul.example.test/api/fcq/v1/roteiros?companyid=1');
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
-      nrOrdemProducao: 372562, codOperacao: 10,
+      nrOrdemProducao: 372562,
+      codOperacao: 10,
     });
     await expect(response.json()).resolves.toEqual({
-      total: 1, hasNext: false, items: [{ nrFicha: 64462, 'ds-roteiro': { exames: [] } }],
+      total: 1,
+      hasNext: false,
+      items: [{ nrFicha: 64462, 'ds-roteiro': { exames: [] } }],
     });
   });
 
   it.each([
     ['não encontrada', [{ nrFicha: 64461, 'ds-roteiro': { exames: [] } }]],
-    ['duplicada', [
-      { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
-      { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
-    ]],
+    [
+      'duplicada',
+      [
+        { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
+        { nrFicha: 64462, 'ds-roteiro': { exames: [] } },
+      ],
+    ],
   ])('recusa ficha autorizada %s', async (_caseName, items) => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      total: items.length, hasNext: false, items,
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          total: items.length,
+          hasNext: false,
+          items,
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
       permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
-      ttlMs: 60_000, now: new Date(),
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const response = await fetch(`${root}/route-authorizations/route`, {
@@ -371,39 +574,75 @@ describe('gateway Plano Controle CQ', () => {
   });
 
   it('salva resultado autorizado nas três representações e deriva codUsuario da sessão', async () => {
-    const transport = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
-      total: 1, hasNext: false, items: [{
-        nrFicha: 64462, codExame: 1845, codComponente: 3,
-        resultado: 1, dentroFaixa: true, componentesSalvos: 1, componentesTotal: 2,
-      }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const transport = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            total: 1,
+            hasNext: false,
+            items: [
+              {
+                nrFicha: 64462,
+                codExame: 1845,
+                codComponente: 3,
+                resultado: 1,
+                dentroFaixa: true,
+                componentesSalvos: 1,
+                componentesTotal: 2,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
     const root = await startGateway(transport);
     const issued = await createAppSessionToken({
-      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
       permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
-      ttlMs: 60_000, now: new Date(),
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
-    for (const payload of [
-      { resultado: 24.01 },
-      { nrTabela: 8, seqOpcao: 1 },
-      { laudo: '  aprovado ' },
-    ]) {
+    for (const payload of [{ resultado: 24.01 }, { nrTabela: 8, seqOpcao: 1 }, { laudo: '  aprovado ' }]) {
       const response = await fetch(`${root}/route-authorizations/results`, {
         method: 'PUT',
         headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
         body: JSON.stringify({
-          nrFicha: 64462, codExame: 1845, codComponente: 3,
-          codUsuario: 'NAO_CONFIAR', companyId: 999, ...payload,
+          nrFicha: 64462,
+          codExame: 1845,
+          codComponente: 3,
+          codUsuario: 'NAO_CONFIAR',
+          companyId: 999,
+          ...payload,
         }),
       });
       expect(response.status).toBe(200);
     }
 
     expect(transport.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([
-      { nrFicha: 64462, codExame: 1845, codComponente: 3, resultado: 24.01, codUsuario: 'Mjocelio' },
-      { nrFicha: 64462, codExame: 1845, codComponente: 3, nrTabela: 8, seqOpcao: 1, codUsuario: 'Mjocelio' },
-      { nrFicha: 64462, codExame: 1845, codComponente: 3, laudo: 'aprovado', codUsuario: 'Mjocelio' },
+      {
+        nrFicha: 64462,
+        codExame: 1845,
+        codComponente: 3,
+        resultado: 24.01,
+        codUsuario: 'Mjocelio',
+      },
+      {
+        nrFicha: 64462,
+        codExame: 1845,
+        codComponente: 3,
+        nrTabela: 8,
+        seqOpcao: 1,
+        codUsuario: 'Mjocelio',
+      },
+      {
+        nrFicha: 64462,
+        codExame: 1845,
+        codComponente: 3,
+        laudo: 'aprovado',
+        codUsuario: 'Mjocelio',
+      },
     ]);
   });
 
@@ -411,12 +650,18 @@ describe('gateway Plano Controle CQ', () => {
     const transport = vi.fn<typeof fetch>();
     const root = await startGateway(transport);
     const fcq0001 = await createAppSessionToken({
-      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
-      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+      subject: 'OPERADOR1',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl],
+      ttlMs: 60_000,
+      now: new Date(),
     });
     const fcq0002 = await createAppSessionToken({
-      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
-      permissions: [APP_PERMISSIONS.divergentRouteAuthorization], ttlMs: 60_000, now: new Date(),
+      subject: 'OPERADOR1',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
     });
 
     const forbidden = await fetch(`${root}/route-authorizations/route`, {
@@ -428,8 +673,12 @@ describe('gateway Plano Controle CQ', () => {
       method: 'PUT',
       headers: { authorization: `Bearer ${fcq0002.token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
-        nrFicha: 64462, codExame: 1845, codComponente: 3,
-        resultado: 1, nrTabela: 8, seqOpcao: 1,
+        nrFicha: 64462,
+        codExame: 1845,
+        codComponente: 3,
+        resultado: 1,
+        nrTabela: 8,
+        seqOpcao: 1,
       }),
     });
     const wrongMethod = await fetch(`${root}/route-authorizations/results`, { method: 'POST' });

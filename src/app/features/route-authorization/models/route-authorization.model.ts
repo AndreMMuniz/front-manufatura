@@ -10,6 +10,19 @@ export interface PendingAuthorizedRoute {
   readonly totalComponents: number;
   readonly outOfRangeComponents: number;
   readonly narrative: string;
+  readonly componentResults: readonly PendingAuthorizedComponentResult[];
+}
+
+export interface PendingAuthorizedComponentResult {
+  readonly sheetNumber: number;
+  readonly examCode: number;
+  readonly componentCode: number;
+  readonly componentSequence: number;
+  readonly resultType: number;
+  readonly result: number;
+  readonly report: string;
+  readonly tableNumber: number;
+  readonly withinRange: boolean;
 }
 
 export interface AuthorizedRouteFinalization {
@@ -38,9 +51,7 @@ export interface AuthorizedRouteFinalizationRefusal {
   readonly exams: readonly AuthorizedRouteExamSummary[];
 }
 
-export type AuthorizedRouteFinalizationOutcome =
-  | AuthorizedRouteFinalization
-  | AuthorizedRouteFinalizationRefusal;
+export type AuthorizedRouteFinalizationOutcome = AuthorizedRouteFinalization | AuthorizedRouteFinalizationRefusal;
 
 export type AuthorizedComponentResultRequest =
   | { readonly kind: 'numeric'; readonly result: number }

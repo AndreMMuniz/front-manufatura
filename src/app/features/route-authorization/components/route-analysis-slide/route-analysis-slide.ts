@@ -33,8 +33,7 @@ import {
 } from '../../models/route-authorization.model';
 import { RouteAuthorizationService } from '../../services/route-authorization.service';
 
-export type ComponentSessionStatus =
-  | 'unverified' | 'saving' | 'approved' | 'out-of-range' | 'error';
+export type ComponentSessionStatus = 'unverified' | 'saving' | 'approved' | 'out-of-range' | 'error';
 
 export interface ComponentDraft {
   readonly status: ComponentSessionStatus;
@@ -65,7 +64,8 @@ export class RouteAnalysisSlide {
   @Output() readonly routeFinalized = new EventEmitter<AuthorizedRouteFinalizationOutcome>();
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
-  @ViewChild('analysisTitle', { static: true }) private analysisTitle!: ElementRef<HTMLHeadingElement>;
+  @ViewChild('analysisTitle', { static: true })
+  private analysisTitle!: ElementRef<HTMLHeadingElement>;
 
   private readonly service = inject(RouteAuthorizationService);
   private readonly dialog = inject(PoDialogService);
@@ -83,17 +83,20 @@ export class RouteAnalysisSlide {
   readonly feedback = signal('');
   private readonly drafts = signal<Record<string, ComponentDraft>>({});
 
-  readonly totalComponents = computed(() =>
-    this.exams().reduce((total, exam) => total + exam.components.length, 0));
-  readonly verifiedComponents = computed(() =>
-    Object.values(this.drafts()).filter(draft =>
-      draft.status === 'approved' || draft.status === 'out-of-range').length);
+  readonly totalComponents = computed(() => this.exams().reduce((total, exam) => total + exam.components.length, 0));
+  readonly verifiedComponents = computed(
+    () =>
+      Object.values(this.drafts()).filter(draft => draft.status === 'approved' || draft.status === 'out-of-range')
+        .length,
+  );
   readonly canFinalize = computed(() => {
-    return Boolean(this.route()?.nrFicha)
-      && !this.loading()
-      && !this.finalizing()
-      && !this.hasSavingComponent()
-      && !this.hasUnsavedDraft();
+    return (
+      Boolean(this.route()?.nrFicha) &&
+      !this.loading() &&
+      !this.finalizing() &&
+      !this.hasSavingComponent() &&
+      !this.hasUnsavedDraft()
+    );
   });
 
   open(route: PendingAuthorizedRoute, operationCode: number): void {
@@ -112,14 +115,15 @@ export class RouteAnalysisSlide {
     this.pageSlide.open();
     this.focusTitleAfterOpen(version);
 
-    this.service.loadRoute(route, operationCode)
+    this.service
+      .loadRoute(route, operationCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: result => {
           if (version !== this.loadVersion) return;
           this.route.set(result.route);
           this.exams.set(result.exams);
-          this.drafts.set(initialDrafts(result.exams));
+          this.drafts.set(initialDrafts(result.exams, route));
           this.loading.set(false);
           this.feedback.set('Ficha carregada.');
         },
@@ -142,13 +146,16 @@ export class RouteAnalysisSlide {
   statusTextFor(component: QualityExamComponent): string {
     const draft = this.draftFor(component);
     switch (draft.status) {
-      case 'saving': return 'Salvando resultado...';
-      case 'approved': return 'Aprovado pelo Datasul';
-      case 'out-of-range': return 'Fora da faixa confirmado pelo Datasul';
-      case 'error': return draft.message || 'Não foi possível salvar o resultado';
-      default: return this.isSupported(component)
-        ? 'Não verificado'
-        : 'Não verificado — resultado indisponível para edição';
+      case 'saving':
+        return 'Salvando resultado...';
+      case 'approved':
+        return 'Aprovado pelo Datasul';
+      case 'out-of-range':
+        return 'Fora da faixa confirmado pelo Datasul';
+      case 'error':
+        return draft.message || 'Não foi possível salvar o resultado';
+      default:
+        return this.isSupported(component) ? 'Não verificado' : 'Não verificado — resultado indisponível para edição';
     }
   }
 
@@ -161,19 +168,23 @@ export class RouteAnalysisSlide {
   }
 
   isSupported(component: QualityExamComponent): boolean {
-    return component.resultType === 1
-      || component.resultType === 2
-      || component.resultType === 3
-      || component.resultType === 4;
+    return (
+      component.resultType === 1 ||
+      component.resultType === 2 ||
+      component.resultType === 3 ||
+      component.resultType === 4
+    );
   }
 
   canSave(component: QualityExamComponent): boolean {
-    return this.isSupported(component)
-      && this.draftFor(component).isDirty
-      && !this.isLocked(component)
-      && !this.isSaving(component)
-      && !this.loading()
-      && !this.finalizing();
+    return (
+      this.isSupported(component) &&
+      this.draftFor(component).isDirty &&
+      !this.isLocked(component) &&
+      !this.isSaving(component) &&
+      !this.loading() &&
+      !this.finalizing()
+    );
   }
 
   tableOptionsFor(component: QualityExamComponent): ReadonlyArray<PoSelectOption> {
@@ -184,7 +195,9 @@ export class RouteAnalysisSlide {
   }
 
   updateResult(component: QualityExamComponent, value: string | number | null | undefined): void {
-    this.updateDraft(component, { result: value === null || value === undefined ? '' : String(value) });
+    this.updateDraft(component, {
+      result: value === null || value === undefined ? '' : String(value),
+    });
   }
 
   updateSelectedOption(component: QualityExamComponent, value: string | null | undefined): void {
@@ -214,12 +227,17 @@ export class RouteAnalysisSlide {
     const examCode = component.examCode ?? positiveInteger(exam.code);
     const componentCode = component.componentCode ?? positiveInteger(component.code);
     if (!sheetNumber || !examCode || !componentCode) {
-      this.setDraft(component, { ...this.draftFor(component), status: 'error', message: 'Identidade do componente indisponível.' });
+      this.setDraft(component, {
+        ...this.draftFor(component),
+        status: 'error',
+        message: 'Identidade do componente indisponível.',
+      });
       return;
     }
 
     this.setDraft(component, { ...this.draftFor(component), status: 'saving', message: '' });
-    this.service.saveComponent(sheetNumber, examCode, componentCode, request)
+    this.service
+      .saveComponent(sheetNumber, examCode, componentCode, request)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: result => {
@@ -268,7 +286,8 @@ export class RouteAnalysisSlide {
 
     this.finalizing.set(true);
     this.feedback.set(`Finalizando ficha ${route.nrFicha}...`);
-    this.service.finalize(route.nrFicha)
+    this.service
+      .finalize(route.nrFicha)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: result => {
@@ -325,28 +344,45 @@ export class RouteAnalysisSlide {
     if (component.resultType === 1 || component.resultType === 4) {
       const result = parseNumericResult(draft.result, component.decimalPlaces);
       if (result === null) {
-        this.setDraft(component, { ...draft, status: 'error', message: numericValidationMessage(component.decimalPlaces) });
+        this.setDraft(component, {
+          ...draft,
+          status: 'error',
+          message: numericValidationMessage(component.decimalPlaces),
+        });
         return null;
       }
       return { kind: 'numeric', result };
     }
     if (component.resultType === 2) {
-      const option = (component.resultOptions ?? []).find(item =>
-        optionKey(item.tableNumber, item.sequence) === draft.selectedOptionKey);
+      const option = (component.resultOptions ?? []).find(
+        item => optionKey(item.tableNumber, item.sequence) === draft.selectedOptionKey,
+      );
       if (!option) {
-        this.setDraft(component, { ...draft, status: 'error', message: 'Selecione uma opção válida da tabela.' });
+        this.setDraft(component, {
+          ...draft,
+          status: 'error',
+          message: 'Selecione uma opção válida da tabela.',
+        });
         return null;
       }
       return { kind: 'table', tableNumber: option.tableNumber, optionSequence: option.sequence };
     }
     if (component.resultType === 3) {
       if (!draft.report.trim()) {
-        this.setDraft(component, { ...draft, status: 'error', message: 'Informe o laudo para salvar.' });
+        this.setDraft(component, {
+          ...draft,
+          status: 'error',
+          message: 'Informe o laudo para salvar.',
+        });
         return null;
       }
       return { kind: 'report', report: draft.report.trim() };
     }
-    this.setDraft(component, { ...draft, status: 'error', message: 'Tipo de resultado não suportado para salvamento.' });
+    this.setDraft(component, {
+      ...draft,
+      status: 'error',
+      message: 'Tipo de resultado não suportado para salvamento.',
+    });
     return null;
   }
 
@@ -354,13 +390,11 @@ export class RouteAnalysisSlide {
     if (this.isLocked(component) || this.isSaving(component) || this.finalizing()) return;
     const previous = this.draftFor(component);
     const next = { ...previous, ...change };
-    const isDirty = next.confirmation
-      ? !matchesConfirmation(next, next.confirmation)
-      : hasDraftValue(next);
+    const isDirty = next.confirmation ? !matchesConfirmation(next, next.confirmation) : hasDraftValue(next);
     this.setDraft(component, {
       ...next,
       isDirty,
-      status: isDirty ? 'unverified' : next.confirmation?.status ?? 'unverified',
+      status: isDirty ? 'unverified' : (next.confirmation?.status ?? 'unverified'),
       message: isDirty ? '' : confirmationMessage(next.confirmation),
     });
   }
@@ -382,12 +416,15 @@ export class RouteAnalysisSlide {
   }
 
   private focusTitleAfterOpen(version: number): void {
-    afterNextRender(() => {
-      setTimeout(() => {
-        const title = this.analysisTitle.nativeElement;
-        if (this.isOpen && version === this.loadVersion && title.isConnected) title.focus();
-      }, 0);
-    }, { injector: this.injector });
+    afterNextRender(
+      () => {
+        setTimeout(() => {
+          const title = this.analysisTitle.nativeElement;
+          if (this.isOpen && version === this.loadVersion && title.isConnected) title.focus();
+        }, 0);
+      },
+      { injector: this.injector },
+    );
   }
 
   private close(fromNativeClose: boolean): void {
@@ -409,14 +446,21 @@ export class RouteAnalysisSlide {
 
 function emptyDraft(): ComponentDraft {
   return {
-    status: 'unverified', result: '', report: '', selectedOptionKey: '', message: '', isDirty: false,
+    status: 'unverified',
+    result: '',
+    report: '',
+    selectedOptionKey: '',
+    message: '',
+    isDirty: false,
   };
 }
 
 function matchesConfirmation(draft: ComponentDraft, confirmation: ComponentDraftConfirmation): boolean {
-  return draft.result === confirmation.result
-    && draft.report === confirmation.report
-    && draft.selectedOptionKey === confirmation.selectedOptionKey;
+  return (
+    draft.result === confirmation.result &&
+    draft.report === confirmation.report &&
+    draft.selectedOptionKey === confirmation.selectedOptionKey
+  );
 }
 
 function hasDraftValue(draft: ComponentDraft): boolean {
@@ -430,9 +474,37 @@ function confirmationMessage(confirmation: ComponentDraftConfirmation | undefine
     : 'Fora da faixa confirmado pelo Datasul; o resultado continua editável.';
 }
 
-function initialDrafts(exams: ReadonlyArray<QualityExam>): Record<string, ComponentDraft> {
-  return Object.fromEntries(exams.flatMap(exam => exam.components.map(component =>
-    [component.id, emptyDraft()] as const)));
+function initialDrafts(
+  exams: ReadonlyArray<QualityExam>,
+  route: PendingAuthorizedRoute,
+): Record<string, ComponentDraft> {
+  return Object.fromEntries(
+    exams.flatMap(exam => exam.components.map(component => [component.id, initialDraft(component, route)] as const)),
+  );
+}
+
+function initialDraft(component: QualityExamComponent, route: PendingAuthorizedRoute): ComponentDraft {
+  const examCode = component.examCode ?? positiveInteger(component.code);
+  const componentCode = component.componentCode ?? positiveInteger(component.code);
+  const saved = route.componentResults.find(
+    result => result.examCode === examCode && result.componentCode === componentCode,
+  );
+  if (!saved) return emptyDraft();
+
+  const status = saved.withinRange ? 'approved' : 'out-of-range';
+  const result = component.resultType === 1 || component.resultType === 4 ? String(saved.result) : '';
+  const report = component.resultType === 3 ? saved.report : '';
+  const selectedOptionKey = '';
+  const confirmation = { status, result, report, selectedOptionKey } as const;
+  return {
+    status,
+    result,
+    report,
+    selectedOptionKey,
+    message: confirmationMessage(confirmation),
+    isDirty: false,
+    confirmation,
+  };
 }
 
 function optionKey(tableNumber: number, sequence: number): string {
@@ -455,7 +527,5 @@ function numericValidationMessage(decimalPlaces: number | undefined): string {
 }
 
 function positiveInteger(value: string): number | null {
-  return /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) > 0
-    ? Number(value)
-    : null;
+  return /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : null;
 }

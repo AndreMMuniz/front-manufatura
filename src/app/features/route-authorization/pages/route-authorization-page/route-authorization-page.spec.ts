@@ -101,8 +101,7 @@ describe('RouteAuthorizationPage', () => {
   });
 
   it('preserva filtros, descarta fichas antigas em falha e permite retry manual', () => {
-    service.search.mockReturnValueOnce(throwError(() => new Error('network')))
-      .mockReturnValueOnce(of([route(64382)]));
+    service.search.mockReturnValueOnce(throwError(() => new Error('network'))).mockReturnValueOnce(of([route(64382)]));
     component.orderNumber.set('372562');
     component.operationCode.set('10');
     component.routes.set([route(64442)]);
@@ -149,9 +148,16 @@ describe('RouteAuthorizationPage', () => {
     document.body.append(focusSink);
     focusSink.focus();
     analysisSlide.routeFinalized.emit({
-      sheetNumber: 64382, finalized: false, inspected: false,
-      totalComponents: 1, savedComponents: 0, pendingComponents: 1,
-      outOfRangeComponents: 1, statusCode: 2, message: 'Há componentes pendentes', exams: [],
+      sheetNumber: 64382,
+      finalized: false,
+      inspected: false,
+      totalComponents: 1,
+      savedComponents: 0,
+      pendingComponents: 1,
+      outOfRangeComponents: 1,
+      statusCode: 2,
+      message: 'Há componentes pendentes',
+      exams: [],
     });
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64382, 64442]);
     analysisSlide.analysisClosed.emit();
@@ -160,9 +166,16 @@ describe('RouteAuthorizationPage', () => {
     expect(document.activeElement).toBe(nativeButton);
     focusSink.remove();
     analysisSlide.routeFinalized.emit({
-      sheetNumber: 64382, finalized: true, inspected: true,
-      totalComponents: 1, savedComponents: 1, pendingComponents: 0,
-      outOfRangeComponents: 1, statusCode: 4, message: 'Ficha finalizada', exams: [],
+      sheetNumber: 64382,
+      finalized: true,
+      inspected: true,
+      totalComponents: 1,
+      savedComponents: 1,
+      pendingComponents: 0,
+      outOfRangeComponents: 1,
+      statusCode: 4,
+      message: 'Ficha finalizada',
+      exams: [],
     });
 
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64442]);
@@ -172,7 +185,8 @@ describe('RouteAuthorizationPage', () => {
 
   it('não tenta focar uma ficha removida após finalização bem-sucedida', async () => {
     fixture.detectChanges();
-    const analysisSlide = fixture.debugElement.query(By.directive(RouteAnalysisSlide)).componentInstance as RouteAnalysisSlide;
+    const analysisSlide = fixture.debugElement.query(By.directive(RouteAnalysisSlide))
+      .componentInstance as RouteAnalysisSlide;
     vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
     component.routes.set([route(64382)]);
     component.state.set('ready');
@@ -183,9 +197,16 @@ describe('RouteAuthorizationPage', () => {
 
     analysisButton.click.emit(null);
     analysisSlide.routeFinalized.emit({
-      sheetNumber: 64382, finalized: true, inspected: true,
-      totalComponents: 1, savedComponents: 1, pendingComponents: 0,
-      outOfRangeComponents: 1, statusCode: 4, message: 'Ficha finalizada', exams: [],
+      sheetNumber: 64382,
+      finalized: true,
+      inspected: true,
+      totalComponents: 1,
+      savedComponents: 1,
+      pendingComponents: 0,
+      outOfRangeComponents: 1,
+      statusCode: 4,
+      message: 'Ficha finalizada',
+      exams: [],
     });
     fixture.detectChanges();
     expect(fixture.debugElement.query(By.css('.route-card__actions po-button'))).toBeNull();
@@ -199,9 +220,17 @@ describe('RouteAuthorizationPage', () => {
 
 function route(sheetNumber: number): PendingAuthorizedRoute {
   return {
-    sheetNumber, productionOrderNumber: 372562, itemCode: '30907',
-    itemDescription: 'ALAVANCA', operationSequence: 1, statusCode: 2,
-    released: false, inspected: false, totalComponents: 4,
-    outOfRangeComponents: 1, narrative: '',
+    sheetNumber,
+    productionOrderNumber: 372562,
+    itemCode: '30907',
+    itemDescription: 'ALAVANCA',
+    operationSequence: 1,
+    statusCode: 2,
+    released: false,
+    inspected: false,
+    totalComponents: 4,
+    outOfRangeComponents: 1,
+    narrative: '',
+    componentResults: [],
   };
 }

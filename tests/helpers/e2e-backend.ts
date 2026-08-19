@@ -21,39 +21,79 @@ const AREAS = [
 
 const WORK_CENTERS = [
   {
-    code: 'CT-EXT-01', description: 'Extrusao Linha 01', areaCode: '4001',
-    area: 'Producao', machineGroup: 'Extrusoras', establishment: '101', active: true,
+    code: 'CT-EXT-01',
+    description: 'Extrusao Linha 01',
+    areaCode: '4001',
+    area: 'Producao',
+    machineGroup: 'Extrusoras',
+    establishment: '101',
+    active: true,
   },
   {
-    code: 'CT-CQ-01', description: 'Controle de Qualidade', areaCode: '4002',
-    area: 'Qualidade', machineGroup: 'Qualidade', establishment: '101', active: true,
+    code: 'CT-CQ-01',
+    description: 'Controle de Qualidade',
+    areaCode: '4002',
+    area: 'Qualidade',
+    machineGroup: 'Qualidade',
+    establishment: '101',
+    active: true,
   },
 ];
 
 const ORDERS = [
   {
-    id: '450001|PERFIL-100 / OP-10458|10|01', ordem: '450001',
-    itemOp: 'PERFIL-100 / OP-10458', operacao: '10', split: '01',
-    areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    id: '450001|PERFIL-100 / OP-10458|10|01',
+    ordem: '450001',
+    itemOp: 'PERFIL-100 / OP-10458',
+    operacao: '10',
+    split: '01',
+    areaCode: '4001',
+    workCenterCode: 'CT-EXT-01',
   },
   {
-    id: '450002|PERFIL-200 / OP-10459|20|01', ordem: '450002',
-    itemOp: 'PERFIL-200 / OP-10459', operacao: '20', split: '01',
-    areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    id: '450002|PERFIL-200 / OP-10459|20|01',
+    ordem: '450002',
+    itemOp: 'PERFIL-200 / OP-10459',
+    operacao: '20',
+    split: '01',
+    areaCode: '4001',
+    workCenterCode: 'CT-EXT-01',
   },
 ];
 
 const OPERATION_DETAILS: Record<string, object> = {
   '450001': {
-    ordem: '450001', op: '10', split: '01', item: 'PERFIL-100', descricao: 'Perfil 100',
-    unidade: 'PC', roteiro: '10 - Extrusão', quantidadeOrdem: 500, quantidadeSaldo: 320,
-    linha: 'Extrusão', ct: 'CT-EXT-01', grupoMaquina: 'Extrusoras', operador: '', equipe: '',
+    ordem: '450001',
+    op: '10',
+    split: '01',
+    item: 'PERFIL-100',
+    descricao: 'Perfil 100',
+    unidade: 'PC',
+    roteiro: '10 - Extrusão',
+    quantidadeOrdem: 500,
+    quantidadeSaldo: 320,
+    linha: 'Extrusão',
+    ct: 'CT-EXT-01',
+    grupoMaquina: 'Extrusoras',
+    operador: '',
+    equipe: '',
     turno: '1º Turno',
   },
   '450002': {
-    ordem: '450002', op: '20', split: '01', item: 'PERFIL-200', descricao: 'Perfil 200',
-    unidade: 'PC', roteiro: '20 - Acabamento', quantidadeOrdem: 400, quantidadeSaldo: 250,
-    linha: 'Extrusão', ct: 'CT-EXT-01', grupoMaquina: 'Extrusoras', operador: '', equipe: '',
+    ordem: '450002',
+    op: '20',
+    split: '01',
+    item: 'PERFIL-200',
+    descricao: 'Perfil 200',
+    unidade: 'PC',
+    roteiro: '20 - Acabamento',
+    quantidadeOrdem: 400,
+    quantidadeSaldo: 250,
+    linha: 'Extrusão',
+    ct: 'CT-EXT-01',
+    grupoMaquina: 'Extrusoras',
+    operador: '',
+    equipe: '',
     turno: '1º Turno',
   },
 };
@@ -61,59 +101,103 @@ const OPERATION_DETAILS: Record<string, object> = {
 const QUALITY_ORDER = {
   total: 1,
   hasNext: false,
-  items: [{
-    'ds-ordem-producao': {
-      ordem: [{
-        nrOrdemProducao: 325571,
-        codItem: '30907',
-        operacoes: [
-          { codOperacao: 10, descricaoOperacao: 'Cortar chapa', codItem: '30907', splits: [{ numSplit: 1 }] },
-          { codOperacao: 20, descricaoOperacao: 'Dobrar chapa', codItem: '30907', splits: [{ numSplit: 1 }] },
-          { codOperacao: 30, descricaoOperacao: 'Soldar', codItem: '30907', splits: [{ numSplit: 1 }] },
+  items: [
+    {
+      'ds-ordem-producao': {
+        ordem: [
+          {
+            nrOrdemProducao: 325571,
+            codItem: '30907',
+            operacoes: [
+              {
+                codOperacao: 10,
+                descricaoOperacao: 'Cortar chapa',
+                codItem: '30907',
+                splits: [{ numSplit: 1 }],
+              },
+              {
+                codOperacao: 20,
+                descricaoOperacao: 'Dobrar chapa',
+                codItem: '30907',
+                splits: [{ numSplit: 1 }],
+              },
+              {
+                codOperacao: 30,
+                descricaoOperacao: 'Soldar',
+                codItem: '30907',
+                splits: [{ numSplit: 1 }],
+              },
+            ],
+          },
         ],
-      }],
+      },
     },
-  }],
+  ],
 };
 
 const QUALITY_ROUTE = {
   total: 1,
   hasNext: false,
-  items: [{
-    nrFicha: 475956,
-    'ds-roteiro': {
-      exames: [{
-        codExame: 500517,
-        descricao: 'Filmes e Mangueiras',
-        versao: 1,
-        frequencia: 2,
-        amostra: 1,
-        nivel: 1,
-        nqa: 0,
-        responsavel: 'BUENO',
-        observacao: 'Visual 100% do corte !',
-        componentes: [
-          qualityComponent(10, 'Cota 488,0 +/- 3,0mm', 485, 491, 'Régua'),
-          qualityComponent(20, 'Cota 255,0 +/- 0,5mm', 254.5, 255.5, 'Paquímetro'),
-          qualityComponent(30, 'Cota 380,0 +/- 5,0mm', 375, 385, 'Régua'),
+  items: [
+    {
+      nrFicha: 475956,
+      'ds-roteiro': {
+        exames: [
+          {
+            codExame: 500517,
+            descricao: 'Filmes e Mangueiras',
+            versao: 1,
+            frequencia: 2,
+            amostra: 1,
+            nivel: 1,
+            nqa: 0,
+            responsavel: 'BUENO',
+            observacao: 'Visual 100% do corte !',
+            componentes: [
+              qualityComponent(10, 'Cota 488,0 +/- 3,0mm', 485, 491, 'Régua'),
+              qualityComponent(20, 'Cota 255,0 +/- 0,5mm', 254.5, 255.5, 'Paquímetro'),
+              qualityComponent(30, 'Cota 380,0 +/- 5,0mm', 375, 385, 'Régua'),
+            ],
+          },
         ],
-      }],
+      },
     },
-  }],
+  ],
 };
 
 const ROUTES_PENDING_AUTHORIZATION = [
   {
-    liberada: false, componentesTotal: 1, sequenciaOperacao: 1, situacao: 2,
-    nrFicha: 64382, descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
-    nrOrdemProducao: 372562, inspecionado: false, componentesForaFaixa: 1,
-    narrativa: '', codItem: '30907',
+    liberada: false,
+    componentesTotal: 1,
+    sequenciaOperacao: 1,
+    situacao: 2,
+    nrFicha: 64382,
+    descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+    nrOrdemProducao: 372562,
+    inspecionado: false,
+    componentesForaFaixa: 1,
+    narrativa: '',
+    codItem: '30907',
+    resultados: [authorizationResult(64382, 10, false, 0)],
   },
   {
-    liberada: false, componentesTotal: 4, sequenciaOperacao: 1, situacao: 2,
-    nrFicha: 64442, descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
-    nrOrdemProducao: 372562, inspecionado: false, componentesForaFaixa: 1,
-    narrativa: '', codItem: '30907',
+    liberada: false,
+    componentesTotal: 4,
+    sequenciaOperacao: 1,
+    situacao: 2,
+    nrFicha: 64442,
+    descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+    nrOrdemProducao: 372562,
+    inspecionado: false,
+    componentesForaFaixa: 1,
+    narrativa: '',
+    codItem: '30907',
+    resultados: [
+      authorizationResult(64442, 10, true, 347),
+      authorizationResult(64442, 20, true, 16),
+      authorizationResult(64442, 30, true, 10.9),
+      authorizationResult(64442, 40, false, 12),
+    ],
   },
 ];
 
@@ -131,20 +215,29 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       const login = typeof body.login === 'string' ? body.login.trim() : 'operador';
       const tokenExpiresAt = new Date(Date.now() + 28_800_000).toISOString();
       const normalizedLogin = login.toLocaleLowerCase('pt-BR');
-      const permissoes = normalizedLogin === 'mjocelio'
-        ? ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'REPORTE_ORDEM']
-        : normalizedLogin === 'sem-autorizacao'
-          ? ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ']
-          : normalizedLogin === 'autorizador'
-            ? ['MENU_PRINCIPAL', 'AUTORIZACAO_ROTEIRO_DIVERGENCIA']
-          : [
-            'MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'AUTORIZACAO_ROTEIRO_DIVERGENCIA',
-            'REPORTE_ORDEM', 'REPORTE_BATELADA', 'REPORTE_PARADAS',
-          ];
+      const permissoes =
+        normalizedLogin === 'mjocelio'
+          ? ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ', 'REPORTE_ORDEM']
+          : normalizedLogin === 'sem-autorizacao'
+            ? ['MENU_PRINCIPAL', 'PLANO_CONTROLE_CQ']
+            : normalizedLogin === 'autorizador'
+              ? ['MENU_PRINCIPAL', 'AUTORIZACAO_ROTEIRO_DIVERGENCIA']
+              : [
+                  'MENU_PRINCIPAL',
+                  'PLANO_CONTROLE_CQ',
+                  'AUTORIZACAO_ROTEIRO_DIVERGENCIA',
+                  'REPORTE_ORDEM',
+                  'REPORTE_BATELADA',
+                  'REPORTE_PARADAS',
+                ];
       await json(route, {
-        token: 'e2e-memory-token', tokenExpiresAt, offlineSessionExpiresAt: tokenExpiresAt,
+        token: 'e2e-memory-token',
+        tokenExpiresAt,
+        offlineSessionExpiresAt: tokenExpiresAt,
         usuario: {
-          id: `E2E-${login}`, nome: 'Operador E2E', login,
+          id: `E2E-${login}`,
+          nome: 'Operador E2E',
+          login,
           permissoes,
         },
       });
@@ -152,20 +245,26 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
     }
 
     if (path === '/api/quality-control/route-authorizations' && request.method() === 'GET') {
-      const validQuery = url.searchParams.get('nrOrdemProducao') === '372562'
-        && url.searchParams.get('opCodigo') === '10';
+      const validQuery =
+        url.searchParams.get('nrOrdemProducao') === '372562' && url.searchParams.get('opCodigo') === '10';
       await json(route, {
         total: validQuery ? 1 : 0,
         hasNext: false,
-        items: validQuery ? [{
-          roteirosEmAnalise: ROUTES_PENDING_AUTHORIZATION.filter(item =>
-            pendingAuthorizationSheets.has(item.nrFicha)),
-        }] : [],
+        items: validQuery
+          ? [
+              {
+                'ds-autorizacao': {
+                  roteirosEmAnalise: ROUTES_PENDING_AUTHORIZATION.filter(item =>
+                    pendingAuthorizationSheets.has(item.nrFicha),
+                  ),
+                },
+              },
+            ]
+          : [],
       });
       return;
     }
-    if (path === '/api/quality-control/route-authorizations/finalize'
-      && request.method() === 'POST') {
+    if (path === '/api/quality-control/route-authorizations/finalize' && request.method() === 'POST') {
       const body = request.postDataJSON() as { nrFicha?: unknown };
       const sheetNumber = typeof body.nrFicha === 'number' ? body.nrFicha : 0;
       if (!pendingAuthorizationSheets.delete(sheetNumber)) {
@@ -173,15 +272,36 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
         return;
       }
       await json(route, {
-        total: 1, hasNext: false, items: [{ 'ds-finaliza': { roteiro: [{
-          componentesTotal: 1, situacao: 4, componentesSalvos: 1, nrFicha: sheetNumber,
-          mensagem: `Roteiro ${sheetNumber} finalizado com AUTORIZACAO (1 exame(s), 1 componente(s) fora da faixa aceito(s))`,
-          inspecionado: true, componentesForaFaixa: 1, finalizado: true,
-          componentesPendentes: 0, exames: [{
-            componentesTotal: 1, componentesSalvos: 1, nrFicha: sheetNumber,
-            componentesPendentes: 0, codExame: 164,
-          }],
-        }] } }],
+        total: 1,
+        hasNext: false,
+        items: [
+          {
+            'ds-finaliza': {
+              roteiro: [
+                {
+                  componentesTotal: 1,
+                  situacao: 4,
+                  componentesSalvos: 1,
+                  nrFicha: sheetNumber,
+                  mensagem: `Roteiro ${sheetNumber} finalizado com AUTORIZACAO (1 exame(s), 1 componente(s) fora da faixa aceito(s))`,
+                  inspecionado: true,
+                  componentesForaFaixa: 1,
+                  finalizado: true,
+                  componentesPendentes: 0,
+                  exames: [
+                    {
+                      componentesTotal: 1,
+                      componentesSalvos: 1,
+                      nrFicha: sheetNumber,
+                      componentesPendentes: 0,
+                      codExame: 164,
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
       });
       return;
     }
@@ -201,20 +321,31 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
     if (path === '/api/work-centers' && request.method() === 'GET') {
       const areaCode = url.searchParams.get('areaCode');
       const term = normalize(url.searchParams.get('term') ?? '');
-      await json(route, WORK_CENTERS.filter(center =>
-        (!areaCode || center.areaCode === areaCode)
-        && (!term || normalize(`${center.code} ${center.description} ${center.area}`).includes(term))));
+      await json(
+        route,
+        WORK_CENTERS.filter(
+          center =>
+            (!areaCode || center.areaCode === areaCode) &&
+            (!term || normalize(`${center.code} ${center.description} ${center.area}`).includes(term)),
+        ),
+      );
       return;
     }
     if (path === '/api/operators' && request.method() === 'GET') {
       const term = normalize(url.searchParams.get('term') ?? '');
-      await json(route, OPERATORS.filter(operator =>
-        operator.active && (!term || normalize(`${operator.code} ${operator.name}`).includes(term))));
+      await json(
+        route,
+        OPERATORS.filter(
+          operator => operator.active && (!term || normalize(`${operator.code} ${operator.name}`).includes(term)),
+        ),
+      );
       return;
     }
     if (path === '/api/operational-responsibles' && request.method() === 'GET') {
       const teamOptions = [...teams.values()].map(team => ({
-        tipo: 'EQUIPE', codigo: team.codigo, nome: team.descricao,
+        tipo: 'EQUIPE',
+        codigo: team.codigo,
+        nome: team.descricao,
       }));
       await json(route, [
         { tipo: 'OPERADOR', codigo: '001', nome: 'Jose Ribeiro Neto' },
@@ -274,32 +405,37 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
   });
 }
 
-function qualityComponent(
-  code: number,
-  description: string,
-  min: number,
-  max: number,
-  equipment: string,
-) {
+function qualityComponent(code: number, description: string, min: number, max: number, equipment: string) {
   return {
-    codExame: 500517, codComponente: code, descricao: description,
-    referenciaTecnica: `${min} - ${max}`, metodo: '', equipamento: equipment,
-    tipoResultado: 1, unidade: 'mm', numeroDecimais: 2,
-    resultadoMin: min, resultadoMax: max, nrTabela: 0, opcoesResultado: [],
+    codExame: 500517,
+    codComponente: code,
+    descricao: description,
+    referenciaTecnica: `${min} - ${max}`,
+    metodo: '',
+    equipamento: equipment,
+    tipoResultado: 1,
+    unidade: 'mm',
+    numeroDecimais: 2,
+    resultadoMin: min,
+    resultadoMax: max,
+    nrTabela: 0,
+    opcoesResultado: [],
   };
 }
 
 function teamFrom(value: unknown, teams: ReadonlyMap<string, Team>): Team {
-  const body = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-  const code = String(body['codigo'] ?? '').trim().toUpperCase();
+  const body = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const code = String(body['codigo'] ?? '')
+    .trim()
+    .toUpperCase();
   const previous = teams.get(code);
   const operatorCodes = Array.isArray(body['operadores'])
     ? body['operadores'].map(String)
-    : previous?.operadores.map(operator => operator.codigo) ?? [];
+    : (previous?.operadores.map(operator => operator.codigo) ?? []);
   return {
     codigo: code,
-    descricao: typeof body['descricao'] === 'string' ? body['descricao'] : previous?.descricao ?? 'Equipe E2E',
-    turno: typeof body['turno'] === 'string' ? body['turno'] : previous?.turno ?? 'Turno 1',
+    descricao: typeof body['descricao'] === 'string' ? body['descricao'] : (previous?.descricao ?? 'Equipe E2E'),
+    turno: typeof body['turno'] === 'string' ? body['turno'] : (previous?.turno ?? 'Turno 1'),
     operadores: operatorCodes.map(operatorCode => {
       const operator = OPERATORS.find(item => item.code === operatorCode);
       return { codigo: operatorCode, nome: operator?.name ?? operatorCode };
@@ -312,5 +448,23 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
 }
 
 function normalize(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function authorizationResult(nrFicha: number, codComponente: number, dentroFaixa: boolean, resultado: number) {
+  return {
+    nrFicha,
+    codExame: 164,
+    codComponente,
+    seqComp: codComponente,
+    tipoResultado: 1,
+    resultado,
+    laudo: '',
+    nrTabela: 0,
+    dentroFaixa,
+  };
 }

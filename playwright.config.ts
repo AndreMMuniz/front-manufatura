@@ -24,8 +24,11 @@ export default defineConfig({
   // PO-UI + three browser engines are memory intensive; bound local
   // parallelism to avoid browser starvation and false navigation timeouts.
   workers: process.env.CI ? 1 : 3,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  /* Relatório detalhado no navegador + resumo humano no terminal e em Markdown local. */
+  reporter: [
+    ['html', { open: 'never' }],
+    ['./tools/dev-e2e-summary-reporter.ts'],
+  ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */

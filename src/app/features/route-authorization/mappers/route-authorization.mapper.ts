@@ -1,29 +1,65 @@
 import {
   AuthorizedComponentSaveResult,
   AuthorizedRouteFinalizationOutcome,
+  PendingAuthorizedComponentResult,
   PendingAuthorizedRoute,
 } from '../models/route-authorization.model';
 
 export function mapPendingRoutesEnvelope(value: unknown): PendingAuthorizedRoute[] {
   const envelope = envelopeOf(value);
-  const routes = envelope.items.flatMap(item => optionalArrayOf(objectOf(item)['roteirosEmAnalise']).map(routeValue => {
-    const route = objectOf(routeValue);
-    return {
-      sheetNumber: positiveIntegerOf(route['nrFicha']),
-      productionOrderNumber: positiveIntegerOf(route['nrOrdemProducao']),
-      itemCode: textOf(route['codItem'], false),
-      itemDescription: textOf(route['descricaoItem'], false),
-      operationSequence: positiveIntegerOf(route['sequenciaOperacao']),
-      statusCode: nonNegativeIntegerOf(route['situacao']),
-      released: booleanOf(route['liberada']),
-      inspected: booleanOf(route['inspecionado']),
-      totalComponents: nonNegativeIntegerOf(route['componentesTotal']),
-      outOfRangeComponents: nonNegativeIntegerOf(route['componentesForaFaixa']),
-      narrative: textOf(route['narrativa'], true),
-    };
-  }));
+  const routes = envelope.items.flatMap(item => {
+    const container = objectOf(item);
+    const dataset = container['ds-autorizacao'] === undefined ? container : objectOf(container['ds-autorizacao']);
+    return optionalArrayOf(dataset['roteirosEmAnalise']).map(routeValue => {
+      const route = objectOf(routeValue);
+      const sheetNumber = positiveIntegerOf(route['nrFicha']);
+      const totalComponents = nonNegativeIntegerOf(route['componentesTotal']);
+      const outOfRangeComponents = nonNegativeIntegerOf(route['componentesForaFaixa']);
+      const componentResults = arrayOf(route['resultados']).map(resultValue =>
+        mapPendingComponentResult(resultValue, sheetNumber),
+      );
+      const componentIdentities = componentResults.map(result => `${result.examCode}:${result.componentCode}`);
+      if (
+        componentResults.length !== totalComponents ||
+        componentResults.filter(result => !result.withinRange).length !== outOfRangeComponents ||
+        new Set(componentIdentities).size !== componentIdentities.length
+      )
+        throw invalidContract();
+      return {
+        sheetNumber,
+        productionOrderNumber: positiveIntegerOf(route['nrOrdemProducao']),
+        itemCode: textOf(route['codItem'], false),
+        itemDescription: textOf(route['descricaoItem'], false),
+        operationSequence: positiveIntegerOf(route['sequenciaOperacao']),
+        statusCode: nonNegativeIntegerOf(route['situacao']),
+        released: booleanOf(route['liberada']),
+        inspected: booleanOf(route['inspecionado']),
+        totalComponents,
+        outOfRangeComponents,
+        narrative: textOf(route['narrativa'], true),
+        componentResults,
+      };
+    });
+  });
   if (new Set(routes.map(route => route.sheetNumber)).size !== routes.length) throw invalidContract();
   return routes;
+}
+
+function mapPendingComponentResult(value: unknown, expectedSheetNumber: number): PendingAuthorizedComponentResult {
+  const result = objectOf(value);
+  const sheetNumber = positiveIntegerOf(result['nrFicha']);
+  if (sheetNumber !== expectedSheetNumber) throw invalidContract();
+  return {
+    sheetNumber,
+    examCode: positiveIntegerOf(result['codExame']),
+    componentCode: positiveIntegerOf(result['codComponente']),
+    componentSequence: nonNegativeIntegerOf(result['seqComp']),
+    resultType: positiveIntegerOf(result['tipoResultado']),
+    result: finiteNumberOf(result['resultado']),
+    report: textOf(result['laudo'], true),
+    tableNumber: nonNegativeIntegerOf(result['nrTabela']),
+    withinRange: booleanOf(result['dentroFaixa']),
+  };
 }
 
 export function mapAuthorizedFinalizationEnvelope(
@@ -31,11 +67,13 @@ export function mapAuthorizedFinalizationEnvelope(
   expectedSheetNumber: number,
 ): AuthorizedRouteFinalizationOutcome {
   const envelope = envelopeOf(value);
-  const matches = envelope.items.flatMap(item => {
-    const resultValue = objectOf(item)['ds-finaliza'];
-    if (resultValue === undefined) return [];
-    return optionalArrayOf(objectOf(resultValue)['roteiro']).map(objectOf);
-  }).filter(route => route['nrFicha'] === expectedSheetNumber);
+  const matches = envelope.items
+    .flatMap(item => {
+      const resultValue = objectOf(item)['ds-finaliza'];
+      if (resultValue === undefined) return [];
+      return optionalArrayOf(objectOf(resultValue)['roteiro']).map(objectOf);
+    })
+    .filter(route => route['nrFicha'] === expectedSheetNumber);
   const route = matches.length === 1 ? matches[0] : undefined;
   if (!route) throw invalidContract();
   const exams = optionalArrayOf(route['exames']).map(value => {
@@ -53,10 +91,11 @@ export function mapAuthorizedFinalizationEnvelope(
   const pendingComponents = nonNegativeIntegerOf(route['componentesPendentes']);
   const outOfRangeComponents = nonNegativeIntegerOf(route['componentesForaFaixa']);
   if (
-    savedComponents + pendingComponents !== totalComponents
-    || outOfRangeComponents > totalComponents
-    || exams.some(exam => exam.savedComponents + exam.pendingComponents !== exam.totalComponents)
-  ) throw invalidContract();
+    savedComponents + pendingComponents !== totalComponents ||
+    outOfRangeComponents > totalComponents ||
+    exams.some(exam => exam.savedComponents + exam.pendingComponents !== exam.totalComponents)
+  )
+    throw invalidContract();
   const common = {
     sheetNumber: positiveIntegerOf(route['nrFicha']),
     inspected: booleanOf(route['inspecionado']),
@@ -91,11 +130,8 @@ export function mapAuthorizedComponentResultEnvelope(
   const sheetNumber = positiveIntegerOf(item['nrFicha']);
   const examCode = positiveIntegerOf(item['codExame']);
   const componentCode = positiveIntegerOf(item['codComponente']);
-  if (
-    sheetNumber !== expectedSheetNumber
-    || examCode !== expectedExamCode
-    || componentCode !== expectedComponentCode
-  ) throw invalidContract();
+  if (sheetNumber !== expectedSheetNumber || examCode !== expectedExamCode || componentCode !== expectedComponentCode)
+    throw invalidContract();
   const savedComponents = nonNegativeIntegerOf(item['componentesSalvos']);
   const totalComponents = nonNegativeIntegerOf(item['componentesTotal']);
   if (savedComponents > totalComponents) throw invalidContract();
@@ -155,6 +191,11 @@ function isPositiveInteger(value: number): boolean {
 
 function booleanOf(value: unknown): boolean {
   if (typeof value !== 'boolean') throw invalidContract();
+  return value;
+}
+
+function finiteNumberOf(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidContract();
   return value;
 }
 

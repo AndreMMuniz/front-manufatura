@@ -3,34 +3,135 @@
   "hasNext": false,
   "items": [
     {
-      "roteirosEmAnalise": [
-        {
-          "liberada": false,
-          "componentesTotal": 1,
-          "sequenciaOperacao": 1,
-          "situacao": 2,
-          "nrFicha": 64382,
-          "descricaoItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
-          "nrOrdemProducao": 372562,
-          "inspecionado": false,
-          "componentesForaFaixa": 1,
-          "narrativa": "",
-          "codItem": "30907"
-        },
-        {
-          "liberada": false,
-          "componentesTotal": 4,
-          "sequenciaOperacao": 1,
-          "situacao": 2,
-          "nrFicha": 64442,
-          "descricaoItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
-          "nrOrdemProducao": 372562,
-          "inspecionado": false,
-          "componentesForaFaixa": 1,
-          "narrativa": "",
-          "codItem": "30907"
-        }
-      ]
+      "ds-autorizacao": {
+        "roteirosEmAnalise": [
+          {
+            "liberada": false,
+            "componentesTotal": 1,
+            "sequenciaOperacao": 1,
+            "situacao": 2,
+            "nrFicha": 64382,
+            "descricaoItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
+            "nrOrdemProducao": 372562,
+            "inspecionado": false,
+            "componentesForaFaixa": 1,
+            "narrativa": "",
+            "codItem": "30907",
+            "resultados": [
+              {
+                "observacao": "",
+                "resultado": 0.0,
+                "dtResultado": "2026-08-14",
+                "resultadoMinDefinido": 347.0,
+                "dentroFaixa": false,
+                "codResponsavel": "Mjocelio",
+                "nrTabela": 0,
+                "codComponente": 10,
+                "seqComp": 10,
+                "resultadoMax": 0.0,
+                "nrFicha": 64382,
+                "laudo": "",
+                "resultadoMaxDefinido": 348.0,
+                "numeroTeste": 1,
+                "tipoResultado": 1,
+                "codItem": "30907",
+                "codExame": 164
+              }
+            ]
+          },
+          {
+            "liberada": false,
+            "componentesTotal": 4,
+            "sequenciaOperacao": 1,
+            "situacao": 2,
+            "nrFicha": 64442,
+            "descricaoItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
+            "nrOrdemProducao": 372562,
+            "inspecionado": false,
+            "componentesForaFaixa": 1,
+            "narrativa": "",
+            "codItem": "30907",
+            "resultados": [
+              {
+                "observacao": "",
+                "resultado": 347.0,
+                "dtResultado": "2026-08-16",
+                "resultadoMinDefinido": 347.0,
+                "dentroFaixa": true,
+                "codResponsavel": "mjocelio",
+                "nrTabela": 0,
+                "codComponente": 10,
+                "seqComp": 10,
+                "resultadoMax": 0.0,
+                "nrFicha": 64442,
+                "laudo": "",
+                "resultadoMaxDefinido": 348.0,
+                "numeroTeste": 1,
+                "tipoResultado": 1,
+                "codItem": "30907",
+                "codExame": 164
+              },
+              {
+                "observacao": "",
+                "resultado": 16.0,
+                "dtResultado": "2026-08-16",
+                "resultadoMinDefinido": 16.0,
+                "dentroFaixa": true,
+                "codResponsavel": "mjocelio",
+                "nrTabela": 0,
+                "codComponente": 20,
+                "seqComp": 20,
+                "resultadoMax": 0.0,
+                "nrFicha": 64442,
+                "laudo": "",
+                "resultadoMaxDefinido": 20.0,
+                "numeroTeste": 1,
+                "tipoResultado": 1,
+                "codItem": "30907",
+                "codExame": 164
+              },
+              {
+                "observacao": "",
+                "resultado": 10.9,
+                "dtResultado": "2026-08-16",
+                "resultadoMinDefinido": 10.9,
+                "dentroFaixa": true,
+                "codResponsavel": "mjocelio",
+                "nrTabela": 0,
+                "codComponente": 30,
+                "seqComp": 30,
+                "resultadoMax": 0.0,
+                "nrFicha": 64442,
+                "laudo": "",
+                "resultadoMaxDefinido": 11.5,
+                "numeroTeste": 1,
+                "tipoResultado": 1,
+                "codItem": "30907",
+                "codExame": 164
+              },
+              {
+                "observacao": "",
+                "resultado": 12.0,
+                "dtResultado": "2026-08-16",
+                "resultadoMinDefinido": 13.0,
+                "dentroFaixa": false,
+                "codResponsavel": "mjocelio",
+                "nrTabela": 0,
+                "codComponente": 40,
+                "seqComp": 40,
+                "resultadoMax": 0.0,
+                "nrFicha": 64442,
+                "laudo": "",
+                "resultadoMaxDefinido": 16.0,
+                "numeroTeste": 1,
+                "tipoResultado": 1,
+                "codItem": "30907",
+                "codExame": 164
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

@@ -10,12 +10,12 @@ sob `/api/quality-control/route-authorizations` e protegidos pela permissão
 O token Bearer da sessão identifica o usuário no servidor; `codUsuario` não é
 aceito do navegador e `companyId` vem da configuração do BFF.
 
-| Método | Endpoint BFF | Uso |
-| --- | --- | --- |
-| `GET` | `/api/quality-control/route-authorizations` | Lista fichas pendentes por `nrOrdemProducao` e `opCodigo`. |
-| `POST` | `/api/quality-control/route-authorizations/route` | Carrega a ficha selecionada por `nrFicha`, usando `nrOrdemProducao` e `codOperacao`. O BFF devolve somente a correspondência única da ficha. |
-| `PUT` | `/api/quality-control/route-authorizations/results` | Salva um componente com `nrFicha`, `codExame`, `codComponente` e exatamente uma representação: `resultado`, `nrTabela` + `seqOpcao` ou `laudo`. |
-| `POST` | `/api/quality-control/route-authorizations/finalize` | Solicita a finalização autorizada da ficha informada por `nrFicha`. |
+| Método | Endpoint BFF                                         | Uso                                                                                                                                             |
+| ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/quality-control/route-authorizations`          | Lista fichas pendentes por `nrOrdemProducao` e `opCodigo`.                                                                                      |
+| `POST` | `/api/quality-control/route-authorizations/route`    | Carrega a ficha selecionada por `nrFicha`, usando `nrOrdemProducao` e `codOperacao`. O BFF devolve somente a correspondência única da ficha.    |
+| `PUT`  | `/api/quality-control/route-authorizations/results`  | Salva um componente com `nrFicha`, `codExame`, `codComponente` e exatamente uma representação: `resultado`, `nrTabela` + `seqOpcao` ou `laudo`. |
+| `POST` | `/api/quality-control/route-authorizations/finalize` | Solicita a finalização autorizada da ficha informada por `nrFicha`.                                                                             |
 
 As rotas de carregamento, salvamento e finalização rejeitam métodos incorretos e
 retornam `403` quando a sessão não possui `fcq-0002`. O BFF encaminha ao Datasul
@@ -24,18 +24,16 @@ sessão autenticada.
 
 ### Estado da análise
 
-O carregamento da ficha não representa resultados históricos nem consulta um
-histórico de alterações. Ao abrir a análise, cada componente começa no estado
-provisório **Não verificado**; esse estado vale até que o componente seja salvo
-com sucesso nesta sessão. O frontend não calcula `dentroFaixa`: somente o recibo
-do Datasul define **Aprovado** ou **Fora da faixa confirmado pelo Datasul**.
-Depois de editar um componente já salvo, ele volta a **Não verificado** e precisa
-ser salvo novamente antes da finalização. Como a consulta não oferece histórico,
-componentes que permanecem **Não verificados** ou cujo tipo está indisponível para
-edição não bloqueiam a tentativa de finalização. O botão fica bloqueado somente
-enquanto houver rascunho alterado e não salvo, carregamento, salvamento ou
-finalização em andamento; a resposta `finalizado` do Datasul continua sendo a
-decisão final.
+O GET de autorização devolve os resultados já registrados em `resultados[]` e o
+campo `dentroFaixa` de cada componente. O frontend não recalcula essa decisão:
+componentes com `dentroFaixa: true` começam como **Aprovado pelo Datasul** e ficam
+bloqueados somente para visualização; componentes com `dentroFaixa: false`
+começam como **Fora da faixa confirmado pelo Datasul**, permanecem editáveis e
+devem ser corrigidos pelo supervisor. Depois de editar um componente fora da
+faixa, ele volta a **Não verificado** e precisa ser salvo novamente antes da
+finalização. O botão fica bloqueado enquanto houver rascunho alterado e não salvo,
+carregamento, salvamento ou finalização em andamento; a resposta `finalizado` do
+Datasul continua sendo a decisão final.
 
 O contrato de exclusividade das representações (`resultado`, `nrTabela` com
 `seqOpcao`, ou `laudo`) aplica-se ao corpo da **requisição**. O recibo de resposta
@@ -73,35 +71,46 @@ GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio&nrOrdemProdu
 
 ### Parâmetros de consulta
 
-| Parâmetro | Tipo observado | Obrigatório | Descrição |
-| --- | --- | --- | --- |
-| `companyId` | integer | Sim | Identificador da empresa. O valor observado foi `1`. |
-| `codUsuario` | string | Sim | Código do usuário que realizará a análise/autorização. |
-| `nrOrdemProducao` | integer | Sim | Número da ordem de produção. |
-| `opCodigo` | integer | Sim | Código da operação. A nomenclatura difere de `codOperacao`, usado na consulta de roteiros. |
+| Parâmetro         | Tipo observado | Obrigatório | Descrição                                                                                  |
+| ----------------- | -------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `companyId`       | integer        | Sim         | Identificador da empresa. O valor observado foi `1`.                                       |
+| `codUsuario`      | string         | Sim         | Código do usuário que realizará a análise/autorização.                                     |
+| `nrOrdemProducao` | integer        | Sim         | Número da ordem de produção.                                                               |
+| `opCodigo`        | integer        | Sim         | Código da operação. A nomenclatura difere de `codOperacao`, usado na consulta de roteiros. |
 
 ### Resposta observada
 
 - Status HTTP observado: `200 OK`
 - Exemplo integral: [`examples/autorizacao-roteiros-372562-operacao-10-response.json`](./examples/autorizacao-roteiros-372562-operacao-10-response.json)
 
-| Campo | Tipo observado | Descrição |
-| --- | --- | --- |
-| `total` | integer | Quantidade de itens do envelope de resposta. |
-| `hasNext` | boolean | Indica se há uma próxima página. Não foram fornecidos parâmetros de paginação. |
-| `items` | array | Lista de contêineres retornados pela API. |
-| `items[].roteirosEmAnalise` | array | Fichas pendentes encontradas para os filtros informados. |
-| `roteirosEmAnalise[].nrFicha` | integer | Identificador da ficha a ser consultada e posteriormente finalizada. |
-| `roteirosEmAnalise[].nrOrdemProducao` | integer | Ordem de produção vinculada à ficha. |
-| `roteirosEmAnalise[].codItem` | string | Código do item produzido. |
-| `roteirosEmAnalise[].descricaoItem` | string | Descrição do item produzido. |
-| `roteirosEmAnalise[].sequenciaOperacao` | integer | Sequência da operação no roteiro. |
-| `roteirosEmAnalise[].situacao` | integer | Código da situação da ficha. O exemplo pendente retornou `2`. |
-| `roteirosEmAnalise[].liberada` | boolean | Indica se a ficha está liberada. |
-| `roteirosEmAnalise[].inspecionado` | boolean | Indica se a ficha já foi inspecionada. |
-| `roteirosEmAnalise[].componentesTotal` | integer | Total de componentes da ficha. |
-| `roteirosEmAnalise[].componentesForaFaixa` | integer | Quantidade de componentes fora da faixa esperada. |
-| `roteirosEmAnalise[].narrativa` | string | Narrativa associada à análise; veio vazia na evidência. |
+| Campo                                      | Tipo observado | Descrição                                                                                              |
+| ------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------ |
+| `total`                                    | integer        | Quantidade de itens do envelope de resposta.                                                           |
+| `hasNext`                                  | boolean        | Indica se há uma próxima página. Não foram fornecidos parâmetros de paginação.                         |
+| `items`                                    | array          | Lista de contêineres retornados pela API.                                                              |
+| `items[].ds-autorizacao`                   | object         | Contêiner do conjunto de autorização retornado pela API atual.                                         |
+| `items[].ds-autorizacao.roteirosEmAnalise` | array          | Fichas pendentes encontradas para os filtros informados.                                               |
+| `roteirosEmAnalise[].nrFicha`              | integer        | Identificador da ficha a ser consultada e posteriormente finalizada.                                   |
+| `roteirosEmAnalise[].nrOrdemProducao`      | integer        | Ordem de produção vinculada à ficha.                                                                   |
+| `roteirosEmAnalise[].codItem`              | string         | Código do item produzido.                                                                              |
+| `roteirosEmAnalise[].descricaoItem`        | string         | Descrição do item produzido.                                                                           |
+| `roteirosEmAnalise[].sequenciaOperacao`    | integer        | Sequência da operação no roteiro.                                                                      |
+| `roteirosEmAnalise[].situacao`             | integer        | Código da situação da ficha. O exemplo pendente retornou `2`.                                          |
+| `roteirosEmAnalise[].liberada`             | boolean        | Indica se a ficha está liberada.                                                                       |
+| `roteirosEmAnalise[].inspecionado`         | boolean        | Indica se a ficha já foi inspecionada.                                                                 |
+| `roteirosEmAnalise[].componentesTotal`     | integer        | Total de componentes da ficha.                                                                         |
+| `roteirosEmAnalise[].componentesForaFaixa` | integer        | Quantidade de componentes fora da faixa esperada.                                                      |
+| `roteirosEmAnalise[].narrativa`            | string         | Narrativa associada à análise; veio vazia na evidência.                                                |
+| `roteirosEmAnalise[].resultados`           | array          | Resultados já registrados para os componentes da ficha.                                                |
+| `resultados[].nrFicha`                     | integer        | Ficha à qual o resultado pertence; deve coincidir com a ficha externa.                                 |
+| `resultados[].codExame`                    | integer        | Código do exame do componente.                                                                         |
+| `resultados[].codComponente`               | integer        | Código do componente, usado com `codExame` como identidade.                                            |
+| `resultados[].tipoResultado`               | integer        | Tipo da representação do resultado.                                                                    |
+| `resultados[].resultado`                   | number         | Valor numérico registrado.                                                                             |
+| `resultados[].laudo`                       | string         | Laudo textual registrado, quando aplicável.                                                            |
+| `resultados[].nrTabela`                    | integer        | Tabela de opções vinculada, quando aplicável.                                                          |
+| `resultados[].seqComp`                     | integer        | Sequência do componente. Não representa `seqOpcao`.                                                    |
+| `resultados[].dentroFaixa`                 | boolean        | Decisão do Datasul: `true` fica somente para visualização; `false` pode ser corrigido pelo supervisor. |
 
 ## Finalizar roteiro com autorização
 
@@ -116,9 +125,9 @@ GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio&nrOrdemProdu
 
 ### Parâmetros de consulta
 
-| Parâmetro | Tipo observado | Obrigatório | Descrição |
-| --- | --- | --- | --- |
-| `companyId` | integer | Sim | Identificador da empresa. |
+| Parâmetro   | Tipo observado | Obrigatório | Descrição                 |
+| ----------- | -------------- | ----------- | ------------------------- |
+| `companyId` | integer        | Sim         | Identificador da empresa. |
 
 ### Corpo da requisição
 
@@ -129,36 +138,37 @@ GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio&nrOrdemProdu
 }
 ```
 
-| Campo | Tipo observado | Obrigatório | Descrição |
-| --- | --- | --- | --- |
-| `nrFicha` | integer | Sim | Ficha que será finalizada com autorização. Deve vir do resultado da consulta. |
-| `codUsuario` | string | Sim | Código do usuário responsável pela autorização. |
+| Campo        | Tipo observado | Obrigatório | Descrição                                                                     |
+| ------------ | -------------- | ----------- | ----------------------------------------------------------------------------- |
+| `nrFicha`    | integer        | Sim         | Ficha que será finalizada com autorização. Deve vir do resultado da consulta. |
+| `codUsuario` | string         | Sim         | Código do usuário responsável pela autorização.                               |
 
 ### Resposta observada
 
 - Status HTTP observado: `200 OK`
 - Exemplo integral: [`examples/finaliza-roteiro-autorizado-ficha-64461-response.json`](./examples/finaliza-roteiro-autorizado-ficha-64461-response.json)
 
-| Campo | Tipo observado | Descrição |
-| --- | --- | --- |
-| `items[].ds-finaliza` | object | Contêiner da finalização. Por conter hífen, exige acesso por colchetes em JavaScript/TypeScript. |
-| `items[].ds-finaliza.roteiro` | array | Resultado da finalização de cada roteiro. |
-| `roteiro[].nrFicha` | integer | Ficha processada. |
-| `roteiro[].situacao` | integer | Situação após a operação. O sucesso observado retornou `4`. |
-| `roteiro[].mensagem` | string | Mensagem de negócio pronta para apresentação ao usuário. |
-| `roteiro[].inspecionado` | boolean | Indica se o roteiro ficou inspecionado. |
-| `roteiro[].finalizado` | boolean | Indicador principal de sucesso da finalização. |
-| `roteiro[].componentesTotal` | integer | Total de componentes. |
-| `roteiro[].componentesSalvos` | integer | Componentes efetivamente salvos. |
-| `roteiro[].componentesPendentes` | integer | Componentes que permaneceram pendentes. |
-| `roteiro[].componentesForaFaixa` | integer | Componentes fora da faixa aceitos mediante autorização. |
-| `roteiro[].exames` | array | Resumo dos exames vinculados à ficha. |
-| `roteiro[].exames[].codExame` | integer | Código do exame. |
+| Campo                            | Tipo observado | Descrição                                                                                        |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------ |
+| `items[].ds-finaliza`            | object         | Contêiner da finalização. Por conter hífen, exige acesso por colchetes em JavaScript/TypeScript. |
+| `items[].ds-finaliza.roteiro`    | array          | Resultado da finalização de cada roteiro.                                                        |
+| `roteiro[].nrFicha`              | integer        | Ficha processada.                                                                                |
+| `roteiro[].situacao`             | integer        | Situação após a operação. O sucesso observado retornou `4`.                                      |
+| `roteiro[].mensagem`             | string         | Mensagem de negócio pronta para apresentação ao usuário.                                         |
+| `roteiro[].inspecionado`         | boolean        | Indica se o roteiro ficou inspecionado.                                                          |
+| `roteiro[].finalizado`           | boolean        | Indicador principal de sucesso da finalização.                                                   |
+| `roteiro[].componentesTotal`     | integer        | Total de componentes.                                                                            |
+| `roteiro[].componentesSalvos`    | integer        | Componentes efetivamente salvos.                                                                 |
+| `roteiro[].componentesPendentes` | integer        | Componentes que permaneceram pendentes.                                                          |
+| `roteiro[].componentesForaFaixa` | integer        | Componentes fora da faixa aceitos mediante autorização.                                          |
+| `roteiro[].exames`               | array          | Resumo dos exames vinculados à ficha.                                                            |
+| `roteiro[].exames[].codExame`    | integer        | Código do exame.                                                                                 |
 
 ## Regras e cuidados para a implementação
 
-- Não assumir que `total` representa diretamente a quantidade de fichas: no exemplo, `total` é `1`, enquanto `items[0].roteirosEmAnalise` contém duas fichas.
-- Tratar `items`, `roteirosEmAnalise`, `roteiro` e `exames` ausentes ou vazios sem quebrar a tela.
+- Não assumir que `total` representa diretamente a quantidade de fichas: no exemplo, `total` é `1`, enquanto `items[0]["ds-autorizacao"].roteirosEmAnalise` contém duas fichas.
+- Tratar `items`, `ds-autorizacao`, `roteirosEmAnalise`, `roteiro` e `exames` ausentes ou vazios sem quebrar a tela.
+- Validar que `resultados` tenha uma identidade única por exame/componente, pertença à ficha e seja coerente com `componentesTotal` e `componentesForaFaixa`.
 - Não considerar apenas o status HTTP como sucesso: validar também `finalizado`, `componentesPendentes` e a mensagem retornada.
 - Solicitar confirmação explícita antes da finalização autorizada, pois a ação aceita componentes fora da faixa.
 - Impedir envios repetidos enquanto a finalização estiver em andamento e atualizar a listagem após o sucesso.

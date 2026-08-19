@@ -26,16 +26,11 @@ export class QualityControlGatewayError extends Error {
   }
 }
 
-export type QualityControlTransport = (
-  input: string | URL,
-  init?: RequestInit,
-) => Promise<Response>;
+export type QualityControlTransport = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 const MAX_REQUEST_TIMEOUT_MS = 2_147_483_647;
 
-export function readQualityControlDatasulConfig(
-  env: QualityControlEnvironment,
-): QualityControlDatasulConfig {
+export function readQualityControlDatasulConfig(env: QualityControlEnvironment): QualityControlDatasulConfig {
   let baseUrl: URL;
   try {
     baseUrl = new URL(env['DATASUL_BASE_URL'] ?? '');
@@ -47,18 +42,18 @@ export function readQualityControlDatasulConfig(
   const integrationUser = env['DATASUL_INTEGRATION_USER']?.trim() ?? '';
   const integrationPassword = env['DATASUL_INTEGRATION_PASSWORD'] ?? '';
   if (
-    !['http:', 'https:'].includes(baseUrl.protocol)
-    || baseUrl.username
-    || baseUrl.password
-    || !Number.isSafeInteger(companyId)
-    || companyId <= 0
-    || !Number.isSafeInteger(requestTimeoutMs)
-    || requestTimeoutMs <= 0
-    || requestTimeoutMs > MAX_REQUEST_TIMEOUT_MS
-    || !integrationUser
-    || integrationUser.includes(':')
-    || /[\u0000-\u001f\u007f]/u.test(integrationUser)
-    || !integrationPassword
+    !['http:', 'https:'].includes(baseUrl.protocol) ||
+    baseUrl.username ||
+    baseUrl.password ||
+    !Number.isSafeInteger(companyId) ||
+    companyId <= 0 ||
+    !Number.isSafeInteger(requestTimeoutMs) ||
+    requestTimeoutMs <= 0 ||
+    requestTimeoutMs > MAX_REQUEST_TIMEOUT_MS ||
+    !integrationUser ||
+    integrationUser.includes(':') ||
+    /[\u0000-\u001f\u007f]/u.test(integrationUser) ||
+    !integrationPassword
   ) {
     throw new QualityControlGatewayError(503, 'quality-control-gateway-not-configured');
   }
@@ -75,23 +70,41 @@ export class QualityControlDatasulClient {
   ) {}
 
   getOrder(orderNumber: number): Promise<unknown> {
-    return this.request('GET', `/api/fcq/v1/ordens/${orderNumber}`, undefined, undefined,
-      'get_quality_order', '/api/fcq/v1/ordens/:id');
+    return this.request(
+      'GET',
+      `/api/fcq/v1/ordens/${orderNumber}`,
+      undefined,
+      undefined,
+      'get_quality_order',
+      '/api/fcq/v1/ordens/:id',
+    );
   }
 
   getRoute(body: { readonly nrOrdemProducao: number; readonly codOperacao: number }): Promise<unknown> {
-    return this.request('POST', '/api/fcq/v1/roteiros', body, 'companyid',
-      'get_quality_route', '/api/fcq/v1/roteiros');
+    return this.request('POST', '/api/fcq/v1/roteiros', body, 'companyid', 'get_quality_route', '/api/fcq/v1/roteiros');
   }
 
   saveResult(body: Record<string, number | string>): Promise<unknown> {
-    return this.request('PUT', '/api/fcq/v1/resultexames', body, 'companyId',
-      'save_quality_result', '/api/fcq/v1/resultexames', validateResultEnvelope);
+    return this.request(
+      'PUT',
+      '/api/fcq/v1/resultexames',
+      body,
+      'companyId',
+      'save_quality_result',
+      '/api/fcq/v1/resultexames',
+      validateResultEnvelope,
+    );
   }
 
   finalizeRoute(body: { readonly nrFicha: number; readonly codUsuario: string }): Promise<unknown> {
-    return this.request('PUT', '/api/fcq/v1/FinalizaRoteiros', body, 'companyId',
-      'finalize_quality_route', '/api/fcq/v1/FinalizaRoteiros');
+    return this.request(
+      'PUT',
+      '/api/fcq/v1/FinalizaRoteiros',
+      body,
+      'companyId',
+      'finalize_quality_route',
+      '/api/fcq/v1/FinalizaRoteiros',
+    );
   }
 
   getRoutesPendingAuthorization(query: {
@@ -105,18 +118,27 @@ export class QualityControlDatasulClient {
       nrOrdemProducao: String(query.nrOrdemProducao),
       opCodigo: String(query.opCodigo),
     });
-    return this.request('GET', `/api/fcq/v1/autorizacaoroteiros?${search}`, undefined, undefined,
-      'list_quality_route_authorizations', '/api/fcq/v1/autorizacaoroteiros',
-      validatePendingAuthorizationsEnvelope);
+    return this.request(
+      'GET',
+      `/api/fcq/v1/autorizacaoroteiros?${search}`,
+      undefined,
+      undefined,
+      'list_quality_route_authorizations',
+      '/api/fcq/v1/autorizacaoroteiros',
+      validatePendingAuthorizationsEnvelope,
+    );
   }
 
-  finalizeRouteWithAuthorization(body: {
-    readonly nrFicha: number;
-    readonly codUsuario: string;
-  }): Promise<unknown> {
-    return this.request('POST', '/api/fcq/v1/finalizaroteirosautorizado', body, 'companyId',
-      'finalize_quality_route_authorized', '/api/fcq/v1/finalizaroteirosautorizado',
-      validateAuthorizedFinalizationEnvelope);
+  finalizeRouteWithAuthorization(body: { readonly nrFicha: number; readonly codUsuario: string }): Promise<unknown> {
+    return this.request(
+      'POST',
+      '/api/fcq/v1/finalizaroteirosautorizado',
+      body,
+      'companyId',
+      'finalize_quality_route_authorized',
+      '/api/fcq/v1/finalizaroteirosautorizado',
+      validateAuthorizedFinalizationEnvelope,
+    );
   }
 
   private async request(
@@ -135,22 +157,31 @@ export class QualityControlDatasulClient {
       'utf8',
     ).toString('base64');
     const observation: UpstreamRequestDetails = {
-      system: 'datasul', operation, method, route: observableRoute,
+      system: 'datasul',
+      operation,
+      method,
+      route: observableRoute,
       protocol: this.config.baseUrl.protocol as 'http:' | 'https:',
       destinationHost: this.config.baseUrl.host,
     };
     let response: Response;
     try {
-      response = await observeUpstreamFetch(this.logger, observation, () => this.transport(url, {
-          method,
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Basic ${authorization}`,
-            ...(body ? { 'Content-Type': 'application/json' } : {}),
-          },
-          ...(body ? { body: JSON.stringify(body) } : {}),
-          signal: this.timeoutSignal(this.config.requestTimeoutMs),
-        }), this.clock);
+      response = await observeUpstreamFetch(
+        this.logger,
+        observation,
+        () =>
+          this.transport(url, {
+            method,
+            headers: {
+              Accept: 'application/json',
+              Authorization: `Basic ${authorization}`,
+              ...(body ? { 'Content-Type': 'application/json' } : {}),
+            },
+            ...(body ? { body: JSON.stringify(body) } : {}),
+            signal: this.timeoutSignal(this.config.requestTimeoutMs),
+          }),
+        this.clock,
+      );
     } catch (error) {
       if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
         throw new QualityControlGatewayError(504, 'datasul-timeout');
@@ -164,7 +195,7 @@ export class QualityControlDatasulClient {
       );
     }
     try {
-      const parsed = await response.json() as unknown;
+      const parsed = (await response.json()) as unknown;
       validateResponse?.(parsed);
       reportUpstreamRequestCompleted(this.logger, observation, response);
       return parsed;
@@ -183,7 +214,8 @@ function validatePendingAuthorizationsEnvelope(value: unknown): void {
   const sheetNumbers: number[] = [];
   for (const itemValue of optionalArray(envelope['items'])) {
     const item = upstreamObject(itemValue);
-    for (const routeValue of optionalArray(item['roteirosEmAnalise'])) {
+    const dataset = item['ds-autorizacao'] === undefined ? item : upstreamObject(item['ds-autorizacao']);
+    for (const routeValue of optionalArray(dataset['roteirosEmAnalise'])) {
       const route = upstreamObject(routeValue);
       sheetNumbers.push(upstreamPositiveInteger(route['nrFicha']));
       upstreamPositiveInteger(route['nrOrdemProducao']);
@@ -194,8 +226,29 @@ function validatePendingAuthorizationsEnvelope(value: unknown): void {
       upstreamBoolean(route['liberada']);
       upstreamBoolean(route['inspecionado']);
       const total = upstreamNonNegativeInteger(route['componentesTotal']);
-      if (upstreamNonNegativeInteger(route['componentesForaFaixa']) > total) throw invalidUpstream();
+      const outOfRange = upstreamNonNegativeInteger(route['componentesForaFaixa']);
+      if (outOfRange > total) throw invalidUpstream();
       upstreamText(route['narrativa'], true);
+      const results = requiredArray(route['resultados']);
+      const identities = results.map(resultValue => {
+        const result = upstreamObject(resultValue);
+        if (upstreamPositiveInteger(result['nrFicha']) !== route['nrFicha']) throw invalidUpstream();
+        const examCode = upstreamPositiveInteger(result['codExame']);
+        const componentCode = upstreamPositiveInteger(result['codComponente']);
+        upstreamNonNegativeInteger(result['seqComp']);
+        upstreamPositiveInteger(result['tipoResultado']);
+        upstreamFiniteNumber(result['resultado']);
+        upstreamText(result['laudo'], true);
+        upstreamNonNegativeInteger(result['nrTabela']);
+        upstreamBoolean(result['dentroFaixa']);
+        return `${examCode}:${componentCode}`;
+      });
+      if (
+        results.length !== total ||
+        results.filter(value => !upstreamBoolean(upstreamObject(value)['dentroFaixa'])).length !== outOfRange ||
+        new Set(identities).size !== identities.length
+      )
+        throw invalidUpstream();
     }
   }
   if (new Set(sheetNumbers).size !== sheetNumbers.length) throw invalidUpstream();
@@ -217,8 +270,8 @@ function validateAuthorizedFinalizationEnvelope(value: unknown): void {
       const total = upstreamNonNegativeInteger(route['componentesTotal']);
       const saved = upstreamNonNegativeInteger(route['componentesSalvos']);
       const pending = upstreamNonNegativeInteger(route['componentesPendentes']);
-      if (saved + pending !== total
-        || upstreamNonNegativeInteger(route['componentesForaFaixa']) > total) throw invalidUpstream();
+      if (saved + pending !== total || upstreamNonNegativeInteger(route['componentesForaFaixa']) > total)
+        throw invalidUpstream();
       for (const examValue of optionalArray(route['exames'])) {
         const exam = upstreamObject(examValue);
         upstreamPositiveInteger(exam['nrFicha']);
@@ -234,8 +287,13 @@ function validateAuthorizedFinalizationEnvelope(value: unknown): void {
 
 function validateResultEnvelope(value: unknown): void {
   const envelope = upstreamObject(value);
-  if (envelope['total'] !== 1 || envelope['hasNext'] !== false || !Array.isArray(envelope['items'])
-    || envelope['items'].length !== 1) throw invalidUpstream();
+  if (
+    envelope['total'] !== 1 ||
+    envelope['hasNext'] !== false ||
+    !Array.isArray(envelope['items']) ||
+    envelope['items'].length !== 1
+  )
+    throw invalidUpstream();
   const item = upstreamObject(envelope['items'][0]);
   upstreamPositiveInteger(item['nrFicha']);
   upstreamPositiveInteger(item['codExame']);
@@ -265,6 +323,11 @@ function optionalArray(value: unknown): readonly unknown[] {
   return value;
 }
 
+function requiredArray(value: unknown): readonly unknown[] {
+  if (!Array.isArray(value)) throw invalidUpstream();
+  return value;
+}
+
 function upstreamPositiveInteger(value: unknown): number {
   const result = upstreamNonNegativeInteger(value);
   if (result === 0) throw invalidUpstream();
@@ -278,6 +341,11 @@ function upstreamNonNegativeInteger(value: unknown): number {
 
 function upstreamBoolean(value: unknown): boolean {
   if (typeof value !== 'boolean') throw invalidUpstream();
+  return value;
+}
+
+function upstreamFiniteNumber(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidUpstream();
   return value;
 }
 

@@ -20,7 +20,11 @@ import { RouteAnalysisSlide } from './route-analysis-slide';
 describe('RouteAnalysisSlide', () => {
   let fixture: ComponentFixture<RouteAnalysisSlide>;
   let component: RouteAnalysisSlide;
-  let service: { loadRoute: ReturnType<typeof vi.fn>; saveComponent: ReturnType<typeof vi.fn>; finalize: ReturnType<typeof vi.fn> };
+  let service: {
+    loadRoute: ReturnType<typeof vi.fn>;
+    saveComponent: ReturnType<typeof vi.fn>;
+    finalize: ReturnType<typeof vi.fn>;
+  };
   let pageSlide: { open: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
   let dialog: { confirm: ReturnType<typeof vi.fn> };
   let notification: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
@@ -49,24 +53,28 @@ describe('RouteAnalysisSlide', () => {
     dialog = { confirm: vi.spyOn(actualDialog, 'confirm').mockImplementation(() => undefined) };
   });
 
-  it('abre a ficha, mostra o alerta de autorização e inicia todos os componentes como não verificados', () => {
-    component.open(route(), 10);
+  it('abre a ficha com componentes dentro da faixa bloqueados e os demais editáveis', () => {
+    const selectedRoute = routeWithRemoteStatuses();
+    component.open(selectedRoute, 10);
     fixture.detectChanges();
     const text = normalizedText(fixture.nativeElement);
 
-    expect(service.loadRoute).toHaveBeenCalledWith(route(), 10);
+    expect(service.loadRoute).toHaveBeenCalledWith(selectedRoute, 10);
     expect(pageSlide.open).toHaveBeenCalledOnce();
-    expect(text).toContain('a consulta atual não informa os resultados já registrados no Datasul');
-    expect(text).toContain('Preencha somente os componentes que precisam ser corrigidos ou concluídos');
+    expect(text).toContain('somente os componentes fora da faixa podem ser corrigidos');
+    expect(text).toContain('aprovados pelo Datasul aparecem bloqueados apenas para visualização');
     expect(text).toContain('OP: 372562');
     expect(text).toContain('Operação: 10');
     expect(text).toContain('Item: 30907 — ALAVANCA');
     expect(text).toContain('Equipamento: PAQUÍMETRO');
-    expect(text).toContain('0 de 4 componentes verificados nesta sessão');
-    expect(component.statusFor(component.exams()[0].components[0])).toBe('unverified');
-    expect(fixture.nativeElement.textContent).toContain('Não verificado');
-    expect(fixture.nativeElement.querySelector('[data-status="unverified"]').getAttribute('aria-live'))
-      .toBe('polite');
+    expect(text).toContain('4 de 4 componentes classificados pelo Datasul');
+    const [outOfRange, approved] = component.exams()[0].components;
+    expect(component.statusFor(outOfRange)).toBe('out-of-range');
+    expect(component.isLocked(outOfRange)).toBe(false);
+    expect(component.draftFor(outOfRange).result).toBe('19.5');
+    expect(component.statusFor(approved)).toBe('approved');
+    expect(component.isLocked(approved)).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-status="approved"]').getAttribute('aria-live')).toBe('polite');
   });
 
   it('move o foco programaticamente para o título depois de abrir o painel', async () => {
@@ -106,12 +114,10 @@ describe('RouteAnalysisSlide', () => {
     component.updateResult(numericType4, '347');
     component.save(exam, numericType4);
 
-    expect(service.saveComponent).toHaveBeenCalledWith(
-      64462,
-      1845,
-      5,
-      { kind: 'numeric', result: 347 },
-    );
+    expect(service.saveComponent).toHaveBeenCalledWith(64462, 1845, 5, {
+      kind: 'numeric',
+      result: 347,
+    });
   });
 
   it('confirma aprovação somente após a resposta remota e bloqueia o componente aprovado', () => {
@@ -122,13 +128,17 @@ describe('RouteAnalysisSlide', () => {
     component.updateResult(numeric, '24,5');
     component.save(exam, numeric);
 
-    expect(service.saveComponent).toHaveBeenCalledWith(64462, 1845, 1, { kind: 'numeric', result: 24.5 });
+    expect(service.saveComponent).toHaveBeenCalledWith(64462, 1845, 1, {
+      kind: 'numeric',
+      result: 24.5,
+    });
     expect(component.statusFor(numeric)).toBe('approved');
     expect(component.isLocked(numeric)).toBe(true);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('[data-component-status="approved"]').textContent)
-      .toContain('✓ Aprovado pelo Datasul');
-    expect(fixture.nativeElement.textContent).toContain('1 de 4 componentes verificados nesta sessão');
+    expect(fixture.nativeElement.querySelector('[data-component-status="approved"]').textContent).toContain(
+      '✓ Aprovado pelo Datasul',
+    );
+    expect(fixture.nativeElement.textContent).toContain('4 de 4 componentes classificados pelo Datasul');
   });
 
   it('mantém editável e anuncia o retorno textual quando o Datasul informa fora da faixa', () => {
@@ -142,8 +152,9 @@ describe('RouteAnalysisSlide', () => {
 
     expect(component.statusFor(numeric)).toBe('out-of-range');
     expect(component.isLocked(numeric)).toBe(false);
-    expect(fixture.nativeElement.querySelector('[data-component-status="out-of-range"]').textContent)
-      .toContain('⚠ Fora da faixa confirmado pelo Datasul');
+    expect(fixture.nativeElement.querySelector('[data-component-status="out-of-range"]').textContent).toContain(
+      '⚠ Fora da faixa confirmado pelo Datasul',
+    );
   });
 
   it('salva somente draft alterado e exige nova edição para reenviar fora da faixa confirmado', () => {
@@ -181,7 +192,8 @@ describe('RouteAnalysisSlide', () => {
     service.loadRoute.mockReturnValue(of(loadedRouteWithSupportedComponents()));
     const exam = openLoaded(component);
     const [numeric, table, report] = exam.components;
-    service.saveComponent.mockReturnValueOnce(of(saveResult(false)))
+    service.saveComponent
+      .mockReturnValueOnce(of(saveResult(false)))
       .mockReturnValueOnce(of(saveResult(true)))
       .mockReturnValueOnce(of(saveResult(true)));
 
@@ -374,7 +386,7 @@ describe('RouteAnalysisSlide', () => {
     component.updateResult(numeric, '24,5');
     component.save(exam, numeric);
 
-    expect(component.statusFor(exam.components[1])).toBe('unverified');
+    expect(component.statusFor(exam.components[1])).toBe('out-of-range');
     expect(component.canFinalize()).toBe(true);
     component.finalizeRoute();
     expect(dialog.confirm).toHaveBeenCalledOnce();
@@ -384,9 +396,16 @@ describe('RouteAnalysisSlide', () => {
     service.loadRoute.mockReturnValue(of(loadedRouteWithSupportedComponents()));
     const exam = openLoaded(component);
     const outcome = {
-      sheetNumber: 64462, finalized: true as const, inspected: true, totalComponents: 4,
-      savedComponents: 4, pendingComponents: 0, outOfRangeComponents: 1, statusCode: 4,
-      message: 'Ficha finalizada', exams: [],
+      sheetNumber: 64462,
+      finalized: true as const,
+      inspected: true,
+      totalComponents: 4,
+      savedComponents: 4,
+      pendingComponents: 0,
+      outOfRangeComponents: 1,
+      statusCode: 4,
+      message: 'Ficha finalizada',
+      exams: [],
     };
     service.saveComponent.mockReturnValue(of(saveResult(true)));
     for (const componentModel of exam.components) {
@@ -458,9 +477,16 @@ describe('RouteAnalysisSlide', () => {
       component.save(exam, componentModel);
     }
     const outcome = {
-      sheetNumber: 64462, finalized: false as const, inspected: false, totalComponents: 4,
-      savedComponents: 4, pendingComponents: 1, outOfRangeComponents: 1, statusCode: 2,
-      message: 'Ainda há resultados pendentes para a ficha.', exams: [],
+      sheetNumber: 64462,
+      finalized: false as const,
+      inspected: false,
+      totalComponents: 4,
+      savedComponents: 4,
+      pendingComponents: 1,
+      outOfRangeComponents: 1,
+      statusCode: 2,
+      message: 'Ainda há resultados pendentes para a ficha.',
+      exams: [],
     };
     const finalized = vi.fn();
     component.routeFinalized.subscribe(finalized);
@@ -512,29 +538,88 @@ function route(): PendingAuthorizedRoute {
     released: false,
     inspected: false,
     totalComponents: 4,
-    outOfRangeComponents: 1,
+    outOfRangeComponents: 4,
     narrative: 'Componente pendente da autorização',
+    componentResults: [
+      existingResult(1, 1, false, 20),
+      existingResult(2, 2, false, 0, 8),
+      existingResult(3, 3, false, 0, 0, 'Laudo anterior'),
+      existingResult(4, 99, false, 0),
+    ],
+  };
+}
+
+function routeWithRemoteStatuses(): PendingAuthorizedRoute {
+  const current = route();
+  return {
+    ...current,
+    outOfRangeComponents: 1,
+    componentResults: [
+      existingResult(1, 1, false, 19.5),
+      existingResult(2, 2, true, 0, 8),
+      existingResult(3, 3, true, 0, 0, 'Conforme'),
+      existingResult(4, 99, true, 0),
+    ],
+  };
+}
+
+function existingResult(
+  componentCode: number,
+  resultType: number,
+  withinRange: boolean,
+  result: number,
+  tableNumber = 0,
+  report = '',
+) {
+  return {
+    sheetNumber: 64462,
+    examCode: 1845,
+    componentCode,
+    componentSequence: componentCode,
+    resultType,
+    result,
+    report,
+    tableNumber,
+    withinRange,
   };
 }
 
 function loadedRoute() {
   const components = [
     component(1, 1, 'Numérico'),
-    component(2, 2, 'Tabela', { tableNumber: 8, resultOptions: [
-      { tableNumber: 8, sequence: 1, description: 'Conforme' },
-    ] }),
+    component(2, 2, 'Tabela', {
+      tableNumber: 8,
+      resultOptions: [{ tableNumber: 8, sequence: 1, description: 'Conforme' }],
+    }),
     component(3, 3, 'Laudo'),
     component(4, 99, 'Desconhecido'),
   ];
-  const exams = [{
-    id: '64462-1845', code: '1845', description: 'Dimensional', version: '1', frequency: '1',
-    sample: '1', unit: '', nqa: '0', level: '0', components,
-  }];
+  const exams = [
+    {
+      id: '64462-1845',
+      code: '1845',
+      description: 'Dimensional',
+      version: '1',
+      frequency: '1',
+      sample: '1',
+      unit: '',
+      nqa: '0',
+      level: '0',
+      components,
+    },
+  ];
   return {
     route: {
-      nrFicha: 64462, routeNumber: '64462', processDescription: '', currentOrder: '372562',
-      operationCode: '10', operationDescription: '', split: '1', itemCode: '30907',
-      itemDescription: 'ALAVANCA', exams,
+      nrFicha: 64462,
+      routeNumber: '64462',
+      processDescription: '',
+      currentOrder: '372562',
+      operationCode: '10',
+      operationDescription: '',
+      split: '1',
+      itemCode: '30907',
+      itemDescription: 'ALAVANCA',
+      exams,
     },
     exams,
   };
@@ -548,9 +633,7 @@ function loadedRouteWithSupportedComponents() {
 
 function loadedRouteWithType4() {
   const loaded = loadedRoute();
-  const exams = [{ ...loaded.exams[0], components: [
-    component(5, 4, 'Numérico tipo 4'),
-  ] }];
+  const exams = [{ ...loaded.exams[0], components: [component(5, 4, 'Numérico tipo 4')] }];
   return { route: { ...loaded.route, exams }, exams };
 }
 
