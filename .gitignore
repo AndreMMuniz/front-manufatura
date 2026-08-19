@@ -126,4 +126,8 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 
+# Generated visual review evidence
+/implementation-menu-return-compact.png
+/artifacts/product-design-audit/
+
 {output_folder}
