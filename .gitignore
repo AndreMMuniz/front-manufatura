@@ -95,6 +95,9 @@ token-usage-output.txt
 docs/*
 !docs/atualiza-front.md
 
+# AI skill documentation must remain local
+/docs/superpowers/
+
 # Keep Plano de Controle CQ API documentation versioned
 !project-specs/
 project-specs/*
