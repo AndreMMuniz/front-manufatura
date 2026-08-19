@@ -5,6 +5,7 @@ import {
   PoButtonComponent,
   PoDecimalComponent,
   PoDialogService,
+  PoInputComponent,
   PoNotificationService,
   PoPageSlideComponent,
   PoSelectComponent,
@@ -95,10 +96,34 @@ describe('RouteAnalysisSlide', () => {
     component.open(route(), 10);
     fixture.detectChanges();
 
-    expect(fixture.debugElement.query(By.directive(PoDecimalComponent))).not.toBeNull();
+    expect(fixture.debugElement.query(By.directive(PoInputComponent))).not.toBeNull();
     expect(fixture.debugElement.query(By.directive(PoSelectComponent))).not.toBeNull();
     expect(fixture.debugElement.query(By.directive(PoTextareaComponent))).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Tipo de resultado não suportado para salvamento.');
+  });
+
+  it('usa input textual sem máscara e aceita somente ponto como separador decimal', () => {
+    const exam = openLoaded(component);
+    const numeric = exam.components[0];
+    service.saveComponent.mockReturnValue(of(saveResult(false)));
+    fixture.detectChanges();
+
+    const input = fixture.debugElement.query(By.directive(PoInputComponent));
+    expect(input).not.toBeNull();
+    expect(fixture.debugElement.query(By.directive(PoDecimalComponent))).toBeNull();
+    expect((input.nativeElement as HTMLElement).querySelector('input')?.type).toBe('text');
+
+    component.updateResult(numeric, '10.9');
+    component.save(exam, numeric);
+    expect(service.saveComponent).toHaveBeenCalledWith(64462, 1845, 1, {
+      kind: 'numeric',
+      result: 10.9,
+    });
+
+    component.updateResult(numeric, '10,9');
+    component.save(exam, numeric);
+    expect(service.saveComponent).toHaveBeenCalledOnce();
+    expect(component.statusTextFor(numeric)).toContain('use ponto');
   });
 
   it('trata explicitamente tipoResultado 4 como entrada e requisição numérica', () => {
@@ -109,7 +134,7 @@ describe('RouteAnalysisSlide', () => {
     fixture.detectChanges();
 
     expect(component.isSupported(numericType4)).toBe(true);
-    expect(fixture.debugElement.query(By.directive(PoDecimalComponent))).not.toBeNull();
+    expect(fixture.debugElement.query(By.directive(PoInputComponent))).not.toBeNull();
 
     component.updateResult(numericType4, '347');
     component.save(exam, numericType4);
@@ -125,7 +150,7 @@ describe('RouteAnalysisSlide', () => {
     const numeric = exam.components[0];
     service.saveComponent.mockReturnValue(of(saveResult(true)));
 
-    component.updateResult(numeric, '24,5');
+    component.updateResult(numeric, '24.5');
     component.save(exam, numeric);
 
     expect(service.saveComponent).toHaveBeenCalledWith(64462, 1845, 1, {
@@ -170,7 +195,7 @@ describe('RouteAnalysisSlide', () => {
     component.save(exam, numeric);
     expect(service.saveComponent).not.toHaveBeenCalled();
 
-    component.updateResult(numeric, '24,5');
+    component.updateResult(numeric, '24.5');
     fixture.detectChanges();
     expect(component.draftFor(numeric).isDirty).toBe(true);
     expect(saveButton.disabled).toBe(false);
@@ -197,7 +222,7 @@ describe('RouteAnalysisSlide', () => {
       .mockReturnValueOnce(of(saveResult(true)))
       .mockReturnValueOnce(of(saveResult(true)));
 
-    component.updateResult(numeric, '24,5');
+    component.updateResult(numeric, '24.5');
     component.save(exam, numeric);
     component.updateSelectedOption(table, '8:1');
     component.save(exam, table);
@@ -226,7 +251,7 @@ describe('RouteAnalysisSlide', () => {
     const numeric = exam.components[0];
     service.saveComponent.mockReturnValue(of(saveResult(false)));
 
-    component.updateResult(numeric, '24,5');
+    component.updateResult(numeric, '24.5');
     component.save(exam, numeric);
     component.updateResult(numeric, '');
     component.requestClose();
@@ -282,7 +307,7 @@ describe('RouteAnalysisSlide', () => {
     const numeric = exam.components[0];
     const pending = new Subject<ReturnType<typeof saveResult>>();
     service.saveComponent.mockReturnValue(pending);
-    component.updateResult(numeric, '24,5');
+    component.updateResult(numeric, '24.5');
 
     component.save(exam, numeric);
     component.save(exam, numeric);
@@ -295,7 +320,7 @@ describe('RouteAnalysisSlide', () => {
     const exam = openLoaded(component);
     const [numeric, table, report, unsupported] = exam.components;
 
-    component.updateResult(numeric, '24,555');
+    component.updateResult(numeric, '24.555');
     component.save(exam, numeric);
     component.updateSelectedOption(table, '8:99');
     component.save(exam, table);
@@ -342,7 +367,7 @@ describe('RouteAnalysisSlide', () => {
     const exam = openLoaded(component);
     const closed = vi.fn();
     component.analysisClosed.subscribe(closed);
-    component.updateResult(exam.components[0], '24,5');
+    component.updateResult(exam.components[0], '24.5');
 
     component.requestClose();
 
@@ -357,7 +382,7 @@ describe('RouteAnalysisSlide', () => {
     const exam = openLoaded(component);
     const pending = new Subject<ReturnType<typeof saveResult>>();
     service.saveComponent.mockReturnValue(pending);
-    component.updateResult(exam.components[0], '24,5');
+    component.updateResult(exam.components[0], '24.5');
     component.save(exam, exam.components[0]);
 
     component.requestClose();
@@ -383,7 +408,7 @@ describe('RouteAnalysisSlide', () => {
     service.saveComponent.mockReturnValue(of(saveResult(true)));
     service.finalize.mockReturnValue(new Subject());
 
-    component.updateResult(numeric, '24,5');
+    component.updateResult(numeric, '24.5');
     component.save(exam, numeric);
 
     expect(component.statusFor(exam.components[1])).toBe('out-of-range');
@@ -409,7 +434,7 @@ describe('RouteAnalysisSlide', () => {
     };
     service.saveComponent.mockReturnValue(of(saveResult(true)));
     for (const componentModel of exam.components) {
-      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24.5');
       if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
       if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
       component.save(exam, componentModel);
@@ -432,7 +457,7 @@ describe('RouteAnalysisSlide', () => {
     const exam = openLoaded(component);
     service.saveComponent.mockReturnValue(of(saveResult(true)));
     for (const componentModel of exam.components) {
-      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24.5');
       if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
       if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
       component.save(exam, componentModel);
@@ -450,7 +475,7 @@ describe('RouteAnalysisSlide', () => {
     const exam = openLoaded(component);
     service.saveComponent.mockReturnValue(of(saveResult(true)));
     for (const componentModel of exam.components) {
-      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24.5');
       if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
       if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
       component.save(exam, componentModel);
@@ -471,7 +496,7 @@ describe('RouteAnalysisSlide', () => {
     const exam = openLoaded(component);
     service.saveComponent.mockReturnValue(of(saveResult(true)));
     for (const componentModel of exam.components) {
-      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24.5');
       if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
       if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
       component.save(exam, componentModel);
@@ -506,7 +531,7 @@ describe('RouteAnalysisSlide', () => {
     const exam = openLoaded(component);
     service.saveComponent.mockReturnValue(of(saveResult(true)));
     for (const componentModel of exam.components) {
-      if (componentModel.resultType === 1) component.updateResult(componentModel, '24,5');
+      if (componentModel.resultType === 1) component.updateResult(componentModel, '24.5');
       if (componentModel.resultType === 2) component.updateSelectedOption(componentModel, '8:1');
       if (componentModel.resultType === 3) component.updateReport(componentModel, 'Conforme');
       component.save(exam, componentModel);

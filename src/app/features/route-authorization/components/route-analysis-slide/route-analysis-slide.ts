@@ -512,7 +512,7 @@ function optionKey(tableNumber: number, sequence: number): string {
 }
 
 function parseNumericResult(value: string, decimalPlaces: number | undefined): number | null {
-  const normalized = value.trim().replace(',', '.');
+  const normalized = value.trim();
   if (!normalized || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null;
   const decimals = normalized.split('.')[1]?.length ?? 0;
   if (decimalPlaces !== undefined && decimals > decimalPlaces) return null;
@@ -522,8 +522,8 @@ function parseNumericResult(value: string, decimalPlaces: number | undefined): n
 
 function numericValidationMessage(decimalPlaces: number | undefined): string {
   return decimalPlaces === undefined
-    ? 'Informe um resultado numérico válido.'
-    : `Informe um resultado numérico válido com até ${decimalPlaces} casas decimais.`;
+    ? 'Informe um resultado numérico válido; use ponto como separador decimal.'
+    : `Informe um resultado numérico válido com até ${decimalPlaces} casas decimais; use ponto como separador decimal.`;
 }
 
 function positiveInteger(value: string): number | null {

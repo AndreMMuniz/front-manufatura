@@ -62,14 +62,14 @@
             </header>
 
             @if (component.resultType === 1 || component.resultType === 4) {
-              <po-decimal
+              <po-input
                 [name]="'route-analysis-' + exam.code + '-' + component.code"
                 p-label="Resultado"
-                [p-decimals-length]="component.decimalPlaces ?? 0"
+                p-placeholder="Use ponto para separar as casas decimais"
                 [p-disabled]="isLocked(component) || isSaving(component) || finalizing()"
                 [ngModel]="draftFor(component).result"
                 (ngModelChange)="updateResult(component, $event)"
-              ></po-decimal>
+              ></po-input>
             } @else if (component.resultType === 2) {
               <po-select
                 [name]="'route-analysis-' + exam.code + '-' + component.code"
