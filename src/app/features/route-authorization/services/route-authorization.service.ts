@@ -21,13 +21,21 @@ import { QualityExam } from '../../quality-control/models/quality-exam';
 export class RouteAuthorizationService {
   constructor(private readonly api: AuthenticatedApiService) {}
 
-  search(orderNumber: number, operationCode: number): Observable<PendingAuthorizedRoute[]> {
-    if (!positiveInteger(orderNumber) || !positiveInteger(operationCode)) {
+  search(orderNumber: number | null, operationCode: number | null): Observable<PendingAuthorizedRoute[]> {
+    const isUnfilteredSearch = orderNumber === null && operationCode === null;
+    if (!isUnfilteredSearch && (
+      orderNumber === null
+      || operationCode === null
+      || !positiveInteger(orderNumber)
+      || !positiveInteger(operationCode)
+    )) {
       return throwError(() => new Error('invalid-route-authorization-query'));
     }
+    const query = isUnfilteredSearch
+      ? {}
+      : { nrOrdemProducao: orderNumber!, opCodigo: operationCode! };
     return this.api.get<unknown>('/api/quality-control/route-authorizations', {
-      nrOrdemProducao: orderNumber,
-      opCodigo: operationCode,
+      ...query,
     }).pipe(map(mapPendingRoutesEnvelope));
   }
 

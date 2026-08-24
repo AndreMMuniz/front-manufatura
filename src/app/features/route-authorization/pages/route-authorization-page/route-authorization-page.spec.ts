@@ -48,6 +48,28 @@ describe('RouteAuthorizationPage', () => {
     expect(component.state()).toBe('ready');
   });
 
+  it('consulta todas as pendências quando nenhum filtro é informado', () => {
+    service.search.mockReturnValue(of([route(64382), route(64442)]));
+
+    component.search();
+
+    expect(service.search).toHaveBeenCalledWith(null, null);
+    expect(component.routes().map(item => item.sheetNumber)).toEqual([64382, 64442]);
+    expect(component.state()).toBe('ready');
+    expect(component.feedback()).toContain('Para analisar, informe a ordem e a operação');
+  });
+
+  it('mantém a análise indisponível na listagem geral sem opCodigo', () => {
+    fixture.detectChanges();
+    component.search();
+    fixture.detectChanges();
+
+    const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
+      .componentInstance as PoButtonComponent;
+
+    expect(analysisButton.disabled).toBe(true);
+  });
+
   it('bloqueia consultas concorrentes enquanto a primeira está em andamento', () => {
     const first = new Subject<PendingAuthorizedRoute[]>();
     service.search.mockReturnValue(first);
@@ -136,6 +158,7 @@ describe('RouteAuthorizationPage', () => {
     component.routes.set([route(64382), route(64442)]);
     component.state.set('ready');
     component.operationCode.set('10');
+    component.canAnalyze.set(true);
     fixture.detectChanges();
     const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
       .componentInstance as PoButtonComponent;
@@ -191,6 +214,7 @@ describe('RouteAuthorizationPage', () => {
     component.routes.set([route(64382)]);
     component.state.set('ready');
     component.operationCode.set('10');
+    component.canAnalyze.set(true);
     fixture.detectChanges();
     const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
       .componentInstance as PoButtonComponent;

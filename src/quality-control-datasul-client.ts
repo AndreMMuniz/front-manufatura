@@ -108,6 +108,8 @@ export class QualityControlDatasulClient {
   }
 
   getRoutesPendingAuthorization(query: {
+    readonly codUsuario: string;
+  } | {
     readonly nrOrdemProducao: number;
     readonly opCodigo: number;
     readonly codUsuario: string;
@@ -115,9 +117,11 @@ export class QualityControlDatasulClient {
     const search = new URLSearchParams({
       companyId: String(this.config.companyId),
       codUsuario: query.codUsuario,
-      nrOrdemProducao: String(query.nrOrdemProducao),
-      opCodigo: String(query.opCodigo),
     });
+    if ('nrOrdemProducao' in query) {
+      search.set('nrOrdemProducao', String(query.nrOrdemProducao));
+      search.set('opCodigo', String(query.opCodigo));
+    }
     return this.request(
       'GET',
       `/api/fcq/v1/autorizacaoroteiros?${search}`,

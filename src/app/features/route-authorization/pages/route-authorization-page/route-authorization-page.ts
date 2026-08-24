@@ -51,19 +51,24 @@ export class RouteAuthorizationPage {
   readonly operationCode = signal('');
   readonly routes = signal<PendingAuthorizedRoute[]>([]);
   readonly state = signal<PageState>('initial');
-  readonly feedback = signal('Informe a ordem de produção e a operação para consultar.');
+  readonly feedback = signal('Informe a ordem de produção e a operação ou consulte sem filtros.');
   readonly analyzing = signal(false);
+  readonly canAnalyze = signal(false);
 
   search(): void {
     if (this.state() === 'loading') return;
-    const order = positiveInteger(this.orderNumber());
-    const operation = positiveInteger(this.operationCode());
-    if (order === null || operation === null) {
+    const hasOrder = this.orderNumber().trim().length > 0;
+    const hasOperation = this.operationCode().trim().length > 0;
+    const order = hasOrder ? positiveInteger(this.orderNumber()) : null;
+    const operation = hasOperation ? positiveInteger(this.operationCode()) : null;
+    const isUnfilteredSearch = !hasOrder && !hasOperation;
+    if (!isUnfilteredSearch && (order === null || operation === null)) {
       this.state.set('validation-error');
-      this.feedback.set('Informe números inteiros positivos para a ordem e a operação.');
+      this.feedback.set('Informe ordem e operação como números inteiros positivos ou deixe ambos vazios.');
       return;
     }
     this.queriedOperation = operation;
+    this.canAnalyze.set(operation !== null);
     const sequence = ++this.searchSequence;
     this.routes.set([]);
     this.state.set('loading');
@@ -76,7 +81,9 @@ export class RouteAuthorizationPage {
           this.routes.set(routes);
           this.state.set(routes.length ? 'ready' : 'empty');
           this.feedback.set(routes.length
-            ? `${routes.length} ficha(s) pendente(s) encontrada(s).`
+            ? `${routes.length} ficha(s) pendente(s) encontrada(s).${isUnfilteredSearch
+              ? ' Para analisar, informe a ordem e a operação.'
+              : ''}`
             : 'Nenhum roteiro pendente foi encontrado para os filtros informados.');
         },
         error: () => {

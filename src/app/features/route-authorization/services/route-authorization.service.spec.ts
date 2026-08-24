@@ -19,6 +19,17 @@ describe('RouteAuthorizationService', () => {
     });
   });
 
+  it('consulta todas as pendências sem enviar filtros quando ordem e operação estão vazias', async () => {
+    const api = {
+      get: vi.fn().mockReturnValue(of({ total: 0, hasNext: false, items: [] })),
+      post: vi.fn(),
+    };
+    const service = new RouteAuthorizationService(api as never);
+
+    await expect(firstValueFrom(service.search(null, null))).resolves.toEqual([]);
+    expect(api.get).toHaveBeenCalledWith('/api/quality-control/route-authorizations', {});
+  });
+
   it('não envia identidade nem empresa ao finalizar', async () => {
     const api = {
       get: vi.fn(),

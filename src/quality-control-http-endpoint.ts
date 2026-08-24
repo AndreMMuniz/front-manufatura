@@ -74,12 +74,18 @@ export function installQualityControlEndpoints(
   });
 
   app.get(`${ROOT}/route-authorizations`, async (req, res) => {
-    await handle(req, res, dependencies, async (client, userId) =>
-      client.getRoutesPendingAuthorization({
-        nrOrdemProducao: positiveInteger(req.query['nrOrdemProducao']),
-        opCodigo: positiveInteger(req.query['opCodigo']),
+    await handle(req, res, dependencies, async (client, userId) => {
+      const order = req.query['nrOrdemProducao'];
+      const operation = req.query['opCodigo'];
+      if (order === undefined && operation === undefined) {
+        return client.getRoutesPendingAuthorization({ codUsuario: userId });
+      }
+      return client.getRoutesPendingAuthorization({
+        nrOrdemProducao: positiveInteger(order),
+        opCodigo: positiveInteger(operation),
         codUsuario: userId,
-      }), APP_PERMISSIONS.divergentRouteAuthorization);
+      });
+    }, APP_PERMISSIONS.divergentRouteAuthorization);
   });
 
   app.post(`${ROOT}/route-authorizations/finalize`, async (req, res) => {

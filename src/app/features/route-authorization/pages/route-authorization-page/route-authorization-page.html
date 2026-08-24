@@ -14,7 +14,6 @@
           name="orderNumber"
           p-label="Ordem de produção"
           p-placeholder="Ex.: 372562"
-          p-required="true"
           [p-disabled]="state() === 'loading' || analyzing()"
           [ngModel]="orderNumber()"
           (ngModelChange)="orderNumber.set($event)"
@@ -23,7 +22,6 @@
           name="operationCode"
           p-label="Operação"
           p-placeholder="Ex.: 10"
-          p-required="true"
           [p-disabled]="state() === 'loading' || analyzing()"
           [ngModel]="operationCode()"
           (ngModelChange)="operationCode.set($event)"
@@ -72,7 +70,7 @@
                 #analysisTrigger
                 p-label="Analisar e finalizar"
                 [attr.data-route-sheet]="route.sheetNumber"
-                [p-disabled]="state() !== 'ready' || analyzing()"
+                [p-disabled]="state() !== 'ready' || analyzing() || !canAnalyze()"
                 (p-click)="requestAnalysis(route)"
               ></po-button>
             </div>

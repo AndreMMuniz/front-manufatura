@@ -391,6 +391,32 @@ describe('gateway Plano Controle CQ', () => {
     expect(init?.method).toBe('GET');
   });
 
+  it('consulta todas as ordens pendentes sem encaminhar filtros vazios ao Datasul', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(REAL_ROUTE_AUTHORIZATION), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=Mjocelio',
+    );
+  });
+
   it('finaliza com autorização por POST usando somente nrFicha controlada pelo browser', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
