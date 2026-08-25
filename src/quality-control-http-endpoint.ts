@@ -110,10 +110,11 @@ export function installQualityControlEndpoints(
         opCodigo: operationCode,
         codUsuario: userId,
       });
-      assertPendingAuthorizedRoute(pending, expectedSheetNumber, orderNumber);
+      const operatorCode = pendingAuthorizedRouteOperator(pending, expectedSheetNumber, orderNumber);
       const upstream = await client.getRoute({
         nrOrdemProducao: orderNumber,
         codOperacao: operationCode,
+        codOperador: operatorCode,
       });
       return selectAuthorizedRouteEnvelope(upstream, expectedSheetNumber, operationCode);
     }, APP_PERMISSIONS.divergentRouteAuthorization);
@@ -243,7 +244,11 @@ async function authorizedOperationCode(
   return matches[0];
 }
 
-function assertPendingAuthorizedRoute(value: unknown, expectedSheetNumber: number, expectedOrderNumber: number): void {
+function pendingAuthorizedRouteOperator(
+  value: unknown,
+  expectedSheetNumber: number,
+  expectedOrderNumber: number,
+): string {
   const envelope = upstreamObject(value);
   if (!Array.isArray(envelope['items'])) throw invalidUpstream();
   const matches = envelope['items'].flatMap(itemValue => {
@@ -256,6 +261,18 @@ function assertPendingAuthorizedRoute(value: unknown, expectedSheetNumber: numbe
       .filter(route => route['nrFicha'] === expectedSheetNumber && route['nrOrdemProducao'] === expectedOrderNumber);
   });
   if (matches.length !== 1) throw invalidUpstream();
+  const results = matches[0]['resultados'];
+  if (!Array.isArray(results) || results.length === 0) throw invalidUpstream();
+  const operatorCodes = results.map(resultValue => {
+    const value = upstreamObject(resultValue)['codResponsavel'];
+    if (typeof value !== 'string' || !value.trim()) throw invalidUpstream();
+    return value.trim();
+  });
+  const operatorCode = operatorCodes[0];
+  if (operatorCodes.some(code => code.toLocaleLowerCase() !== operatorCode.toLocaleLowerCase())) {
+    throw invalidUpstream();
+  }
+  return operatorCode;
 }
 
 async function handle(
