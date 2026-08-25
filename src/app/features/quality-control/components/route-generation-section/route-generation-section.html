@@ -43,6 +43,17 @@
     @if (workflow.selectedOperation()) {
       <po-widget p-title="Dados da Ordem">
         <app-ordem-info-card [route]="workflow.route()"></app-ordem-info-card>
+        <div class="route-generation__responsible">
+          <po-input
+            name="responsibleCode"
+            [p-label]="responsibleLabel"
+            [p-placeholder]="responsibleLabel === 'Equipe' ? 'Ex.: AUT00037' : 'Ex.: 00018060'"
+            [p-required]="true"
+            [p-disabled]="workflow.isBusy()"
+            [ngModel]="workflow.responsibleCode()"
+            (ngModelChange)="updateResponsibleCode($event)"
+          ></po-input>
+        </div>
       </po-widget>
       <div class="route-generation__primary-action">
         <po-button p-label="Gerar Roteiro" p-kind="primary" [p-disabled]="!canGenerateRoute" (p-click)="generateRoute()"></po-button>

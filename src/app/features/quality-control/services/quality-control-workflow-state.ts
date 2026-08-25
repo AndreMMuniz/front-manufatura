@@ -18,6 +18,7 @@ export class QualityControlWorkflowState {
   readonly orderNumber = signal('');
   readonly operations = signal<ProductionOrderOperation[]>([]);
   readonly selectedOperation = signal<ProductionOrderOperation | undefined>(undefined);
+  readonly responsibleCode = signal('');
   readonly moveBalance = signal(false);
   readonly route = signal<ProductionOrderRoute | undefined>(undefined);
   readonly exams = signal<QualityExam[]>([]);
@@ -80,12 +81,16 @@ export class QualityControlWorkflowState {
       return !this.sameDraft(draft, measurement);
     }),
   );
+  readonly responsibleType = computed(() =>
+    this.selectedOperation()?.responsibleType ?? 'OPERADOR',
+  );
 
   beginOrderLookup(orderNumber: string): number {
     this.contextId += 1;
     this.orderNumber.set(orderNumber.trim());
     this.operations.set([]);
     this.selectedOperation.set(undefined);
+    this.responsibleCode.set('');
     this.clearRouteContext();
     this.isSearching.set(true);
     this.routeFeedback.set('Consultando Ordem no Datasul...');
@@ -120,6 +125,7 @@ export class QualityControlWorkflowState {
     this.orderNumber.set(value);
     this.operations.set([]);
     this.selectedOperation.set(undefined);
+    this.responsibleCode.set('');
     this.clearRouteContext();
     this.routeFeedback.set('');
     this.isSearching.set(false);
@@ -128,6 +134,7 @@ export class QualityControlWorkflowState {
 
   selectOperation(operation: ProductionOrderOperation): void {
     this.selectedOperation.set(operation);
+    this.responsibleCode.set('');
     this.route.set({
       routeNumber: '',
       processDescription: operation.processDescription,
@@ -396,6 +403,7 @@ export class QualityControlWorkflowState {
     this.orderNumber.set('');
     this.operations.set([]);
     this.selectedOperation.set(undefined);
+    this.responsibleCode.set('');
     this.moveBalance.set(false);
     this.routeFeedback.set('');
     this.isSearching.set(false);

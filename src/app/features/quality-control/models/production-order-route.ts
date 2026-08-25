@@ -3,6 +3,7 @@ import type { QualityExam } from './quality-exam';
 export interface ProductionOrderOperation {
   operationCode: string;
   operationDescription: string;
+  responsibleType?: 'OPERADOR' | 'EQUIPE';
   split?: string;
   itemCode: string;
   itemDescription: string;
@@ -17,6 +18,8 @@ export interface ProductionOrderOperationsResult {
 export interface GenerateInspectionRouteRequest {
   orderNumber: string;
   operation: ProductionOrderOperation;
+  responsibleType: 'OPERADOR' | 'EQUIPE';
+  responsibleCode: string;
   moveBalance: boolean;
   idempotencyKey?: string;
 }

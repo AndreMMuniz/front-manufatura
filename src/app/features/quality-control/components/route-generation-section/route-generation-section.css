@@ -15,6 +15,7 @@
 .route-generation__operation:focus-visible { outline: 3px solid var(--app-color-focus); outline-offset: -3px; }
 .route-generation__operation--selected { background: var(--app-color-primary-soft); box-shadow: inset 4px 0 var(--app-color-primary); }
 .route-generation__operation-code { font-weight: 700; }
+.route-generation__responsible { margin-top: var(--app-space-md); max-width: 360px; }
 .route-generation__feedback { align-items: center; background: var(--app-color-info-soft); border-left: 4px solid var(--app-color-info); display: flex; gap: var(--app-space-md); justify-content: space-between; margin: 0; padding: var(--app-space-md); }
 .route-generation__feedback small { color: var(--app-color-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .route-generation__feedback strong { color: var(--app-color-text); }

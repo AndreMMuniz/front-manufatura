@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
 
-import { PoButtonModule, PoDialogService, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoDialogService, PoFieldModule, PoWidgetModule } from '@po-ui/ng-components';
 
 import { OrdemInfoCard } from '../ordem-info-card/ordem-info-card';
 import { OrdemSearch } from '../ordem-search/ordem-search';
@@ -11,7 +12,7 @@ import { QualityControlWorkflowState } from '../../services/quality-control-work
 
 @Component({
   selector: 'app-route-generation-section',
-  imports: [OrdemInfoCard, OrdemSearch, PoButtonModule, PoWidgetModule],
+  imports: [FormsModule, OrdemInfoCard, OrdemSearch, PoButtonModule, PoFieldModule, PoWidgetModule],
   templateUrl: './route-generation-section.html',
   styleUrls: ['./route-generation-section.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,8 +29,13 @@ export class RouteGenerationSection {
 
   get canGenerateRoute(): boolean {
     return Boolean(this.workflow.selectedOperation())
+      && Boolean(this.workflow.responsibleCode().trim())
       && !this.workflow.route()?.routeNumber
       && !this.workflow.isBusy();
+  }
+
+  get responsibleLabel(): 'Operador' | 'Equipe' {
+    return this.workflow.responsibleType() === 'EQUIPE' ? 'Equipe' : 'Operador';
   }
 
   searchOrder(): void {
@@ -66,6 +72,10 @@ export class RouteGenerationSection {
     if (!this.workflow.isBusy()) this.workflow.selectOperation(operation);
   }
 
+  updateResponsibleCode(value: string): void {
+    if (!this.workflow.isBusy()) this.workflow.responsibleCode.set(value ?? '');
+  }
+
   clearSearch(): void {
     if (this.workflow.isBusy()) return;
     this.runAfterDraftConfirmation(
@@ -77,15 +87,23 @@ export class RouteGenerationSection {
 
   generateRoute(): void {
     const operation = this.workflow.selectedOperation();
-    if (!operation || !this.canGenerateRoute) {
+    if (!operation) {
       this.workflow.routeFeedback.set('Selecione uma operação antes de gerar o roteiro.');
       return;
     }
+    const responsibleCode = this.workflow.responsibleCode().trim();
+    if (!responsibleCode) {
+      this.workflow.routeFeedback.set(`Informe o código d${this.responsibleLabel === 'Equipe' ? 'a' : 'o'} ${this.responsibleLabel}.`);
+      return;
+    }
+    if (!this.canGenerateRoute) return;
 
     const token = this.workflow.beginRouteGeneration();
     this.qualityControlService.generateInspectionRoute({
       orderNumber: this.workflow.orderNumber(),
       operation,
+      responsibleType: this.workflow.responsibleType(),
+      responsibleCode,
       moveBalance: this.workflow.moveBalance(),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))

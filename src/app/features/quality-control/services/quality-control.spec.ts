@@ -25,10 +25,7 @@ const routeEnvelope = {
   }] } }],
 };
 
-function createService(options: {
-  readonly operatorCode?: string | null;
-  readonly authenticatedUserId?: string;
-} = {}) {
+function createService() {
   const capture = vi.fn().mockResolvedValue({
     localId: 'local-1', idempotencyKey: 'idem-1', payloadHash: 'hash',
     committedAt: '2026-08-08T00:00:00.000Z', syncStatus: 'PENDING',
@@ -38,18 +35,8 @@ function createService(options: {
     post: vi.fn().mockReturnValue(of(routeEnvelope)),
   };
   const service = new QualityControlService(
-    { capture } as never, undefined, {
-      token: 'jwt',
-      currentUser: options.authenticatedUserId
-        ? { id: options.authenticatedUserId }
-        : null,
-    } as never,
+    { capture } as never, undefined, { token: 'jwt' } as never,
     undefined, undefined, undefined, undefined, http as never, undefined,
-    {
-      currentContext: options.operatorCode === null
-        ? null
-        : { operator: { code: options.operatorCode ?? '00016570' } },
-    } as never,
   );
   return { service, capture, http };
 }
@@ -63,12 +50,22 @@ describe('QualityControlService real Datasul contracts', () => {
     expect(http.get).toHaveBeenCalledWith('/api/quality-control/orders/372562', expect.anything());
   });
 
-  it('gera a ficha real com o operador do contexto e transporta o responsável retornado', async () => {
+  it.each([
+    ['operador', 'OPERADOR', '00018060', { nrOrdemProducao: 372562, codOperacao: 20, codOperador: '00018060' }],
+    ['equipe', 'EQUIPE', 'AUT00037', { nrOrdemProducao: 372562, codOperacao: 20, codEquipe: 'AUT00037' }],
+  ] as const)('gera a ficha com o código explícito de %s', async (
+    _name,
+    responsibleType,
+    responsibleCode,
+    expectedBody,
+  ) => {
     const { service, http } = createService();
     const route = await firstValueFrom(service.generateInspectionRoute({
       orderNumber: '372562', moveBalance: false,
       operation: { operationCode: '20', operationDescription: 'USINAR', split: '1',
         itemCode: '30907', itemDescription: '30907', processDescription: 'USINAR' },
+      responsibleType,
+      responsibleCode,
     }));
     expect(route.routeNumber).toBe('64379');
     expect(route.nrFicha).toBe(64379);
@@ -76,25 +73,7 @@ describe('QualityControlService real Datasul contracts', () => {
     expect(route.exams?.[0].components[0]).toMatchObject({ decimalPlaces: 2, minValue: 23.8, maxValue: 24.2 });
     expect(http.post).toHaveBeenCalledWith(
       '/api/quality-control/routes',
-      { nrOrdemProducao: 372562, codOperacao: 20, codOperador: '00016570' },
-      expect.anything(),
-    );
-  });
-
-  it('gera o roteiro com o usuário autenticado ao entrar diretamente sem contexto operacional', async () => {
-    const { service, http } = createService({
-      operatorCode: null,
-      authenticatedUserId: '00016570',
-    });
-
-    await expect(firstValueFrom(service.generateInspectionRoute({
-      orderNumber: '372562', moveBalance: false,
-      operation: { operationCode: '20', operationDescription: 'USINAR', split: '1',
-        itemCode: '30907', itemDescription: '30907', processDescription: 'USINAR' },
-    }))).resolves.toMatchObject({ routeNumber: '64379' });
-    expect(http.post).toHaveBeenCalledWith(
-      '/api/quality-control/routes',
-      { nrOrdemProducao: 372562, codOperacao: 20, codOperador: '00016570' },
+      expectedBody,
       expect.anything(),
     );
   });

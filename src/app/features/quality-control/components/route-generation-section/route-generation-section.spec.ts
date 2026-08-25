@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { PoDialogService } from '@po-ui/ng-components';
@@ -39,10 +40,51 @@ describe('RouteGenerationSection', () => {
     state.updateOrderNumber('372562');
     component.searchOrder();
     state.selectOperation(state.operations()[0]);
+    state.responsibleCode.set('00018060');
     component.generateRoute();
     expect(state.route()?.routeNumber).toBe('64379');
     expect(state.exams()).toEqual(exams);
     expect(service.generateInspectionRoute).toHaveBeenCalledTimes(1);
+  });
+
+  it('exige o código do operador padrão e o encaminha ao gerar o roteiro', () => {
+    state.updateOrderNumber('372562');
+    component.searchOrder();
+    component.selectOperation(state.operations()[0]);
+    fixture.detectChanges();
+
+    const responsibleInput = fixture.debugElement.query(By.css('po-input[name="responsibleCode"]'));
+    expect(responsibleInput).toBeTruthy();
+    expect(responsibleInput.componentInstance.label).toBe('Operador');
+    expect(component.canGenerateRoute).toBe(false);
+
+    responsibleInput.triggerEventHandler('ngModelChange', ' 00018060 ');
+    fixture.detectChanges();
+    expect(component.canGenerateRoute).toBe(true);
+
+    component.generateRoute();
+    expect(service.generateInspectionRoute).toHaveBeenCalledWith(expect.objectContaining({
+      responsibleType: 'OPERADOR',
+      responsibleCode: '00018060',
+    }));
+  });
+
+  it('altera o label e o tipo enviado quando a operação for de equipe', () => {
+    const teamOperation = { ...operation, responsibleType: 'EQUIPE' as const };
+    const token = state.beginOrderLookup('372562');
+    state.completeOrderLookup(token, '372562', [teamOperation]);
+    component.selectOperation(teamOperation);
+    fixture.detectChanges();
+
+    const responsibleInput = fixture.debugElement.query(By.css('po-input[name="responsibleCode"]'));
+    expect(responsibleInput.componentInstance.label).toBe('Equipe');
+
+    responsibleInput.triggerEventHandler('ngModelChange', ' AUT00037 ');
+    component.generateRoute();
+    expect(service.generateInspectionRoute).toHaveBeenCalledWith(expect.objectContaining({
+      responsibleType: 'EQUIPE',
+      responsibleCode: 'AUT00037',
+    }));
   });
 
   it('não injeta OP fictícia ao acionar scanner sem integração', () => {
