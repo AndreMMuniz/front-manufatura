@@ -41,11 +41,12 @@ export class RouteAuthorizationService {
 
   loadRoute(
     route: PendingAuthorizedRoute,
-    operationCode: number,
+    operationCode: number | null,
   ): Observable<{ readonly route: ProductionOrderRoute; readonly exams: QualityExam[] }> {
     if (!positiveInteger(route.sheetNumber)
       || !positiveInteger(route.productionOrderNumber)
-      || !positiveInteger(operationCode)) {
+      || !positiveInteger(route.operationSequence)
+      || (operationCode !== null && !positiveInteger(operationCode))) {
       return throwError(() => new Error('invalid-route-authorization-route'));
     }
     return this.api.post<unknown>(
@@ -53,19 +54,24 @@ export class RouteAuthorizationService {
       {
         nrFicha: route.sheetNumber,
         nrOrdemProducao: route.productionOrderNumber,
-        codOperacao: operationCode,
+        ...(operationCode === null
+          ? { sequenciaOperacao: route.operationSequence }
+          : { codOperacao: operationCode }),
       },
-    ).pipe(map(value => mapInspectionRouteEnvelopeForSheet(value, {
-      orderNumber: String(route.productionOrderNumber),
-      operation: {
-        operationCode: String(operationCode),
-        operationDescription: '',
-        processDescription: '',
-        split: '1',
-        itemCode: route.itemCode,
-        itemDescription: route.itemDescription,
-      },
-    }, route.sheetNumber)));
+    ).pipe(map(value => {
+      const resolvedOperationCode = operationCodeOf(value);
+      return mapInspectionRouteEnvelopeForSheet(value, {
+        orderNumber: String(route.productionOrderNumber),
+        operation: {
+          operationCode: String(resolvedOperationCode),
+          operationDescription: '',
+          processDescription: '',
+          split: '1',
+          itemCode: route.itemCode,
+          itemDescription: route.itemDescription,
+        },
+      }, route.sheetNumber);
+    }));
   }
 
   saveComponent(
@@ -117,4 +123,17 @@ function resultPayloadOf(
 
 function positiveInteger(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
+}
+
+function operationCodeOf(value: unknown): number {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid-upstream-response');
+  const items = (value as Record<string, unknown>)['items'];
+  if (!Array.isArray(items) || items.length !== 1) throw new Error('invalid-upstream-response');
+  const item = items[0];
+  if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('invalid-upstream-response');
+  const operationCode = (item as Record<string, unknown>)['codOperacao'];
+  if (typeof operationCode !== 'number' || !positiveInteger(operationCode)) {
+    throw new Error('invalid-upstream-response');
+  }
+  return operationCode;
 }

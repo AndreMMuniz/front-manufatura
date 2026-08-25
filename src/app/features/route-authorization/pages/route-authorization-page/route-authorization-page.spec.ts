@@ -56,10 +56,10 @@ describe('RouteAuthorizationPage', () => {
     expect(service.search).toHaveBeenCalledWith(null, null);
     expect(component.routes().map(item => item.sheetNumber)).toEqual([64382, 64442]);
     expect(component.state()).toBe('ready');
-    expect(component.feedback()).toContain('Para analisar, informe a ordem e a operação');
+    expect(component.feedback()).toBe('2 ficha(s) pendente(s) encontrada(s).');
   });
 
-  it('mantém a análise indisponível na listagem geral sem opCodigo', () => {
+  it('habilita a análise da ficha na listagem geral sem opCodigo', () => {
     fixture.detectChanges();
     component.search();
     fixture.detectChanges();
@@ -67,7 +67,23 @@ describe('RouteAuthorizationPage', () => {
     const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
       .componentInstance as PoButtonComponent;
 
-    expect(analysisButton.disabled).toBe(true);
+    expect(analysisButton.disabled).toBe(false);
+  });
+
+  it('abre a ficha da listagem geral usando a sequência para resolver a operação', () => {
+    fixture.detectChanges();
+    const analysisSlide = fixture.debugElement.query(By.directive(RouteAnalysisSlide))
+      .componentInstance as RouteAnalysisSlide;
+    const open = vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
+    component.search();
+    fixture.detectChanges();
+    const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
+      .componentInstance as PoButtonComponent;
+
+    component.operationCode.set('20');
+    analysisButton.click.emit(null);
+
+    expect(open).toHaveBeenCalledWith(route(64382), null);
   });
 
   it('bloqueia consultas concorrentes enquanto a primeira está em andamento', () => {
@@ -90,9 +106,9 @@ describe('RouteAuthorizationPage', () => {
     expect(analysisSlideDebug).not.toBeNull();
     const analysisSlide = analysisSlideDebug!.componentInstance as RouteAnalysisSlide;
     const open = vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
-    component.routes.set([route(64382)]);
-    component.state.set('ready');
+    component.orderNumber.set('372562');
     component.operationCode.set('10');
+    component.search();
     fixture.detectChanges();
     const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
       .componentInstance as PoButtonComponent;
@@ -155,10 +171,11 @@ describe('RouteAuthorizationPage', () => {
     expect(analysisSlideDebug).not.toBeNull();
     const analysisSlide = analysisSlideDebug!.componentInstance as RouteAnalysisSlide;
     vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
+    component.orderNumber.set('372562');
+    component.operationCode.set('10');
+    component.search();
     component.routes.set([route(64382), route(64442)]);
     component.state.set('ready');
-    component.operationCode.set('10');
-    component.canAnalyze.set(true);
     fixture.detectChanges();
     const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
       .componentInstance as PoButtonComponent;
@@ -211,10 +228,11 @@ describe('RouteAuthorizationPage', () => {
     const analysisSlide = fixture.debugElement.query(By.directive(RouteAnalysisSlide))
       .componentInstance as RouteAnalysisSlide;
     vi.spyOn(analysisSlide, 'open').mockImplementation(() => undefined);
+    component.orderNumber.set('372562');
+    component.operationCode.set('10');
+    component.search();
     component.routes.set([route(64382)]);
     component.state.set('ready');
-    component.operationCode.set('10');
-    component.canAnalyze.set(true);
     fixture.detectChanges();
     const analysisButton = fixture.debugElement.query(By.css('.route-card__actions po-button'))
       .componentInstance as PoButtonComponent;

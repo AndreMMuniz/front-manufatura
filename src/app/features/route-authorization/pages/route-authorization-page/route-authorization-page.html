@@ -70,7 +70,7 @@
                 #analysisTrigger
                 p-label="Analisar e finalizar"
                 [attr.data-route-sheet]="route.sheetNumber"
-                [p-disabled]="state() !== 'ready' || analyzing() || !canAnalyze()"
+                [p-disabled]="state() !== 'ready' || analyzing()"
                 (p-click)="requestAnalysis(route)"
               ></po-button>
             </div>

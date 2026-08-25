@@ -100,6 +100,24 @@ describe('RouteAuthorizationService', () => {
     });
   });
 
+  it('carrega ficha da consulta geral resolvendo a operação pela sequência', async () => {
+    const api = {
+      get: vi.fn(),
+      post: vi.fn().mockReturnValue(of(routeEnvelope(64462))),
+      put: vi.fn(),
+    };
+    const service = new RouteAuthorizationService(api as never);
+
+    const result = await firstValueFrom(service.loadRoute(route(), null));
+
+    expect(result.route.operationCode).toBe('10');
+    expect(api.post).toHaveBeenCalledWith('/api/quality-control/route-authorizations/route', {
+      nrFicha: 64462,
+      nrOrdemProducao: 372562,
+      sequenciaOperacao: 1,
+    });
+  });
+
   it('rejeita a identidade inválida da ficha antes de chamar o BFF', async () => {
     const api = { get: vi.fn(), post: vi.fn(), put: vi.fn() };
     const service = new RouteAuthorizationService(api as never);
@@ -181,6 +199,7 @@ function routeEnvelope(nrFicha: number) {
     items: [
       {
         nrFicha,
+        codOperacao: 10,
         'ds-roteiro': {
           exames: [
             {

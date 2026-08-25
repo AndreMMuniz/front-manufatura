@@ -53,7 +53,6 @@ export class RouteAuthorizationPage {
   readonly state = signal<PageState>('initial');
   readonly feedback = signal('Informe a ordem de produção e a operação ou consulte sem filtros.');
   readonly analyzing = signal(false);
-  readonly canAnalyze = signal(false);
 
   search(): void {
     if (this.state() === 'loading') return;
@@ -68,7 +67,6 @@ export class RouteAuthorizationPage {
       return;
     }
     this.queriedOperation = operation;
-    this.canAnalyze.set(operation !== null);
     const sequence = ++this.searchSequence;
     this.routes.set([]);
     this.state.set('loading');
@@ -81,9 +79,7 @@ export class RouteAuthorizationPage {
           this.routes.set(routes);
           this.state.set(routes.length ? 'ready' : 'empty');
           this.feedback.set(routes.length
-            ? `${routes.length} ficha(s) pendente(s) encontrada(s).${isUnfilteredSearch
-              ? ' Para analisar, informe a ordem e a operação.'
-              : ''}`
+            ? `${routes.length} ficha(s) pendente(s) encontrada(s).`
             : 'Nenhum roteiro pendente foi encontrado para os filtros informados.');
         },
         error: () => {
@@ -100,13 +96,11 @@ export class RouteAuthorizationPage {
 
   requestAnalysis(route: PendingAuthorizedRoute): void {
     if (this.analyzing()) return;
-    const operation = this.queriedOperation ?? positiveInteger(this.operationCode());
-    if (operation === null) return;
 
     ++this.focusRestoreSequence;
     this.analysisTriggerSheet = route.sheetNumber;
     this.analyzing.set(true);
-    this.analysisSlide.open(route, operation);
+    this.analysisSlide.open(route, this.queriedOperation);
   }
 
   onRouteFinalized(outcome: AuthorizedRouteFinalizationOutcome): void {

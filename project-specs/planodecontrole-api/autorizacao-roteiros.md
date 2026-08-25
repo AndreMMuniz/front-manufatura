@@ -20,7 +20,7 @@ de roteiro vazia/ambígua continua sendo recusada com `invalid-upstream-response
 | Método | Endpoint BFF                                         | Uso                                                                                                                                             |
 | ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`  | `/api/quality-control/route-authorizations`          | Lista todas as fichas pendentes ou filtra por `nrOrdemProducao` e `opCodigo`.                                                                    |
-| `POST` | `/api/quality-control/route-authorizations/route`    | Confirma `nrFicha` nas pendências da ordem/operação e associa a definição única do roteiro à ficha autorizada.                                  |
+| `POST` | `/api/quality-control/route-authorizations/route`    | Confirma `nrFicha` nas pendências e associa a definição única do roteiro à ficha; na listagem geral, resolve `codOperacao` pela sequência da ordem. |
 | `PUT`  | `/api/quality-control/route-authorizations/results`  | Salva um componente com `nrFicha`, `codExame`, `codComponente` e exatamente uma representação: `resultado`, `nrTabela` + `seqOpcao` ou `laudo`. |
 | `POST` | `/api/quality-control/route-authorizations/finalize` | Solicita a finalização autorizada da ficha informada por `nrFicha`.                                                                             |
 
@@ -55,7 +55,7 @@ pendências. A ficha só é removida da lista quando `finalizado: true`.
 
 ## Fluxo funcional esperado
 
-1. O usuário consulta todas as pendências sem filtros ou informa a ordem de produção e a operação para filtrar e habilitar a análise.
+1. O usuário consulta todas as pendências sem filtros ou informa a ordem de produção e a operação para filtrar a lista.
 2. O frontend consulta os roteiros em análise para a empresa e o usuário autenticado.
 3. A tela apresenta cada ficha pendente, seus totais e a quantidade de componentes fora da faixa.
 4. O usuário abre a ficha no fluxo de roteiro já existente para consultar ou alterar os resultados permitidos.
@@ -180,7 +180,7 @@ GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio
 ## Regras e cuidados para a implementação
 
 - Não assumir que `total` representa diretamente a quantidade de fichas: no exemplo, `total` é `1`, enquanto `items[0]["ds-autorizacao"].roteirosEmAnalise` contém duas fichas.
-- Na listagem geral, não inferir `opCodigo` a partir de `sequenciaOperacao`; a análise deve ser habilitada somente após consulta específica por ordem e operação.
+- Na listagem geral, não usar `sequenciaOperacao` diretamente como `opCodigo`. O BFF consulta a ordem e exige uma correspondência única entre `sequencia` e `codOperacao` antes de carregar a análise.
 - Tratar `items`, `ds-autorizacao`, `roteirosEmAnalise`, `roteiro` e `exames` ausentes ou vazios sem quebrar a tela.
 - Validar que `resultados` tenha uma identidade única por exame/componente, pertença à ficha e seja coerente com `componentesTotal` e `componentesForaFaixa`.
 - Não considerar apenas o status HTTP como sucesso: validar também `finalizado`, `componentesPendentes` e a mensagem retornada.

@@ -43,6 +43,16 @@ const REAL_ROUTE_AUTHORIZATION = JSON.parse(
   ),
 ) as unknown;
 
+const REAL_PRODUCTION_ORDER = JSON.parse(
+  readFileSync(
+    new URL(
+      '../project-specs/planodecontrole-api/examples/ordens-372562-response.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as unknown;
+
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
@@ -614,7 +624,7 @@ describe('gateway Plano Controle CQ', () => {
     await expect(response.json()).resolves.toEqual({
       total: 1,
       hasNext: false,
-      items: [{ nrFicha: 64382, 'ds-roteiro': { exames: [] } }],
+      items: [{ nrFicha: 64382, codOperacao: 10, 'ds-roteiro': { exames: [] } }],
     });
   });
 
@@ -662,7 +672,45 @@ describe('gateway Plano Controle CQ', () => {
     await expect(response.json()).resolves.toEqual({
       total: 1,
       hasNext: false,
-      items: [{ nrFicha: 64382, 'ds-roteiro': { exames: [] } }],
+      items: [{ nrFicha: 64382, codOperacao: 10, 'ds-roteiro': { exames: [] } }],
+    });
+  });
+
+  it('resolve a operação pela sequência ao abrir ficha da listagem geral', async () => {
+    const transport = vi.fn<typeof fetch>().mockImplementation(async input => {
+      const url = new URL(String(input));
+      const value = url.pathname.endsWith('/ordens/372562')
+        ? REAL_PRODUCTION_ORDER
+        : url.pathname.endsWith('/autorizacaoroteiros')
+          ? REAL_ROUTE_AUTHORIZATION
+          : { total: 1, hasNext: false, items: [{ nrFicha: 99999, 'ds-roteiro': { exames: [] } }] };
+      return Response.json(value);
+    });
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations/route`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64382, nrOrdemProducao: 372562, sequenciaOperacao: 1 }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(transport.mock.calls.map(call => String(call[0]))).toEqual([
+      'https://datasul.example.test/api/fcq/v1/ordens/372562',
+      'https://datasul.example.test/api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=Mjocelio&nrOrdemProducao=372562&opCodigo=10',
+      'https://datasul.example.test/api/fcq/v1/roteiros?companyid=1',
+    ]);
+    await expect(response.json()).resolves.toEqual({
+      total: 1,
+      hasNext: false,
+      items: [{ nrFicha: 64382, codOperacao: 10, 'ds-roteiro': { exames: [] } }],
     });
   });
 

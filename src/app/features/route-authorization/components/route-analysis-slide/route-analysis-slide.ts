@@ -99,7 +99,7 @@ export class RouteAnalysisSlide {
     );
   });
 
-  open(route: PendingAuthorizedRoute, operationCode: number): void {
+  open(route: PendingAuthorizedRoute, operationCode: number | null): void {
     if (this.isOpen || this.loading() || this.finalizing() || this.hasSavingComponent()) {
       this.feedback.set('Feche a análise atual antes de abrir outra ficha.');
       return;
