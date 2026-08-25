@@ -35,6 +35,8 @@ export interface DatasulSplit {
 
 export interface DatasulRouteItem {
   readonly nrFicha: number;
+  readonly tipoResponsavel?: 'OPERADOR' | 'EQUIPE';
+  readonly codResponsavel?: string;
   readonly 'ds-roteiro': { readonly exames: readonly DatasulExam[] };
 }
 

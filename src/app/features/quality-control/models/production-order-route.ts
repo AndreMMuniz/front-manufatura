@@ -33,5 +33,7 @@ export interface ProductionOrderRoute {
   split: string;
   itemCode: string;
   itemDescription: string;
+  responsibleType?: 'OPERADOR' | 'EQUIPE';
+  responsibleCode?: string;
   exams?: readonly QualityExam[];
 }

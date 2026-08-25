@@ -30,7 +30,9 @@ describe('Datasul quality-control mapper', () => {
 
   it('mantém nrFicha, resultado único, decimais e opções tabeladas', () => {
     const result = mapInspectionRouteEnvelope({
-      total: 1, hasNext: false, items: [{ nrFicha: 64379, 'ds-roteiro': { exames: [{
+      total: 1, hasNext: false, items: [{
+        nrFicha: 64379, tipoResponsavel: 'EQUIPE', codResponsavel: 'AUT00037',
+        'ds-roteiro': { exames: [{
         codExame: 1845, descricao: 'ALAVANCA', versao: 1, frequencia: 60,
         amostra: 2, nivel: 0, nqa: 0, responsavel: 'RPEREIRA', observacao: '',
         componentes: [{
@@ -52,6 +54,10 @@ describe('Datasul quality-control mapper', () => {
     });
 
     expect(result.route.nrFicha).toBe(64379);
+    expect(result.route).toMatchObject({
+      responsibleType: 'EQUIPE',
+      responsibleCode: 'AUT00037',
+    });
     expect(result.route.exams).toHaveLength(1);
     expect(result.exams[0].components[0]).toMatchObject({
       componentCode: 3, decimalPlaces: 0, tableNumber: 8,

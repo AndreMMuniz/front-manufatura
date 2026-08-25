@@ -13,7 +13,9 @@ const orderEnvelope = {
 };
 
 const routeEnvelope = {
-  total: 1, hasNext: false, items: [{ nrFicha: 64379, 'ds-roteiro': { exames: [{
+  total: 1, hasNext: false, items: [{
+    nrFicha: 64379, tipoResponsavel: 'OPERADOR', codResponsavel: '00016570',
+    'ds-roteiro': { exames: [{
     codExame: 1845, descricao: 'ALAVANCA', versao: 1, frequencia: 60,
     amostra: 2, nivel: 0, nqa: 0, responsavel: 'RPEREIRA', observacao: '',
     componentes: [{ codExame: 1845, codComponente: 1, descricao: 'COTA',
@@ -34,7 +36,8 @@ function createService() {
   };
   const service = new QualityControlService(
     { capture } as never, undefined, { token: 'jwt' } as never,
-    undefined, undefined, undefined, undefined, http as never,
+    undefined, undefined, undefined, undefined, http as never, undefined,
+    { currentContext: { operator: { code: '00016570' } } } as never,
   );
   return { service, capture, http };
 }
@@ -48,8 +51,8 @@ describe('QualityControlService real Datasul contracts', () => {
     expect(http.get).toHaveBeenCalledWith('/api/quality-control/orders/372562', expect.anything());
   });
 
-  it('gera a ficha real e transporta exames mapeados', async () => {
-    const { service } = createService();
+  it('gera a ficha real com o operador do contexto e transporta o responsável retornado', async () => {
+    const { service, http } = createService();
     const route = await firstValueFrom(service.generateInspectionRoute({
       orderNumber: '372562', moveBalance: false,
       operation: { operationCode: '20', operationDescription: 'USINAR', split: '1',
@@ -57,7 +60,13 @@ describe('QualityControlService real Datasul contracts', () => {
     }));
     expect(route.routeNumber).toBe('64379');
     expect(route.nrFicha).toBe(64379);
+    expect(route).toMatchObject({ responsibleType: 'OPERADOR', responsibleCode: '00016570' });
     expect(route.exams?.[0].components[0]).toMatchObject({ decimalPlaces: 2, minValue: 23.8, maxValue: 24.2 });
+    expect(http.post).toHaveBeenCalledWith(
+      '/api/quality-control/routes',
+      { nrOrdemProducao: 372562, codOperacao: 20, codOperador: '00016570' },
+      expect.anything(),
+    );
   });
 
   it('captura resultado único sem classificar localmente como aprovado', async () => {

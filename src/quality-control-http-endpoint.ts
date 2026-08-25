@@ -52,6 +52,7 @@ export function installQualityControlEndpoints(
       return client.getRoute({
         nrOrdemProducao: positiveInteger(body['nrOrdemProducao']),
         codOperacao: positiveInteger(body['codOperacao']),
+        ...routeResponsible(body),
       });
     });
   });
@@ -297,6 +298,22 @@ function objectBody(value: unknown): JsonObject {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
   return value as JsonObject;
+}
+
+function routeResponsible(body: JsonObject): { codOperador: string } | { codEquipe: string } {
+  const hasOperator = body['codOperador'] !== undefined;
+  const hasTeam = body['codEquipe'] !== undefined;
+  if (hasOperator === hasTeam) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  const field = hasOperator ? 'codOperador' : 'codEquipe';
+  const value = body[field];
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return field === 'codOperador'
+    ? { codOperador: value.trim() }
+    : { codEquipe: value.trim() };
 }
 
 function positiveInteger(value: unknown): number {

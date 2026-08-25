@@ -75,6 +75,7 @@ function mapInspectionRouteItem(
   const exams = uniqueById(arrayOf(dataset['exames']).map((exam, index) =>
     mapExam(exam, nrFicha, index)));
   const operation = context.operation;
+  const responsible = mapRouteResponsible(routeItem);
   return {
     route: {
       nrFicha,
@@ -88,10 +89,24 @@ function mapInspectionRouteItem(
       split: operation.split?.trim() || '1',
       itemCode: operation.itemCode,
       itemDescription: operation.itemDescription,
+      ...responsible,
       exams,
     },
     exams,
   };
+}
+
+function mapRouteResponsible(routeItem: Record<string, unknown>): {
+  readonly responsibleType?: 'OPERADOR' | 'EQUIPE';
+  readonly responsibleCode?: string;
+} {
+  const type = routeItem['tipoResponsavel'];
+  const code = routeItem['codResponsavel'];
+  if (type === undefined && code === undefined) return {};
+  if ((type !== 'OPERADOR' && type !== 'EQUIPE') || typeof code !== 'string' || !code.trim()) {
+    throw invalidContract();
+  }
+  return { responsibleType: type, responsibleCode: code.trim() };
 }
 
 function mapExam(value: unknown, nrFicha: number, examIndex: number): QualityExam {

@@ -24,7 +24,19 @@ Consulta o roteiro de inspeção associado a uma ordem de produção e a uma ope
 ```json
 {
   "nrOrdemProducao": 372562,
-  "codOperacao": 20
+  "codOperacao": 20,
+  "codOperador": "00016570"
+}
+```
+
+Para gerar o roteiro sob responsabilidade de uma equipe, substitua `codOperador` por
+`codEquipe`:
+
+```json
+{
+  "nrOrdemProducao": 372518,
+  "codOperacao": 10,
+  "codEquipe": "AUT00037"
 }
 ```
 
@@ -32,6 +44,8 @@ Consulta o roteiro de inspeção associado a uma ordem de produção e a uma ope
 | --- | --- | --- | --- |
 | `nrOrdemProducao` | integer | Sim | Número da ordem de produção. |
 | `codOperacao` | integer | Sim | Código da operação para a qual o roteiro será consultado. |
+| `codOperador` | string | Condicional | Código do operador responsável. Exatamente um entre `codOperador` e `codEquipe` deve ser informado. |
+| `codEquipe` | string | Condicional | Código da equipe responsável. Exatamente um entre `codOperador` e `codEquipe` deve ser informado. |
 
 ## Resposta fornecida
 
@@ -47,6 +61,8 @@ Consulta o roteiro de inspeção associado a uma ordem de produção e a uma ope
 | `hasNext` | boolean | Indica se existe uma próxima página de resultados. |
 | `items` | array | Lista dos roteiros encontrados. |
 | `items[].nrFicha` | integer | Número da ficha de inspeção. |
+| `items[].tipoResponsavel` | string | Tipo do responsável associado ao roteiro: `OPERADOR` ou `EQUIPE`. |
+| `items[].codResponsavel` | string | Código do operador ou da equipe associado ao roteiro. |
 | `items[].ds-roteiro` | object | Contêiner dos dados do roteiro. O nome contém hífen e exige acesso por colchetes em JavaScript/TypeScript. |
 | `items[].ds-roteiro.exames` | array | Exames que compõem o roteiro de inspeção. |
 
@@ -79,5 +95,7 @@ Quando presente, cada item de `opcoesResultado` contém `nrTabela`, `seqOpcao`, 
 - Esta documentação descreve uma requisição e uma resposta fornecidas e não substitui um contrato OpenAPI oficial.
 - O significado funcional dos códigos `tipoResultado`, `nivel`, `nrTabela` e demais enumerações numéricas precisa ser confirmado com a regra de negócio.
 - Nem todos os componentes possuem `opcoesResultado`; o consumidor deve tratar esse campo como opcional.
+- `codOperador` e `codEquipe` são mutuamente exclusivos; ambos ausentes, vazios ou preenchidos tornam a requisição inválida.
+- Códigos de operador e equipe devem permanecer strings para preservar zeros à esquerda e prefixos alfanuméricos.
 - Os limites numéricos devem respeitar `numeroDecimais` e a unidade informada pelo componente.
 - A cardinalidade fornecida foi `total: 1` e `hasNext: false`, com a ficha `64379`, para a ordem `372562` e a operação `20`.

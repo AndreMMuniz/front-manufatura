@@ -3,6 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, from, map, of, startWith, switchMap, throwError } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { OperationalContextService } from '../../shop-floor/services/operational-context';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
@@ -102,6 +103,7 @@ export class QualityControlService {
     @Optional() private readonly localRecords?: LocalRecordRepository,
     @Optional() private readonly http: HttpClient | null = null,
     @Optional() private readonly outboxActivity: OutboxActivityService | null = null,
+    @Optional() private readonly operationalContext: OperationalContextService | null = null,
   ) {}
 
   getProductionOrderOperations(orderNumber: string): Observable<ProductionOrderOperationsResult> {
@@ -120,15 +122,17 @@ export class QualityControlService {
   ): Observable<ProductionOrderRoute> {
     const orderNumber = Number(request.orderNumber);
     const operationCode = Number(request.operation.operationCode);
+    const operatorCode = this.operationalContext?.currentContext?.operator.code.trim() ?? '';
     if (
       !Number.isSafeInteger(orderNumber) || orderNumber <= 0
       || !Number.isSafeInteger(operationCode) || operationCode <= 0
+      || !operatorCode
     ) {
       return throwError(() => new Error('invalid-route-request'));
     }
     return this.httpClient().post<unknown>(
       '/api/quality-control/routes',
-      { nrOrdemProducao: orderNumber, codOperacao: operationCode },
+      { nrOrdemProducao: orderNumber, codOperacao: operationCode, codOperador: operatorCode },
       { headers: this.authHeaders() },
     ).pipe(map(value => mapInspectionRouteEnvelope(value, {
       orderNumber: request.orderNumber,

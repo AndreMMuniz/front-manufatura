@@ -80,7 +80,12 @@ export class QualityControlDatasulClient {
     );
   }
 
-  getRoute(body: { readonly nrOrdemProducao: number; readonly codOperacao: number }): Promise<unknown> {
+  getRoute(body: {
+    readonly nrOrdemProducao: number;
+    readonly codOperacao: number;
+    readonly codOperador?: string;
+    readonly codEquipe?: string;
+  }): Promise<unknown> {
     return this.request('POST', '/api/fcq/v1/roteiros', body, 'companyid', 'get_quality_route', '/api/fcq/v1/roteiros');
   }
 

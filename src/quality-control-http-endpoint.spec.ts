@@ -178,6 +178,64 @@ describe('gateway Plano Controle CQ', () => {
     );
   });
 
+  it.each([
+    ['operador', { codOperador: '00016570' }],
+    ['equipe', { codEquipe: 'AUT00037' }],
+  ])('encaminha %s no body ao gerar roteiro', async (_name, responsible) => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      total: 1,
+      hasNext: false,
+      items: [{
+        nrFicha: 64520,
+        tipoResponsavel: 'codEquipe' in responsible ? 'EQUIPE' : 'OPERADOR',
+        codResponsavel: 'codEquipe' in responsible ? responsible.codEquipe : responsible.codOperador,
+        'ds-roteiro': { exames: [] },
+      }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/routes`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrOrdemProducao: 372518, codOperacao: 10, ...responsible }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
+      nrOrdemProducao: 372518,
+      codOperacao: 10,
+      ...responsible,
+    });
+  });
+
+  it.each([
+    ['nenhum responsável', {}],
+    ['ambos os responsáveis', { codOperador: '00016570', codEquipe: 'AUT00037' }],
+    ['operador vazio', { codOperador: '   ' }],
+    ['equipe vazia', { codEquipe: '' }],
+  ])('rejeita geração de roteiro com %s', async (_name, responsible) => {
+    const transport = vi.fn<typeof fetch>();
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/routes`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrOrdemProducao: 372518, codOperacao: 10, ...responsible }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ code: 'invalid-request' });
+    expect(transport).not.toHaveBeenCalled();
+  });
+
   it('aceita somente JWT válido e deriva codUsuario do subject', async () => {
     const now = new Date('2026-08-08T12:00:00.000Z');
     const issued = await createAppSessionToken({
