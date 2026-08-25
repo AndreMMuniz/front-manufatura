@@ -122,7 +122,9 @@ export class QualityControlService {
   ): Observable<ProductionOrderRoute> {
     const orderNumber = Number(request.orderNumber);
     const operationCode = Number(request.operation.operationCode);
-    const operatorCode = this.operationalContext?.currentContext?.operator.code.trim() ?? '';
+    const operatorCode = this.operationalContext?.currentContext?.operator.code.trim()
+      || this.authSession?.currentUser?.id.trim()
+      || '';
     if (
       !Number.isSafeInteger(orderNumber) || orderNumber <= 0
       || !Number.isSafeInteger(operationCode) || operationCode <= 0
