@@ -628,7 +628,7 @@ describe('gateway Plano Controle CQ', () => {
     });
   });
 
-  it('busca o roteiro autorizado com o operador gravado na ficha pendente', async () => {
+  it('busca o roteiro autorizado com empresa e identidade definidas no servidor', async () => {
     const transport = vi.fn<typeof fetch>().mockImplementation(async input => {
       const url = new URL(String(input));
       const value = url.pathname.endsWith('/autorizacaoroteiros')
@@ -668,7 +668,6 @@ describe('gateway Plano Controle CQ', () => {
     expect(JSON.parse(String(transport.mock.calls[1][1]?.body))).toEqual({
       nrOrdemProducao: 372562,
       codOperacao: 10,
-      codOperador: 'Mjocelio',
     });
     await expect(response.json()).resolves.toEqual({
       total: 1,
