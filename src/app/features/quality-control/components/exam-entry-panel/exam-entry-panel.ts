@@ -56,6 +56,7 @@ export class ExamEntryPanel implements AfterViewInit {
     return this.characteristics.findIndex(component => component.id === this.currentCharacteristic?.id);
   }
   get result(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).result : ''; }
+  get maximumResult(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).maximumResult : ''; }
   get report(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).report : ''; }
   get selectedOptionKey(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).selectedOptionKey : ''; }
   get resultOptions(): readonly { label: string; value: string }[] {
@@ -66,6 +67,7 @@ export class ExamEntryPanel implements AfterViewInit {
   }
   get hasResultOptions(): boolean { return this.resultOptions.length > 0; }
   get isReportResult(): boolean { return this.currentCharacteristic?.resultType === 3; }
+  get isRangeResult(): boolean { return this.currentCharacteristic?.resultType === 4; }
   get observation(): string { return this.currentCharacteristic ? this.workflow.draftFor(this.currentCharacteristic.id).observation : ''; }
   set observation(value: string) {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
@@ -123,6 +125,15 @@ export class ExamEntryPanel implements AfterViewInit {
     }
   }
 
+  updateMaximumResult(value: string): void {
+    if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
+      this.workflow.clearComponentOutOfRange(this.currentCharacteristic.id);
+      this.workflow.updateDraft(this.currentCharacteristic.id, {
+        maximumResult: this.sanitizeNumericInput(value),
+      });
+    }
+  }
+
   updateReport(value: string): void {
     if (this.currentCharacteristic && !this.isCurrentMeasurementLocked) {
       this.workflow.updateDraft(this.currentCharacteristic.id, { report: value });
@@ -151,19 +162,30 @@ export class ExamEntryPanel implements AfterViewInit {
     const result = this.hasResultOptions || this.isReportResult
       ? null
       : this.parseNumber(draft.result);
-    if (this.hasResultOptions ? !selectedOption : this.isReportResult ? !report : result === null) {
+    const maximumResult = this.isRangeResult ? this.parseNumber(draft.maximumResult) : null;
+    if (this.hasResultOptions ? !selectedOption : this.isReportResult ? !report
+      : this.isRangeResult ? result === null || maximumResult === null : result === null) {
       this.validationMessage = this.hasResultOptions
         ? 'Selecione uma opção de resultado.'
         : this.isReportResult
           ? 'Informe o laudo.'
-          : 'Informe um resultado numérico.';
+          : this.isRangeResult
+            ? 'Informe os resultados mínimo e máximo.'
+            : 'Informe um resultado numérico.';
       return of(null);
     }
-    if (result !== null && !this.hasSupportedPrecision(draft.result, characteristic.decimalPlaces)) {
+    if (result !== null && (!this.hasSupportedPrecision(draft.result, characteristic.decimalPlaces)
+      || (this.isRangeResult
+        && !this.hasSupportedPrecision(draft.maximumResult, characteristic.decimalPlaces)))) {
       this.validationMessage = `Informe no máximo ${characteristic.decimalPlaces} casa(s) decimal(is).`;
       return of(null);
     }
-    if (result !== null && (result < characteristic.minValue || result > characteristic.maxValue)) {
+    if (result !== null && maximumResult !== null && result > maximumResult) {
+      this.validationMessage = 'O resultado mínimo deve ser menor ou igual ao resultado máximo.';
+      return of(null);
+    }
+    if (result !== null && (result < characteristic.minValue
+      || (maximumResult ?? result) > characteristic.maxValue)) {
       this.validationMessage = 'Resultado fora da referência; a decisão final será retornada pelo Datasul.';
       this.validationIsOutOfRange = true;
     }
@@ -178,6 +200,7 @@ export class ExamEntryPanel implements AfterViewInit {
     }
     const fingerprint = JSON.stringify({
       result,
+      maximumResult,
       report,
       selectedOptionKey: draft.selectedOptionKey,
       observation: draft.observation.trim(),
@@ -216,6 +239,7 @@ export class ExamEntryPanel implements AfterViewInit {
       dependencyIds,
       measurement: {
         ...(result !== null ? { result } : {}),
+        ...(maximumResult !== null ? { maximumResult } : {}),
         ...(report ? { report } : {}),
         ...(selectedOption ? { selectedOption } : {}),
         observation: draft.observation.trim() || undefined,
@@ -418,7 +442,9 @@ export class ExamEntryPanel implements AfterViewInit {
         componentId: component.id,
         componentCode: component.code,
         description: component.description,
-        measuredValue: measurement.result,
+        ...(measurement.maximumResult === undefined
+          ? { measuredValue: measurement.result }
+          : { measuredMinimum: measurement.result, measuredMaximum: measurement.maximumResult }),
         ...(measurement.report ? { report: measurement.report } : {}),
         expectedMin: component.minValue,
         expectedMax: component.maxValue,

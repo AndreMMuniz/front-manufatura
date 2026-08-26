@@ -9,6 +9,7 @@ import { QualityExam, QualityExamComponent, QualityMeasurement } from '../models
 
 export interface MeasurementDraft {
   result: string;
+  maximumResult: string;
   report: string;
   selectedOptionKey: string;
   observation: string;
@@ -451,6 +452,7 @@ export class QualityControlWorkflowState {
   private draftFromMeasurement(measurement?: QualityMeasurement): MeasurementDraft {
     return {
       result: measurement?.result?.toString() ?? '',
+      maximumResult: measurement?.maximumResult?.toString() ?? '',
       report: measurement?.report ?? '',
       selectedOptionKey: measurement?.selectedOption
         ? `${measurement.selectedOption.tableNumber}:${measurement.selectedOption.sequence}`
@@ -462,6 +464,7 @@ export class QualityControlWorkflowState {
   private sameDraft(draft: MeasurementDraft, measurement?: QualityMeasurement): boolean {
     const saved = this.draftFromMeasurement(measurement);
     return this.normalizeNumber(draft.result) === this.normalizeNumber(saved.result)
+      && this.normalizeNumber(draft.maximumResult) === this.normalizeNumber(saved.maximumResult)
       && draft.report.trim() === saved.report.trim()
       && draft.selectedOptionKey === saved.selectedOptionKey
       && draft.observation.trim() === saved.observation.trim();

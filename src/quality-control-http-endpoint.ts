@@ -159,18 +159,24 @@ export function buildQualityResultPayload(
     codUsuario: userId,
   };
   const hasResult = body['resultado'] !== undefined;
+  const hasMaximumResult = body['resultadoMax'] !== undefined;
   const hasTableNumber = body['nrTabela'] !== undefined;
   const hasOptionSequence = body['seqOpcao'] !== undefined;
   const hasCompleteOption = hasTableNumber && hasOptionSequence;
   const report = typeof body['laudo'] === 'string' ? body['laudo'].trim() : '';
   if (
     hasTableNumber !== hasOptionSequence
+    || (hasMaximumResult && !hasResult)
     || [hasResult, hasCompleteOption, Boolean(report)].filter(Boolean).length !== 1
   ) {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
   if (hasResult) {
-    return { ...common, resultado: finiteNumber(body['resultado']) };
+    return {
+      ...common,
+      resultado: finiteNumber(body['resultado']),
+      ...(hasMaximumResult ? { resultadoMax: finiteNumber(body['resultadoMax']) } : {}),
+    };
   }
   if (report) return { ...common, laudo: report };
   return {

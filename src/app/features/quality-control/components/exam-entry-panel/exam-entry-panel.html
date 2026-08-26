@@ -35,6 +35,9 @@
           <po-select name="resultOption" p-label="Resultado" p-placeholder="Selecione uma opção" p-required="true" [p-options]="resultOptions" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="selectedOptionKey" (ngModelChange)="updateSelectedOption($event)"></po-select>
         } @else if (isReportResult) {
           <po-input name="report" p-label="Laudo" p-placeholder="Informe o laudo" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="report" (ngModelChange)="updateReport($event)"></po-input>
+        } @else if (isRangeResult) {
+          <po-input name="minimumResult" p-label="Resultado mínimo" [p-placeholder]="currentCharacteristic ? 'Ex.: ' + currentCharacteristic.minValue : 'Informe o mínimo'" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="result" (ngModelChange)="updateResult($event)"></po-input>
+          <po-input name="maximumResult" p-label="Resultado máximo" [p-placeholder]="currentCharacteristic ? 'Ex.: ' + currentCharacteristic.maxValue : 'Informe o máximo'" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="maximumResult" (ngModelChange)="updateMaximumResult($event)"></po-input>
         } @else {
           <po-input name="result" p-label="Resultado" [p-placeholder]="currentCharacteristic ? 'Ex.: ' + currentCharacteristic.minValue : 'Informe o resultado'" p-required="true" [p-disabled]="workflow.isSaving() || isCurrentMeasurementLocked" [ngModel]="result" (ngModelChange)="updateResult($event)"></po-input>
         }

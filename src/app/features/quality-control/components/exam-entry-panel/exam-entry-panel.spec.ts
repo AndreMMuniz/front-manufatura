@@ -38,7 +38,7 @@ describe('ExamEntryPanel resultado único', () => {
     state.completeExamLoad(token, [
       { id: 'e1', code: '1845', description: 'E1', version: '1', frequency: '60', sample: '2', unit: '', nqa: '0', level: '0', components: [
         { id: 'numeric', code: '1', examCode: 1845, componentCode: 1, tableNumber: 0,
-          decimalPlaces: 2, description: 'Cota', reference: '23,8 - 24,2', minValue: 23.8,
+          resultType: 1, decimalPlaces: 2, description: 'Cota', reference: '23,8 - 24,2', minValue: 23.8,
           maxValue: 24.2, unit: 'mm', measurementMethod: 'PAQUÍMETRO', sequence: 1, status: 'PENDING' },
       ] },
       { id: 'e2', code: '1846', description: 'E2', version: '1', frequency: '60', sample: '1', unit: '', nqa: '0', level: '0', components: [
@@ -60,6 +60,37 @@ describe('ExamEntryPanel resultado único', () => {
     expect(fixture.nativeElement.querySelector('[name="result"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[name="minimum"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[name="maximum"]')).toBeNull();
+  });
+
+  it('registra tipoResultado 4 com resultados mínimo e máximo', async () => {
+    state.setGeneratedRoute({ nrFicha: 64558, routeNumber: '64558', processDescription: 'USINAR',
+      currentOrder: '372562', operationCode: '20', operationDescription: '20 - USINAR',
+      split: '1', itemCode: '30907', itemDescription: '30907' });
+    const token = state.beginExamLoad()!;
+    state.completeExamLoad(token, [{
+      id: '64558-1845', code: '1845', description: 'ALAVANCA', version: '1',
+      frequency: '60', sample: '2', unit: '', nqa: '0', level: '0', components: [{
+        id: 'range', code: '1', examCode: 1845, componentCode: 1, tableNumber: 0,
+        resultType: 4, decimalPlaces: 2, description: 'COTA 24,0mm', reference: '23,8 - 24,2',
+        minValue: 23.8, maxValue: 24.2, unit: 'mm', measurementMethod: 'PAQUÍMETRO',
+        sequence: 1, status: 'PENDING',
+      }],
+    }]);
+    state.openPanel('range');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[name="minimumResult"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[name="maximumResult"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[name="result"]')).toBeNull();
+
+    component.updateResult('23,9');
+    component.updateMaximumResult('24,1');
+    await firstValueFrom(component.saveCurrentMeasurement());
+
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      commandType: 'SAVE_QUALITY_RESULT',
+      payload: expect.objectContaining({ resultado: 23.9, resultadoMax: 24.1 }),
+    }));
   });
 
   it('registra valor único como RECORDED/PENDING sem aprovação inferida', async () => {

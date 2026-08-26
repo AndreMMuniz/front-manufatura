@@ -53,7 +53,7 @@ Evidência confirmada em 2026-08-14: o Datasul rejeitou a ausência de `laudo` c
 }
 ```
 
-#### Tipo 4 — resultado numérico
+#### Tipo 4 — faixa medida
 
 ```json
 {
@@ -61,6 +61,7 @@ Evidência confirmada em 2026-08-14: o Datasul rejeitou a ausência de `laudo` c
   "codExame": 164,
   "codComponente": 10,
   "resultado": 347,
+  "resultadoMax": 347.5,
   "codUsuario": "Mjocelio"
 }
 ```
@@ -73,7 +74,8 @@ Evidência confirmada em 2026-08-14: o Datasul rejeitou a ausência de `laudo` c
 | `nrTabela` | integer | Condicional | Número da tabela de opções; usado em `tipoResultado: 2`. |
 | `seqOpcao` | integer | Condicional | Sequência da opção; usado em `tipoResultado: 2`. |
 | `laudo` | string | Condicional | Laudo textual obrigatório em `tipoResultado: 3`. O texto `"0"` foi aceito. |
-| `resultado` | number | Condicional | Medição numérica usada em `tipoResultado: 4`. |
+| `resultado` | number | Condicional | Medição numérica simples em `tipoResultado: 1`; valor mínimo medido em `tipoResultado: 4`. |
+| `resultadoMax` | number | Condicional | Valor máximo medido, obrigatório junto com `resultado` em `tipoResultado: 4`. |
 | `codUsuario` | string | Sim | Código do usuário responsável pelo registro. O valor observado foi `Mjocelio`. |
 
 ## Resposta fornecida
@@ -102,7 +104,7 @@ Cada item de `items` contém:
 
 ## Observações do contrato
 
-- Enviar `resultadoMin` e `resultadoMax` não faz parte do PUT. Esses campos pertencem ao roteiro e servem de referência apenas para tipos numéricos que utilizam faixa.
+- `resultadoMin` e `resultadoMax` no roteiro são os limites definidos da característica. No PUT, o primeiro valor medido usa `resultado` e, para `tipoResultado: 4`, o segundo usa `resultadoMax`.
 - Para `tipoResultado: 3`, `resultadoMin: 0.0`, `resultadoMax: 0.0`, `nrTabela: 0` e `referenciaTecnica` vazia não significam que o resultado esperado seja zero; o PUT exige `laudo`.
 - O cliente deve enviar somente a representação correspondente ao tipo: tabela, laudo ou número.
 - A exclusividade acima é uma regra do corpo da requisição. O recibo pode trazer
@@ -112,6 +114,6 @@ Cada item de `items` contém:
   reaplicar ao recibo a união exclusiva usada para montar o PUT.
 - Esta é uma operação de escrita. Repetições, tentativas automáticas e sincronização offline precisam considerar a idempotência efetiva do endpoint, que não foi informada.
 - Esta documentação descreve uma requisição e uma resposta fornecidas e não substitui um contrato OpenAPI oficial.
-- Os significados observados de `tipoResultado` são: 2 para opção tabelada, 3 para laudo textual e 4 para resultado numérico. Outros códigos ainda precisam ser confirmados.
+- Os significados adotados são: 1 para resultado numérico simples, 2 para opção tabelada, 3 para laudo textual e 4 para faixa medida (mínimo e máximo).
 - Na resposta fornecida, `dentroFaixa` foi `false`, embora a opção selecionada tenha sido `seqOpcao: 1`; a documentação preserva os valores recebidos sem inferir aprovação ou reprovação.
 - A cardinalidade fornecida foi `total: 1` e `hasNext: false`, com `componentesSalvos: 6` de `componentesTotal: 6`.

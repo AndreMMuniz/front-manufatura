@@ -333,6 +333,23 @@ describe('gateway Plano Controle CQ', () => {
     );
   });
 
+  it('preserva resultado mínimo e máximo do tipoResultado 4', () => {
+    expect(buildQualityResultPayload({
+      nrFicha: 64558,
+      codExame: 1845,
+      codComponente: 1,
+      resultado: 23.9,
+      resultadoMax: 24.1,
+    }, 'Mjocelio')).toEqual({
+      nrFicha: 64558,
+      codExame: 1845,
+      codComponente: 1,
+      resultado: 23.9,
+      resultadoMax: 24.1,
+      codUsuario: 'Mjocelio',
+    });
+  });
+
   it('encaminha laudo não vazio como a única representação do tipoResultado 3', () => {
     expect(
       buildQualityResultPayload(

@@ -51,6 +51,7 @@ export interface QualityExam {
 
 export interface QualityMeasurement {
   result?: number;
+  maximumResult?: number;
   report?: string;
   selectedOption?: QualityResultOption;
   observation?: string;

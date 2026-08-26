@@ -33,6 +33,32 @@ describe('quality-control Outbox handlers', () => {
     expect(result.businessResult).toMatchObject({ dentroFaixa: false });
   });
 
+  it('envia os dois valores medidos do tipoResultado 4', async () => {
+    const put = vi.fn().mockReturnValue(of({
+      total: 1, hasNext: false, items: [{
+        nrFicha: 64558, codExame: 1845, codComponente: 1,
+        dentroFaixa: true, componentesSalvos: 1, componentesTotal: 6,
+      }],
+    }));
+    const handler = new SaveQualityResultSyncHandler(
+      { put } as never,
+      { token: 'jwt-em-memoria' } as never,
+    );
+
+    await handler.send({
+      ...request,
+      payload: {
+        nrFicha: 64558, codExame: 1845, codComponente: 1,
+        resultado: 23.9, resultadoMax: 24.1,
+      },
+    }, new AbortController().signal);
+
+    expect(put).toHaveBeenCalledWith('/api/quality-control/results', {
+      nrFicha: 64558, codExame: 1845, codComponente: 1,
+      resultado: 23.9, resultadoMax: 24.1,
+    }, expect.objectContaining({ headers: expect.any(HttpHeaders) }));
+  });
+
   it('envia laudo do tipoResultado 3 sem convertê-lo em número ou opção tabelada', async () => {
     const put = vi.fn().mockReturnValue(of({
       total: 1, hasNext: false, items: [{

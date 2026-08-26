@@ -195,6 +195,7 @@ export class QualityControlService {
             return [];
           }
           const result = typeof value['resultado'] === 'number' ? value['resultado'] : undefined;
+          const maximumResult = typeof value['resultadoMax'] === 'number' ? value['resultadoMax'] : undefined;
           const report = nonEmptyText(value['laudo']) ? value['laudo'] : undefined;
           const tableNumber = typeof value['nrTabela'] === 'number' ? value['nrTabela'] : undefined;
           const optionSequence = typeof value['seqOpcao'] === 'number' ? value['seqOpcao'] : undefined;
@@ -205,6 +206,7 @@ export class QualityControlService {
             componentId: value['componentId'],
             measurement: {
               ...(result !== undefined ? { result } : {}),
+              ...(maximumResult !== undefined ? { maximumResult } : {}),
               ...(report !== undefined ? { report } : {}),
               ...(tableNumber !== undefined && optionSequence !== undefined
                 ? { selectedOption: { tableNumber, sequence: optionSequence, description: textOr(value['optionDescription'], '') } }
@@ -299,9 +301,12 @@ export class QualityControlService {
     }
     const hasNumericResult = typeof request.measurement.result === 'number'
       && Number.isFinite(request.measurement.result);
+    const hasMaximumResult = typeof request.measurement.maximumResult === 'number'
+      && Number.isFinite(request.measurement.maximumResult);
     const report = request.measurement.report?.trim() ?? '';
     const option = request.measurement.selectedOption;
-    if ([hasNumericResult, Boolean(report), Boolean(option)].filter(Boolean).length !== 1) {
+    if (hasMaximumResult && !hasNumericResult
+      || [hasNumericResult, Boolean(report), Boolean(option)].filter(Boolean).length !== 1) {
       return throwError(() => new Error('invalid-quality-result'));
     }
     return from(this.commands.capture({
@@ -319,6 +324,7 @@ export class QualityControlService {
         examId: request.examId,
         componentId: request.componentId,
         ...(hasNumericResult ? { resultado: request.measurement.result! } : {}),
+        ...(hasMaximumResult ? { resultadoMax: request.measurement.maximumResult! } : {}),
         ...(report ? { laudo: report } : {}),
         ...(option ? {
           nrTabela: option.tableNumber,

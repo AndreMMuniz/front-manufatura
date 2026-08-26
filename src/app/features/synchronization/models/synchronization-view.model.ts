@@ -299,7 +299,11 @@ function detail(label: string, value: string, fallback: string): Synchronization
 function resultValue(payload: Readonly<Record<string, unknown>>): string {
   const numericResult = payload['resultado'];
   if (typeof numericResult === 'number' && Number.isFinite(numericResult)) {
-    return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 }).format(numericResult);
+    const formatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
+    const maximumResult = payload['resultadoMax'];
+    return typeof maximumResult === 'number' && Number.isFinite(maximumResult)
+      ? `${formatter.format(numericResult)} a ${formatter.format(maximumResult)}`
+      : formatter.format(numericResult);
   }
   return text(payload, 'optionDescription', 'resultado');
 }

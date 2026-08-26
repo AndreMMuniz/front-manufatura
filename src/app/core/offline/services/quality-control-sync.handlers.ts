@@ -101,16 +101,22 @@ function qualityResultBody(payloadValue: JsonValue): Record<string, number | str
     codComponente: positiveInteger(payload['codComponente']),
   };
   const hasResult = payload['resultado'] !== undefined;
+  const hasMaximumResult = payload['resultadoMax'] !== undefined;
   const hasTableNumber = payload['nrTabela'] !== undefined;
   const hasOptionSequence = payload['seqOpcao'] !== undefined;
   const hasCompleteOption = hasTableNumber && hasOptionSequence;
   const report = typeof payload['laudo'] === 'string' ? payload['laudo'].trim() : '';
   if (
     hasTableNumber !== hasOptionSequence
+    || (hasMaximumResult && !hasResult)
     || [hasResult, hasCompleteOption, Boolean(report)].filter(Boolean).length !== 1
   ) throw invalidReceipt();
   if (hasResult) {
-    return { ...common, resultado: finiteNumber(payload['resultado']) };
+    return {
+      ...common,
+      resultado: finiteNumber(payload['resultado']),
+      ...(hasMaximumResult ? { resultadoMax: finiteNumber(payload['resultadoMax']) } : {}),
+    };
   }
   if (report) return { ...common, laudo: report };
   return {
