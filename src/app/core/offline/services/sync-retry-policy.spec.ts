@@ -137,6 +137,12 @@ describe('sync retry policy', () => {
     'nrFicha=123',
     'codExame: EX-1',
     'codComponente=COMP-1',
+    '{"payload":"segredo"}',
+    '{"resultado":23.8}',
+    '{"laudo":"aprovado"}',
+    '{"nrFicha":"123"}',
+    '"codExame"="EX-1"',
+    '"codComponente":"COMP-1"',
   ])('não persiste detalhe operacional estruturado: %s', (userMessage) => {
     expect(
       normalizeCommandError({ status: 422, category: 'VALIDATION', userMessage }),

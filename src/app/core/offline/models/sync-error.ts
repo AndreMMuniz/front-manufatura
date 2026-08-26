@@ -43,7 +43,7 @@ export const DEFAULT_SYNC_SCHEDULER_CONFIG: SyncSchedulerConfig = Object.freeze(
 
 const MAX_SAFE_RETRY_AFTER_SECONDS = 8_000_000_000_000;
 const STRUCTURED_OPERATIONAL_MESSAGE =
-  /\b(?:payload|resultado(?:\s+medido)?|laudo|nr\s*ficha|cod\s*exame|cod\s*componente)\s*[:=]/i;
+  /\b(?:payload|resultado(?:\s+medido)?|laudo|nr\s*ficha|cod\s*exame|cod\s*componente)\s*(?:["'])?\s*[:=]/i;
 
 export class SyncTimeoutError extends Error {
   constructor() {
