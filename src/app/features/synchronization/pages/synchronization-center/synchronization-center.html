@@ -263,6 +263,11 @@
             O registro não será mais enviado ao Datasul, mas continuará no histórico local para
             auditoria. Esta ação não exclui dados.
           </p>
+          @if (isLoadingAbandonImpact()) {
+            <p data-testid="sync-abandon-impact">Verificando registros dependentes…</p>
+          } @else if (abandonImpact()) {
+            <p data-testid="sync-abandon-impact"><strong>{{ abandonmentImpactMessage() }}</strong></p>
+          }
           <p><strong>Atenção: não informe senhas, tokens, credenciais ou provas de supervisor.</strong></p>
           <p>{{ item.operationalIdentification }}</p>
           <label for="sync-abandon-reason">Justificativa obrigatória</label>
@@ -287,7 +292,7 @@
             </button>
             <button
               type="button"
-              [disabled]="isAbandoning()"
+              [disabled]="isAbandoning() || isLoadingAbandonImpact() || !abandonImpact()"
               data-testid="sync-confirm-abandon"
               (click)="confirmAbandon()"
             >

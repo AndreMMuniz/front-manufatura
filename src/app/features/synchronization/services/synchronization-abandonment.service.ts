@@ -2,7 +2,10 @@ import { Inject, Injectable, InjectionToken, OnDestroy } from '@angular/core';
 import { Subscription } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
-import { AbandonCommandResult } from '../../../core/offline/models/command-abandonment';
+import {
+  AbandonCommandResult,
+  AbandonmentImpact,
+} from '../../../core/offline/models/command-abandonment';
 import { LocalCommandRepository } from '../../../core/offline/repositories/local-command.repository';
 import {
   SYNC_UNSYNCHRONIZED_ABANDON,
@@ -67,6 +70,12 @@ export class SynchronizationAbandonmentService implements OnDestroy {
         return () => subscription.unsubscribe();
       },
     });
+  }
+
+  async impact(localId: string): Promise<AbandonmentImpact | null> {
+    const user = this.auth.currentUser;
+    if (!user || !this.policy.canAbandon(user)) return null;
+    return this.repository.abandonmentImpact(user.id.trim(), localId);
   }
 
   ngOnDestroy(): void {

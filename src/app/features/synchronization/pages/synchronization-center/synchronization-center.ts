@@ -26,6 +26,7 @@ import {
 } from '../../../../core/offline/services/sync-coordinator.service';
 import { SynchronizationRecoveryRegistry } from '../../services/synchronization-recovery-registry';
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { AbandonmentImpact } from '../../../../core/offline/models/command-abandonment';
 import { SynchronizationPermissionPolicy } from '../../services/synchronization-permission.policy';
 import {
   AbandonmentResult,
@@ -51,6 +52,7 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   private detailTrigger: HTMLElement | null = null;
   private abandonTrigger: HTMLElement | null = null;
   private abandonTriggerId: string | null = null;
+  private abandonImpactRequest = 0;
   private pendingAbandonFocus: { id: string | null; fallback: HTMLElement | null } | null = null;
 
   readonly state = toSignal(this.center.state$, { initialValue: this.center.snapshot });
@@ -58,6 +60,8 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   readonly busyIds = signal<ReadonlySet<string>>(new Set());
   readonly actionFeedback = signal('');
   readonly abandonTarget = signal<SynchronizationEntryView | null>(null);
+  readonly abandonImpact = signal<AbandonmentImpact | null>(null);
+  readonly isLoadingAbandonImpact = signal(false);
   readonly abandonError = signal('');
   abandonReason = '';
   readonly totalActive = computed(() => this.state().counts.pending + this.state().counts.error);
@@ -150,7 +154,10 @@ export class SynchronizationCenterPage implements AfterViewChecked {
     this.abandonTriggerId = item.localId;
     this.abandonReason = '';
     this.abandonError.set('');
+    this.abandonImpact.set(null);
+    this.isLoadingAbandonImpact.set(true);
     this.abandonTarget.set(item);
+    void this.loadAbandonmentImpact(item.localId);
     queueMicrotask(() => {
       this.host.nativeElement.querySelector<HTMLElement>('#sync-abandon-reason')?.focus();
     });
@@ -159,7 +166,10 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   cancelAbandon(): void {
     if (!this.abandonTarget() || this.isAbandoning()) return;
     const trigger = this.abandonTrigger;
+    this.abandonImpactRequest += 1;
     this.abandonTarget.set(null);
+    this.abandonImpact.set(null);
+    this.isLoadingAbandonImpact.set(false);
     this.abandonReason = '';
     this.abandonError.set('');
     trigger?.focus();
@@ -174,7 +184,13 @@ export class SynchronizationCenterPage implements AfterViewChecked {
 
   async confirmAbandon(): Promise<void> {
     const target = this.abandonTarget();
-    if (!target || this.busyIds().has(target.localId)) return;
+    const impact = this.abandonImpact();
+    if (
+      !target
+      || !impact
+      || this.isLoadingAbandonImpact()
+      || this.busyIds().has(target.localId)
+    ) return;
     this.busyIds.update(current => new Set([...current, target.localId]));
     this.abandonError.set('');
     const result = await this.abandonment.abandon(target.localId, this.abandonReason);
@@ -187,11 +203,14 @@ export class SynchronizationCenterPage implements AfterViewChecked {
       const trigger = this.abandonTrigger;
       const triggerId = this.abandonTriggerId;
       this.abandonTarget.set(null);
+      this.abandonImpact.set(null);
       this.abandonReason = '';
       this.abandonTrigger = null;
       this.abandonTriggerId = null;
       this.actionFeedback.set(
-        'Sincronização cancelada com justificativa; o registro foi mantido no histórico.',
+        impact.affectedCount === 1
+          ? 'Sincronização cancelada com justificativa; o registro foi mantido no histórico.'
+          : `${impact.affectedCount} sincronizações canceladas com justificativa; os registros foram mantidos no histórico.`,
       );
       await this.center.refresh();
       this.pendingAbandonFocus = { id: triggerId, fallback: trigger };
@@ -201,6 +220,39 @@ export class SynchronizationCenterPage implements AfterViewChecked {
     this.abandonError.set(abandonMessage(result));
     if (result !== 'invalid-reason' && result !== 'secret-detected') {
       await this.center.refresh();
+    }
+  }
+
+  abandonmentImpactMessage(): string {
+    const impact = this.abandonImpact();
+    if (!impact) return '';
+    if (impact.dependentCount === 0) {
+      return 'Somente este registro será cancelado.';
+    }
+    const dependents = impact.dependentCount === 1
+      ? '1 registro dependente'
+      : `${impact.dependentCount} registros dependentes`;
+    return `Este registro e mais ${dependents} não serão enviados ao Datasul.`;
+  }
+
+  private async loadAbandonmentImpact(localId: string): Promise<void> {
+    const request = ++this.abandonImpactRequest;
+    try {
+      const impact = await this.abandonment.impact(localId);
+      if (request !== this.abandonImpactRequest || this.abandonTarget()?.localId !== localId) return;
+      this.abandonImpact.set(impact);
+      if (!impact) {
+        this.abandonError.set(
+          'Não foi possível preparar o cancelamento desta fila. Atualize a lista e tente novamente.',
+        );
+      }
+    } catch {
+      if (request !== this.abandonImpactRequest || this.abandonTarget()?.localId !== localId) return;
+      this.abandonError.set(
+        'Não foi possível consultar os registros dependentes. Nenhum registro foi alterado.',
+      );
+    } finally {
+      if (request === this.abandonImpactRequest) this.isLoadingAbandonImpact.set(false);
     }
   }
 

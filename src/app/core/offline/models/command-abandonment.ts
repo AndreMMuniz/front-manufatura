@@ -8,6 +8,11 @@ export type AbandonCommandResult =
   | 'has-later-commands'
   | 'storage-error';
 
+export interface AbandonmentImpact {
+  readonly affectedCount: number;
+  readonly dependentCount: number;
+}
+
 export interface AbandonCommandRequest {
   readonly ownerId: string;
   readonly actorId: string;

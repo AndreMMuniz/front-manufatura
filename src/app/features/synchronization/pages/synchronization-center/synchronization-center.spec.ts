@@ -128,11 +128,14 @@ describe('SynchronizationCenterPage', () => {
     expect(trigger.textContent).toContain('Cancelar sincronização');
     trigger.focus();
     trigger.click();
+    await test.fixture.whenStable();
     test.fixture.detectChanges();
     const dialog = test.fixture.nativeElement.querySelector('[data-testid="sync-abandon-dialog"]');
     expect(dialog.textContent).toContain('Cancelar sincronização deste registro?');
     expect(dialog.textContent).toContain('não será mais enviado');
     expect(dialog.textContent).toContain('não informe senhas');
+    expect(dialog.querySelector('[data-testid="sync-abandon-impact"]').textContent)
+      .toContain('Este registro e mais 1 registro dependente não serão enviados');
 
     const reason = dialog.querySelector('textarea');
     reason.value = 'Duplicidade confirmada na operação';
@@ -167,6 +170,7 @@ async function setup(
   const setFilters = vi.fn();
   const retryError = vi.fn().mockReturnValue(retryResult);
   const abandon = vi.fn().mockReturnValue(abandonmentResult);
+  const impact = vi.fn().mockResolvedValue({ affectedCount: 2, dependentCount: 1 });
   await TestBed.configureTestingModule({
     imports: [SynchronizationCenterPage],
     providers: [{
@@ -199,12 +203,12 @@ async function setup(
       useValue: new SynchronizationPermissionPolicy(),
     }, {
       provide: SynchronizationAbandonmentService,
-      useValue: { abandon },
+      useValue: { abandon, impact },
     }],
   }).compileComponents();
   const fixture = TestBed.createComponent(SynchronizationCenterPage);
   fixture.detectChanges();
-  return { fixture, subject, refresh, loadMore, setFilters, retryError, abandon };
+  return { fixture, subject, refresh, loadMore, setFilters, retryError, abandon, impact };
 }
 
 function deferred<T>() {

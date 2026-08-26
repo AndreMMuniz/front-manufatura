@@ -328,7 +328,7 @@ describe('LocalCommandRepository', () => {
     expect(await outbox.listByOwner('operator-1')).toHaveLength(1);
   });
 
-  it('nega abandono sem permissão/sessão e bloqueia dependentes ou cauda ativa', async () => {
+  it('nega abandono sem permissão ou sessão atual', async () => {
     const target = await commands.persistConfirmedCommand(
       request({ quantity: 5 }, { aggregateId: 'TARGET' }),
     );
@@ -344,32 +344,6 @@ describe('LocalCommandRepository', () => {
     });
     expect(denied).toBe('denied');
 
-    await seedCommandPair(database, {
-      ...target.localRecord,
-      localId: OTHER_COMMAND_ID,
-      idempotencyKey: OTHER_COMMAND_ID,
-      aggregateType: 'OTHER',
-      aggregateId: 'DEPENDENT',
-      dependencyIds: [target.localId],
-    }, {
-      ...target.outboxEntry,
-      localId: OTHER_COMMAND_ID,
-      idempotencyKey: OTHER_COMMAND_ID,
-      aggregateType: 'OTHER',
-      aggregateId: 'DEPENDENT',
-      dependencyIds: [target.localId],
-    });
-    expect(await commands.abandonCommand({
-      ownerId: 'operator-1',
-      actorId: 'operator-1',
-      localId: target.localId,
-      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
-      authorized: true,
-      reason: 'Justificativa operacional válida',
-      now: NOW,
-      sessionIsCurrent: () => true,
-    })).toBe('has-dependents');
-
     expect(await commands.abandonCommand({
       ownerId: 'operator-1',
       actorId: 'operator-1',
@@ -382,7 +356,7 @@ describe('LocalCommandRepository', () => {
     })).toBe('stale-or-ineligible');
   });
 
-  it('permite abandonar do dependente ao antecessor quando compartilham o instante lógico', async () => {
+  it('abandona o comando e todos os dependentes ativos em uma única ação', async () => {
     const report = await commands.persistConfirmedCommand(request(
       { quantity: 5 },
       {
@@ -399,22 +373,122 @@ describe('LocalCommandRepository', () => {
         dependencyIds: [report.localId],
       },
     ));
-    const abandon = (localId: string) => commands.abandonCommand({
+
+    expect(await commands.abandonmentImpact('operator-1', report.localId)).toEqual({
+      affectedCount: 2,
+      dependentCount: 1,
+    });
+
+    expect(await commands.abandonCommand({
       ownerId: 'operator-1',
       actorId: 'operator-1',
-      localId,
+      localId: report.localId,
       permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
       authorized: true,
       reason: 'Fila local não deve mais ser enviada',
       now: NOW,
       sessionIsCurrent: () => true,
-    });
+    })).toBe('abandoned');
 
-    expect(await abandon(end.localId)).toBe('abandoned');
-    expect(await abandon(report.localId)).toBe('abandoned');
+    expect(await outbox.getById('operator-1', report.localId)).toMatchObject({
+      deliveryDisposition: 'ABANDONED',
+    });
+    expect(await outbox.getById('operator-1', end.localId)).toMatchObject({
+      deliveryDisposition: 'ABANDONED',
+    });
+    expect(await localRecords.getById('operator-1', end.localId)).toMatchObject({
+      deliveryDisposition: 'ABANDONED',
+      abandonReason: 'Fila local não deve mais ser enviada',
+    });
   });
 
-  it('bloqueia abandono por dependente ancestral e por cauda no mesmo instante lógico', async () => {
+  it('não altera a cadeia quando um dependente já está sincronizando', async () => {
+    const target = await commands.persistConfirmedCommand(request(
+      { quantity: 5 },
+      { idempotencyKey: COMMAND_ID, dependencyIds: [] },
+    ));
+    await seedCommandPair(database, {
+      ...target.localRecord,
+      localId: OTHER_COMMAND_ID,
+      idempotencyKey: OTHER_COMMAND_ID,
+      dependencyIds: [target.localId],
+    }, {
+      ...target.outboxEntry,
+      localId: OTHER_COMMAND_ID,
+      idempotencyKey: OTHER_COMMAND_ID,
+      dependencyIds: [target.localId],
+      status: 'SYNCING',
+      leaseToken: 'dependent-lease',
+      leaseExpiresAt: '2026-07-28T16:01:00.000Z',
+    });
+
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: target.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Fila local não deve mais ser enviada',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    })).toBe('stale-or-ineligible');
+    expect(await outbox.getById('operator-1', target.localId)).toMatchObject({
+      deliveryDisposition: 'ACTIVE',
+    });
+    expect(await outbox.getById('operator-1', OTHER_COMMAND_ID)).toMatchObject({
+      deliveryDisposition: 'ACTIVE',
+      status: 'SYNCING',
+    });
+  });
+
+  it('inclui dependentes indiretos no impacto e no cancelamento', async () => {
+    const target = await commands.persistConfirmedCommand(request(
+      { quantity: 5 },
+      { idempotencyKey: COMMAND_ID, dependencyIds: [] },
+    ));
+    const directId = '323e4567-e89b-42d3-a456-426614174000';
+    await seedCommandPair(database, {
+      ...target.localRecord,
+      localId: directId,
+      idempotencyKey: directId,
+      dependencyIds: [target.localId],
+    }, {
+      ...target.outboxEntry,
+      localId: directId,
+      idempotencyKey: directId,
+      dependencyIds: [target.localId],
+    });
+    await seedCommandPair(database, {
+      ...target.localRecord,
+      localId: OTHER_COMMAND_ID,
+      idempotencyKey: OTHER_COMMAND_ID,
+      dependencyIds: [directId],
+    }, {
+      ...target.outboxEntry,
+      localId: OTHER_COMMAND_ID,
+      idempotencyKey: OTHER_COMMAND_ID,
+      dependencyIds: [directId],
+    });
+
+    expect(await commands.abandonmentImpact('operator-1', target.localId)).toEqual({
+      affectedCount: 3,
+      dependentCount: 2,
+    });
+    expect(await commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId: target.localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Fila local não deve mais ser enviada',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    })).toBe('abandoned');
+    expect((await outbox.listByOwner('operator-1')).map(entry => entry.deliveryDisposition))
+      .toEqual(['ABANDONED', 'ABANDONED', 'ABANDONED']);
+  });
+
+  it('inclui dependente ancestral na cascata e ainda bloqueia cauda independente', async () => {
     const original = await commands.persistConfirmedCommand(
       request({ quantity: 5 }, { aggregateId: 'TARGET', dependencyIds: [] }),
     );
@@ -451,7 +525,7 @@ describe('LocalCommandRepository', () => {
       reason: 'Justificativa operacional válida',
       now: NOW,
       sessionIsCurrent: () => true,
-    })).toBe('has-dependents');
+    })).toBe('abandoned');
 
     const sameTimeTargetId = '423e4567-e89b-42d3-a456-426614174000';
     const sameTimeTailId = '523e4567-e89b-42d3-a456-426614174000';

@@ -15,6 +15,7 @@ import {
 } from '../models/local-record';
 import { deliveryDispositionOf } from '../models/delivery-disposition';
 import {
+  AbandonmentImpact,
   AbandonCommandRequest,
   AbandonCommandResult,
   SYNC_UNSYNCHRONIZED_ABANDON,
@@ -377,7 +378,7 @@ export class LocalCommandRepository {
       const completed = transactionComplete(transaction);
       const localStore = transaction.objectStore(LOCAL_RECORDS_STORE);
       const outboxStore = transaction.objectStore(OUTBOX_STORE);
-      const [localRecord, outboxEntry, ownerEntries] = await Promise.all([
+      const [localRecord, outboxEntry, ownerEntries, ownerLocalRecords] = await Promise.all([
         requestResult<LocalRecord<JsonValue> | undefined>(
           localStore.get(localId),
           'Não foi possível revalidar o registro local.',
@@ -389,6 +390,10 @@ export class LocalCommandRepository {
         requestResult<OutboxEntry<JsonValue>[]>(
           outboxStore.index('ownerId').getAll(ownerId),
           'Não foi possível revalidar as dependências do owner.',
+        ),
+        requestResult<LocalRecord<JsonValue>[]>(
+          localStore.index('ownerId').getAll(ownerId),
+          'Não foi possível revalidar os registros locais do owner.',
         ),
       ]);
       if (
@@ -407,21 +412,31 @@ export class LocalCommandRepository {
         await completed.catch(() => undefined);
         return 'stale-or-ineligible';
       }
-      const hasDependents = ownerEntries.some(candidate =>
-        candidate.localId !== localId
-        && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE'
-        && candidate.status !== 'SYNCED'
-        && candidate.dependencyIds.some(dependencyId =>
-          dependencyResolvesTo(dependencyId, localId, ownerEntries, ownerId)));
-      if (hasDependents) {
+      const cascadeIds = abandonmentCascadeIds(localId, ownerEntries, ownerId);
+      const localById = new Map(ownerLocalRecords.map(entry => [entry.localId, entry] as const));
+      const cascadeEntries = ownerEntries.filter(entry => cascadeIds.has(entry.localId));
+      const cascadeIsEligible = cascadeEntries.length === cascadeIds.size
+        && cascadeEntries.every(entry => {
+          const record = localById.get(entry.localId);
+          return Boolean(
+            record
+            && record.ownerId === ownerId
+            && deliveryDispositionOf(record.deliveryDisposition) === 'ACTIVE'
+            && deliveryDispositionOf(entry.deliveryDisposition) === 'ACTIVE'
+            && entry.status !== 'SYNCED'
+            && entry.status !== 'SYNCING'
+            && !entry.leaseToken,
+          );
+        });
+      if (!cascadeIsEligible) {
         transaction.abort();
         await completed.catch(() => undefined);
-        return 'has-dependents';
+        return 'stale-or-ineligible';
       }
       const targetLogical =
         outboxEntry.logicalOccurredAt ?? outboxEntry.occurredAt ?? outboxEntry.createdAt;
       const hasLaterCommands = ownerEntries.some(candidate =>
-        candidate.localId !== localId
+        !cascadeIds.has(candidate.localId)
         && candidate.aggregateType === outboxEntry.aggregateType
         && candidate.aggregateId === outboxEntry.aggregateId
         && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE'
@@ -452,8 +467,10 @@ export class LocalCommandRepository {
         abandonPermission: SYNC_UNSYNCHRONIZED_ABANDON,
         updatedAt: now,
       };
-      localStore.put({ ...localRecord, ...abandonment });
-      outboxStore.put({ ...outboxEntry, ...abandonment });
+      for (const entry of cascadeEntries) {
+        localStore.put({ ...localById.get(entry.localId)!, ...abandonment });
+        outboxStore.put({ ...entry, ...abandonment });
+      }
       let sessionInvalidated = false;
       const stopWatchingSession = request.watchSession?.(() => {
         if (!request.sessionIsCurrent()) {
@@ -483,6 +500,37 @@ export class LocalCommandRepository {
       }
       return 'storage-error';
     }
+  }
+
+  async abandonmentImpact(
+    ownerIdInput: string,
+    localIdInput: string,
+  ): Promise<AbandonmentImpact | null> {
+    const ownerId = requiredText(ownerIdInput);
+    const localId = requiredText(localIdInput);
+    const transaction = await this.database.createTransaction([OUTBOX_STORE], 'readonly');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(OUTBOX_STORE);
+    const [target, ownerEntries] = await Promise.all([
+      requestResult<OutboxEntry<JsonValue> | undefined>(
+        store.get(localId),
+        'Não foi possível consultar o registro selecionado.',
+      ),
+      requestResult<OutboxEntry<JsonValue>[]>(
+        store.index('ownerId').getAll(ownerId),
+        'Não foi possível consultar os registros dependentes.',
+      ),
+    ]);
+    await completed;
+    if (
+      !target
+      || target.ownerId !== ownerId
+      || deliveryDispositionOf(target.deliveryDisposition) !== 'ACTIVE'
+    ) {
+      return null;
+    }
+    const affectedCount = abandonmentCascadeIds(localId, ownerEntries, ownerId).size;
+    return Object.freeze({ affectedCount, dependentCount: affectedCount - 1 });
   }
 
   private async findExisting(idempotencyKey: string): Promise<ExistingCommand> {
@@ -535,6 +583,34 @@ function dependencyResolvesTo(
           entry.ownerId === ownerId && entry.supersedesLocalId === current?.localId);
   }
   return false;
+}
+
+function abandonmentCascadeIds(
+  targetLocalId: string,
+  entries: readonly OutboxEntry<JsonValue>[],
+  ownerId: string,
+): ReadonlySet<string> {
+  const selected = new Set([targetLocalId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const candidate of entries) {
+      if (
+        selected.has(candidate.localId)
+        || candidate.ownerId !== ownerId
+        || deliveryDispositionOf(candidate.deliveryDisposition) !== 'ACTIVE'
+      ) {
+        continue;
+      }
+      if (candidate.dependencyIds.some(dependencyId =>
+        [...selected].some(selectedId =>
+          dependencyResolvesTo(dependencyId, selectedId, entries, ownerId)))) {
+        selected.add(candidate.localId);
+        changed = true;
+      }
+    }
+  }
+  return selected;
 }
 
 function compareLogicalPosition(

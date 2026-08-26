@@ -62,6 +62,26 @@ describe('SynchronizationAbandonmentService', () => {
     expect(capturedCurrent()).toBe(false);
     service.ngOnDestroy();
   });
+
+  it('consulta o impacto da cadeia somente para usuário autorizado', async () => {
+    const repository = {
+      abandonmentImpact: vi.fn().mockResolvedValue({ affectedCount: 2, dependentCount: 1 }),
+    } as unknown as LocalCommandRepository;
+    const auth = new AuthSessionService(null);
+    const service = new SynchronizationAbandonmentService(
+      repository,
+      auth,
+      new SynchronizationPermissionPolicy(false),
+      () => new Date('2026-07-30T12:00:00.000Z'),
+    );
+
+    expect(await service.impact('local-1')).toBeNull();
+    auth.startSession(user([SYNC_UNSYNCHRONIZED_ABANDON], ' owner-1 '), 'token', {
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    });
+    expect(await service.impact('local-1')).toEqual({ affectedCount: 2, dependentCount: 1 });
+    service.ngOnDestroy();
+  });
 });
 
 function user(permissoes: string[], id = 'owner-1') {
