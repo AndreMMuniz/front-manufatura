@@ -21,7 +21,7 @@ export function mapPendingRoutesEnvelope(value: unknown): PendingAuthorizedRoute
       const componentIdentities = componentResults.map(result => `${result.examCode}:${result.componentCode}`);
       if (
         componentResults.length !== totalComponents ||
-        componentResults.filter(result => !result.withinRange).length !== outOfRangeComponents ||
+        componentResults.filter(result => result.withinRange === false).length !== outOfRangeComponents ||
         new Set(componentIdentities).size !== componentIdentities.length
       )
         throw invalidContract();
@@ -49,16 +49,19 @@ function mapPendingComponentResult(value: unknown, expectedSheetNumber: number):
   const result = objectOf(value);
   const sheetNumber = positiveIntegerOf(result['nrFicha']);
   if (sheetNumber !== expectedSheetNumber) throw invalidContract();
+  const resultType = positiveIntegerOf(result['tipoResultado']);
+  const withinRange = nullableBooleanOf(result['dentroFaixa']);
+  if (withinRange === null && resultType !== 4) throw invalidContract();
   return {
     sheetNumber,
     examCode: positiveIntegerOf(result['codExame']),
     componentCode: positiveIntegerOf(result['codComponente']),
     componentSequence: nonNegativeIntegerOf(result['seqComp']),
-    resultType: positiveIntegerOf(result['tipoResultado']),
+    resultType,
     result: finiteNumberOf(result['resultado']),
     report: textOf(result['laudo'], true),
     tableNumber: nonNegativeIntegerOf(result['nrTabela']),
-    withinRange: booleanOf(result['dentroFaixa']),
+    withinRange,
   };
 }
 
@@ -192,6 +195,10 @@ function isPositiveInteger(value: number): boolean {
 function booleanOf(value: unknown): boolean {
   if (typeof value !== 'boolean') throw invalidContract();
   return value;
+}
+
+function nullableBooleanOf(value: unknown): boolean | null {
+  return value === null ? null : booleanOf(value);
 }
 
 function finiteNumberOf(value: unknown): number {

@@ -123,7 +123,7 @@ GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio
 | `resultados[].laudo`                       | string         | Laudo textual registrado, quando aplicável.                                                            |
 | `resultados[].nrTabela`                    | integer        | Tabela de opções vinculada, quando aplicável.                                                          |
 | `resultados[].seqComp`                     | integer        | Sequência do componente. Não representa `seqOpcao`.                                                    |
-| `resultados[].dentroFaixa`                 | boolean        | Decisão do Datasul: `true` fica somente para visualização; `false` pode ser corrigido pelo supervisor. |
+| `resultados[].dentroFaixa`                 | boolean/null   | Decisão do Datasul: `true` fica somente para visualização; `false` pode ser corrigido pelo supervisor; `null` em resultado tipo 4 significa classificação ainda não informada. |
 
 ## Consultar roteiro pendente por ficha
 
@@ -171,7 +171,7 @@ a partir da configuração e da sessão autenticada.
 | `roteiro[].resultados[].resultadoMinDefinido`     | number         | Limite mínimo definido para o componente.                        |
 | `roteiro[].resultados[].resultadoMaxDefinido`     | number         | Limite máximo definido para o componente.                        |
 | `roteiro[].resultados[].tipoResultado`            | integer        | Tipo da representação do resultado.                              |
-| `roteiro[].resultados[].dentroFaixa`              | boolean        | Classificação feita pelo Datasul.                                |
+| `roteiro[].resultados[].dentroFaixa`              | boolean/null   | Classificação feita pelo Datasul; pode ser `null` no tipo 4.      |
 
 O retorno observado não contém descrições, unidade, equipamento, método nem
 opções de resultados tabelados. O BFF agrupa os componentes por `codExame` e usa

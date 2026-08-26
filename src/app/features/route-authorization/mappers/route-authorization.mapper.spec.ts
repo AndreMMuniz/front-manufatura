@@ -66,6 +66,23 @@ describe('route authorization mapper', () => {
     ]);
   });
 
+  it('preserva classificação não informada de componente tipo 4', () => {
+    const route = pending(64382) as { resultados: Array<Record<string, unknown>> };
+    route.resultados[1]['tipoResultado'] = 4;
+    route.resultados[1]['dentroFaixa'] = null;
+
+    const [mapped] = mapPendingRoutesEnvelope({
+      total: 1,
+      hasNext: false,
+      items: [{ 'ds-autorizacao': { roteirosEmAnalise: [route] } }],
+    });
+
+    expect(mapped.componentResults[1]).toMatchObject({
+      resultType: 4,
+      withinRange: null,
+    });
+  });
+
   it('aceita envelope vazio e rejeita ficha malformada', () => {
     expect(mapPendingRoutesEnvelope({ total: 0, hasNext: false, items: [] })).toEqual([]);
     expect(mapPendingRoutesEnvelope({ total: 0, hasNext: false })).toEqual([]);

@@ -261,16 +261,18 @@ function validatePendingAuthorizationsEnvelope(value: unknown): void {
         const examCode = upstreamPositiveInteger(result['codExame']);
         const componentCode = upstreamPositiveInteger(result['codComponente']);
         upstreamNonNegativeInteger(result['seqComp']);
-        upstreamPositiveInteger(result['tipoResultado']);
+        const resultType = upstreamPositiveInteger(result['tipoResultado']);
         upstreamFiniteNumber(result['resultado']);
         upstreamText(result['laudo'], true);
         upstreamNonNegativeInteger(result['nrTabela']);
-        upstreamBoolean(result['dentroFaixa']);
+        const withinRange = upstreamNullableBoolean(result['dentroFaixa']);
+        if (withinRange === null && resultType !== 4) throw invalidUpstream();
         return `${examCode}:${componentCode}`;
       });
       if (
         results.length !== total ||
-        results.filter(value => !upstreamBoolean(upstreamObject(value)['dentroFaixa'])).length !== outOfRange ||
+        results.filter(value => upstreamNullableBoolean(upstreamObject(value)['dentroFaixa']) === false).length !==
+          outOfRange ||
         new Set(identities).size !== identities.length
       )
         throw invalidUpstream();

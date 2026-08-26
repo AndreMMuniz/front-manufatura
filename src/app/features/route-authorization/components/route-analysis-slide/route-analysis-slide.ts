@@ -495,6 +495,16 @@ function initialDraft(component: QualityExamComponent, route: PendingAuthorizedR
   const result = component.resultType === 1 || component.resultType === 4 ? String(saved.result) : '';
   const report = component.resultType === 3 ? saved.report : '';
   const selectedOptionKey = '';
+  if (saved.withinRange === null) {
+    return {
+      status: 'unverified',
+      result,
+      report,
+      selectedOptionKey,
+      message: '',
+      isDirty: false,
+    };
+  }
   const confirmation = { status, result, report, selectedOptionKey } as const;
   return {
     status,

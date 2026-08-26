@@ -22,7 +22,7 @@ export interface PendingAuthorizedComponentResult {
   readonly result: number;
   readonly report: string;
   readonly tableNumber: number;
-  readonly withinRange: boolean;
+  readonly withinRange: boolean | null;
 }
 
 export interface AuthorizedRouteFinalization {

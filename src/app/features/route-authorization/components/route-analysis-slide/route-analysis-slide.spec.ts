@@ -78,6 +78,22 @@ describe('RouteAnalysisSlide', () => {
     expect(fixture.nativeElement.querySelector('[data-status="approved"]').getAttribute('aria-live')).toBe('polite');
   });
 
+  it('mantém componente sem classificação remota como não verificado', () => {
+    const current = routeWithRemoteStatuses();
+    const selectedRoute = {
+      ...current,
+      componentResults: current.componentResults.map((result, index) =>
+        index === 1 ? { ...result, resultType: 4, withinRange: null } : result,
+      ),
+    } as unknown as PendingAuthorizedRoute;
+
+    component.open(selectedRoute, 10);
+
+    const unclassified = component.exams()[0].components[1];
+    expect(component.statusFor(unclassified)).toBe('unverified');
+    expect(component.isLocked(unclassified)).toBe(false);
+  });
+
   it('move o foco programaticamente para o título depois de abrir o painel', async () => {
     fixture.detectChanges();
     const focusSink = document.createElement('button');

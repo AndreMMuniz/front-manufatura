@@ -512,6 +512,40 @@ describe('gateway Plano Controle CQ', () => {
     );
   });
 
+  it('aceita classificação não informada de componente tipo 4 na consulta geral', async () => {
+    const responseBody = structuredClone(REAL_ROUTE_AUTHORIZATION) as {
+      items: Array<{
+        'ds-autorizacao': {
+          roteirosEmAnalise: Array<{ resultados: Array<Record<string, unknown>> }>;
+        };
+      }>;
+    };
+    const result = responseBody.items[0]['ds-autorizacao'].roteirosEmAnalise[1].resultados[1];
+    result['tipoResultado'] = 4;
+    result['dentroFaixa'] = null;
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(responseBody);
+  });
+
   it('finaliza com autorização por POST usando somente nrFicha controlada pelo browser', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
