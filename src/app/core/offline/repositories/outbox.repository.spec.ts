@@ -384,6 +384,25 @@ describe('OutboxRepository processing', () => {
     });
   });
 
+  it('preserva o outcome conhecido ao bloquear localmente uma tentativa reagendada', async () => {
+    await seed(database, [
+      entry('retry', {
+        status: 'RETRY_WAIT',
+        attemptCount: 1,
+        nextAttemptAt: '2026-07-29T12:59:59.000Z',
+        dependencyIds: ['missing'],
+        deliveryOutcome: 'NOT_DELIVERED',
+      }),
+    ]);
+
+    expect(await repository.claim(claim('retry', 'lease'))).toBeNull();
+    expect(await repository.getById(OWNER, 'retry')).toMatchObject({
+      status: 'BLOCKED_DEPENDENCY',
+      deliveryOutcome: 'NOT_DELIVERED',
+      lastError: { code: 'DEPENDENCY_MISSING', category: 'CONFIGURATION' },
+    });
+  });
+
   it('não deixa item posterior ultrapassar a primeira cabeça não terminal do agregado', async () => {
     await seed(database, [
       entry('first', {

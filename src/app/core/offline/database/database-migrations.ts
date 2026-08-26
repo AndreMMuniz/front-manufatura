@@ -146,7 +146,17 @@ export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
 function migrationForDeliveryOutcome(
   entry: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> | undefined {
-  if (deliveryOutcomeOf(entry['deliveryOutcome'])) {
+  const existingOutcome = deliveryOutcomeOf(entry['deliveryOutcome']);
+  if (existingOutcome === 'UNCERTAIN' && entry['status'] !== 'CONFIRMATION_PENDING') {
+    return { ...entry, status: 'CONFIRMATION_PENDING' };
+  }
+  if (existingOutcome === 'CONFIRMED' && entry['status'] !== 'SYNCED') {
+    return { ...entry, status: 'SYNCED' };
+  }
+  if (existingOutcome === 'REJECTED' && entry['status'] !== 'ERROR') {
+    return { ...entry, status: 'ERROR' };
+  }
+  if (existingOutcome) {
     return undefined;
   }
   if (entry['status'] === 'SYNCED') {

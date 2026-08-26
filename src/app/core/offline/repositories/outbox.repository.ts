@@ -675,6 +675,7 @@ function blocked(
 ): OutboxEntry<JsonValue> {
   return {
     ...withoutRuntimeState(entry),
+    ...(entry.deliveryOutcome ? { deliveryOutcome: entry.deliveryOutcome } : {}),
     status: 'BLOCKED_DEPENDENCY',
     ...(error ? { lastError: error } : {}),
     updatedAt: now,

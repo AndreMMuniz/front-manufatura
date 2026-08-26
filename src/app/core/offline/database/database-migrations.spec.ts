@@ -116,6 +116,25 @@ describe('database migrations', () => {
         lastError: legacyError('NETWORK', 'TRANSIENT'),
       }),
       legacyFixture('never-attempted', 'PENDING'),
+      legacyFixture('preclassified-uncertain', 'RETRY_WAIT', {
+        attemptCount: 1,
+        lastAttemptAt: '2026-07-28T15:05:00.000Z',
+        nextAttemptAt: '2026-07-28T15:06:00.000Z',
+        deliveryOutcome: 'UNCERTAIN',
+      }),
+      legacyFixture('preclassified-confirmed', 'RETRY_WAIT', {
+        attemptCount: 1,
+        deliveryOutcome: 'CONFIRMED',
+      }),
+      legacyFixture('preclassified-rejected', 'RETRY_WAIT', {
+        attemptCount: 1,
+        deliveryOutcome: 'REJECTED',
+      }),
+      legacyFixture('preclassified-not-delivered', 'RETRY_WAIT', {
+        attemptCount: 1,
+        nextAttemptAt: '2026-07-28T15:06:00.000Z',
+        deliveryOutcome: 'NOT_DELIVERED',
+      }),
     ];
     for (const fixture of fixtures) {
       await addAndComplete(versionThree, OUTBOX_STORE, fixture);
@@ -135,6 +154,18 @@ describe('database migrations', () => {
       status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
     });
     expect(byId.get('never-attempted')).not.toHaveProperty('deliveryOutcome');
+    expect(byId.get('preclassified-uncertain')).toMatchObject({
+      status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+    });
+    expect(byId.get('preclassified-confirmed')).toMatchObject({
+      status: 'SYNCED', deliveryOutcome: 'CONFIRMED',
+    });
+    expect(byId.get('preclassified-rejected')).toMatchObject({
+      status: 'ERROR', deliveryOutcome: 'REJECTED',
+    });
+    expect(byId.get('preclassified-not-delivered')).toMatchObject({
+      status: 'RETRY_WAIT', deliveryOutcome: 'NOT_DELIVERED',
+    });
     expect(byId.get('legacy-transient')).toMatchObject({
       payload: fixtures[3].payload,
       payloadHash: fixtures[3].payloadHash,
