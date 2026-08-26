@@ -10,6 +10,7 @@ import {
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { ClientLogService } from '../../logging/client-log.service';
 import { OutboxEntry } from '../models/outbox-entry';
+import { CommandResult } from '../models/sync-command';
 import {
   NormalizedSyncError,
   SyncSchedulerConfig,
@@ -21,12 +22,17 @@ import { JsonValue } from '../models/local-record';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { IdempotencyService } from './idempotency.service';
 import {
+  COMMAND_CONFIRMATION_ROUTER,
+  CommandConfirmationRouter,
+} from './command-confirmation-router';
+import {
   SYNC_TIMEOUT_SCHEDULER,
   SYNC_TRANSPORT,
   SyncTransport,
   TimeoutScheduler,
   sendCommandWithTimeout,
   toSyncCommandRequest,
+  validateCommandResult,
 } from './sync-transport';
 import {
   SYNC_SCHEDULER_CONFIGURATION,
@@ -41,6 +47,13 @@ export type ManualRetryResult =
   | 'no-credential'
   | 'stale-or-ineligible'
   | 'storage-error';
+
+export type ConfirmationAttemptResult =
+  | 'confirmed'
+  | 'queued'
+  | 'conflict'
+  | 'pending'
+  | 'unsupported';
 
 export const SYNC_CLOCK = new InjectionToken<SyncClock>('SYNC_CLOCK', {
   providedIn: 'root',
@@ -77,6 +90,8 @@ export class SyncCoordinatorService implements OnDestroy {
     private readonly clientLogs: ClientLogService = {
       capture: () => undefined,
     } as unknown as ClientLogService,
+    @Inject(COMMAND_CONFIRMATION_ROUTER)
+    private readonly confirmations: CommandConfirmationRouter = new CommandConfirmationRouter([]),
   ) {}
 
   start(): void {
@@ -138,6 +153,113 @@ export class SyncCoordinatorService implements OnDestroy {
     } catch {
       this.captureFailure('sync_storage_failed', 'manual_retry', 'STORAGE_FAILURE');
       return this.isCurrent(owner, epoch) ? 'storage-error' : 'stale-or-ineligible';
+    }
+  }
+
+  async confirmDelivery(localId: string): Promise<ConfirmationAttemptResult> {
+    const owner = this.activeOwner;
+    if (!owner || !this.remoteCredentialAvailable) {
+      return 'pending';
+    }
+    const epoch = this.sessionEpoch;
+    let entry: OutboxEntry<JsonValue> | null;
+    try {
+      entry = await this.outbox.getById(owner, localId);
+    } catch {
+      this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE');
+      return 'pending';
+    }
+    if (
+      !entry ||
+      entry.status !== 'CONFIRMATION_PENDING' ||
+      !this.isCurrent(owner, epoch)
+    ) {
+      return 'pending';
+    }
+
+    const request = toSyncCommandRequest(entry);
+    const controller = new AbortController();
+    this.activeRequests.add(controller);
+    try {
+      const confirmation = await this.confirmations.confirm(request, controller.signal);
+      if (!confirmation) {
+        return 'unsupported';
+      }
+      if (!this.isCurrent(owner, epoch)) {
+        return 'pending';
+      }
+      switch (confirmation.kind) {
+        case 'MATCH': {
+          let result: CommandResult;
+          try {
+            result = validateCommandResult(request, confirmation.result);
+          } catch {
+            return this.keepConfirmationPending(owner, localId, 'INVALID_CONFIRMATION_RECEIPT',
+              'A consulta não confirmou a entrega.', epoch);
+          }
+          try {
+            const changed = await this.outbox.confirmMatch({
+              ownerId: owner,
+              localId,
+              now: this.nowIso(),
+              result,
+            });
+            return changed ? 'confirmed' : 'pending';
+          } catch {
+            this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', entry);
+            return 'pending';
+          }
+        }
+        case 'MISSING': {
+          const now = this.clock();
+          const delay = calculateRetryDelay(entry.attemptCount, this.random(), this.config);
+          try {
+            const changed = await this.outbox.confirmMissing({
+              ownerId: owner,
+              localId,
+              now: validDate(now),
+              nextAttemptAt: validDate(new Date(now.getTime() + delay)),
+            });
+            return changed ? 'queued' : 'pending';
+          } catch {
+            this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', entry);
+            return 'pending';
+          }
+        }
+        case 'CONFLICT': {
+          try {
+            const changed = await this.outbox.confirmConflict({
+              ownerId: owner,
+              localId,
+              now: this.nowIso(),
+              code: confirmation.code,
+              userMessage: confirmation.userMessage,
+            });
+            return changed ? 'conflict' : 'pending';
+          } catch {
+            this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', entry);
+            return 'pending';
+          }
+        }
+        case 'INCONCLUSIVE':
+          return this.keepConfirmationPending(
+            owner,
+            localId,
+            confirmation.code,
+            confirmation.userMessage,
+            epoch,
+          );
+      }
+    } catch {
+      return this.keepConfirmationPending(
+        owner,
+        localId,
+        'CONFIRMATION_LOOKUP_FAILED',
+        'A consulta não foi conclusiva.',
+        epoch,
+      );
+    } finally {
+      this.activeRequests.delete(controller);
     }
   }
 
@@ -407,6 +529,31 @@ export class SyncCoordinatorService implements OnDestroy {
         failureCategory: error.category, code: error.code,
       },
     );
+  }
+
+  private async keepConfirmationPending(
+    owner: string,
+    localId: string,
+    code: string,
+    userMessage: string,
+    epoch: number,
+  ): Promise<ConfirmationAttemptResult> {
+    if (!this.isCurrent(owner, epoch)) {
+      return 'pending';
+    }
+    try {
+      await this.outbox.keepConfirmationPending({
+        ownerId: owner,
+        localId,
+        now: this.nowIso(),
+        code,
+        userMessage,
+      });
+      return 'pending';
+    } catch {
+      this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE');
+      return 'pending';
+    }
   }
 
   private async runWithConcurrency<T>(

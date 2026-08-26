@@ -484,6 +484,87 @@ describe('OutboxRepository processing', () => {
     expect(await repository.claim(claim('uncertain', 'replacement-lease'))).toBeNull();
   });
 
+  it('reconcilia confirmações read-only por CAS sem alterar a identidade do comando', async () => {
+    await seed(database, [
+      entry('match', confirmationPending()),
+      entry('missing', confirmationPending({ aggregateId: 'OP-2' })),
+      entry('conflict', confirmationPending({ aggregateId: 'OP-3' })),
+      entry('inconclusive', confirmationPending({ aggregateId: 'OP-4' })),
+    ]);
+    const before = await Promise.all(
+      ['match', 'missing', 'conflict', 'inconclusive'].map(localId =>
+        repository.getById(OWNER, localId)),
+    );
+
+    expect(await repository.confirmMatch({
+      ownerId: OWNER, localId: 'match', now: NOW, result: receipt('match'),
+    })).toBe(true);
+    expect(await repository.confirmMissing({
+      ownerId: OWNER,
+      localId: 'missing',
+      now: NOW,
+      nextAttemptAt: '2026-07-29T13:00:10.000Z',
+    })).toBe(true);
+    expect(await repository.confirmConflict({
+      ownerId: OWNER,
+      localId: 'conflict',
+      now: NOW,
+      code: 'REMOTE_CONTENT_CONFLICT',
+      userMessage: 'O destino contém conteúdo diferente.',
+    })).toBe(true);
+    expect(await repository.keepConfirmationPending({
+      ownerId: OWNER,
+      localId: 'inconclusive',
+      now: NOW,
+      code: 'REMOTE_LOOKUP_UNAVAILABLE',
+      userMessage: 'A consulta não foi conclusiva.',
+    })).toBe(true);
+
+    expect(await repository.getById(OWNER, 'match')).toMatchObject({
+      status: 'SYNCED', deliveryOutcome: 'CONFIRMED', receipt: { serverRecordId: 'server-match' },
+    });
+    expect(await repository.getById(OWNER, 'missing')).toMatchObject({
+      status: 'RETRY_WAIT', deliveryOutcome: 'NOT_DELIVERED',
+      nextAttemptAt: '2026-07-29T13:00:10.000Z',
+    });
+    expect(await repository.getById(OWNER, 'conflict')).toMatchObject({
+      status: 'ERROR', deliveryOutcome: 'REJECTED',
+      lastError: {
+        code: 'REMOTE_CONTENT_CONFLICT', category: 'CONFLICT', deliveryOutcome: 'REJECTED',
+      },
+    });
+    expect(await repository.getById(OWNER, 'inconclusive')).toMatchObject({
+      status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+      lastError: { code: 'REMOTE_LOOKUP_UNAVAILABLE', category: 'TRANSIENT' },
+    });
+    const after = await Promise.all(
+      ['match', 'missing', 'conflict', 'inconclusive'].map(localId =>
+        repository.getById(OWNER, localId)),
+    );
+    expect(after.map(value => identity(value!))).toEqual(before.map(value => identity(value!)));
+  });
+
+  it('permite que somente uma confirmação concorrente vença o CAS', async () => {
+    await seed(database, [entry('race', confirmationPending())]);
+
+    const [matched, missing] = await Promise.all([
+      repository.confirmMatch({
+        ownerId: OWNER, localId: 'race', now: NOW, result: receipt('race'),
+      }),
+      repository.confirmMissing({
+        ownerId: OWNER,
+        localId: 'race',
+        now: NOW,
+        nextAttemptAt: '2026-07-29T13:00:10.000Z',
+      }),
+    ]);
+
+    expect([matched, missing].filter(Boolean)).toHaveLength(1);
+    expect(await repository.getById(OWNER, 'race')).toMatchObject({
+      status: expect.stringMatching(/^(SYNCED|RETRY_WAIT)$/),
+    });
+  });
+
   it('reabilita ERROR somente por operação manual e BLOCKED_AUTH apenas no owner correto', async () => {
     await seed(database, [
       entry('error', {
@@ -649,6 +730,22 @@ function identity(entryValue: OutboxEntry<JsonValue>) {
     canonicalPayload: entryValue.canonicalPayload,
     payload: entryValue.payload,
     payloadHash: entryValue.payloadHash,
+  };
+}
+
+function confirmationPending(
+  overrides: Partial<OutboxEntry<JsonValue>> = {},
+): Partial<OutboxEntry<JsonValue>> {
+  return {
+    status: 'CONFIRMATION_PENDING',
+    deliveryOutcome: 'UNCERTAIN',
+    lastError: {
+      code: 'INVALID_RECEIPT',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'A entrega precisa ser confirmada.',
+    },
+    ...overrides,
   };
 }
 

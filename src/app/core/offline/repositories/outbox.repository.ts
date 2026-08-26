@@ -35,6 +35,36 @@ export interface ReconcileSuccessRequest {
   readonly result: RemoteCommandReceipt & { readonly idempotencyKey?: string };
 }
 
+export interface ConfirmMatchRequest {
+  readonly ownerId: string;
+  readonly localId: string;
+  readonly now: string;
+  readonly result: RemoteCommandReceipt & { readonly idempotencyKey?: string };
+}
+
+export interface ConfirmMissingRequest {
+  readonly ownerId: string;
+  readonly localId: string;
+  readonly now: string;
+  readonly nextAttemptAt: string;
+}
+
+export interface ConfirmConflictRequest {
+  readonly ownerId: string;
+  readonly localId: string;
+  readonly now: string;
+  readonly code: string;
+  readonly userMessage: string;
+}
+
+export interface KeepConfirmationPendingRequest {
+  readonly ownerId: string;
+  readonly localId: string;
+  readonly now: string;
+  readonly code: string;
+  readonly userMessage: string;
+}
+
 interface ReconcileFailureBase {
   readonly ownerId: string;
   readonly localId: string;
@@ -400,6 +430,77 @@ export class OutboxRepository {
     return true;
   }
 
+  async confirmMatch(request: ConfirmMatchRequest): Promise<boolean> {
+    const owner = assertOwnerId(request.ownerId);
+    const now = validIso(request.now);
+    const changed = await this.updateConfirmationPending(owner, request.localId, (current) => {
+      if (
+        request.result.idempotencyKey !== undefined &&
+        request.result.idempotencyKey !== current.idempotencyKey
+      ) {
+        return undefined;
+      }
+      const { idempotencyKey: _returnedKey, ...receipt } = request.result;
+      return {
+        ...withoutRuntimeState(current),
+        status: 'SYNCED',
+        deliveryOutcome: 'CONFIRMED',
+        synchronizedAt: now,
+        receipt,
+        updatedAt: now,
+      } satisfies OutboxEntry<JsonValue>;
+    });
+    if (changed) this.supervisorProofs.clear(owner, request.localId);
+    return changed;
+  }
+
+  async confirmMissing(request: ConfirmMissingRequest): Promise<boolean> {
+    const owner = assertOwnerId(request.ownerId);
+    const now = validIso(request.now);
+    const nextAttemptAt = validIso(request.nextAttemptAt);
+    return this.updateConfirmationPending(owner, request.localId, (current) => ({
+      ...withoutRuntimeState(current),
+      status: 'RETRY_WAIT',
+      deliveryOutcome: 'NOT_DELIVERED',
+      nextAttemptAt,
+      updatedAt: now,
+    } satisfies OutboxEntry<JsonValue>));
+  }
+
+  async confirmConflict(request: ConfirmConflictRequest): Promise<boolean> {
+    const owner = assertOwnerId(request.ownerId);
+    const now = validIso(request.now);
+    return this.updateConfirmationPending(owner, request.localId, (current) => ({
+      ...withoutRuntimeState(current),
+      status: 'ERROR',
+      deliveryOutcome: 'REJECTED',
+      lastError: {
+        code: request.code,
+        category: 'CONFLICT',
+        deliveryOutcome: 'REJECTED',
+        userMessage: request.userMessage,
+      },
+      updatedAt: now,
+    } satisfies OutboxEntry<JsonValue>));
+  }
+
+  async keepConfirmationPending(request: KeepConfirmationPendingRequest): Promise<boolean> {
+    const owner = assertOwnerId(request.ownerId);
+    const now = validIso(request.now);
+    return this.updateConfirmationPending(owner, request.localId, (current) => ({
+      ...withoutRuntimeState(current),
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+      lastError: {
+        code: request.code,
+        category: 'TRANSIENT',
+        deliveryOutcome: 'UNCERTAIN',
+        userMessage: request.userMessage,
+      },
+      updatedAt: now,
+    } satisfies OutboxEntry<JsonValue>));
+  }
+
   async retryError(ownerId: string, localId: string, now: string): Promise<boolean> {
     const owner = assertOwnerId(ownerId);
     const normalizedNow = validIso(now);
@@ -427,6 +528,38 @@ export class OutboxRepository {
       lastManualRetryBy: owner,
       updatedAt: normalizedNow,
     } satisfies OutboxEntry<JsonValue>);
+    await completed;
+    this.activity.publish();
+    return true;
+  }
+
+  private async updateConfirmationPending(
+    owner: string,
+    localId: string,
+    transition: (current: OutboxEntry<JsonValue>) => OutboxEntry<JsonValue> | undefined,
+  ): Promise<boolean> {
+    const transaction = await this.database.createTransaction([OUTBOX_STORE], 'readwrite');
+    const completed = transactionComplete(transaction);
+    const store = transaction.objectStore(OUTBOX_STORE);
+    const current = await requestResult<OutboxEntry<JsonValue> | undefined>(
+      store.get(localId),
+      'Não foi possível reconciliar a confirmação remota.',
+    );
+    if (
+      !current ||
+      current.ownerId !== owner ||
+      current.status !== 'CONFIRMATION_PENDING' ||
+      deliveryDispositionOf(current.deliveryDisposition) !== 'ACTIVE'
+    ) {
+      await completed;
+      return false;
+    }
+    const updated = transition(current);
+    if (!updated) {
+      await completed;
+      return false;
+    }
+    store.put(updated);
     await completed;
     this.activity.publish();
     return true;

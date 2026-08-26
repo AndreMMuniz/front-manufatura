@@ -10,6 +10,7 @@ import { DEFAULT_SYNC_SCHEDULER_CONFIG } from '../models/sync-error';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { transactionComplete } from '../repositories/repository-utils';
 import { IdempotencyService } from './idempotency.service';
+import { CommandConfirmationHandler, CommandConfirmationRouter } from './command-confirmation-router';
 import { SyncCoordinatorService } from './sync-coordinator.service';
 import { SyncTransport, TimeoutScheduler } from './sync-transport';
 import { SyncTriggerReason, SyncTriggerService } from './sync-trigger.service';
@@ -795,6 +796,107 @@ describe('SyncCoordinatorService', () => {
     });
   });
 
+  it.each([
+    ['MATCH', 'confirmed', { status: 'SYNCED', deliveryOutcome: 'CONFIRMED' }],
+    ['MISSING', 'queued', { status: 'RETRY_WAIT', deliveryOutcome: 'NOT_DELIVERED' }],
+    ['CONFLICT', 'conflict', { status: 'ERROR', deliveryOutcome: 'REJECTED' }],
+    ['INCONCLUSIVE', 'pending', {
+      status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+    }],
+  ] as const)('reconcilia confirmação %s sem executar um segundo envio', async (
+    kind,
+    expected,
+    persisted,
+  ) => {
+    await seed(database, [entry('uncertain', {
+      commandType: 'CREATE_STOP',
+      aggregateType: 'STOP',
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+      lastError: {
+        code: 'INVALID_RECEIPT',
+        category: 'TRANSIENT',
+        deliveryOutcome: 'UNCERTAIN',
+        userMessage: 'A entrega precisa ser confirmada.',
+      },
+    })]);
+    const before = await repository.getById(OWNER, 'uncertain');
+    const send = vi.fn();
+    const coordinator = createCoordinator({ send }, {}, [confirmationHandler(kind)]);
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe(expected);
+
+    expect(await repository.getById(OWNER, 'uncertain')).toMatchObject(persisted);
+    expect(send).not.toHaveBeenCalled();
+    const after = await repository.getById(OWNER, 'uncertain');
+    expect({
+      payload: after?.payload,
+      canonicalPayload: after?.canonicalPayload,
+      payloadHash: after?.payloadHash,
+      idempotencyKey: after?.idempotencyKey,
+    }).toEqual({
+      payload: before?.payload,
+      canonicalPayload: before?.canonicalPayload,
+      payloadHash: before?.payloadHash,
+      idempotencyKey: before?.idempotencyKey,
+    });
+  });
+
+  it('mantém entrega incerta quando o receipt da consulta não corresponde ao comando', async () => {
+    await seed(database, [entry('uncertain', {
+      commandType: 'CREATE_STOP',
+      aggregateType: 'STOP',
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    })]);
+    const send = vi.fn();
+    const coordinator = createCoordinator({ send }, {}, [{
+      commandType: 'CREATE_STOP',
+      confirm: async () => ({
+        kind: 'MATCH',
+        result: {
+          serverRecordId: 'server-uncertain',
+          idempotencyKey: 'other-command',
+          receivedAt: NOW,
+          processedAt: NOW,
+          duplicate: false,
+        },
+      }),
+    }]);
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe('pending');
+
+    expect(await repository.getById(OWNER, 'uncertain')).toMatchObject({
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('não altera nem reenvia um comando sem verificador de confirmação', async () => {
+    await seed(database, [entry('uncertain', {
+      commandType: 'CREATE_STOP',
+      aggregateType: 'STOP',
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    })]);
+    const send = vi.fn();
+    const coordinator = createCoordinator({ send });
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe('unsupported');
+
+    expect(await repository.getById(OWNER, 'uncertain')).toMatchObject({
+      status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('rejeita configuração cujo lease não ultrapassa o timeout antes de iniciar', () => {
     const coordinator = createCoordinator(successTransport([]), {
       requestTimeoutMs: 60_000,
@@ -807,6 +909,7 @@ describe('SyncCoordinatorService', () => {
   function createCoordinator(
     transport: SyncTransport,
     overrides: Partial<typeof DEFAULT_SYNC_SCHEDULER_CONFIG> = {},
+    confirmationHandlers: readonly CommandConfirmationHandler[] = [],
   ): SyncCoordinatorService {
     const timeout: TimeoutScheduler = {
       schedule: () => () => undefined,
@@ -826,6 +929,7 @@ describe('SyncCoordinatorService', () => {
       timeout,
       undefined,
       clientLogs as never,
+      new CommandConfirmationRouter(confirmationHandlers),
     );
   }
 
@@ -876,6 +980,32 @@ function successTransport(sent: string[]): SyncTransport {
         processedAt: NOW,
         duplicate: false,
       };
+    },
+  };
+}
+
+function confirmationHandler(
+  kind: 'MATCH' | 'MISSING' | 'CONFLICT' | 'INCONCLUSIVE',
+): CommandConfirmationHandler {
+  return {
+    commandType: 'CREATE_STOP',
+    confirm: async (request) => {
+      if (kind === 'MATCH') {
+        return {
+          kind,
+          result: {
+            serverRecordId: `server-${request.localId}`,
+            idempotencyKey: request.idempotencyKey,
+            receivedAt: NOW,
+            processedAt: NOW,
+            duplicate: false,
+          },
+        };
+      }
+      if (kind === 'MISSING') return { kind };
+      return kind === 'CONFLICT'
+        ? { kind, code: 'REMOTE_CONTENT_CONFLICT', userMessage: 'O destino contém conteúdo diferente.' }
+        : { kind, code: 'REMOTE_LOOKUP_UNAVAILABLE', userMessage: 'A consulta não foi conclusiva.' };
     },
   };
 }
