@@ -10,17 +10,17 @@ sob `/api/quality-control/route-authorizations` e protegidos pela permissão
 O token Bearer da sessão identifica o usuário no servidor; `codUsuario` não é
 aceito do navegador e `companyId` vem da configuração do BFF.
 
-No carregamento da análise, o BFF consulta novamente `autorizacaoroteiros` com
-a identidade da sessão antes de buscar `roteiros`. A API de `roteiros` é
-consultada somente por ordem e operação e pode devolver um `nrFicha` diferente;
-por isso, após validar que há uma única definição de roteiro, o BFF a associa ao
-`nrFicha` pendente confirmado. Uma ficha ausente das pendências ou uma definição
-de roteiro vazia/ambígua continua sendo recusada com `invalid-upstream-response`.
+No carregamento da análise, o BFF consulta `roteiropendente` diretamente com a
+ficha selecionada e a identidade da sessão. A tela não usa mais `roteiros` nesse
+fluxo e, portanto, não precisa descobrir previamente operador ou equipe. O BFF
+exige uma única ficha correspondente a `nrFicha` e `nrOrdemProducao`; respostas
+vazias, ambíguas ou inconsistentes são recusadas com
+`invalid-upstream-response`.
 
 | Método | Endpoint BFF                                         | Uso                                                                                                                                             |
 | ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`  | `/api/quality-control/route-authorizations`          | Lista todas as fichas pendentes ou filtra por `nrOrdemProducao` e `opCodigo`.                                                                    |
-| `POST` | `/api/quality-control/route-authorizations/route`    | Confirma `nrFicha` nas pendências e associa a definição única do roteiro à ficha; na listagem geral, resolve `codOperacao` pela sequência da ordem. |
+| `POST` | `/api/quality-control/route-authorizations/route`    | Carrega a ficha em `roteiropendente`; na listagem geral, resolve `codOperacao` pela sequência da ordem.                                          |
 | `PUT`  | `/api/quality-control/route-authorizations/results`  | Salva um componente com `nrFicha`, `codExame`, `codComponente` e exatamente uma representação: `resultado`, `nrTabela` + `seqOpcao` ou `laudo`. |
 | `POST` | `/api/quality-control/route-authorizations/finalize` | Solicita a finalização autorizada da ficha informada por `nrFicha`.                                                                             |
 
@@ -62,7 +62,7 @@ pendências. A ficha só é removida da lista quando `finalizado: true`.
 5. Após a validação, o usuário solicita a finalização autorizada da ficha.
 6. A interface confirma o sucesso apenas quando a resposta indicar `finalizado: true`.
 
-> O carregamento e a alteração do conteúdo da ficha são realizados pelos endpoints BFF documentados acima. O BFF delega ao Datasul os contratos de [roteiros.md](./roteiros.md) e [result-exames.md](./result-exames.md); consumidores do frontend devem usar somente as rotas BFF, sem enviar credenciais, empresa ou usuário diretamente ao Datasul.
+> O carregamento e a alteração do conteúdo da ficha são realizados pelos endpoints BFF documentados acima. O BFF delega ao Datasul os contratos de `roteiropendente` documentado abaixo e de [result-exames.md](./result-exames.md); consumidores do frontend devem usar somente as rotas BFF, sem enviar credenciais, empresa ou usuário diretamente ao Datasul.
 
 ## Consultar roteiros pendentes de autorização
 
@@ -124,6 +124,60 @@ GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio
 | `resultados[].nrTabela`                    | integer        | Tabela de opções vinculada, quando aplicável.                                                          |
 | `resultados[].seqComp`                     | integer        | Sequência do componente. Não representa `seqOpcao`.                                                    |
 | `resultados[].dentroFaixa`                 | boolean        | Decisão do Datasul: `true` fica somente para visualização; `false` pode ser corrigido pelo supervisor. |
+
+## Consultar roteiro pendente por ficha
+
+- Método observado: `GET`
+- URL base observada: `http://10.101.195.111:51080`
+- Endpoint: `/api/fcq/v1/roteiropendente`
+- Autenticação: HTTP Basic Auth
+- Exemplo:
+
+```http
+GET /api/fcq/v1/roteiropendente?companyId=1&codUsuario=mjocelio&nrFicha=64514
+```
+
+Essa operação é usada ao clicar em **Analisar e finalizar**. O navegador envia a
+ficha selecionada ao BFF; `companyId` e `codUsuario` são acrescentados no servidor
+a partir da configuração e da sessão autenticada.
+
+### Parâmetros de consulta
+
+| Parâmetro     | Tipo observado | Obrigatório | Descrição                                      |
+| ------------- | -------------- | ----------- | ---------------------------------------------- |
+| `companyId`   | integer        | Sim         | Identificador da empresa. O valor observado foi `1`. |
+| `codUsuario`  | string         | Sim         | Usuário autenticado que realizará a análise.  |
+| `nrFicha`     | integer        | Sim         | Ficha pendente selecionada no card.            |
+
+### Resposta observada
+
+- Status HTTP observado: `200 OK`
+- Exemplo integral: [`examples/roteiro-pendente-ficha-64514-response.json`](./examples/roteiro-pendente-ficha-64514-response.json)
+
+| Campo                                             | Tipo observado | Descrição                                                        |
+| ------------------------------------------------- | -------------- | ---------------------------------------------------------------- |
+| `total`                                           | integer        | Quantidade de contêineres no envelope.                           |
+| `hasNext`                                         | boolean        | Indica paginação; o exemplo retornou `false`.                    |
+| `items[].ds-roteiro-pendente`                     | object         | Contêiner específico do roteiro pendente.                        |
+| `items[].ds-roteiro-pendente.roteiro`             | array          | Fichas correspondentes à consulta.                               |
+| `roteiro[].nrFicha`                               | integer        | Ficha solicitada.                                                |
+| `roteiro[].nrOrdemProducao`                       | integer        | Ordem vinculada à ficha.                                         |
+| `roteiro[].sequenciaOperacao`                     | integer        | Sequência da operação na ordem.                                  |
+| `roteiro[].componentesTotal`                      | integer        | Total de resultados/componentes retornados.                      |
+| `roteiro[].componentesForaFaixa`                  | integer        | Quantidade classificada fora da faixa pelo Datasul.              |
+| `roteiro[].resultados`                            | array          | Resultados usados para montar a análise da ficha.                |
+| `roteiro[].resultados[].codExame`                 | integer        | Código do exame.                                                 |
+| `roteiro[].resultados[].codComponente`            | integer        | Código do componente.                                            |
+| `roteiro[].resultados[].resultadoMinDefinido`     | number         | Limite mínimo definido para o componente.                        |
+| `roteiro[].resultados[].resultadoMaxDefinido`     | number         | Limite máximo definido para o componente.                        |
+| `roteiro[].resultados[].tipoResultado`            | integer        | Tipo da representação do resultado.                              |
+| `roteiro[].resultados[].dentroFaixa`              | boolean        | Classificação feita pelo Datasul.                                |
+
+O retorno observado não contém descrições, unidade, equipamento, método nem
+opções de resultados tabelados. O BFF agrupa os componentes por `codExame` e usa
+identificadores genéricos na análise. Para permitir a correção de componentes
+`tipoResultado: 2`, a API deverá também retornar as opções da tabela e a opção
+registrada.
 
 ## Finalizar roteiro com autorização
 
@@ -193,4 +247,8 @@ GET /api/fcq/v1/autorizacaoroteiros?companyId=1&codUsuario=mjocelio
 
 ## Evidência e limitações
 
-Esta documentação foi produzida a partir das requisições, respostas e capturas fornecidas em 18/08/2026. Ela registra o comportamento observado e não substitui um contrato OpenAPI oficial. Não foram fornecidos exemplos de lista vazia, validação negada, erro de autenticação, erro de negócio ou indisponibilidade do backend.
+Esta documentação foi produzida a partir das requisições, respostas e capturas
+fornecidas em 18/08/2026 e 25/08/2026. Ela registra o comportamento observado e
+não substitui um contrato OpenAPI oficial. Não foram fornecidos exemplos de lista
+vazia, validação negada, erro de autenticação, erro de negócio ou indisponibilidade
+do backend.

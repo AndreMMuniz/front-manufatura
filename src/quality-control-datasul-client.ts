@@ -138,6 +138,22 @@ export class QualityControlDatasulClient {
     );
   }
 
+  getPendingRoute(query: { readonly nrFicha: number; readonly codUsuario: string }): Promise<unknown> {
+    const search = new URLSearchParams({
+      companyId: String(this.config.companyId),
+      codUsuario: query.codUsuario,
+      nrFicha: String(query.nrFicha),
+    });
+    return this.request(
+      'GET',
+      `/api/fcq/v1/roteiropendente?${search}`,
+      undefined,
+      undefined,
+      'get_quality_pending_route',
+      '/api/fcq/v1/roteiropendente',
+    );
+  }
+
   finalizeRouteWithAuthorization(body: { readonly nrFicha: number; readonly codUsuario: string }): Promise<unknown> {
     return this.request(
       'POST',

@@ -105,17 +105,11 @@ export function installQualityControlEndpoints(
       const expectedSheetNumber = positiveInteger(body['nrFicha']);
       const orderNumber = positiveInteger(body['nrOrdemProducao']);
       const operationCode = await authorizedOperationCode(client, body, orderNumber);
-      const pending = await client.getRoutesPendingAuthorization({
-        nrOrdemProducao: orderNumber,
-        opCodigo: operationCode,
+      const pending = await client.getPendingRoute({
+        nrFicha: expectedSheetNumber,
         codUsuario: userId,
       });
-      assertPendingAuthorizedRoute(pending, expectedSheetNumber, orderNumber);
-      const upstream = await client.getRoute({
-        nrOrdemProducao: orderNumber,
-        codOperacao: operationCode,
-      });
-      return selectAuthorizedRouteEnvelope(upstream, expectedSheetNumber, operationCode);
+      return selectPendingRouteEnvelope(pending, expectedSheetNumber, orderNumber, operationCode);
     }, APP_PERMISSIONS.divergentRouteAuthorization);
   });
 
@@ -186,9 +180,10 @@ export function buildQualityResultPayload(
   };
 }
 
-function selectAuthorizedRouteEnvelope(
+function selectPendingRouteEnvelope(
   value: unknown,
   expectedSheetNumber: number,
+  expectedOrderNumber: number,
   operationCode: number,
 ): JsonObject {
   const envelope = upstreamObject(value);
@@ -202,12 +197,67 @@ function selectAuthorizedRouteEnvelope(
     throw invalidUpstream();
   }
   const item = upstreamObject(envelope['items'][0]);
-  upstreamPositiveInteger(item['nrFicha']);
-  upstreamObject(item['ds-roteiro']);
+  const dataset = upstreamObject(item['ds-roteiro-pendente']);
+  if (!Array.isArray(dataset['roteiro'])) throw invalidUpstream();
+  const matches = dataset['roteiro']
+    .map(upstreamObject)
+    .filter(route => route['nrFicha'] === expectedSheetNumber && route['nrOrdemProducao'] === expectedOrderNumber);
+  if (matches.length !== 1) throw invalidUpstream();
+  const pendingRoute = matches[0];
+  const expectedComponents = upstreamNonNegativeInteger(pendingRoute['componentesTotal']);
+  if (!Array.isArray(pendingRoute['resultados']) || pendingRoute['resultados'].length !== expectedComponents) {
+    throw invalidUpstream();
+  }
+  const results = pendingRoute['resultados'].map(upstreamObject);
+  const componentIdentities = new Set<string>();
+  const exams = new Map<number, JsonObject[]>();
+  for (const result of results) {
+    if (result['nrFicha'] !== expectedSheetNumber) throw invalidUpstream();
+    const examCode = upstreamPositiveInteger(result['codExame']);
+    const componentCode = upstreamPositiveInteger(result['codComponente']);
+    const identity = `${examCode}:${componentCode}`;
+    if (componentIdentities.has(identity)) throw invalidUpstream();
+    componentIdentities.add(identity);
+    const minValue = upstreamFiniteNumber(result['resultadoMinDefinido']);
+    const maxValue = upstreamFiniteNumber(result['resultadoMaxDefinido']);
+    const components = exams.get(examCode) ?? [];
+    components.push({
+      codExame: examCode,
+      codComponente: componentCode,
+      descricao: `COMPONENTE ${componentCode}`,
+      referenciaTecnica: '',
+      metodo: '',
+      equipamento: '',
+      tipoResultado: upstreamPositiveInteger(result['tipoResultado']),
+      unidade: '',
+      numeroDecimais: 6,
+      resultadoMin: minValue,
+      resultadoMax: maxValue,
+      nrTabela: upstreamNonNegativeInteger(result['nrTabela']),
+    });
+    exams.set(examCode, components);
+  }
   return {
     total: 1,
     hasNext: false,
-    items: [{ ...item, nrFicha: expectedSheetNumber, codOperacao: operationCode }],
+    items: [{
+      nrFicha: expectedSheetNumber,
+      codOperacao: operationCode,
+      'ds-roteiro': {
+        exames: [...exams.entries()].map(([examCode, components]) => ({
+          codExame: examCode,
+          descricao: `EXAME ${examCode}`,
+          versao: 1,
+          frequencia: 0,
+          amostra: 1,
+          nivel: 0,
+          nqa: 0,
+          responsavel: '',
+          observacao: '',
+          componentes: components,
+        })),
+      },
+    }],
   };
 }
 
@@ -241,21 +291,6 @@ async function authorizedOperationCode(
   });
   if (matches.length !== 1) throw invalidUpstream();
   return matches[0];
-}
-
-function assertPendingAuthorizedRoute(value: unknown, expectedSheetNumber: number, expectedOrderNumber: number): void {
-  const envelope = upstreamObject(value);
-  if (!Array.isArray(envelope['items'])) throw invalidUpstream();
-  const matches = envelope['items'].flatMap(itemValue => {
-    const item = upstreamObject(itemValue);
-    const dataset = item['ds-autorizacao'] === undefined ? item : upstreamObject(item['ds-autorizacao']);
-    if (dataset['roteirosEmAnalise'] === undefined) return [];
-    if (!Array.isArray(dataset['roteirosEmAnalise'])) throw invalidUpstream();
-    return dataset['roteirosEmAnalise']
-      .map(upstreamObject)
-      .filter(route => route['nrFicha'] === expectedSheetNumber && route['nrOrdemProducao'] === expectedOrderNumber);
-  });
-  if (matches.length !== 1) throw invalidUpstream();
 }
 
 async function handle(
@@ -385,6 +420,11 @@ function upstreamPositiveInteger(value: unknown): number {
   const result = upstreamNonNegativeInteger(value);
   if (result === 0) throw invalidUpstream();
   return result;
+}
+
+function upstreamFiniteNumber(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidUpstream();
+  return value;
 }
 
 function invalidUpstream(): QualityControlGatewayError {

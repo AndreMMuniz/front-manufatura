@@ -1,0 +1,141 @@
+{
+    "total": 1,
+    "hasNext": false,
+    "items": [
+        {
+            "ds-roteiro-pendente": {
+                "roteiro": [
+                    {
+                        "liberada": false,
+                        "componentesTotal": 6,
+                        "sequenciaOperacao": 1,
+                        "situacao": 2,
+                        "nrFicha": 64514,
+                        "resultados": [
+                            {
+                                "observacao": "",
+                                "resultado": 345.0,
+                                "dtResultado": "2026-08-21",
+                                "resultadoMinDefinido": 347.0,
+                                "dentroFaixa": false,
+                                "codResponsavel": "mjocelio",
+                                "nrTabela": 0,
+                                "codComponente": 10,
+                                "seqComp": 10,
+                                "resultadoMax": 0.0,
+                                "nrFicha": 64514,
+                                "laudo": "",
+                                "resultadoMaxDefinido": 348.0,
+                                "numeroTeste": 1,
+                                "tipoResultado": 1,
+                                "codItem": "30907",
+                                "codExame": 164
+                            },
+                            {
+                                "observacao": "",
+                                "resultado": 16.0,
+                                "dtResultado": "2026-08-21",
+                                "resultadoMinDefinido": 16.0,
+                                "dentroFaixa": true,
+                                "codResponsavel": "mjocelio",
+                                "nrTabela": 0,
+                                "codComponente": 20,
+                                "seqComp": 20,
+                                "resultadoMax": 0.0,
+                                "nrFicha": 64514,
+                                "laudo": "",
+                                "resultadoMaxDefinido": 20.0,
+                                "numeroTeste": 1,
+                                "tipoResultado": 1,
+                                "codItem": "30907",
+                                "codExame": 164
+                            },
+                            {
+                                "observacao": "",
+                                "resultado": 12.0,
+                                "dtResultado": "2026-08-21",
+                                "resultadoMinDefinido": 10.9,
+                                "dentroFaixa": false,
+                                "codResponsavel": "mjocelio",
+                                "nrTabela": 0,
+                                "codComponente": 30,
+                                "seqComp": 30,
+                                "resultadoMax": 0.0,
+                                "nrFicha": 64514,
+                                "laudo": "",
+                                "resultadoMaxDefinido": 11.5,
+                                "numeroTeste": 1,
+                                "tipoResultado": 1,
+                                "codItem": "30907",
+                                "codExame": 164
+                            },
+                            {
+                                "observacao": "",
+                                "resultado": 13.0,
+                                "dtResultado": "2026-08-21",
+                                "resultadoMinDefinido": 13.0,
+                                "dentroFaixa": true,
+                                "codResponsavel": "mjocelio",
+                                "nrTabela": 0,
+                                "codComponente": 40,
+                                "seqComp": 40,
+                                "resultadoMax": 0.0,
+                                "nrFicha": 64514,
+                                "laudo": "",
+                                "resultadoMaxDefinido": 16.0,
+                                "numeroTeste": 1,
+                                "tipoResultado": 1,
+                                "codItem": "30907",
+                                "codExame": 164
+                            },
+                            {
+                                "observacao": "",
+                                "resultado": 12.6,
+                                "dtResultado": "2026-08-21",
+                                "resultadoMinDefinido": 12.59,
+                                "dentroFaixa": true,
+                                "codResponsavel": "mjocelio",
+                                "nrTabela": 0,
+                                "codComponente": 50,
+                                "seqComp": 50,
+                                "resultadoMax": 0.0,
+                                "nrFicha": 64514,
+                                "laudo": "",
+                                "resultadoMaxDefinido": 12.7,
+                                "numeroTeste": 1,
+                                "tipoResultado": 1,
+                                "codItem": "30907",
+                                "codExame": 164
+                            },
+                            {
+                                "observacao": "",
+                                "resultado": 27.8,
+                                "dtResultado": "2026-08-21",
+                                "resultadoMinDefinido": 27.8,
+                                "dentroFaixa": true,
+                                "codResponsavel": "mjocelio",
+                                "nrTabela": 0,
+                                "codComponente": 60,
+                                "seqComp": 60,
+                                "resultadoMax": 0.0,
+                                "nrFicha": 64514,
+                                "laudo": "",
+                                "resultadoMaxDefinido": 28.2,
+                                "numeroTeste": 1,
+                                "tipoResultado": 1,
+                                "codItem": "30907",
+                                "codExame": 164
+                            }
+                        ],
+                        "descricaoItem": "ALAVANCA CORTADOR MASTER 75/90 - USINADO",
+                        "nrOrdemProducao": 372562,
+                        "inspecionado": false,
+                        "componentesForaFaixa": 2,
+                        "narrativa": "",
+                        "codItem": "30907"
+                    }
+                ]
+            }
+        }
+    ]
+}
