@@ -6,6 +6,7 @@ import { AuthSessionService } from '../../auth/auth-session.service';
 import { JsonValue } from '../models/local-record';
 import { CommandResult, SyncCommandRequest } from '../models/sync-command';
 import { SyncCommandHandler } from './command-transport-router';
+import { publicCommandError } from './public-command-error';
 
 @Injectable()
 export class SaveQualityResultSyncHandler implements SyncCommandHandler {
@@ -62,6 +63,7 @@ export class FinalizeQualityRouteSyncHandler implements SyncCommandHandler {
       throw {
         code: 'QUALITY_ROUTE_NOT_FINALIZED',
         category: 'VALIDATION',
+        deliveryOutcome: 'REJECTED',
         userMessage: result.mensagem || 'O Datasul não finalizou o roteiro.',
       };
     }
@@ -225,8 +227,18 @@ function nullableBooleanOf(value: unknown): boolean | null {
   return value === null ? null : booleanOf(value);
 }
 
-function invalidReceipt(): Error {
-  return new Error('invalid-quality-control-receipt');
+function invalidReceipt(): {
+  readonly code: 'INVALID_QUALITY_CONTROL_RECEIPT';
+  readonly category: 'TRANSIENT';
+  readonly deliveryOutcome: 'UNCERTAIN';
+  readonly userMessage: string;
+} {
+  return {
+    code: 'INVALID_QUALITY_CONTROL_RECEIPT',
+    category: 'TRANSIENT',
+    deliveryOutcome: 'UNCERTAIN',
+    userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+  };
 }
 
 function abortable<T>(source: Observable<T>, signal: AbortSignal): Promise<T> {
@@ -244,7 +256,7 @@ function abortable<T>(source: Observable<T>, signal: AbortSignal): Promise<T> {
       },
       error: error => {
         signal.removeEventListener('abort', abort);
-        reject(error);
+        reject(publicCommandError(error));
       },
     });
     signal.addEventListener('abort', abort, { once: true });

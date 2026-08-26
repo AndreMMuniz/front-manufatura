@@ -61,7 +61,9 @@ describe('FMA sync handlers', () => {
       error: {
         code: 'DATASUL_STOP_INTERVAL_CONFLICT',
         category: 'CONFLICT',
+        deliveryOutcome: 'REJECTED',
         userMessage: 'Já existe reporte neste intervalo de data e hora.',
+        correlationId: 'corr-stop-1',
       },
     })));
     const handler = new CreateStopSyncHandler(
@@ -75,7 +77,9 @@ describe('FMA sync handlers', () => {
       status: 409,
       code: 'DATASUL_STOP_INTERVAL_CONFLICT',
       category: 'CONFLICT',
+      deliveryOutcome: 'REJECTED',
       userMessage: 'Já existe reporte neste intervalo de data e hora.',
+      correlationId: 'corr-stop-1',
     });
   });
 });

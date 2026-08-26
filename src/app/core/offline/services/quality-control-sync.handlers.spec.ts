@@ -1,7 +1,8 @@
 import { HttpHeaders } from '@angular/common/http';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
+import { normalizeCommandError } from '../models/sync-error';
 import { FinalizeQualityRouteSyncHandler, SaveQualityResultSyncHandler } from './quality-control-sync.handlers';
 
 const request = {
@@ -135,7 +136,7 @@ describe('quality-control Outbox handlers', () => {
     await expect(handler.send({
       ...request, commandType: 'FINALIZE_QUALITY_ROUTE', payload: { nrFicha: 64379 },
     }, new AbortController().signal)).rejects.toMatchObject({
-      code: 'QUALITY_ROUTE_NOT_FINALIZED', category: 'VALIDATION',
+      code: 'QUALITY_ROUTE_NOT_FINALIZED', category: 'VALIDATION', deliveryOutcome: 'REJECTED',
     });
   });
 
@@ -151,6 +152,57 @@ describe('quality-control Outbox handlers', () => {
     await expect(handler.send({
       ...request,
       payload: { nrFicha: 64379, codExame: 1845, codComponente: 1, resultado: 24.01 },
-    }, new AbortController().signal)).rejects.toThrow('invalid-quality-control-receipt');
+    }, new AbortController().signal)).rejects.toMatchObject({
+      code: 'INVALID_QUALITY_CONTROL_RECEIPT',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+    });
+  });
+
+  it('trata recibo malformado depois de HTTP 200 como entrega incerta', async () => {
+    const handler = new SaveQualityResultSyncHandler(
+      { put: vi.fn().mockReturnValue(of({ items: [{
+        nrFicha: 64379, codExame: 1845, codComponente: 1,
+        dentroFaixa: true, componentesSalvos: 1, componentesTotal: 1,
+      }] })) } as never,
+      { token: 'jwt-em-memoria' } as never,
+    );
+
+    const error = await handler.send({
+      ...request,
+      payload: { nrFicha: 64379, codExame: 1845, codComponente: 1, resultado: 24.01 },
+    }, new AbortController().signal).catch(reason => reason);
+
+    expect(normalizeCommandError(error)).toMatchObject({
+      deliveryOutcome: 'UNCERTAIN',
+    });
+  });
+
+  it('propaga a classificação e a mensagem pública devolvidas pelo gateway de qualidade', async () => {
+    const handler = new SaveQualityResultSyncHandler(
+      { put: vi.fn().mockReturnValue(throwError(() => ({
+        status: 502,
+        error: {
+          code: 'invalid-upstream-response',
+          category: 'TRANSIENT',
+          deliveryOutcome: 'UNCERTAIN',
+          userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+          correlationId: 'corr-quality-1',
+        },
+      }))) } as never,
+      { token: 'jwt-em-memoria' } as never,
+    );
+
+    await expect(handler.send({
+      ...request,
+      payload: { nrFicha: 64379, codExame: 1845, codComponente: 1, resultado: 24.01 },
+    }, new AbortController().signal)).rejects.toEqual({
+      status: 502,
+      code: 'invalid-upstream-response',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+      correlationId: 'corr-quality-1',
+    });
   });
 });

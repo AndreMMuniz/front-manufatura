@@ -8,6 +8,7 @@ import { createAppSessionToken } from './app-session-token';
 import { APP_PERMISSIONS } from './app-permissions';
 import { installFmaEndpoints } from './fma-http-endpoint';
 import type { ApplicationLogger } from './logging/log-contracts';
+import { requestObservabilityMiddleware } from './server-observability';
 
 const ENV = {
   DATASUL_BASE_URL: 'https://datasul.example.test',
@@ -36,8 +37,13 @@ async function token(permissions: readonly string[] = [APP_PERMISSIONS.operation
   })).token;
 }
 
-async function startGateway(transport: typeof fetch, logger?: ApplicationLogger): Promise<string> {
+async function startGateway(
+  transport: typeof fetch,
+  logger?: ApplicationLogger,
+  withRequestObservability = false,
+): Promise<string> {
   const app = express();
+  if (withRequestObservability) app.use(requestObservabilityMiddleware(logger ?? silentLogger));
   installFmaEndpoints(app, { env: ENV, transport, logger });
   let server!: RunningServer;
   await new Promise<void>((resolve, reject) => {
@@ -46,6 +52,14 @@ async function startGateway(transport: typeof fetch, logger?: ApplicationLogger)
   servers.push(server);
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
+
+const silentLogger: ApplicationLogger = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  close: () => Promise.resolve(),
+};
 
 function logSink() {
   const events: Array<{ level: string; event: string; metadata?: Record<string, unknown> }> = [];
@@ -68,6 +82,98 @@ function response(dataset: string, rows: unknown[]): Response {
 }
 
 describe('gateway FMA', () => {
+  it.each([
+    [
+      '/api/operations/report',
+      APP_PERMISSIONS.operationReporting,
+      {
+        ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+        quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0, refugoItens: [],
+        dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+        dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
+        tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
+      },
+    ],
+    [
+      '/api/batches/report',
+      APP_PERMISSIONS.batchReporting,
+      {
+        contexto: { areaCode: '4114', workCenterCode: 'DOBR-01-01' },
+        responsavel: { tipo: 'OPERADOR', codigo: '00016570' },
+        dataInicio: '2026-08-14T12:35:00.000Z', horaInicio: '09:35',
+        dataFim: '2026-08-14T13:35:00.000Z', horaFim: '10:35', finalizarSplit: true,
+        items: [{
+          orderId: '372569|ITEM|20|1', ordem: '372569', quantidadeAprovada: 1,
+          quantidadeRetrabalho: 0, quantidadeRefugo: 0, refugoItens: [],
+        }],
+      },
+    ],
+    [
+      '/api/production-stops',
+      APP_PERMISSIONS.stoppages,
+      {
+        context: { area: { code: '4104' }, workCenter: { code: 'PRE-01' } },
+        reason: { code: '07' }, responsible: { tipo: 'OPERADOR', codigo: '00016570' },
+        startDate: '2026-08-14', startTime: '09:00', programmed: false,
+      },
+    ],
+  ])('expõe entrega incerta em %s depois de 5xx do destino', async (path, permission, body) => {
+    const root = await startGateway(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 503 })),
+      undefined,
+      true,
+    );
+    const response = await fetch(`${root}${path}`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([permission])}`,
+        'content-type': 'application/json',
+        'idempotency-key': `uncertain-${path.replaceAll('/', '-')}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({
+      code: 'datasul-request-failed',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino não confirmou a gravação.',
+      correlationId: expect.any(String),
+    }));
+  });
+
+  it('diferencia falha de conexão comprovada de timeout após o envio', async () => {
+    const operation = {
+      ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+      quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0, refugoItens: [],
+      dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+      dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
+      tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
+    };
+    const root = await startGateway(vi.fn<typeof fetch>()
+      .mockRejectedValueOnce(Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }))
+      .mockRejectedValueOnce(Object.assign(new Error('timeout'), { name: 'TimeoutError' })));
+    const headers = {
+      authorization: `Bearer ${await token()}`,
+      'content-type': 'application/json',
+    };
+
+    const refused = await fetch(`${root}/api/operations/report`, {
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'connection-refused' }, body: JSON.stringify(operation),
+    });
+    const timedOut = await fetch(`${root}/api/operations/report`, {
+      method: 'POST', headers: { ...headers, 'idempotency-key': 'connection-timeout' }, body: JSON.stringify(operation),
+    });
+
+    await expect(refused.json()).resolves.toEqual(expect.objectContaining({
+      deliveryOutcome: 'NOT_DELIVERED',
+    }));
+    await expect(timedOut.json()).resolves.toEqual(expect.objectContaining({
+      deliveryOutcome: 'UNCERTAIN',
+    }));
+  });
+
   it('não inventa um catálogo de Áreas sem endpoint correspondente no FMA', async () => {
     const transport = vi.fn<typeof fetch>();
     const root = await startGateway(transport);
@@ -226,7 +332,12 @@ describe('gateway FMA', () => {
     });
 
     expect(conflict.status).toBe(409);
-    await expect(conflict.json()).resolves.toEqual({ code: 'idempotency-conflict' });
+    await expect(conflict.json()).resolves.toEqual({
+      code: 'idempotency-conflict',
+      category: 'CONFLICT',
+      deliveryOutcome: 'REJECTED',
+      userMessage: 'A solicitação conflita com um registro existente.',
+    });
     expect(transport).toHaveBeenCalledTimes(1);
   });
 
@@ -253,7 +364,12 @@ describe('gateway FMA', () => {
     const retry = await fetch(`${root}/api/operations/end`, request);
 
     expect(failed.status).toBe(503);
-    await expect(failed.json()).resolves.toEqual({ code: 'datasul-request-failed' });
+    await expect(failed.json()).resolves.toEqual({
+      code: 'datasul-request-failed',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino não confirmou a gravação.',
+    });
     expect(retry.status).toBe(200);
     await expect(retry.json()).resolves.toEqual(expect.objectContaining({ duplicate: false }));
     expect(transport).toHaveBeenCalledTimes(2);
@@ -290,7 +406,12 @@ describe('gateway FMA', () => {
     });
 
     expect(result.status).toBe(502);
-    await expect(result.json()).resolves.toEqual({ code: 'invalid-upstream-response' });
+    await expect(result.json()).resolves.toEqual({
+      code: 'invalid-upstream-response',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+    });
   });
 
   it('traduz início e reporte em batelada com receipts completos por ordem', async () => {
@@ -389,6 +510,7 @@ describe('gateway FMA', () => {
     await expect(result.json()).resolves.toEqual({
       code: 'DATASUL_STOP_INTERVAL_CONFLICT',
       category: 'CONFLICT',
+      deliveryOutcome: 'REJECTED',
       userMessage: 'Já existe reporte neste intervalo de data e hora.',
     });
   });
@@ -427,6 +549,7 @@ describe('gateway FMA', () => {
     await expect(result.json()).resolves.toEqual({
       code: 'DATASUL_FUTURE_STOP',
       category: 'VALIDATION',
+      deliveryOutcome: 'REJECTED',
       userMessage: 'Não é permitido criar Reporte Parada Centro Trab para o futuro.',
     });
   });
@@ -581,7 +704,7 @@ describe('gateway FMA', () => {
   });
 
   it.each([
-    ['timeout', async () => { throw Object.assign(new Error('Bearer segredo'), { name: 'TimeoutError' }); }, 502],
+    ['timeout', async () => { throw Object.assign(new Error('Bearer segredo'), { name: 'TimeoutError' }); }, 504],
     ['http_status', async () => new Response('{}', { status: 503 }), 503],
   ])('registra falha FMA %s com categoria pública', async (category, transport, status) => {
     const sink = logSink();

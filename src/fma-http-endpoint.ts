@@ -9,7 +9,7 @@ import {
   type QualityControlTransport,
 } from './quality-control-datasul-client';
 import { noopLogger, type ApplicationLogger } from './logging/log-contracts';
-import { normalizedRoute } from './server-observability';
+import { getRequestCorrelationId, normalizedRoute } from './server-observability';
 import {
   observeUpstreamFetch,
   reportUpstreamRequestCompleted,
@@ -39,13 +39,18 @@ class FmaPublicCommandError extends QualityControlGatewayError {
   readonly publicBody: {
     readonly code: string;
     readonly category: FmaErrorCategory;
+    readonly deliveryOutcome: 'REJECTED';
     readonly userMessage: string;
   };
 
   constructor(status: number, code: string, category: FmaErrorCategory, userMessage: string) {
-    super(status, code);
+    const safeMessage = safeFmaBusinessMessage(userMessage)
+      ?? (category === 'CONFLICT'
+        ? 'A solicitação conflita com um registro existente.'
+        : 'A solicitação foi recusada pelo destino.');
+    super(status, code, { category, deliveryOutcome: 'REJECTED', userMessage: safeMessage });
     this.name = 'FmaPublicCommandError';
-    this.publicBody = { code, category, userMessage };
+    this.publicBody = { code, category, deliveryOutcome: 'REJECTED', userMessage: safeMessage };
   }
 }
 
@@ -638,8 +643,25 @@ class FmaClient {
         }),
         this.dependencies.clock,
       );
-    } catch {
-      throw new QualityControlGatewayError(502, 'datasul-unavailable');
+    } catch (error) {
+      if (isTimeout(error)) {
+        throw new QualityControlGatewayError(504, 'datasul-timeout', {
+          category: 'TRANSIENT',
+          deliveryOutcome: 'UNCERTAIN',
+          userMessage: 'O destino não confirmou a gravação a tempo.',
+        });
+      }
+      throw new QualityControlGatewayError(502, 'datasul-unavailable', provedConnectionFailure(error)
+        ? {
+            category: 'TRANSIENT',
+            deliveryOutcome: 'NOT_DELIVERED',
+            userMessage: 'Não foi possível iniciar a comunicação com o destino.',
+          }
+        : {
+            category: 'TRANSIENT',
+            deliveryOutcome: 'UNCERTAIN',
+            userMessage: 'A comunicação com o destino foi interrompida; confirme antes de reenviar.',
+          });
     }
     if (!response.ok) {
       const upstreamBody = await optionalJson(response);
@@ -677,12 +699,15 @@ async function handle(
     const userId = await resolveUser(req.header('authorization') ?? '', dependencies, req.path);
     res.status(200).json(await operation(new FmaClient(userId, dependencies)));
   } catch (error) {
-    if (error instanceof FmaPublicCommandError) {
-      res.status(error.status).json(error.publicBody);
-      return;
-    }
     if (error instanceof QualityControlGatewayError) {
-      res.status(error.status).json({ code: error.code });
+      const correlationId = getRequestCorrelationId();
+      res.status(error.status).json({
+        code: error.code,
+        category: error.category,
+        deliveryOutcome: error.deliveryOutcome,
+        userMessage: error.userMessage,
+        ...(safeCorrelationId(correlationId) ? { correlationId } : {}),
+      });
       return;
     }
     res.status(400).json({ code: 'invalid-request' });
@@ -930,6 +955,33 @@ function datasulMessages(value: unknown): string[] {
 
 function normalizedBusinessMessage(message: string): string {
   return message.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
+}
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+}
+
+function provedConnectionFailure(error: unknown): boolean {
+  const causes = new Set(['ENOTFOUND', 'ECONNREFUSED', 'EHOSTUNREACH']);
+  let candidate = error;
+  for (let depth = 0; depth < 3 && candidate && typeof candidate === 'object'; depth += 1) {
+    const record = candidate as { code?: unknown; cause?: unknown };
+    if (typeof record.code === 'string' && causes.has(record.code)) return true;
+    candidate = record.cause;
+  }
+  return false;
+}
+
+function safeFmaBusinessMessage(value: string): string | undefined {
+  const message = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 240);
+  return message
+    && !/\b(?:password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|payload|laudo|\bbody\b|\bstack\b)\b|https?:\/\/|\b(?:resultado(?:\s+medido)?|nr\s*ficha|cod\s*exame|cod\s*componente)\s*(?:["'])?\s*[:=]/i.test(message)
+    ? message
+    : undefined;
+}
+
+function safeCorrelationId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(value);
 }
 
 function safeId(value: unknown): string {
