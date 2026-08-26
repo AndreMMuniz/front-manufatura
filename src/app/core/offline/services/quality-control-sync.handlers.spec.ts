@@ -120,6 +120,42 @@ describe('quality-control Outbox handlers', () => {
     }, expect.objectContaining({ headers: expect.any(HttpHeaders) }));
   });
 
+  it('rejeita payload local inválido antes de iniciar o PUT do resultado', async () => {
+    const put = vi.fn();
+    const handler = new SaveQualityResultSyncHandler(
+      { put } as never,
+      { token: 'jwt-em-memoria' } as never,
+    );
+
+    await expect(handler.send({
+      ...request,
+      payload: {
+        nrFicha: 64379, codExame: 1845, codComponente: 1,
+        resultado: 24.01, laudo: 'valor incompatível',
+      },
+    }, new AbortController().signal)).rejects.toMatchObject({
+      category: 'VALIDATION',
+      deliveryOutcome: 'REJECTED',
+    });
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it('rejeita nrFicha local inválido antes de iniciar o PUT de finalização', async () => {
+    const put = vi.fn();
+    const handler = new FinalizeQualityRouteSyncHandler(
+      { put } as never,
+      { token: 'jwt-em-memoria' } as never,
+    );
+
+    await expect(handler.send({
+      ...request, commandType: 'FINALIZE_QUALITY_ROUTE', payload: { nrFicha: 0 },
+    }, new AbortController().signal)).rejects.toMatchObject({
+      category: 'VALIDATION',
+      deliveryOutcome: 'REJECTED',
+    });
+    expect(put).not.toHaveBeenCalled();
+  });
+
   it('não reconcilia finalizado false como sucesso', async () => {
     const put = vi.fn().mockReturnValue(of({
       total: 1, hasNext: false, items: [{ 'ds-finaliza': { roteiro: [{

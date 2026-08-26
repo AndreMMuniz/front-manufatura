@@ -51,8 +51,8 @@ export class FinalizeQualityRouteSyncHandler implements SyncCommandHandler {
   ) {}
 
   async send(request: SyncCommandRequest, signal: AbortSignal): Promise<CommandResult> {
-    const payload = objectOf(request.payload);
-    const nrFicha = positiveInteger(payload['nrFicha']);
+    const payload = localObjectOf(request.payload);
+    const nrFicha = localPositiveInteger(payload['nrFicha']);
     const response = await abortable(this.http.put<unknown>(
       '/api/quality-control/routes/finalize',
       { nrFicha },
@@ -96,11 +96,11 @@ function headers(auth: AuthSessionService, idempotencyKey: string): HttpHeaders 
 }
 
 function qualityResultBody(payloadValue: JsonValue): Record<string, number | string> {
-  const payload = objectOf(payloadValue);
+  const payload = localObjectOf(payloadValue);
   const common = {
-    nrFicha: positiveInteger(payload['nrFicha']),
-    codExame: positiveInteger(payload['codExame']),
-    codComponente: positiveInteger(payload['codComponente']),
+    nrFicha: localPositiveInteger(payload['nrFicha']),
+    codExame: localPositiveInteger(payload['codExame']),
+    codComponente: localPositiveInteger(payload['codComponente']),
   };
   const hasResult = payload['resultado'] !== undefined;
   const hasMaximumResult = payload['resultadoMax'] !== undefined;
@@ -112,19 +112,19 @@ function qualityResultBody(payloadValue: JsonValue): Record<string, number | str
     hasTableNumber !== hasOptionSequence
     || (hasMaximumResult && !hasResult)
     || [hasResult, hasCompleteOption, Boolean(report)].filter(Boolean).length !== 1
-  ) throw invalidReceipt();
+  ) throw invalidLocalCommand();
   if (hasResult) {
     return {
       ...common,
-      resultado: finiteNumber(payload['resultado']),
-      ...(hasMaximumResult ? { resultadoMax: finiteNumber(payload['resultadoMax']) } : {}),
+      resultado: localFiniteNumber(payload['resultado']),
+      ...(hasMaximumResult ? { resultadoMax: localFiniteNumber(payload['resultadoMax']) } : {}),
     };
   }
   if (report) return { ...common, laudo: report };
   return {
     ...common,
-    nrTabela: positiveInteger(payload['nrTabela']),
-    seqOpcao: positiveInteger(payload['seqOpcao']),
+    nrTabela: localPositiveInteger(payload['nrTabela']),
+    seqOpcao: localPositiveInteger(payload['seqOpcao']),
   };
 }
 
@@ -225,6 +225,35 @@ function booleanOf(value: unknown): boolean {
 
 function nullableBooleanOf(value: unknown): boolean | null {
   return value === null ? null : booleanOf(value);
+}
+
+function localObjectOf(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidLocalCommand();
+  return value as Record<string, unknown>;
+}
+
+function localPositiveInteger(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) throw invalidLocalCommand();
+  return value as number;
+}
+
+function localFiniteNumber(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidLocalCommand();
+  return value;
+}
+
+function invalidLocalCommand(): {
+  readonly code: 'INVALID_LOCAL_QUALITY_COMMAND';
+  readonly category: 'VALIDATION';
+  readonly deliveryOutcome: 'REJECTED';
+  readonly userMessage: string;
+} {
+  return {
+    code: 'INVALID_LOCAL_QUALITY_COMMAND',
+    category: 'VALIDATION',
+    deliveryOutcome: 'REJECTED',
+    userMessage: 'O comando de qualidade precisa de correção antes do envio.',
+  };
 }
 
 function invalidReceipt(): {
