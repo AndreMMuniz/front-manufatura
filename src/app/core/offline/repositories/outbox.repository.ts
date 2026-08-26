@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { OfflineDatabase } from '../database/offline-database';
 import { OUTBOX_STORE } from '../database/database-schema';
 import { JsonValue } from '../models/local-record';
+import { DeliveryOutcome } from '../models/delivery-outcome';
 import { deliveryDispositionOf } from '../models/delivery-disposition';
 import {
   OutboxEntry,
@@ -45,10 +46,17 @@ interface ReconcileFailureBase {
 export type ReconcileFailureRequest =
   | (ReconcileFailureBase & {
       readonly status: 'RETRY_WAIT';
+      readonly deliveryOutcome: 'NOT_DELIVERED';
       readonly nextAttemptAt: string;
     })
   | (ReconcileFailureBase & {
+      readonly status: 'CONFIRMATION_PENDING';
+      readonly deliveryOutcome: 'UNCERTAIN';
+      readonly nextAttemptAt?: never;
+    })
+  | (ReconcileFailureBase & {
       readonly status: 'BLOCKED_AUTH' | 'BLOCKED_DEPENDENCY' | 'ERROR';
+      readonly deliveryOutcome: DeliveryOutcome;
       readonly nextAttemptAt?: never;
     });
 
@@ -349,6 +357,7 @@ export class OutboxRepository {
     const synchronized: OutboxEntry<JsonValue> = {
       ...withoutRuntimeState(current),
       status: 'SYNCED',
+      deliveryOutcome: 'CONFIRMED',
       synchronizedAt: now,
       receipt,
       updatedAt: now,
@@ -378,6 +387,7 @@ export class OutboxRepository {
     const failed: OutboxEntry<JsonValue> = {
       ...withoutRuntimeState(current),
       status: request.status,
+      deliveryOutcome: request.deliveryOutcome,
       ...(request.status === 'RETRY_WAIT'
         ? { nextAttemptAt: validIso(request.nextAttemptAt) }
         : {}),
@@ -679,6 +689,7 @@ function withoutRuntimeState(entry: OutboxEntry<JsonValue>): OutboxEntry<JsonVal
     synchronizedAt: _synchronizedAt,
     receipt: _receipt,
     lastError: _lastError,
+    deliveryOutcome: _deliveryOutcome,
     ...stable
   } = entry;
   return stable;

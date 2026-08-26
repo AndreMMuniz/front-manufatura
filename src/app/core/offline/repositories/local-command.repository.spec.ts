@@ -54,7 +54,7 @@ describe('LocalCommandRepository', () => {
       idempotencyKey: COMMAND_ID,
       committedAt: NOW,
       localRecord: {
-        databaseVersion: 3,
+        databaseVersion: 4,
         ownerId: 'operator-1',
         payloadSchemaVersion: 2,
       },

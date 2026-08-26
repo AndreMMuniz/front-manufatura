@@ -35,7 +35,7 @@ describe('database migrations', () => {
     database.close();
   });
 
-  it('executa 1 -> target e preserva entradas em todos os estados sem alterar conteúdo', async () => {
+  it('executa 1 -> target e preserva conteúdo ao aplicar classificações conhecidas', async () => {
     const factory = new IDBFactory();
     const versionOne = await openDatabase(factory, 1, [DATABASE_MIGRATIONS[0]]);
     const fixtures = [
@@ -59,11 +59,13 @@ describe('database migrations', () => {
 
     expect(upgraded.version).toBe(DATABASE_VERSION);
     expect(recovered).toEqual(
-      fixtures.map((fixture) =>
-        fixture.status === 'SYNCING'
-          ? { ...fixture, leaseExpiresAt: '1970-01-01T00:00:00.000Z' }
-          : fixture,
-      ),
+      fixtures.map((fixture) => ({
+        ...fixture,
+        ...(fixture.status === 'SYNCING'
+          ? { leaseExpiresAt: '1970-01-01T00:00:00.000Z' }
+          : {}),
+        ...(fixture.status === 'SYNCED' ? { deliveryOutcome: 'CONFIRMED' } : {}),
+      })),
     );
     expect([
       ...upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).indexNames,
@@ -86,6 +88,71 @@ describe('database migrations', () => {
       'ownerAggregateOrder',
     );
     database.close();
+  });
+
+  it('classifica resultados de entrega legados ao migrar 3 -> 4 sem reescrever o histórico', async () => {
+    const factory = new IDBFactory();
+    const versionThree = await openDatabase(
+      factory,
+      3,
+      DATABASE_MIGRATIONS.filter((migration) => migration.toVersion <= 3),
+    );
+    const fixtures = [
+      legacyFixture('synced', 'SYNCED'),
+      legacyFixture('validation', 'ERROR', {
+        attemptCount: 1,
+        lastAttemptAt: '2026-07-28T15:01:00.000Z',
+        lastError: legacyError('VALIDATION', 'VALIDATION'),
+      }),
+      legacyFixture('conflict', 'ERROR', {
+        attemptCount: 1,
+        lastAttemptAt: '2026-07-28T15:02:00.000Z',
+        lastError: legacyError('CONFLICT', 'CONFLICT'),
+      }),
+      legacyFixture('legacy-transient', 'RETRY_WAIT', {
+        attemptCount: 1,
+        lastAttemptAt: '2026-07-28T15:03:00.000Z',
+        nextAttemptAt: '2026-07-28T15:04:00.000Z',
+        lastError: legacyError('NETWORK', 'TRANSIENT'),
+      }),
+      legacyFixture('never-attempted', 'PENDING'),
+    ];
+    for (const fixture of fixtures) {
+      await addAndComplete(versionThree, OUTBOX_STORE, fixture);
+    }
+    versionThree.close();
+
+    const upgraded = await openDatabase(factory, DATABASE_VERSION, DATABASE_MIGRATIONS);
+    const migrated = await requestResult<OutboxEntry[]>(
+      upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).getAll(),
+    );
+    const byId = new Map(migrated.map((entry) => [entry.localId, entry]));
+
+    expect(byId.get('synced')).toMatchObject({ status: 'SYNCED', deliveryOutcome: 'CONFIRMED' });
+    expect(byId.get('validation')).toMatchObject({ status: 'ERROR', deliveryOutcome: 'REJECTED' });
+    expect(byId.get('conflict')).toMatchObject({ status: 'ERROR', deliveryOutcome: 'REJECTED' });
+    expect(byId.get('legacy-transient')).toMatchObject({
+      status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+    });
+    expect(byId.get('never-attempted')).not.toHaveProperty('deliveryOutcome');
+    expect(byId.get('legacy-transient')).toMatchObject({
+      payload: fixtures[3].payload,
+      payloadHash: fixtures[3].payloadHash,
+      idempotencyKey: fixtures[3].idempotencyKey,
+      ownerId: fixtures[3].ownerId,
+      attemptCount: fixtures[3].attemptCount,
+      lastAttemptAt: fixtures[3].lastAttemptAt,
+      nextAttemptAt: fixtures[3].nextAttemptAt,
+      lastError: fixtures[3].lastError,
+    });
+    upgraded.close();
+
+    const reopened = await openDatabase(factory, DATABASE_VERSION, DATABASE_MIGRATIONS);
+    const reopenedEntries = await requestResult<OutboxEntry[]>(
+      reopened.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).getAll(),
+    );
+    expect(reopenedEntries).toEqual(migrated);
+    reopened.close();
   });
 });
 
@@ -146,5 +213,28 @@ function pendingFixture(status = 'PENDING', index = 0): OutboxEntry<{ readonly q
     occurredAt: '2026-07-28T15:00:00.000Z',
     createdAt: '2026-07-28T15:00:00.000Z',
     updatedAt: '2026-07-28T15:00:00.000Z',
+  };
+}
+
+function legacyFixture(
+  localId: string,
+  status: OutboxEntry['status'],
+  overrides: Partial<OutboxEntry<{ readonly quantity: number }>> = {},
+): OutboxEntry<{ readonly quantity: number }> {
+  return {
+    ...pendingFixture(status),
+    localId,
+    idempotencyKey: localId,
+    payloadHash: `hash-${localId}`,
+    ...overrides,
+  };
+}
+
+function legacyError(code: string, category: 'VALIDATION' | 'CONFLICT' | 'TRANSIENT') {
+  return {
+    code,
+    category,
+    userMessage: 'Falha histórica.',
+    deliveryOutcome: 'NOT_DELIVERED' as const,
   };
 }

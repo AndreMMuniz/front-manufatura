@@ -120,8 +120,8 @@ export class OfflineSynchronizationHarness {
           localId: claimed.localId,
           leaseToken,
           now: failureTime,
-          status: 'RETRY_WAIT',
-          nextAttemptAt: failureTime,
+          status: 'CONFIRMATION_PENDING',
+          deliveryOutcome: 'UNCERTAIN',
           error: {
             code: 'NETWORK',
             category: 'TRANSIENT',
@@ -129,7 +129,7 @@ export class OfflineSynchronizationHarness {
             deliveryOutcome: 'UNCERTAIN',
           },
         });
-        outcomes.push({ localId: claimed.localId, status: 'RETRY_WAIT' });
+        outcomes.push({ localId: claimed.localId, status: 'CONFIRMATION_PENDING' });
       }
     }
     this.result.set(JSON.stringify({ tabId: this.tabId, outcomes }));

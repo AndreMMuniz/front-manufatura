@@ -304,6 +304,29 @@ export class SyncCoordinatorService implements OnDestroy {
       deliveryOutcome: error.deliveryOutcome,
       ...(error.correlationId ? { correlationId: error.correlationId } : {}),
     };
+    if (error.deliveryOutcome === 'UNCERTAIN') {
+      try {
+        await this.outbox.reconcileFailure({
+          ownerId: owner,
+          localId: claimed.localId,
+          leaseToken,
+          now: validDate(now),
+          status: 'CONFIRMATION_PENDING',
+          deliveryOutcome: 'UNCERTAIN',
+          error: persistedError,
+        });
+      } catch (storageError) {
+        this.captureFailure(
+          'sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', claimed,
+        );
+        throw storageError;
+      }
+      this.captureTransition('sync_failed', 'warn', claimed, {
+        fromStatus: 'SYNCING', toStatus: 'CONFIRMATION_PENDING',
+        failureCategory: error.category, code: error.code,
+      });
+      return;
+    }
     if (error.category === 'TRANSIENT') {
       const delay = calculateRetryDelay(
         claimed.attemptCount,
@@ -318,8 +341,9 @@ export class SyncCoordinatorService implements OnDestroy {
           leaseToken,
           now: validDate(now),
           status: 'RETRY_WAIT',
+          deliveryOutcome: 'NOT_DELIVERED',
           nextAttemptAt: validDate(new Date(now.getTime() + delay)),
-          error: persistedError,
+          error: { ...persistedError, deliveryOutcome: 'NOT_DELIVERED' },
         });
       } catch (storageError) {
         this.captureFailure(
@@ -341,6 +365,7 @@ export class SyncCoordinatorService implements OnDestroy {
         leaseToken,
         now: validDate(now),
         status: targetStatus,
+        deliveryOutcome: error.deliveryOutcome,
         error: persistedError,
       });
     } catch (storageError) {

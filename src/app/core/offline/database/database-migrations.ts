@@ -1,4 +1,5 @@
 import { OfflineStorageError } from '../models/offline-storage-error';
+import { deliveryOutcomeOf } from '../models/delivery-outcome';
 import {
   DATABASE_VERSION,
   LOCAL_RECORDS_STORE,
@@ -115,11 +116,58 @@ const SYNCHRONIZATION_CENTER_MIGRATION: DatabaseMigration = {
   },
 };
 
+const DELIVERY_OUTCOME_MIGRATION: DatabaseMigration = {
+  toVersion: 4,
+  migrate: ({ transaction }) => {
+    const outbox = transaction.objectStore(OUTBOX_STORE);
+    const cursorRequest = outbox.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        return;
+      }
+      const entry = cursor.value as Readonly<Record<string, unknown>>;
+      const migrated = migrationForDeliveryOutcome(entry);
+      if (migrated) {
+        cursor.update(migrated);
+      }
+      cursor.continue();
+    };
+  },
+};
+
 export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
   INITIAL_SCHEMA_MIGRATION,
   SCHEDULER_SCHEMA_MIGRATION,
   SYNCHRONIZATION_CENTER_MIGRATION,
+  DELIVERY_OUTCOME_MIGRATION,
 ]);
+
+function migrationForDeliveryOutcome(
+  entry: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> | undefined {
+  if (deliveryOutcomeOf(entry['deliveryOutcome'])) {
+    return undefined;
+  }
+  if (entry['status'] === 'SYNCED') {
+    return { ...entry, deliveryOutcome: 'CONFIRMED' };
+  }
+  const category = (entry['lastError'] as Readonly<Record<string, unknown>> | undefined)?.['category'];
+  if (category === 'VALIDATION' || category === 'CONFLICT') {
+    return { ...entry, deliveryOutcome: 'REJECTED' };
+  }
+  if (
+    typeof entry['lastAttemptAt'] === 'string'
+    || (typeof entry['attemptCount'] === 'number' && entry['attemptCount'] > 0)
+  ) {
+    return {
+      ...entry,
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    };
+  }
+  return undefined;
+}
 
 export function runDatabaseMigrations(request: RunMigrationsRequest): void {
   if (request.oldVersion > request.targetVersion) {

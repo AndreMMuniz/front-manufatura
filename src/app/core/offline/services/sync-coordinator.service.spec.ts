@@ -299,10 +299,14 @@ describe('SyncCoordinatorService', () => {
     expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
   });
 
-  it('trata onLine como sinal: falha de rede produz RETRY_WAIT, não SYNCED', async () => {
+  it('trata onLine como sinal: falha de rede incerta aguarda confirmação sem novo envio', async () => {
     await seed(database, [entry('command')]);
+    let sends = 0;
     const coordinator = createCoordinator({
-      send: () => Promise.reject(new TypeError('Failed to fetch token=secret')),
+      send: () => {
+        sends += 1;
+        return Promise.reject(new TypeError('Failed to fetch token=secret'));
+      },
     });
     authenticate();
     coordinator.start();
@@ -311,9 +315,13 @@ describe('SyncCoordinatorService', () => {
     await coordinator.requestSync();
 
     expect(await repository.getById(OWNER, 'command')).toMatchObject({
-      status: 'RETRY_WAIT',
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
       lastError: { code: 'NETWORK', category: 'TRANSIENT' },
     });
+    triggerCallback?.('online');
+    await coordinator.requestSync();
+    expect(sends).toBe(1);
   });
 
   it('coordena duas instâncias na mesma IDBFactory com um único claim e envio', async () => {
@@ -484,7 +492,7 @@ describe('SyncCoordinatorService', () => {
       send: async (request) => {
         snapshots.push(JSON.stringify(request));
         if (snapshots.length === 1) {
-          throw new TypeError('Failed to fetch');
+          throw { status: 503, code: 'CONNECT_REFUSED', deliveryOutcome: 'NOT_DELIVERED' };
         }
         return {
           serverRecordId: 'server-command',
@@ -698,7 +706,7 @@ describe('SyncCoordinatorService', () => {
     }));
   });
 
-  it('mantém retry e estado persistido quando o sink lança', async () => {
+  it('mantém estado persistido quando o sink lança durante entrega incerta', async () => {
     await seed(database, [entry('command')]);
     const before = await repository.getById(OWNER, 'command');
     clientLogs.capture.mockImplementation(() => { throw new Error('sink'); });
@@ -709,7 +717,7 @@ describe('SyncCoordinatorService', () => {
     await expect(coordinator.requestSync()).resolves.toBeUndefined();
     const after = await repository.getById(OWNER, 'command');
     expect(after).toMatchObject({
-      status: 'RETRY_WAIT', attemptCount: 1,
+      status: 'CONFIRMATION_PENDING', attemptCount: 1,
     });
     expect({
       idempotencyKey: after?.idempotencyKey,

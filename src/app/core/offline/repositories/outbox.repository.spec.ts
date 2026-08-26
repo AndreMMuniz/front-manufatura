@@ -314,6 +314,7 @@ describe('OutboxRepository processing', () => {
     expect(freshApplied).toBe(true);
     expect(await repository.getById(OWNER, 'command')).toMatchObject({
       status: 'SYNCED',
+      deliveryOutcome: 'CONFIRMED',
       synchronizedAt: NOW,
       receipt: { serverRecordId: 'server-command' },
     });
@@ -411,12 +412,13 @@ describe('OutboxRepository processing', () => {
         leaseToken: 'lease',
         now: NOW,
         status: 'RETRY_WAIT',
+        deliveryOutcome: 'NOT_DELIVERED',
         nextAttemptAt: '2026-07-29T13:00:10.000Z',
         error: {
           code: 'NETWORK',
           category: 'TRANSIENT',
           userMessage: 'Serviço temporariamente indisponível.',
-          deliveryOutcome: 'UNCERTAIN',
+          deliveryOutcome: 'NOT_DELIVERED',
         },
       }),
     ).toBe(true);
@@ -424,12 +426,43 @@ describe('OutboxRepository processing', () => {
 
     expect(after).toMatchObject({
       status: 'RETRY_WAIT',
+      deliveryOutcome: 'NOT_DELIVERED',
       nextAttemptAt: '2026-07-29T13:00:10.000Z',
       lastError: { code: 'NETWORK' },
     });
     expect(after).not.toHaveProperty('leaseToken');
     expect(after).not.toHaveProperty('leaseExpiresAt');
     expect(identity(after!)).toEqual(identity(before!));
+  });
+
+  it('persiste entrega incerta fora dos retries manual e automático', async () => {
+    await seed(database, [entry('uncertain')]);
+    await repository.claim(claim('uncertain', 'lease'));
+
+    expect(
+      await repository.reconcileFailure({
+        ownerId: OWNER,
+        localId: 'uncertain',
+        leaseToken: 'lease',
+        now: NOW,
+        status: 'CONFIRMATION_PENDING',
+        deliveryOutcome: 'UNCERTAIN',
+        error: {
+          code: 'INVALID_RECEIPT',
+          category: 'TRANSIENT',
+          deliveryOutcome: 'UNCERTAIN',
+          userMessage: 'A entrega precisa ser confirmada.',
+        },
+      }),
+    ).toBe(true);
+
+    expect(await repository.getById(OWNER, 'uncertain')).toMatchObject({
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    });
+    expect(await repository.retryError(OWNER, 'uncertain', NOW)).toBe(false);
+    expect(await repository.listCandidates(OWNER, NOW, 10)).toEqual([]);
+    expect(await repository.claim(claim('uncertain', 'replacement-lease'))).toBeNull();
   });
 
   it('reabilita ERROR somente por operação manual e BLOCKED_AUTH apenas no owner correto', async () => {
