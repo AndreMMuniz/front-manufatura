@@ -132,6 +132,7 @@ describe('SyncCoordinatorService', () => {
           code: 'HTTP_401',
           category: 'AUTH',
           userMessage: 'Sessão expirada.',
+          deliveryOutcome: 'NOT_DELIVERED',
         },
       }),
       entry('foreign', { ownerId: 'operator-2', aggregateId: 'B' }),

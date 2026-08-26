@@ -1,3 +1,5 @@
+import { DeliveryOutcome, deliveryOutcomeOf } from './delivery-outcome';
+
 export type ApiCommandErrorCategory = 'TRANSIENT' | 'AUTH' | 'VALIDATION' | 'CONFLICT';
 export type SyncErrorCategory = ApiCommandErrorCategory | 'CONFIGURATION';
 
@@ -7,6 +9,7 @@ export interface ApiCommandError {
   readonly userMessage: string;
   readonly correlationId?: string;
   readonly retryAfterSeconds?: number;
+  readonly deliveryOutcome?: DeliveryOutcome;
 }
 
 export interface NormalizedSyncError {
@@ -15,6 +18,7 @@ export interface NormalizedSyncError {
   readonly userMessage: string;
   readonly correlationId?: string;
   readonly retryAfterSeconds?: number;
+  readonly deliveryOutcome: DeliveryOutcome;
 }
 
 export interface SyncSchedulerConfig {
@@ -107,10 +111,10 @@ export function normalizeCommandError(error: unknown): NormalizedSyncError {
     return safeError(error.code, 'CONFIGURATION');
   }
   if (error instanceof SyncTimeoutError) {
-    return safeError('TIMEOUT', 'TRANSIENT');
+    return safeError('TIMEOUT', 'TRANSIENT', 'UNCERTAIN');
   }
   if (error instanceof TypeError) {
-    return safeError('NETWORK', 'TRANSIENT');
+    return safeError('NETWORK', 'TRANSIENT', 'UNCERTAIN');
   }
 
   const record = asRecord(error);
@@ -121,6 +125,7 @@ export function normalizeCommandError(error: unknown): NormalizedSyncError {
   const userMessage = safeUserMessage(record?.['userMessage'], category);
   const correlationId = safeCorrelationId(record?.['correlationId']);
   const retryAfterSeconds = safeRetryAfter(record?.['retryAfterSeconds']);
+  const deliveryOutcome = deliveryOutcomeOf(record?.['deliveryOutcome']) ?? outcomeForCategory(category);
 
   return {
     code,
@@ -128,6 +133,7 @@ export function normalizeCommandError(error: unknown): NormalizedSyncError {
     userMessage,
     ...(correlationId ? { correlationId } : {}),
     ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+    deliveryOutcome,
   };
 }
 
@@ -147,12 +153,30 @@ function categoryForStatus(status: number | undefined): SyncErrorCategory {
   return 'CONFIGURATION';
 }
 
-function safeError(code: string, category: SyncErrorCategory): NormalizedSyncError {
+function safeError(
+  code: string,
+  category: SyncErrorCategory,
+  deliveryOutcome = outcomeForCategory(category),
+): NormalizedSyncError {
   return {
     code,
     category,
     userMessage: defaultUserMessage(category),
+    deliveryOutcome,
   };
+}
+
+function outcomeForCategory(category: SyncErrorCategory): DeliveryOutcome {
+  switch (category) {
+    case 'VALIDATION':
+    case 'CONFLICT':
+      return 'REJECTED';
+    case 'AUTH':
+    case 'CONFIGURATION':
+      return 'NOT_DELIVERED';
+    case 'TRANSIENT':
+      return 'UNCERTAIN';
+  }
 }
 
 function safeCode(

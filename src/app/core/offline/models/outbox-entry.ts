@@ -1,5 +1,6 @@
 import { JsonValue, LocalRecord } from './local-record';
 import { DeliveryDisposition } from './delivery-disposition';
+import { DeliveryOutcome } from './delivery-outcome';
 import { SyncErrorCategory } from './sync-error';
 import { SyncStatus } from './sync-status';
 
@@ -8,6 +9,7 @@ export interface PersistedSyncError {
   readonly category: SyncErrorCategory;
   readonly userMessage: string;
   readonly correlationId?: string;
+  readonly deliveryOutcome: DeliveryOutcome;
 }
 
 export interface RemoteCommandReceipt {
@@ -55,6 +57,7 @@ export interface OutboxEntry<TPayload = JsonValue> {
   readonly lastManualRetryAt?: string;
   readonly lastManualRetryBy?: string;
   readonly deliveryDisposition?: DeliveryDisposition;
+  readonly deliveryOutcome?: DeliveryOutcome;
   readonly logicalOccurredAt?: string;
   readonly supersedesLocalId?: string;
   readonly supersededByLocalId?: string;

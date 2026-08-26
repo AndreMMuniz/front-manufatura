@@ -20,6 +20,7 @@ describe('synchronization view model', () => {
         category: 'VALIDATION',
         userMessage: '<b>Falha segura</b>\u0000',
         correlationId: 'corr-1',
+        deliveryOutcome: 'REJECTED',
       },
     }));
 

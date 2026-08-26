@@ -46,6 +46,22 @@ describe('sync retry policy', () => {
     expect(normalizeCommandError(failure)).toMatchObject({ code, category });
   });
 
+  it.each([
+    [{ status: 503, code: 'CONNECT_REFUSED', deliveryOutcome: 'NOT_DELIVERED' }, 'NOT_DELIVERED'],
+    [{ status: 422, code: 'RULE_REJECTED', deliveryOutcome: 'REJECTED' }, 'REJECTED'],
+    [{ status: 502, code: 'INVALID_RECEIPT', deliveryOutcome: 'UNCERTAIN' }, 'UNCERTAIN'],
+    [{ status: 502, code: 'LEGACY_GATEWAY_ERROR' }, 'UNCERTAIN'],
+    [new SyncTimeoutError(), 'UNCERTAIN'],
+    [new TypeError('Failed to fetch'), 'UNCERTAIN'],
+  ] as const)('normaliza resultado de entrega de %o como %s', (error, outcome) => {
+    expect(normalizeCommandError(error).deliveryOutcome).toBe(outcome);
+  });
+
+  it('não aceita deliveryOutcome desconhecido como confirmação', () => {
+    expect(normalizeCommandError({ status: 500, deliveryOutcome: 'SENT' }).deliveryOutcome)
+      .toBe('UNCERTAIN');
+  });
+
   it('respeita categoria explícita do contrato antes do fallback HTTP', () => {
     expect(
       normalizeCommandError({
@@ -62,6 +78,7 @@ describe('sync retry policy', () => {
       userMessage: 'Comando ainda em processamento.',
       correlationId: 'corr-1',
       retryAfterSeconds: 2,
+      deliveryOutcome: 'UNCERTAIN',
     });
   });
 
@@ -79,6 +96,7 @@ describe('sync retry policy', () => {
       code: 'INVALID_CODE',
       category: 'VALIDATION',
       userMessage: 'O comando foi rejeitado e precisa de correção.',
+      deliveryOutcome: 'REJECTED',
     });
     expect(JSON.stringify(unknown)).not.toContain('privado');
     expect(JSON.stringify(unknown)).not.toContain('payload secreto');

@@ -416,6 +416,7 @@ describe('OutboxRepository processing', () => {
           code: 'NETWORK',
           category: 'TRANSIENT',
           userMessage: 'Serviço temporariamente indisponível.',
+          deliveryOutcome: 'UNCERTAIN',
         },
       }),
     ).toBe(true);
@@ -439,6 +440,7 @@ describe('OutboxRepository processing', () => {
           code: 'VALIDATION',
           category: 'VALIDATION',
           userMessage: 'Comando inválido.',
+          deliveryOutcome: 'REJECTED',
         },
       }),
       entry('auth', {
@@ -447,6 +449,7 @@ describe('OutboxRepository processing', () => {
           code: 'UNAUTHORIZED',
           category: 'AUTH',
           userMessage: 'Sessão expirada.',
+          deliveryOutcome: 'NOT_DELIVERED',
         },
       }),
       entry('supervisor-auth', {

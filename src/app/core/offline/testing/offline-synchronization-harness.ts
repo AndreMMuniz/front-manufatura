@@ -126,6 +126,7 @@ export class OfflineSynchronizationHarness {
             code: 'NETWORK',
             category: 'TRANSIENT',
             userMessage: 'Resposta indisponível; tentativa preservada.',
+            deliveryOutcome: 'UNCERTAIN',
           },
         });
         outcomes.push({ localId: claimed.localId, status: 'RETRY_WAIT' });

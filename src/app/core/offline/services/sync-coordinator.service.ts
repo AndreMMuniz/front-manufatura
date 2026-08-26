@@ -301,6 +301,7 @@ export class SyncCoordinatorService implements OnDestroy {
       code: error.code,
       category: error.category,
       userMessage: error.userMessage,
+      deliveryOutcome: error.deliveryOutcome,
       ...(error.correlationId ? { correlationId: error.correlationId } : {}),
     };
     if (error.category === 'TRANSIENT') {

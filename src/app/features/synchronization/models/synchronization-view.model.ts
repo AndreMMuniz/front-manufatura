@@ -135,6 +135,11 @@ const STATUS_PRESENTATIONS: Readonly<Record<SyncStatus, {
   SYNCING: status('Sincronizando com o Datasul', 'po-icon-refresh', 'info'),
   RETRY_WAIT: status('Nova tentativa agendada', 'po-icon-clock', 'warning'),
   SYNCED: status('Sincronizado com o Datasul', 'po-icon-ok', 'success'),
+  CONFIRMATION_PENDING: status(
+    'Confirmação de entrega pendente',
+    'po-icon-clock',
+    'warning',
+  ),
   BLOCKED_AUTH: status(
     'Bloqueado por autenticação/autorização',
     'po-icon-lock',

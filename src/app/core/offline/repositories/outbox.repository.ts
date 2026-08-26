@@ -301,6 +301,7 @@ export class OutboxRepository {
                 code: 'DEPENDENCY_MISSING',
                 category: 'CONFIGURATION',
                 userMessage: 'Uma dependência exige intervenção antes da sincronização.',
+                deliveryOutcome: 'NOT_DELIVERED',
               }
             : undefined,
         ),
