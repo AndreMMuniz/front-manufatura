@@ -5,6 +5,7 @@ export interface OperationalOutboxEntry {
   readonly idempotencyKey: string;
   readonly commandType: string;
   readonly dependencyIds: readonly string[];
+  readonly payload: Record<string, unknown>;
 }
 
 export async function readOperationalOutbox(page: Page): Promise<OperationalOutboxEntry[]> {

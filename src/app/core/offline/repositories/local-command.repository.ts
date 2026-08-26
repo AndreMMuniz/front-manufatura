@@ -426,6 +426,8 @@ export class LocalCommandRepository {
         && candidate.aggregateId === outboxEntry.aggregateId
         && deliveryDispositionOf(candidate.deliveryDisposition) === 'ACTIVE'
         && candidate.status !== 'SYNCED'
+        && !outboxEntry.dependencyIds.some(dependencyId =>
+          dependencyResolvesTo(dependencyId, candidate.localId, ownerEntries, ownerId))
         && compareLogicalPosition(
           candidate.logicalOccurredAt ?? candidate.occurredAt ?? candidate.createdAt,
           candidate.localId,

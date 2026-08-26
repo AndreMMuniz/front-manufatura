@@ -382,6 +382,38 @@ describe('LocalCommandRepository', () => {
     })).toBe('stale-or-ineligible');
   });
 
+  it('permite abandonar do dependente ao antecessor quando compartilham o instante lógico', async () => {
+    const report = await commands.persistConfirmedCommand(request(
+      { quantity: 5 },
+      {
+        idempotencyKey: OTHER_COMMAND_ID,
+        commandType: 'REPORT_OPERATION',
+        dependencyIds: [],
+      },
+    ));
+    const end = await commands.persistConfirmedCommand(request(
+      {},
+      {
+        idempotencyKey: COMMAND_ID,
+        commandType: 'END_OPERATION',
+        dependencyIds: [report.localId],
+      },
+    ));
+    const abandon = (localId: string) => commands.abandonCommand({
+      ownerId: 'operator-1',
+      actorId: 'operator-1',
+      localId,
+      permission: 'SYNC_UNSYNCHRONIZED_ABANDON',
+      authorized: true,
+      reason: 'Fila local não deve mais ser enviada',
+      now: NOW,
+      sessionIsCurrent: () => true,
+    });
+
+    expect(await abandon(end.localId)).toBe('abandoned');
+    expect(await abandon(report.localId)).toBe('abandoned');
+  });
+
   it('bloqueia abandono por dependente ancestral e por cauda no mesmo instante lógico', async () => {
     const original = await commands.persistConfirmedCommand(
       request({ quantity: 5 }, { aggregateId: 'TARGET', dependencyIds: [] }),

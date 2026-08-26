@@ -165,6 +165,68 @@ const QUALITY_ROUTE = {
   ],
 };
 
+const QUALITY_ROUTE_ALL_RESULT_TYPES = {
+  total: 1,
+  hasNext: false,
+  items: [
+    {
+      nrFicha: 475957,
+      'ds-roteiro': {
+        exames: [
+          {
+            codExame: 500518,
+            descricao: 'Validação dos tipos de resultado',
+            versao: 1,
+            frequencia: 2,
+            amostra: 1,
+            nivel: 1,
+            nqa: 0,
+            responsavel: '001',
+            observacao: 'Cenário integrado com os quatro tipos de resultado.',
+            componentes: [
+              qualityResultComponent({
+                code: 10,
+                description: 'Resultado numérico',
+                resultType: 1,
+                min: 485,
+                max: 491,
+                unit: 'mm',
+                equipment: 'Régua',
+              }),
+              qualityResultComponent({
+                code: 20,
+                description: 'Resultado por opção',
+                resultType: 2,
+                tableNumber: 8,
+                equipment: 'Visual',
+                options: [
+                  { sequence: 1, description: 'Conforme' },
+                  { sequence: 2, description: 'Não conforme' },
+                ],
+              }),
+              qualityResultComponent({
+                code: 30,
+                description: 'Resultado por laudo',
+                resultType: 3,
+                equipment: 'Visual',
+              }),
+              qualityResultComponent({
+                code: 40,
+                description: 'Resultado por faixa',
+                resultType: 4,
+                min: 23.8,
+                max: 24.2,
+                unit: 'mm',
+                equipment: 'Paquímetro',
+              }),
+            ],
+          },
+        ],
+      },
+    },
+  ],
+};
+
 const ROUTES_PENDING_AUTHORIZATION = [
   {
     liberada: false,
@@ -311,7 +373,8 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       return;
     }
     if (path === '/api/quality-control/routes' && request.method() === 'POST') {
-      await json(route, QUALITY_ROUTE);
+      const body = request.postDataJSON() as { codOperacao?: unknown };
+      await json(route, body.codOperacao === 30 ? QUALITY_ROUTE_ALL_RESULT_TYPES : QUALITY_ROUTE);
       return;
     }
     if (path === '/api/production-areas' && request.method() === 'GET') {
@@ -420,6 +483,44 @@ function qualityComponent(code: number, description: string, min: number, max: n
     resultadoMax: max,
     nrTabela: 0,
     opcoesResultado: [],
+  };
+}
+
+function qualityResultComponent(config: {
+  code: number;
+  description: string;
+  resultType: 1 | 2 | 3 | 4;
+  min?: number;
+  max?: number;
+  unit?: string;
+  equipment: string;
+  tableNumber?: number;
+  options?: ReadonlyArray<{ sequence: number; description: string }>;
+}) {
+  const examCode = 500518;
+  const tableNumber = config.tableNumber ?? 0;
+  const min = config.min ?? 0;
+  const max = config.max ?? 0;
+  return {
+    codExame: examCode,
+    codComponente: config.code,
+    descricao: config.description,
+    referenciaTecnica: config.resultType === 3 ? '' : `${min} - ${max}`,
+    metodo: '',
+    equipamento: config.equipment,
+    tipoResultado: config.resultType,
+    unidade: config.unit ?? '',
+    numeroDecimais: config.resultType === 1 || config.resultType === 4 ? 2 : 0,
+    resultadoMin: min,
+    resultadoMax: max,
+    nrTabela: tableNumber,
+    opcoesResultado: (config.options ?? []).map(option => ({
+      codExame: examCode,
+      codComponente: config.code,
+      nrTabela: tableNumber,
+      seqOpcao: option.sequence,
+      descricao: option.description,
+    })),
   };
 }
 

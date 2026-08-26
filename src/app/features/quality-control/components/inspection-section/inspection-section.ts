@@ -93,7 +93,9 @@ export class InspectionSection {
         return;
       }
     }
-    this.measurementButton?.nativeElement.focus();
+    const measurementButtonHost = this.measurementButton?.nativeElement;
+    const measurementButton = measurementButtonHost?.querySelector<HTMLElement>('button');
+    (measurementButton ?? measurementButtonHost)?.focus();
   }
 
   isSelected(component: QualityExamComponent): boolean {
