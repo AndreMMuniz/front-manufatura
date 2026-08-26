@@ -2,9 +2,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PoDialogService } from '@po-ui/ng-components';
+import { sha256 } from 'js-sha256';
 
 import { OperationalCommandFacade } from '../../../../core/offline/services/operational-command.facade';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
+import { PayloadIntegrityService } from '../../../../core/offline/services/payload-integrity.service';
 import { OperatorService } from '../../../shop-floor/services/operator';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
@@ -270,5 +272,38 @@ describe('ExamEntryPanel resultado único', () => {
     expect(component.stopReason).toBe('Ajustar processo');
     expect(state.componentById('numeric')?.measurement).toMatchObject({ commandId: 'r1' });
     expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('para o roteiro quando a reprovação pertence a um componente de opção', async () => {
+    const integrity = new PayloadIntegrityService(() => undefined, () => sha256);
+    capture.mockImplementation(async (request: { idempotencyKey?: string; payload: unknown }) => {
+      await integrity.prepare(request.payload);
+      return {
+        localId: request.idempotencyKey ?? 'local',
+        idempotencyKey: request.idempotencyKey ?? 'idem',
+        payloadHash: 'hash',
+        committedAt: new Date().toISOString(),
+        syncStatus: 'PENDING',
+      };
+    });
+    state.applyMeasurement('e1', 'numeric', {
+      result: 24,
+      status: 'APPROVED',
+      withinRange: true,
+      commandId: 'r1',
+    });
+    state.applyMeasurement('e2', 'option', {
+      selectedOption: { tableNumber: 8, sequence: 2, description: 'NÃO' },
+      status: 'REJECTED',
+      withinRange: false,
+      commandId: 'r2',
+    });
+    state.openPanel('option');
+    component.updateStopReason('Ajustar processo');
+
+    component.stopRoute();
+
+    await vi.waitFor(() => expect(state.route()).toBeUndefined());
+    expect(state.routeFeedback()).toContain('Roteiro parado');
   });
 });

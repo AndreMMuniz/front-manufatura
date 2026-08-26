@@ -442,9 +442,11 @@ export class ExamEntryPanel implements AfterViewInit {
         componentId: component.id,
         componentCode: component.code,
         description: component.description,
-        ...(measurement.maximumResult === undefined
-          ? { measuredValue: measurement.result }
-          : { measuredMinimum: measurement.result, measuredMaximum: measurement.maximumResult }),
+        ...(measurement.result === undefined
+          ? {}
+          : measurement.maximumResult === undefined
+            ? { measuredValue: measurement.result }
+            : { measuredMinimum: measurement.result, measuredMaximum: measurement.maximumResult }),
         ...(measurement.report ? { report: measurement.report } : {}),
         expectedMin: component.minValue,
         expectedMax: component.maxValue,
