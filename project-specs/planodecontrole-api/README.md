@@ -10,6 +10,7 @@ consolidados em [Grupos de usuários e acessos Datasul para o frontend](../acess
 | Recurso | Método | Endpoint | Documentação |
 | --- | --- | --- | --- |
 | Ordens de produção | `GET` | `/api/fcq/v1/ordens/{numeroOrdem}` | [ordens.md](./ordens.md) |
+| Desenho do item | `GET` | `/api/fcq/v1/desenhoitem` | [desenho-item.md](./desenho-item.md) |
 | Roteiros de inspeção | `POST` | `/api/fcq/v1/roteiros?companyid={companyId}` | [roteiros.md](./roteiros.md) |
 | Resultados de exames | `PUT` | `/api/fcq/v1/resultexames?companyId={companyId}` | [result-exames.md](./result-exames.md) |
 | Finalização de roteiros | `PUT` | `/api/fcq/v1/FinalizaRoteiros?companyId={companyId}` | [finaliza-roteiros.md](./finaliza-roteiros.md) |
