@@ -60,7 +60,7 @@ Por isso, a ferramenta gera `.deploy/candidate` enquanto a aplicação antiga co
 
 ## Logs do servidor e das APIs
 
-Os eventos da aplicação continuam gravados como JSON Lines na pasta `logs` por padrão. A saída e os erros do processo em segundo plano também são direcionados para arquivos `server-*.stdout.log` e `server-*.stderr.log` dentro de `.deploy`.
+Os eventos da aplicação são gravados na pasta `logs` por padrão, uma linha por evento, com timestamp ISO 8601 em UTC, nível destacado, nome do evento e metadados em JSON. Exemplo: `2026-08-26T20:33:50.840Z [ERROR] api_request_completed | {"status":500}`. Esse formato facilita a leitura humana e mantém os metadados estruturados para filtros e análise. A saída e os erros do processo em segundo plano também são direcionados para arquivos `server-*.stdout.log` e `server-*.stderr.log` dentro de `.deploy`.
 
 Os arquivos seguem o nome `application-AAAA-MM-DD.log`, giram diariamente ou ao atingir 20 MB e são mantidos por 14 dias. O arquivo `.application-log-audit.json` dentro da mesma pasta controla a retenção e não deve ser editado manualmente.
 

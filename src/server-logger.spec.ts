@@ -103,17 +103,24 @@ describe('server logger configuration', () => {
     await logger.close();
   });
 
-  it('grava arquivo real em JSON Lines sem sentinelas sensíveis', async () => {
+  it('grava cada evento com timestamp ISO, nível destacado e metadados estruturados', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'plano-log-'));
     try {
       const logger = createServerLogger({ APP_LOG_DIR: directory }, '/srv/front');
       logger.info('safe_event', { status: 200, senha: 'sentinela-secreta' });
+      logger.error('failed_event', { status: 500 });
       await logger.close();
       const file = readdirSync(directory).find(name => /^application-.*\.log$/.test(name));
       expect(file).toBeTruthy();
       await vi.waitFor(() => expect(readFileSync(join(directory, file!), 'utf8').trim()).not.toBe(''));
       const lines = readFileSync(join(directory, file!), 'utf8').trim().split(/\r?\n/);
-      expect(lines.map(line => JSON.parse(line))).toHaveLength(1);
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO\] safe_event \| \{"status":200,"senha":"\[REDACTED\]"\}$/,
+      );
+      expect(lines[1]).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[ERROR\] failed_event \| \{"status":500\}$/,
+      );
       expect(lines.join('\n')).not.toContain('sentinela-secreta');
     } finally {
       rmSync(directory, { recursive: true, force: true });

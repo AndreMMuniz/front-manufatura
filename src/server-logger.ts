@@ -81,16 +81,7 @@ export function createServerLogger(
     transports: [
       new transports.Console({
         level: config.level,
-        format: format.combine(
-          format.timestamp(),
-          format.printf(info => {
-            const { timestamp, level, message, ...metadata } = info;
-            const suffix = Object.keys(metadata).length > 0
-              ? ` ${JSON.stringify(sanitizeLogMetadata(metadata))}`
-              : '';
-            return `${String(timestamp)} ${String(level).toUpperCase()} ${sanitizeLogText(String(message))}${suffix}`;
-          }),
-        ),
+        format: humanReadableLogFormat(),
       }),
     ],
   });
@@ -103,7 +94,7 @@ export function createServerLogger(
     const rotatingFile = (dependencies.createRotatingTransport ??
       (options => new DailyRotateFile(options)))({
       ...buildRotatingFileOptions(config),
-      format: format.combine(format.timestamp(), format.json()),
+      format: humanReadableLogFormat(),
     });
     logger.add(rotatingFile);
     let transportQuarantined = false;
@@ -118,6 +109,19 @@ export function createServerLogger(
     reportFileFailure();
   }
   return wrapLogger(logger, config);
+}
+
+function humanReadableLogFormat() {
+  return format.combine(
+    format.timestamp(),
+    format.printf(info => {
+      const { timestamp, level, message, ...metadata } = info;
+      const suffix = Object.keys(metadata).length > 0
+        ? ` | ${JSON.stringify(sanitizeLogMetadata(metadata))}`
+        : '';
+      return `${String(timestamp)} [${String(level).toUpperCase()}] ${sanitizeLogText(String(message))}${suffix}`;
+    }),
+  );
 }
 
 function logSizeBytes(quantity: string, unit: string): bigint {
