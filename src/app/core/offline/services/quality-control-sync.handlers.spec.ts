@@ -59,6 +59,44 @@ describe('quality-control Outbox handlers', () => {
     }, expect.objectContaining({ headers: expect.any(HttpHeaders) }));
   });
 
+  it('reconcilia tipoResultado 4 quando o Datasul ainda não informa dentroFaixa', async () => {
+    const put = vi.fn().mockReturnValue(of({
+      total: 1,
+      hasNext: false,
+      items: [{
+        nrFicha: 64558,
+        codExame: 1845,
+        codComponente: 1,
+        resultado: 23.8,
+        resultadoMax: 24.2,
+        dentroFaixa: null,
+        componentesSalvos: 1,
+        componentesTotal: 6,
+      }],
+    }));
+    const handler = new SaveQualityResultSyncHandler(
+      { put } as never,
+      { token: 'jwt-em-memoria' } as never,
+    );
+
+    const result = await handler.send({
+      ...request,
+      payload: {
+        nrFicha: 64558,
+        codExame: 1845,
+        codComponente: 1,
+        resultado: 23.8,
+        resultadoMax: 24.2,
+      },
+    }, new AbortController().signal);
+
+    expect(result.businessResult).toEqual({
+      dentroFaixa: null,
+      componentesSalvos: 1,
+      componentesTotal: 6,
+    });
+  });
+
   it('envia laudo do tipoResultado 3 sem convertê-lo em número ou opção tabelada', async () => {
     const put = vi.fn().mockReturnValue(of({
       total: 1, hasNext: false, items: [{

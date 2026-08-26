@@ -107,6 +107,7 @@ Cada item de `items` contém:
 - `resultadoMin` e `resultadoMax` no roteiro são os limites definidos da característica. No PUT, o primeiro valor medido usa `resultado` e, para `tipoResultado: 4`, o segundo usa `resultadoMax`.
 - Para `tipoResultado: 3`, `resultadoMin: 0.0`, `resultadoMax: 0.0`, `nrTabela: 0` e `referenciaTecnica` vazia não significam que o resultado esperado seja zero; o PUT exige `laudo`.
 - O cliente deve enviar somente a representação correspondente ao tipo: tabela, laudo ou número.
+- Em `tipoResultado: 4`, o Datasul pode devolver `dentroFaixa: null` mesmo após gravar os dois valores. Esse retorno representa classificação não informada e não falha de integração.
 - A exclusividade acima é uma regra do corpo da requisição. O recibo pode trazer
   simultaneamente campos auxiliares como `resultado`, `nrTabela` e `laudo`, e não
   precisa repetir `seqOpcao`; o exemplo real versionado demonstra essa forma.

@@ -47,6 +47,44 @@ function clientRespondingWith(value: unknown): QualityControlDatasulClient {
 }
 
 describe('QualityControlDatasulClient ResultExames receipt', () => {
+  it('aceita tipoResultado 4 gravado com classificação de faixa ainda não informada', async () => {
+    const receipt = {
+      total: 1,
+      hasNext: false,
+      items: [{
+        observacao: '',
+        componentesSalvos: 1,
+        resultado: 23.8,
+        dtResultado: '2026-08-26',
+        resultadoMinDefinido: 23.8,
+        dentroFaixa: null,
+        codResponsavel: 'mjocelio',
+        nrTabela: 0,
+        codComponente: 1,
+        seqComp: 1,
+        componentesTotal: 6,
+        resultadoMax: 24.2,
+        nrFicha: 64558,
+        laudo: '',
+        resultadoMaxDefinido: 24.2,
+        numeroTeste: 1,
+        tipoResultado: 4,
+        codItem: '30907',
+        codExame: 1845,
+      }],
+    };
+    const client = clientRespondingWith(receipt);
+
+    await expect(client.saveResult({
+      nrFicha: 64558,
+      codExame: 1845,
+      codComponente: 1,
+      codUsuario: 'mjocelio',
+      resultado: 23.8,
+      resultadoMax: 24.2,
+    })).resolves.toEqual(receipt);
+  });
+
   it('aceita o recibo real versionado com campos auxiliares e representações combinadas', async () => {
     const client = clientRespondingWith(REAL_RESULT_EXAM_RECEIPT);
 

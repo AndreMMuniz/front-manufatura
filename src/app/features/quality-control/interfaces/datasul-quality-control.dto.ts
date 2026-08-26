@@ -91,7 +91,7 @@ export interface DatasulResultReceipt {
   readonly codExame: number;
   readonly codComponente: number;
   readonly resultado: number;
-  readonly dentroFaixa: boolean;
+  readonly dentroFaixa: boolean | null;
   readonly componentesSalvos: number;
   readonly componentesTotal: number;
   readonly dtResultado: string;

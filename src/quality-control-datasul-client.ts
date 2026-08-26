@@ -323,7 +323,7 @@ function validateResultEnvelope(value: unknown): void {
   upstreamPositiveInteger(item['nrFicha']);
   upstreamPositiveInteger(item['codExame']);
   upstreamPositiveInteger(item['codComponente']);
-  upstreamBoolean(item['dentroFaixa']);
+  upstreamNullableBoolean(item['dentroFaixa']);
   const saved = upstreamNonNegativeInteger(item['componentesSalvos']);
   const total = upstreamNonNegativeInteger(item['componentesTotal']);
   if (saved > total) throw invalidUpstream();
@@ -367,6 +367,10 @@ function upstreamNonNegativeInteger(value: unknown): number {
 function upstreamBoolean(value: unknown): boolean {
   if (typeof value !== 'boolean') throw invalidUpstream();
   return value;
+}
+
+function upstreamNullableBoolean(value: unknown): boolean | null {
+  return value === null ? null : upstreamBoolean(value);
 }
 
 function upstreamFiniteNumber(value: unknown): number {

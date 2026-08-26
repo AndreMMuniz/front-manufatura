@@ -130,7 +130,7 @@ function resultReceipt(value: unknown, expected: Record<string, number | string>
   nrFicha: number;
   codExame: number;
   codComponente: number;
-  dentroFaixa: boolean;
+  dentroFaixa: boolean | null;
   componentesSalvos: number;
   componentesTotal: number;
 } {
@@ -140,7 +140,7 @@ function resultReceipt(value: unknown, expected: Record<string, number | string>
     nrFicha: positiveInteger(item['nrFicha']),
     codExame: positiveInteger(item['codExame']),
     codComponente: positiveInteger(item['codComponente']),
-    dentroFaixa: booleanOf(item['dentroFaixa']),
+    dentroFaixa: nullableBooleanOf(item['dentroFaixa']),
     componentesSalvos: nonNegativeInteger(item['componentesSalvos']),
     componentesTotal: positiveInteger(item['componentesTotal']),
   };
@@ -219,6 +219,10 @@ function finiteNumber(value: unknown): number {
 function booleanOf(value: unknown): boolean {
   if (typeof value !== 'boolean') throw invalidReceipt();
   return value;
+}
+
+function nullableBooleanOf(value: unknown): boolean | null {
+  return value === null ? null : booleanOf(value);
 }
 
 function invalidReceipt(): Error {

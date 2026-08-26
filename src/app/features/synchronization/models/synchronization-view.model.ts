@@ -163,8 +163,9 @@ export function mapSynchronizationEntry(
     : disposition === 'SUPERSEDED'
       ? status('Substituído por comando corrigido', 'po-icon-exchange', 'neutral')
       : undefined;
+  const receiptState = qualityResultReceiptStatus(source);
   const payload = record(source.payload);
-  const presentation = dispositionState ?? state ?? status(
+  const presentation = dispositionState ?? receiptState ?? state ?? status(
     'Estado não identificado',
     'po-icon-help',
     'neutral',
@@ -373,6 +374,32 @@ function status(
   tone: SynchronizationEntryView['syncTone'],
 ) {
   return Object.freeze({ label, icon, tone });
+}
+
+function qualityResultReceiptStatus(
+  source: SynchronizationSourceEntry,
+): ReturnType<typeof status> | undefined {
+  if (source.status !== 'SYNCED' || source.commandType !== 'SAVE_QUALITY_RESULT') {
+    return undefined;
+  }
+  const businessResult = record(source.receipt?.businessResult);
+  if (!Object.prototype.hasOwnProperty.call(businessResult, 'dentroFaixa')) {
+    return undefined;
+  }
+  if (businessResult['dentroFaixa'] === true) {
+    return status('Integrado — dentro da faixa', 'po-icon-ok', 'success');
+  }
+  if (businessResult['dentroFaixa'] === false) {
+    return status('Integrado — fora da faixa', 'po-icon-warning', 'warning');
+  }
+  if (businessResult['dentroFaixa'] === null) {
+    return status(
+      'Integrado — classificação não informada pelo Datasul',
+      'po-icon-ok',
+      'success',
+    );
+  }
+  return undefined;
 }
 
 function isOperationalCommandType(value: string): value is OperationalCommandType {

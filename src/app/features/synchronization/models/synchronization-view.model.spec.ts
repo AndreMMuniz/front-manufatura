@@ -46,6 +46,40 @@ describe('synchronization view model', () => {
   });
 
   it.each([
+    [true, 'Integrado — dentro da faixa', 'success'],
+    [false, 'Integrado — fora da faixa', 'warning'],
+    [null, 'Integrado — classificação não informada pelo Datasul', 'success'],
+  ] as const)('explica resultado integrado com dentroFaixa %s', (dentroFaixa, label, tone) => {
+    const view = mapSynchronizationEntry(entry({
+      commandType: 'SAVE_QUALITY_RESULT',
+      aggregateType: 'QUALITY_EXAM',
+      aggregateId: '64558',
+      status: 'SYNCED',
+      payload: {
+        nrFicha: 64558,
+        codExame: 1845,
+        codComponente: 1,
+        resultado: 23.8,
+        resultadoMax: 24.2,
+      },
+      receipt: {
+        serverRecordId: 'quality-result:64558:1845:1',
+        receivedAt: '2026-08-26T12:00:00.000Z',
+        processedAt: '2026-08-26T12:00:00.000Z',
+        duplicate: false,
+        businessResult: {
+          dentroFaixa,
+          componentesSalvos: 1,
+          componentesTotal: 6,
+        },
+      },
+    }));
+
+    expect(view.syncStatusLabel).toBe(label);
+    expect(view.syncTone).toBe(tone);
+  });
+
+  it.each([
     ['ABANDONED', 'Cancelado com justificativa'],
     ['SUPERSEDED', 'Substituído por comando corrigido'],
   ] as const)('prioriza a disposição %s sobre o estado anterior', (deliveryDisposition, label) => {
