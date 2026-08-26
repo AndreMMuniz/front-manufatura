@@ -80,6 +80,7 @@ export interface SynchronizationEntryView {
   readonly errorCode?: string;
   readonly correlationId?: string;
   readonly deliveryOutcomeLabel: string;
+  readonly deliveryConfirmationDetail?: string;
   readonly businessStatus: string;
   readonly syncStatus: string;
   readonly syncStatusLabel: string;
@@ -190,6 +191,9 @@ export function mapSynchronizationEntry(
   const errorCode = safeTechnicalIdentifier(source.lastError?.code);
   const correlationId = safeTechnicalIdentifier(source.lastError?.correlationId);
   const outcomeState = deliveryOutcomePresentation(deliveryOutcome, lastMessage);
+  const deliveryConfirmationDetail = source.receipt?.confirmationMethod === 'REMOTE_QUERY'
+    ? 'Confirmado por consulta ao Datasul.'
+    : undefined;
   const receiptState = qualityResultReceiptStatus(source);
   const payload = record(source.payload);
   const presentation = dispositionState ?? outcomeState ?? receiptState ?? state ?? status(
@@ -224,6 +228,7 @@ export function mapSynchronizationEntry(
     deliveryOutcomeLabel: deliveryOutcome
       ? DELIVERY_OUTCOME_LABELS[deliveryOutcome]
       : 'Resultado da entrega ainda não determinado',
+    ...(deliveryConfirmationDetail ? { deliveryConfirmationDetail } : {}),
     syncStatus: String(source.status),
     syncStatusLabel: presentation.label,
     syncIcon: presentation.icon,

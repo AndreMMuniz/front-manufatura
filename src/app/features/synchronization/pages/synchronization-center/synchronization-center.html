@@ -250,6 +250,9 @@
             <div><dt>Status do negócio</dt><dd>{{ item.businessStatus }}</dd></div>
             <div><dt>Status da sincronização</dt><dd>{{ item.syncStatusLabel }}</dd></div>
             <div><dt>Resultado da entrega</dt><dd>{{ item.deliveryOutcomeLabel }}</dd></div>
+            @if (item.deliveryConfirmationDetail) {
+              <div><dt>Confirmação</dt><dd>{{ item.deliveryConfirmationDetail }}</dd></div>
+            }
             @if (item.lastMessage) {
               <div><dt>Última mensagem</dt><dd>{{ item.lastMessage }}</dd></div>
             }

@@ -83,6 +83,24 @@ describe('SynchronizationCenterPage', () => {
     expect(details.textContent).toMatch(/Resultado\s*24,01/);
   });
 
+  it('mantém no detalhe a confirmação que veio de consulta ao Datasul', async () => {
+    const confirmedByQuery = {
+      ...item(),
+      syncStatus: 'SYNCED',
+      syncStatusLabel: 'Integrado com o Datasul.',
+      deliveryOutcomeLabel: 'Confirmado',
+      deliveryConfirmationDetail: 'Confirmado por consulta ao Datasul.',
+      availableActions: [] as const,
+    };
+    const test = await setup(state({ readState: 'ready', items: [confirmedByQuery] }));
+
+    test.fixture.nativeElement.querySelector('[data-testid="sync-detail-local-1"]').click();
+    test.fixture.detectChanges();
+
+    expect(test.fixture.nativeElement.querySelector('[role="dialog"]').textContent)
+      .toContain('Confirmado por consulta ao Datasul.');
+  });
+
   it('combina filtros e permite limpá-los com controles acessíveis', async () => {
     const test = await setup(state({ readState: 'ready', items: [item()] }));
     const identification = test.fixture.nativeElement.querySelector('#sync-identification');

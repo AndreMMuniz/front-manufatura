@@ -17,6 +17,7 @@ export interface RemoteCommandReceipt {
   readonly receivedAt: string;
   readonly processedAt: string;
   readonly duplicate: boolean;
+  readonly confirmationMethod?: 'REMOTE_QUERY';
   readonly correlationId?: string;
   readonly orderResults?: readonly {
     readonly orderId: string;

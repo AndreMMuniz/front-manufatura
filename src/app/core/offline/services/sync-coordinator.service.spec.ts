@@ -829,6 +829,11 @@ describe('SyncCoordinatorService', () => {
     await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe(expected);
 
     expect(await repository.getById(OWNER, 'uncertain')).toMatchObject(persisted);
+    if (kind === 'MATCH') {
+      expect(await repository.getById(OWNER, 'uncertain')).toMatchObject({
+        receipt: { confirmationMethod: 'REMOTE_QUERY' },
+      });
+    }
     if (kind === 'MISSING') {
       expect(await repository.getById(OWNER, 'uncertain')).not.toHaveProperty('nextAttemptAt');
     }

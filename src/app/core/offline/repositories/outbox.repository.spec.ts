@@ -322,7 +322,7 @@ describe('OutboxRepository processing', () => {
       localId: 'command',
       leaseToken: 'fresh',
       now: NOW,
-      result: receipt('command'),
+      result: { ...receipt('command'), confirmationMethod: 'REMOTE_QUERY' },
     });
 
     expect(takeover).toMatchObject({ attemptCount: 2, leaseToken: 'fresh' });
@@ -334,6 +334,8 @@ describe('OutboxRepository processing', () => {
       synchronizedAt: NOW,
       receipt: { serverRecordId: 'server-command' },
     });
+    expect((await repository.getById(OWNER, 'command'))?.receipt)
+      .not.toHaveProperty('confirmationMethod');
   });
 
   it('recupera claim após crash/reload com repository e conexão recriados', async () => {
@@ -536,7 +538,9 @@ describe('OutboxRepository processing', () => {
     })).toBe(true);
 
     expect(await repository.getById(OWNER, 'match')).toMatchObject({
-      status: 'SYNCED', deliveryOutcome: 'CONFIRMED', receipt: { serverRecordId: 'server-match' },
+      status: 'SYNCED', deliveryOutcome: 'CONFIRMED', receipt: {
+        serverRecordId: 'server-match', confirmationMethod: 'REMOTE_QUERY',
+      },
     });
     expect(await repository.getById(OWNER, 'missing')).toMatchObject({
       status: 'PENDING', deliveryOutcome: 'NOT_DELIVERED',

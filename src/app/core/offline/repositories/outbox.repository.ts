@@ -383,7 +383,11 @@ export class OutboxRepository {
       return false;
     }
 
-    const { idempotencyKey: _returnedKey, ...receipt } = request.result;
+    const {
+      idempotencyKey: _returnedKey,
+      confirmationMethod: _confirmationMethod,
+      ...receipt
+    } = request.result;
     const synchronized: OutboxEntry<JsonValue> = {
       ...withoutRuntimeState(current),
       status: 'SYNCED',
@@ -446,7 +450,7 @@ export class OutboxRepository {
         status: 'SYNCED',
         deliveryOutcome: 'CONFIRMED',
         synchronizedAt: now,
-        receipt,
+        receipt: { ...receipt, confirmationMethod: 'REMOTE_QUERY' },
         updatedAt: now,
       } satisfies OutboxEntry<JsonValue>;
     });

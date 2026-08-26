@@ -70,6 +70,23 @@ describe('synchronization view model', () => {
     expect(mapSynchronizationEntry(entryFor(deliveryOutcome)).syncStatusLabel).toBe(label);
   });
 
+  it('mantém a proveniência da confirmação por consulta após mapear novamente o registro', () => {
+    const view = mapSynchronizationEntry(entry({
+      status: 'SYNCED',
+      deliveryOutcome: 'CONFIRMED',
+      receipt: {
+        serverRecordId: 'server-1',
+        receivedAt: '2026-08-26T12:00:00.000Z',
+        processedAt: '2026-08-26T12:00:00.000Z',
+        duplicate: false,
+        confirmationMethod: 'REMOTE_QUERY',
+      },
+    }));
+
+    expect(view.syncStatusLabel).toBe('Integrado com o Datasul.');
+    expect(view.deliveryConfirmationDetail).toBe('Confirmado por consulta ao Datasul.');
+  });
+
   it('oferece confirmação, sem retry ou reenvio, somente para entrega pendente de confirmação', () => {
     expect(mapSynchronizationEntry(entryFor('UNCERTAIN')).availableActions).toEqual(['confirm']);
     expect(mapSynchronizationEntry(entryFor('NOT_DELIVERED')).availableActions)
