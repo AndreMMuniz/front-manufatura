@@ -127,6 +127,38 @@ describe('/api/client-logs', () => {
     }
   });
 
+  it('rejeita texto livre e combinações semânticas inválidas em eventos de entrega', async () => {
+    const endpoint = await start();
+    const delivery = {
+      timestamp: EVENT.timestamp,
+      level: 'warn',
+      category: 'synchronization',
+      event: 'sync_delivery_uncertain',
+      correlationId: 'corr-delivery-1',
+      context: {
+        commandType: 'START_OPERATION', aggregateType: 'OPERATION', attemptCount: 1,
+        fromStatus: 'SYNCING', toStatus: 'CONFIRMATION_PENDING',
+        deliveryOutcome: 'UNCERTAIN', failureCategory: 'TRANSIENT', code: 'NETWORK_TIMEOUT',
+      },
+    };
+    const responses = await Promise.all([
+      send(endpoint.url, JSON.stringify({ ...delivery, message: 'laudo=segredo' })),
+      send(endpoint.url, JSON.stringify({ ...delivery, stack: 'stack segredo' })),
+      send(endpoint.url, JSON.stringify({
+        ...delivery,
+        event: 'sync_delivery_confirmed',
+        level: 'info',
+        context: { ...delivery.context, toStatus: 'SYNCED', deliveryOutcome: 'UNCERTAIN' },
+      })),
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ code: 'invalid-request' });
+    }
+    expect(endpoint.sink.writes).toEqual([]);
+  });
+
   it('usa a correlação observada pelo servidor quando header e evento divergem', async () => {
     const endpoint = await start();
     const response = await send(endpoint.url, JSON.stringify(EVENT), {

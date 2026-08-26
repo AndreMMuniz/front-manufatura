@@ -407,6 +407,79 @@ describe('SyncCoordinatorService', () => {
     }));
   });
 
+  it.each([
+    ['AUTH', 'AUTH', 'UNCERTAIN', 'sync_blocked'],
+    ['retry', 'TRANSIENT', 'NOT_DELIVERED', 'sync_retry_scheduled'],
+    ['uncertain', 'TRANSIENT', 'UNCERTAIN', 'sync_delivery_uncertain'],
+    ['rejected', 'VALIDATION', 'REJECTED', 'sync_delivery_rejected'],
+  ] as const)('normaliza código do BFF para %s antes de registrar %s', async (
+    _name,
+    category,
+    deliveryOutcome,
+    event,
+  ) => {
+    await seed(database, [entry('command', {
+      commandType: 'START_OPERATION', aggregateType: 'OPERATION',
+    })]);
+    const coordinator = createCoordinator({
+      send: () => Promise.reject({
+        code: 'invalid-upstream-response', category, deliveryOutcome,
+      }),
+    });
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event,
+      context: expect.objectContaining({ code: 'INVALID_UPSTREAM_RESPONSE' }),
+    }));
+  });
+
+  it('não emite confirmação se reconcileSuccess não altera o registro por corrida de lease', async () => {
+    await seed(database, [entry('command', {
+      commandType: 'START_OPERATION', aggregateType: 'OPERATION',
+    })]);
+    vi.spyOn(repository, 'reconcileSuccess').mockResolvedValueOnce(false);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(clientLogs.capture).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_delivery_confirmed',
+    }));
+  });
+
+  it.each([
+    ['AUTH', 'UNCERTAIN', 'sync_blocked'],
+    ['TRANSIENT', 'NOT_DELIVERED', 'sync_retry_scheduled'],
+    ['TRANSIENT', 'UNCERTAIN', 'sync_delivery_uncertain'],
+    ['VALIDATION', 'REJECTED', 'sync_delivery_rejected'],
+  ] as const)('não emite %s se reconcileFailure perde a corrida de lease', async (
+    category,
+    deliveryOutcome,
+    event,
+  ) => {
+    await seed(database, [entry('command', {
+      commandType: 'START_OPERATION', aggregateType: 'OPERATION',
+    })]);
+    vi.spyOn(repository, 'reconcileFailure').mockResolvedValueOnce(false);
+    const coordinator = createCoordinator({
+      send: () => Promise.reject({
+        code: 'INVALID_UPSTREAM_RESPONSE', category, deliveryOutcome,
+      }),
+    });
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(clientLogs.capture).not.toHaveBeenCalledWith(expect.objectContaining({ event }));
+  });
+
   it('prioriza AUTH sobre outcome incerto para bloquear a sessão sem reagendar', async () => {
     await seed(database, [entry('command')]);
     const coordinator = createCoordinator({
@@ -959,6 +1032,40 @@ describe('SyncCoordinatorService', () => {
     expect(JSON.stringify(clientLogs.capture.mock.calls)).not.toMatch(
       /quantity|laudo|segredo|observacao|medição/,
     );
+  });
+
+  it.each([
+    ['MATCH', 'confirmMatch', 'pending'],
+    ['MISSING', 'confirmMissing', 'pending'],
+    ['CONFLICT', 'confirmConflict', 'pending'],
+    ['INCONCLUSIVE', 'keepConfirmationPending', 'pending'],
+  ] as const)('não emite eventos de confirmação se %s perde a corrida CAS', async (
+    kind,
+    repositoryMethod,
+    expected,
+  ) => {
+    await seed(database, [entry('uncertain', {
+      commandType: 'CREATE_STOP',
+      aggregateType: 'STOP',
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    })]);
+    vi.spyOn(repository, repositoryMethod).mockResolvedValueOnce(false);
+    const coordinator = createCoordinator({ send: vi.fn() }, {}, [confirmationHandler(kind)]);
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe(expected);
+
+    expect(clientLogs.capture).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_confirmation_checked',
+    }));
+    expect(clientLogs.capture).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_delivery_confirmed',
+    }));
+    expect(clientLogs.capture).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_delivery_uncertain',
+    }));
   });
 
   it('mantém entrega incerta quando o receipt da consulta não corresponde ao comando', async () => {

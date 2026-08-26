@@ -37,23 +37,85 @@ describe('client log contracts', () => {
     expect(result.event.context).toEqual(valid().context);
   });
 
+  const deliveryEvent = (event: string, context: Record<string, unknown>) => ({
+    timestamp: '2026-08-14T20:00:00.000Z',
+    level: event === 'sync_delivery_rejected' ? 'error' : 'warn',
+    category: 'synchronization',
+    event,
+    correlationId: 'corr-delivery-1',
+    context: {
+      commandType: 'START_OPERATION', aggregateType: 'OPERATION', attemptCount: 2,
+      ...context,
+    },
+  });
+
   it.each([
-    'NOT_DELIVERED', 'REJECTED', 'UNCERTAIN', 'CONFIRMED',
-  ] as const)('aceita o outcome técnico permitido %s em uma transição de entrega', (deliveryOutcome) => {
+    ['confirmada', 'sync_delivery_confirmed', 'info', {
+      fromStatus: 'SYNCING', toStatus: 'SYNCED', deliveryOutcome: 'CONFIRMED',
+    }],
+    ['rejeitada', 'sync_delivery_rejected', 'error', {
+      fromStatus: 'SYNCING', toStatus: 'ERROR', deliveryOutcome: 'REJECTED',
+      failureCategory: 'VALIDATION', code: 'COMMAND_REJECTED',
+    }],
+    ['incerta', 'sync_delivery_uncertain', 'warn', {
+      fromStatus: 'SYNCING', toStatus: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+      failureCategory: 'TRANSIENT', code: 'INVALID_UPSTREAM_RESPONSE',
+    }],
+    ['consulta MATCH', 'sync_confirmation_checked', 'info', {
+      fromStatus: 'CONFIRMATION_PENDING', toStatus: 'SYNCED',
+      deliveryOutcome: 'CONFIRMED', confirmationResult: 'MATCH',
+    }],
+    ['consulta MISSING', 'sync_confirmation_checked', 'info', {
+      fromStatus: 'CONFIRMATION_PENDING', toStatus: 'PENDING',
+      deliveryOutcome: 'NOT_DELIVERED', confirmationResult: 'MISSING',
+    }],
+    ['consulta CONFLICT', 'sync_confirmation_checked', 'info', {
+      fromStatus: 'CONFIRMATION_PENDING', toStatus: 'ERROR',
+      deliveryOutcome: 'UNCERTAIN', confirmationResult: 'CONFLICT',
+      failureCategory: 'CONFLICT', code: 'REMOTE_CONTENT_CONFLICT',
+    }],
+    ['consulta INCONCLUSIVE', 'sync_confirmation_checked', 'info', {
+      fromStatus: 'CONFIRMATION_PENDING', toStatus: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN', confirmationResult: 'INCONCLUSIVE',
+      failureCategory: 'TRANSIENT', code: 'REMOTE_LOOKUP_UNAVAILABLE',
+    }],
+  ] as const)('aceita a transição de entrega %s', (_name, event, level, context) => {
+    expect(validateClientLogEvent({ ...deliveryEvent(event, context), level }).ok).toBe(true);
+  });
+
+  it.each([
+    ['mensagem livre', { message: 'laudo=segredo' }],
+    ['stack livre', { stack: 'stack segredo' }],
+    ['confirmada com outcome incerto', { deliveryOutcome: 'UNCERTAIN' }],
+    ['confirmada com código de falha', { code: 'UNEXPECTED' }],
+  ])('rejeita evento de entrega confirmado com %s', (_name, override) => {
     expect(validateClientLogEvent({
-      ...valid(),
-      category: 'synchronization',
-      event: 'sync_delivery_uncertain',
-      context: {
-        commandType: 'START_OPERATION',
-        aggregateType: 'OPERATION',
-        fromStatus: 'SYNCING',
-        toStatus: 'CONFIRMATION_PENDING',
-        deliveryOutcome,
-        attemptCount: 2,
-        code: 'RESULT_RECEIPT_INVALID',
-      },
-    }).ok).toBe(true);
+      ...deliveryEvent('sync_delivery_confirmed', {
+        level: 'info', fromStatus: 'SYNCING', toStatus: 'SYNCED', deliveryOutcome: 'CONFIRMED',
+      }),
+      ...override,
+    }).ok).toBe(false);
+  });
+
+  it.each([
+    ['rejeitada incerta', 'sync_delivery_rejected', {
+      fromStatus: 'SYNCING', toStatus: 'ERROR', deliveryOutcome: 'UNCERTAIN',
+      failureCategory: 'VALIDATION', code: 'COMMAND_REJECTED',
+    }],
+    ['incerta confirmada', 'sync_delivery_uncertain', {
+      fromStatus: 'SYNCING', toStatus: 'CONFIRMATION_PENDING', deliveryOutcome: 'CONFIRMED',
+      failureCategory: 'TRANSIENT', code: 'INVALID_UPSTREAM_RESPONSE',
+    }],
+    ['incerta sem categoria', 'sync_delivery_uncertain', {
+      fromStatus: 'SYNCING', toStatus: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+      code: 'INVALID_UPSTREAM_RESPONSE',
+    }],
+    ['consulta com matriz inválida', 'sync_confirmation_checked', {
+      fromStatus: 'CONFIRMATION_PENDING', toStatus: 'SYNCED',
+      deliveryOutcome: 'UNCERTAIN', confirmationResult: 'MATCH',
+    }],
+  ] as const)('rejeita combinação impossível de %s', (_name, event, context) => {
+    expect(validateClientLogEvent(deliveryEvent(event, context)).ok).toBe(false);
   });
 
   it.each([

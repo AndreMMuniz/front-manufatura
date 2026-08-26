@@ -25,6 +25,7 @@ export const CLIENT_LOG_EVENTS = [
   'sync_delivery_rejected',
   'sync_delivery_uncertain',
   'sync_delivery_confirmed',
+  'sync_confirmation_checked',
 ] as const;
 export type ClientLogEventName = (typeof CLIENT_LOG_EVENTS)[number];
 
@@ -88,6 +89,11 @@ export const CLIENT_DELIVERY_OUTCOMES = [
 ] as const;
 export type ClientDeliveryOutcome = (typeof CLIENT_DELIVERY_OUTCOMES)[number];
 
+export const CLIENT_CONFIRMATION_RESULTS = [
+  'MATCH', 'MISSING', 'CONFLICT', 'INCONCLUSIVE',
+] as const;
+export type ClientConfirmationResult = (typeof CLIENT_CONFIRMATION_RESULTS)[number];
+
 export const CLIENT_FAILURE_CATEGORIES = [
   'TRANSIENT', 'AUTH', 'VALIDATION', 'CONFLICT', 'CONFIGURATION',
   'HTTP', 'NETWORK', 'TIMEOUT', 'ABORT', 'STORAGE', 'UNKNOWN',
@@ -112,6 +118,7 @@ export interface ClientLogContext {
   readonly fromStatus?: ClientSyncStatus;
   readonly toStatus?: ClientSyncStatus;
   readonly deliveryOutcome?: ClientDeliveryOutcome;
+  readonly confirmationResult?: ClientConfirmationResult;
   readonly attemptCount?: number;
   readonly stage?: ClientSyncStage;
   readonly cryptoAvailable?: boolean;
@@ -142,6 +149,7 @@ const CONTEXT_KEYS = new Set([
   'method', 'route', 'status', 'durationMs', 'code', 'failureCategory',
   'commandType', 'aggregateType', 'fromStatus', 'toStatus', 'attemptCount', 'stage',
   'deliveryOutcome',
+  'confirmationResult',
   'cryptoAvailable', 'randomUuidAvailable', 'secureContext', 'insecureHttpTestMode',
 ]);
 const LEVELS: readonly AppLogLevel[] = ['debug', 'info', 'warn', 'error'];
@@ -171,6 +179,7 @@ export function validateClientLogEvent(value: unknown): ClientLogValidationResul
 
   const context = validateContext(root['context']);
   if (root['context'] !== undefined && !context) return { ok: false };
+  if (!validEventSemantics(event, category, level, message, stack, context)) return { ok: false };
   return {
     ok: true,
     event: {
@@ -240,6 +249,7 @@ function validateContext(value: unknown): Readonly<ClientLogContext> | undefined
     || !optionalMember(context['fromStatus'], CLIENT_SYNC_STATUSES)
     || !optionalMember(context['toStatus'], CLIENT_SYNC_STATUSES)
     || !optionalMember(context['deliveryOutcome'], CLIENT_DELIVERY_OUTCOMES)
+    || !optionalMember(context['confirmationResult'], CLIENT_CONFIRMATION_RESULTS)
     || !optionalInteger(context['attemptCount'], 0, 1_000_000)
     || !optionalMember(context['stage'], CLIENT_SYNC_STAGES)
     || !optionalBoolean(context['cryptoAvailable'])
@@ -248,6 +258,122 @@ function validateContext(value: unknown): Readonly<ClientLogContext> | undefined
     || !optionalBoolean(context['insecureHttpTestMode'])
   ) return undefined;
   return sanitizeLogMetadata(context) as ClientLogContext;
+}
+
+function validEventSemantics(
+  event: ClientLogEventName,
+  category: ClientLogCategory,
+  level: AppLogLevel,
+  message: string | undefined,
+  stack: string | undefined,
+  context: Readonly<ClientLogContext> | undefined,
+): boolean {
+  if (!isDeliveryEvent(event)) return true;
+  if (category !== 'synchronization' || message !== undefined || stack !== undefined || !context) {
+    return false;
+  }
+  if (!hasOnlyDeliveryFields(context) || !hasDeliveryIdentity(context)) return false;
+  switch (event) {
+    case 'sync_delivery_confirmed':
+      return level === 'info'
+        && context.fromStatus !== undefined
+        && ['SYNCING', 'CONFIRMATION_PENDING'].includes(context.fromStatus)
+        && context.toStatus === 'SYNCED'
+        && context.deliveryOutcome === 'CONFIRMED'
+        && context.code === undefined
+        && context.failureCategory === undefined
+        && context.confirmationResult === undefined;
+    case 'sync_delivery_rejected':
+      return level === 'error'
+        && context.fromStatus === 'SYNCING'
+        && context.toStatus === 'ERROR'
+        && context.deliveryOutcome === 'REJECTED'
+        && hasFailureDetails(context)
+        && ['VALIDATION', 'CONFLICT'].includes(context.failureCategory)
+        && context.confirmationResult === undefined;
+    case 'sync_delivery_uncertain':
+      return level === 'warn'
+        && context.deliveryOutcome === 'UNCERTAIN'
+        && hasFailureDetails(context)
+        && context.confirmationResult === undefined
+        && (
+          (context.fromStatus === 'SYNCING'
+            && context.toStatus === 'CONFIRMATION_PENDING'
+            && context.failureCategory === 'TRANSIENT')
+          || (context.fromStatus === 'CONFIRMATION_PENDING'
+            && context.toStatus === 'ERROR'
+            && context.failureCategory === 'CONFLICT')
+          || (context.fromStatus === 'CONFIRMATION_PENDING'
+            && context.toStatus === 'CONFIRMATION_PENDING'
+            && context.failureCategory === 'TRANSIENT')
+        );
+    case 'sync_confirmation_checked':
+      return level === 'info' && validConfirmationCheck(context);
+    default:
+      return false;
+  }
+}
+
+function isDeliveryEvent(event: ClientLogEventName): boolean {
+  return event === 'sync_delivery_confirmed'
+    || event === 'sync_delivery_rejected'
+    || event === 'sync_delivery_uncertain'
+    || event === 'sync_confirmation_checked';
+}
+
+function hasOnlyDeliveryFields(context: Readonly<ClientLogContext>): boolean {
+  const allowed = new Set([
+    'commandType', 'aggregateType', 'fromStatus', 'toStatus', 'deliveryOutcome',
+    'confirmationResult', 'attemptCount', 'failureCategory', 'code',
+  ]);
+  return Object.keys(context).every(key => allowed.has(key));
+}
+
+function hasDeliveryIdentity(context: Readonly<ClientLogContext>): boolean {
+  return context.commandType !== undefined
+    && context.aggregateType !== undefined
+    && context.fromStatus !== undefined
+    && context.toStatus !== undefined
+    && context.deliveryOutcome !== undefined
+    && context.attemptCount !== undefined;
+}
+
+function hasFailureDetails(context: Readonly<ClientLogContext>): context is Readonly<ClientLogContext> & {
+  readonly code: string;
+  readonly failureCategory: ClientFailureCategory;
+} {
+  return context.code !== undefined && context.failureCategory !== undefined;
+}
+
+function validConfirmationCheck(context: Readonly<ClientLogContext>): boolean {
+  switch (context.confirmationResult) {
+    case 'MATCH':
+      return context.fromStatus === 'CONFIRMATION_PENDING'
+        && context.toStatus === 'SYNCED'
+        && context.deliveryOutcome === 'CONFIRMED'
+        && context.code === undefined
+        && context.failureCategory === undefined;
+    case 'MISSING':
+      return context.fromStatus === 'CONFIRMATION_PENDING'
+        && context.toStatus === 'PENDING'
+        && context.deliveryOutcome === 'NOT_DELIVERED'
+        && context.code === undefined
+        && context.failureCategory === undefined;
+    case 'CONFLICT':
+      return context.fromStatus === 'CONFIRMATION_PENDING'
+        && context.toStatus === 'ERROR'
+        && context.deliveryOutcome === 'UNCERTAIN'
+        && context.failureCategory === 'CONFLICT'
+        && context.code !== undefined;
+    case 'INCONCLUSIVE':
+      return context.fromStatus === 'CONFIRMATION_PENDING'
+        && context.toStatus === 'CONFIRMATION_PENDING'
+        && context.deliveryOutcome === 'UNCERTAIN'
+        && context.failureCategory === 'TRANSIENT'
+        && context.code !== undefined;
+    default:
+      return false;
+  }
 }
 
 function dataRecord(
