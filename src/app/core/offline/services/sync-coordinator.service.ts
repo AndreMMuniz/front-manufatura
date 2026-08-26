@@ -211,14 +211,11 @@ export class SyncCoordinatorService implements OnDestroy {
           }
         }
         case 'MISSING': {
-          const now = this.clock();
-          const delay = calculateRetryDelay(entry.attemptCount, this.random(), this.config);
           try {
             const changed = await this.outbox.confirmMissing({
               ownerId: owner,
               localId,
-              now: validDate(now),
-              nextAttemptAt: validDate(new Date(now.getTime() + delay)),
+              now: this.nowIso(),
             });
             return changed ? 'queued' : 'pending';
           } catch {

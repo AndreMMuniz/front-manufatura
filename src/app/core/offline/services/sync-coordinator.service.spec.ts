@@ -798,8 +798,8 @@ describe('SyncCoordinatorService', () => {
 
   it.each([
     ['MATCH', 'confirmed', { status: 'SYNCED', deliveryOutcome: 'CONFIRMED' }],
-    ['MISSING', 'queued', { status: 'RETRY_WAIT', deliveryOutcome: 'NOT_DELIVERED' }],
-    ['CONFLICT', 'conflict', { status: 'ERROR', deliveryOutcome: 'REJECTED' }],
+    ['MISSING', 'queued', { status: 'PENDING', deliveryOutcome: 'NOT_DELIVERED' }],
+    ['CONFLICT', 'conflict', { status: 'ERROR', deliveryOutcome: 'UNCERTAIN' }],
     ['INCONCLUSIVE', 'pending', {
       status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
     }],
@@ -829,6 +829,9 @@ describe('SyncCoordinatorService', () => {
     await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe(expected);
 
     expect(await repository.getById(OWNER, 'uncertain')).toMatchObject(persisted);
+    if (kind === 'MISSING') {
+      expect(await repository.getById(OWNER, 'uncertain')).not.toHaveProperty('nextAttemptAt');
+    }
     expect(send).not.toHaveBeenCalled();
     const after = await repository.getById(OWNER, 'uncertain');
     expect({

@@ -46,7 +46,6 @@ export interface ConfirmMissingRequest {
   readonly ownerId: string;
   readonly localId: string;
   readonly now: string;
-  readonly nextAttemptAt: string;
 }
 
 export interface ConfirmConflictRequest {
@@ -457,12 +456,10 @@ export class OutboxRepository {
   async confirmMissing(request: ConfirmMissingRequest): Promise<boolean> {
     const owner = assertOwnerId(request.ownerId);
     const now = validIso(request.now);
-    const nextAttemptAt = validIso(request.nextAttemptAt);
     return this.updateConfirmationPending(owner, request.localId, (current) => ({
       ...withoutRuntimeState(current),
-      status: 'RETRY_WAIT',
+      status: 'PENDING',
       deliveryOutcome: 'NOT_DELIVERED',
-      nextAttemptAt,
       updatedAt: now,
     } satisfies OutboxEntry<JsonValue>));
   }
@@ -473,11 +470,11 @@ export class OutboxRepository {
     return this.updateConfirmationPending(owner, request.localId, (current) => ({
       ...withoutRuntimeState(current),
       status: 'ERROR',
-      deliveryOutcome: 'REJECTED',
+      deliveryOutcome: 'UNCERTAIN',
       lastError: {
         code: request.code,
         category: 'CONFLICT',
-        deliveryOutcome: 'REJECTED',
+        deliveryOutcome: 'UNCERTAIN',
         userMessage: request.userMessage,
       },
       updatedAt: now,

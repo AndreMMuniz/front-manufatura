@@ -503,7 +503,6 @@ describe('OutboxRepository processing', () => {
       ownerId: OWNER,
       localId: 'missing',
       now: NOW,
-      nextAttemptAt: '2026-07-29T13:00:10.000Z',
     })).toBe(true);
     expect(await repository.confirmConflict({
       ownerId: OWNER,
@@ -524,13 +523,13 @@ describe('OutboxRepository processing', () => {
       status: 'SYNCED', deliveryOutcome: 'CONFIRMED', receipt: { serverRecordId: 'server-match' },
     });
     expect(await repository.getById(OWNER, 'missing')).toMatchObject({
-      status: 'RETRY_WAIT', deliveryOutcome: 'NOT_DELIVERED',
-      nextAttemptAt: '2026-07-29T13:00:10.000Z',
+      status: 'PENDING', deliveryOutcome: 'NOT_DELIVERED',
     });
+    expect(await repository.getById(OWNER, 'missing')).not.toHaveProperty('nextAttemptAt');
     expect(await repository.getById(OWNER, 'conflict')).toMatchObject({
-      status: 'ERROR', deliveryOutcome: 'REJECTED',
+      status: 'ERROR', deliveryOutcome: 'UNCERTAIN',
       lastError: {
-        code: 'REMOTE_CONTENT_CONFLICT', category: 'CONFLICT', deliveryOutcome: 'REJECTED',
+        code: 'REMOTE_CONTENT_CONFLICT', category: 'CONFLICT', deliveryOutcome: 'UNCERTAIN',
       },
     });
     expect(await repository.getById(OWNER, 'inconclusive')).toMatchObject({
@@ -555,13 +554,12 @@ describe('OutboxRepository processing', () => {
         ownerId: OWNER,
         localId: 'race',
         now: NOW,
-        nextAttemptAt: '2026-07-29T13:00:10.000Z',
       }),
     ]);
 
     expect([matched, missing].filter(Boolean)).toHaveLength(1);
     expect(await repository.getById(OWNER, 'race')).toMatchObject({
-      status: expect.stringMatching(/^(SYNCED|RETRY_WAIT)$/),
+      status: expect.stringMatching(/^(SYNCED|PENDING)$/),
     });
   });
 
