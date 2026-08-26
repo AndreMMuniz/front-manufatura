@@ -16,14 +16,28 @@ export interface QualityControlDatasulConfig {
   readonly requestTimeoutMs: number;
 }
 
+export type GatewayCommandErrorDetails = {
+  readonly category: 'TRANSIENT' | 'AUTH' | 'VALIDATION' | 'CONFLICT';
+  readonly deliveryOutcome: 'NOT_DELIVERED' | 'REJECTED' | 'UNCERTAIN';
+  readonly userMessage: string;
+};
+
 export class QualityControlGatewayError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    details: GatewayCommandErrorDetails = legacyGatewayDetails(status, code),
   ) {
     super(code);
     this.name = 'QualityControlGatewayError';
+    this.category = details.category;
+    this.deliveryOutcome = details.deliveryOutcome;
+    this.userMessage = details.userMessage;
   }
+
+  readonly category: GatewayCommandErrorDetails['category'];
+  readonly deliveryOutcome: GatewayCommandErrorDetails['deliveryOutcome'];
+  readonly userMessage: string;
 }
 
 export type QualityControlTransport = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -35,7 +49,9 @@ export function readQualityControlDatasulConfig(env: QualityControlEnvironment):
   try {
     baseUrl = new URL(env['DATASUL_BASE_URL'] ?? '');
   } catch {
-    throw new QualityControlGatewayError(503, 'quality-control-gateway-not-configured');
+    throw new QualityControlGatewayError(
+      503, 'quality-control-gateway-not-configured', notConfiguredDetails(),
+    );
   }
   const companyId = Number(env['DATASUL_COMPANY_ID']);
   const requestTimeoutMs = Number(env['DATASUL_REQUEST_TIMEOUT_MS']);
@@ -55,7 +71,9 @@ export function readQualityControlDatasulConfig(env: QualityControlEnvironment):
     /[\u0000-\u001f\u007f]/u.test(integrationUser) ||
     !integrationPassword
   ) {
-    throw new QualityControlGatewayError(503, 'quality-control-gateway-not-configured');
+    throw new QualityControlGatewayError(
+      503, 'quality-control-gateway-not-configured', notConfiguredDetails(),
+    );
   }
   return { baseUrl, companyId, integrationUser, integrationPassword, requestTimeoutMs };
 }
@@ -209,14 +227,15 @@ export class QualityControlDatasulClient {
       );
     } catch (error) {
       if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-        throw new QualityControlGatewayError(504, 'datasul-timeout');
+        throw new QualityControlGatewayError(504, 'datasul-timeout', timeoutDetails());
       }
-      throw new QualityControlGatewayError(502, 'datasul-unavailable');
+      throw new QualityControlGatewayError(502, 'datasul-unavailable', transportFailureDetails(error));
     }
     if (!response.ok) {
       throw new QualityControlGatewayError(
         response.status === 401 || response.status === 403 ? 502 : response.status,
         'datasul-request-failed',
+        upstreamFailureDetails(response.status),
       );
     }
     try {
@@ -227,11 +246,87 @@ export class QualityControlDatasulClient {
     } catch (error) {
       reportUpstreamResponseFailure(this.logger, observation, response, error);
       if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-        throw new QualityControlGatewayError(504, 'datasul-timeout');
+        throw new QualityControlGatewayError(504, 'datasul-timeout', timeoutDetails());
       }
-      throw new QualityControlGatewayError(502, 'invalid-upstream-response');
+      throw new QualityControlGatewayError(502, 'invalid-upstream-response', invalidReceiptDetails());
     }
   }
+}
+
+function legacyGatewayDetails(status: number, code: string): GatewayCommandErrorDetails {
+  if (code === 'quality-control-gateway-not-configured') return notConfiguredDetails();
+  if (code === 'invalid-session' || code === 'access-denied') return {
+    category: 'AUTH', deliveryOutcome: 'NOT_DELIVERED', userMessage: 'Sua sessão não permite concluir a solicitação.',
+  };
+  if (code === 'invalid-upstream-response') return invalidReceiptDetails();
+  if (code === 'datasul-timeout') return timeoutDetails();
+  if (code === 'datasul-request-failed') return upstreamFailureDetails(status);
+  if (status === 409) return {
+    category: 'CONFLICT', deliveryOutcome: 'REJECTED', userMessage: 'A solicitação conflita com um registro existente.',
+  };
+  if (status >= 400 && status < 500) return {
+    category: 'VALIDATION', deliveryOutcome: 'REJECTED', userMessage: 'A solicitação foi recusada.',
+  };
+  return {
+    category: 'TRANSIENT', deliveryOutcome: 'UNCERTAIN',
+    userMessage: 'Não foi possível confirmar a gravação no destino.',
+  };
+}
+
+function notConfiguredDetails(): GatewayCommandErrorDetails {
+  return {
+    category: 'TRANSIENT', deliveryOutcome: 'NOT_DELIVERED',
+    userMessage: 'A integração com o destino não está disponível.',
+  };
+}
+
+function timeoutDetails(): GatewayCommandErrorDetails {
+  return {
+    category: 'TRANSIENT', deliveryOutcome: 'UNCERTAIN',
+    userMessage: 'O destino não confirmou a gravação a tempo.',
+  };
+}
+
+function invalidReceiptDetails(): GatewayCommandErrorDetails {
+  return {
+    category: 'TRANSIENT', deliveryOutcome: 'UNCERTAIN',
+    userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+  };
+}
+
+function transportFailureDetails(error: unknown): GatewayCommandErrorDetails {
+  return provedConnectionFailure(error)
+    ? {
+        category: 'TRANSIENT', deliveryOutcome: 'NOT_DELIVERED',
+        userMessage: 'Não foi possível iniciar a comunicação com o destino.',
+      }
+    : {
+        category: 'TRANSIENT', deliveryOutcome: 'UNCERTAIN',
+        userMessage: 'A comunicação com o destino foi interrompida; confirme antes de reenviar.',
+      };
+}
+
+function upstreamFailureDetails(status: number): GatewayCommandErrorDetails {
+  if (status >= 400 && status < 500) {
+    return {
+      category: 'VALIDATION', deliveryOutcome: 'REJECTED', userMessage: 'O destino recusou a solicitação.',
+    };
+  }
+  return {
+    category: 'TRANSIENT', deliveryOutcome: 'UNCERTAIN',
+    userMessage: 'O destino não confirmou a gravação.',
+  };
+}
+
+function provedConnectionFailure(error: unknown): boolean {
+  const causes = new Set(['ENOTFOUND', 'ECONNREFUSED', 'EHOSTUNREACH']);
+  let candidate = error;
+  for (let depth = 0; depth < 3 && candidate && typeof candidate === 'object'; depth += 1) {
+    const record = candidate as { code?: unknown; cause?: unknown };
+    if (typeof record.code === 'string' && causes.has(record.code)) return true;
+    candidate = record.cause;
+  }
+  return false;
 }
 
 function validatePendingAuthorizationsEnvelope(value: unknown): void {

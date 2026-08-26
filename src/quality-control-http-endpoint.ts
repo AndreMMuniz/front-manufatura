@@ -15,6 +15,7 @@ import {
   type QualityControlTransport,
 } from './quality-control-datasul-client';
 import type { ApplicationLogger } from './logging/log-contracts';
+import { getRequestCorrelationId } from './server-observability';
 
 const ROOT = '/api/quality-control';
 
@@ -325,7 +326,14 @@ async function handle(
     res.status(200).json(await operation(client, subject));
   } catch (error) {
     if (error instanceof QualityControlGatewayError) {
-      res.status(error.status).json({ code: error.code });
+      const correlationId = getRequestCorrelationId();
+      res.status(error.status).json({
+        code: error.code,
+        category: error.category,
+        deliveryOutcome: error.deliveryOutcome,
+        userMessage: error.userMessage,
+        ...(safeCorrelationId(correlationId) ? { correlationId } : {}),
+      });
       return;
     }
     res.status(400).json({ code: 'invalid-request' });
@@ -435,4 +443,8 @@ function upstreamFiniteNumber(value: unknown): number {
 
 function invalidUpstream(): QualityControlGatewayError {
   return new QualityControlGatewayError(502, 'invalid-upstream-response');
+}
+
+function safeCorrelationId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(value);
 }

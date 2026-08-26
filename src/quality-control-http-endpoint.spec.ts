@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAppSessionToken } from './app-session-token';
 import { APP_PERMISSIONS } from './app-permissions';
+import { requestObservabilityMiddleware } from './server-observability';
+import { noopLogger } from './logging/log-contracts';
 import {
   buildQualityResultPayload,
   installQualityControlEndpoints,
@@ -82,8 +84,14 @@ afterEach(async () => {
   );
 });
 
-async function startGateway(transport: typeof fetch): Promise<string> {
+async function startGateway(
+  transport: typeof fetch,
+  options: { readonly withCorrelation?: boolean } = {},
+): Promise<string> {
   const app = express();
+  if (options.withCorrelation) {
+    app.use(requestObservabilityMiddleware(noopLogger));
+  }
   installQualityControlEndpoints(app, { env: ENV, transport });
   let server!: RunningServer;
   await new Promise<void>((resolve, reject) => {
@@ -171,6 +179,63 @@ describe('gateway Plano Controle CQ', () => {
     await expect(response.json()).resolves.toEqual(REAL_RESULT_EXAM_RECEIPT);
   });
 
+  it('expõe rejeição 4xx com envelope sanitizado e correlação válida', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      JSON.stringify({ message: 'segredo que não pode chegar ao browser' }),
+      { status: 422, headers: { 'content-type': 'application/json' } },
+    ));
+    const root = await startGateway(transport, { withCorrelation: true });
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/results`, {
+      method: 'PUT',
+      headers: {
+        authorization: `Bearer ${issued.token}`,
+        'content-type': 'application/json',
+        'x-correlation-id': 'corr-123',
+      },
+      body: JSON.stringify({ nrFicha: 64378, codExame: 1845, codComponente: 3, resultado: 1 }),
+    });
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      code: 'datasul-request-failed',
+      category: 'VALIDATION',
+      deliveryOutcome: 'REJECTED',
+      userMessage: 'O destino recusou a solicitação.',
+      correlationId: 'corr-123',
+    });
+  });
+
+  it('expõe recibo inválido após HTTP 200 como entrega incerta sem dados do destino', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      JSON.stringify({ total: 1, hasNext: false, items: [{ nrFicha: 64378, resultado: 'segredo' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/results`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64378, codExame: 1845, codComponente: 3, resultado: 1 }),
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      code: 'invalid-upstream-response',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+    });
+  });
+
   it('preserva a capitalização observada em roteiros e finalização', async () => {
     const transport = vi.fn<typeof fetch>().mockImplementation(
       async () =>
@@ -252,7 +317,12 @@ describe('gateway Plano Controle CQ', () => {
     });
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ code: 'invalid-request' });
+    await expect(response.json()).resolves.toEqual({
+      code: 'invalid-request',
+      category: 'VALIDATION',
+      deliveryOutcome: 'REJECTED',
+      userMessage: 'A solicitação foi recusada.',
+    });
     expect(transport).not.toHaveBeenCalled();
   });
 
@@ -589,7 +659,12 @@ describe('gateway Plano Controle CQ', () => {
     });
 
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ code: 'invalid-upstream-response' });
+    await expect(response.json()).resolves.toEqual({
+      code: 'invalid-upstream-response',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+    });
   });
 
   it('nega as rotas de autorização para sessão que possui somente fcq-0001', async () => {
@@ -728,7 +803,12 @@ describe('gateway Plano Controle CQ', () => {
     });
 
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ code: 'invalid-upstream-response' });
+    await expect(response.json()).resolves.toEqual({
+      code: 'invalid-upstream-response',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+    });
     expect(transport).toHaveBeenCalledOnce();
   });
 
@@ -761,7 +841,12 @@ describe('gateway Plano Controle CQ', () => {
     });
 
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ code: 'invalid-upstream-response' });
+    await expect(response.json()).resolves.toEqual({
+      code: 'invalid-upstream-response',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+    });
   });
 
   it('salva resultado autorizado nas três representações e deriva codUsuario da sessão', async () => {

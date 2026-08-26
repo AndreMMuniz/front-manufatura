@@ -46,6 +46,74 @@ function clientRespondingWith(value: unknown): QualityControlDatasulClient {
   );
 }
 
+function clientWithFailedTransport(error: unknown): QualityControlDatasulClient {
+  const transport = vi.fn<typeof fetch>().mockRejectedValue(error);
+  return new QualityControlDatasulClient(
+    readQualityControlDatasulConfig(ENV), transport, () => new AbortController().signal,
+  );
+}
+
+describe('QualityControlDatasulClient delivery outcomes', () => {
+  it('classifica recusa de conexão comprovada como não entregue', async () => {
+    const refused = Object.assign(new Error('não expor este detalhe'), { code: 'ECONNREFUSED' });
+
+    await expect(clientWithFailedTransport(refused).saveResult({
+      nrFicha: 64462, codExame: 1845, codComponente: 3, codUsuario: 'Mjocelio', resultado: 24.01,
+    })).rejects.toMatchObject({
+      category: 'TRANSIENT',
+      deliveryOutcome: 'NOT_DELIVERED',
+    });
+  });
+
+  it('classifica timeout após iniciar a chamada como entrega incerta', async () => {
+    const timeout = new DOMException('não expor este detalhe', 'TimeoutError');
+
+    await expect(clientWithFailedTransport(timeout).saveResult({
+      nrFicha: 64462, codExame: 1845, codComponente: 3, codUsuario: 'Mjocelio', resultado: 24.01,
+    })).rejects.toMatchObject({
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+    });
+  });
+
+  it('mantém causa de comunicação desconhecida como entrega incerta', async () => {
+    await expect(clientWithFailedTransport(new Error('não expor este detalhe')).saveResult({
+      nrFicha: 64462, codExame: 1845, codComponente: 3, codUsuario: 'Mjocelio', resultado: 24.01,
+    })).rejects.toMatchObject({
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+    });
+  });
+
+  it('classifica recusa 4xx do destino como rejeitada', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 422 }));
+    const client = new QualityControlDatasulClient(
+      readQualityControlDatasulConfig(ENV), transport, () => new AbortController().signal,
+    );
+
+    await expect(client.saveResult({
+      nrFicha: 64462, codExame: 1845, codComponente: 3, codUsuario: 'Mjocelio', resultado: 24.01,
+    })).rejects.toMatchObject({
+      category: 'VALIDATION',
+      deliveryOutcome: 'REJECTED',
+    });
+  });
+
+  it('mantém resposta 5xx do destino como entrega incerta', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 503 }));
+    const client = new QualityControlDatasulClient(
+      readQualityControlDatasulConfig(ENV), transport, () => new AbortController().signal,
+    );
+
+    await expect(client.saveResult({
+      nrFicha: 64462, codExame: 1845, codComponente: 3, codUsuario: 'Mjocelio', resultado: 24.01,
+    })).rejects.toMatchObject({
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+    });
+  });
+});
+
 describe('QualityControlDatasulClient ResultExames receipt', () => {
   it('aceita tipoResultado 4 gravado com classificação de faixa ainda não informada', async () => {
     const receipt = {
@@ -117,6 +185,12 @@ describe('QualityControlDatasulClient ResultExames receipt', () => {
 
     await expect(client.saveResult({
       nrFicha: 64462, codExame: 1845, codComponente: 3, codUsuario: 'Mjocelio', resultado: 24.01,
-    })).rejects.toMatchObject({ status: 502, code: 'invalid-upstream-response' });
+    })).rejects.toMatchObject({
+      status: 502,
+      code: 'invalid-upstream-response',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+    });
   });
 });
