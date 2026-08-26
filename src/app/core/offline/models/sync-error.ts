@@ -42,6 +42,8 @@ export const DEFAULT_SYNC_SCHEDULER_CONFIG: SyncSchedulerConfig = Object.freeze(
 });
 
 const MAX_SAFE_RETRY_AFTER_SECONDS = 8_000_000_000_000;
+const STRUCTURED_OPERATIONAL_MESSAGE =
+  /\b(?:payload|resultado(?:\s+medido)?|laudo|nr\s*ficha|cod\s*exame|cod\s*componente)\s*[:=]/i;
 
 export class SyncTimeoutError extends Error {
   constructor() {
@@ -198,13 +200,17 @@ function safeUserMessage(
   category: SyncErrorCategory,
   deliveryOutcome: DeliveryOutcome,
 ): string {
+  if (deliveryOutcome === 'UNCERTAIN') {
+    return defaultUserMessage(category, deliveryOutcome);
+  }
   if (typeof value !== 'string') {
     return defaultUserMessage(category, deliveryOutcome);
   }
   const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 240);
   if (
     !normalized ||
-    /\b(password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha))\b/i.test(normalized)
+    /\b(password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha))\b/i.test(normalized) ||
+    STRUCTURED_OPERATIONAL_MESSAGE.test(normalized)
   ) {
     return defaultUserMessage(category, deliveryOutcome);
   }

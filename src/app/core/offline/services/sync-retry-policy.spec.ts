@@ -69,6 +69,16 @@ describe('sync retry policy', () => {
     });
   });
 
+  it('substitui mensagem remota de entrega incerta pela cópia de confirmação', () => {
+    expect(normalizeCommandError({
+      status: 502,
+      userMessage: 'O serviço falhou; uma nova tentativa será realizada.',
+    })).toMatchObject({
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: 'Não foi possível confirmar a entrega; aguarde confirmação antes de tentar novamente.',
+    });
+  });
+
   it('respeita categoria explícita do contrato antes do fallback HTTP', () => {
     expect(
       normalizeCommandError({
@@ -82,7 +92,7 @@ describe('sync retry policy', () => {
     ).toEqual({
       code: 'PROCESSING',
       category: 'TRANSIENT',
-      userMessage: 'Comando ainda em processamento.',
+      userMessage: 'Não foi possível confirmar a entrega; aguarde confirmação antes de tentar novamente.',
       correlationId: 'corr-1',
       retryAfterSeconds: 2,
       deliveryOutcome: 'UNCERTAIN',
@@ -119,6 +129,35 @@ describe('sync retry policy', () => {
       });
     },
   );
+
+  it.each([
+    'payload={"quantidade":23.8}',
+    'resultado medido: 23.8',
+    'laudo: aprovado',
+    'nrFicha=123',
+    'codExame: EX-1',
+    'codComponente=COMP-1',
+  ])('não persiste detalhe operacional estruturado: %s', (userMessage) => {
+    expect(
+      normalizeCommandError({ status: 422, category: 'VALIDATION', userMessage }),
+    ).toMatchObject({
+      deliveryOutcome: 'REJECTED',
+      userMessage: 'O comando foi rejeitado e precisa de correção.',
+    });
+  });
+
+  it('preserva motivo comum e seguro de rejeição', () => {
+    expect(
+      normalizeCommandError({
+        status: 422,
+        category: 'VALIDATION',
+        userMessage: 'A operação está fechada para apontamentos.',
+      }),
+    ).toMatchObject({
+      deliveryOutcome: 'REJECTED',
+      userMessage: 'A operação está fechada para apontamentos.',
+    });
+  });
 
   it('rejeita configuração cujo lease não cobre o timeout remoto', () => {
     expect(() =>

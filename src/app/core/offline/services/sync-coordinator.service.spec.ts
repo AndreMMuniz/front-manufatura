@@ -330,6 +330,9 @@ describe('SyncCoordinatorService', () => {
     ['UNCERTAIN', 'CONFIRMATION_PENDING'],
   ] as const)('reconcilia %s como %s', async (deliveryOutcome, status) => {
     await seed(database, [entry('command')]);
+    const userMessage = deliveryOutcome === 'UNCERTAIN'
+      ? 'Não foi possível confirmar a entrega; aguarde confirmação antes de tentar novamente.'
+      : 'Mensagem segura.';
     const transport: SyncTransport = {
       send: vi.fn().mockRejectedValueOnce({
         status: deliveryOutcome === 'REJECTED' ? 422 : 502,
@@ -348,7 +351,7 @@ describe('SyncCoordinatorService', () => {
     expect(await repository.getById(OWNER, 'command')).toMatchObject({
       status,
       deliveryOutcome,
-      lastError: { deliveryOutcome, userMessage: 'Mensagem segura.' },
+      lastError: { deliveryOutcome, userMessage },
     });
     if (deliveryOutcome === 'UNCERTAIN') {
       await coordinator.requestSync();
