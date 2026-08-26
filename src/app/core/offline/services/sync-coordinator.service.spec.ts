@@ -14,6 +14,7 @@ import { CommandConfirmationHandler, CommandConfirmationRouter } from './command
 import { SyncCoordinatorService } from './sync-coordinator.service';
 import { SyncTransport, TimeoutScheduler } from './sync-transport';
 import { SyncTriggerReason, SyncTriggerService } from './sync-trigger.service';
+import { validateClientLogEvent } from '../../../../logging/client-log-contracts';
 
 const NOW = '2026-07-29T13:00:00.000Z';
 const OWNER = 'operator-1';
@@ -405,6 +406,45 @@ describe('SyncCoordinatorService', () => {
     expect(clientLogs.capture).not.toHaveBeenCalledWith(expect.objectContaining({
       event: 'sync_delivery_rejected',
     }));
+  });
+
+  it.each([
+    ['VALIDATION', 'UNCERTAIN'],
+    ['TRANSIENT', 'REJECTED'],
+  ] as const)('bloqueia envelope incompatível %s/%s como entrega incerta observável', async (
+    category,
+    deliveryOutcome,
+  ) => {
+    await seed(database, [entry('command', {
+      commandType: 'START_OPERATION', aggregateType: 'OPERATION',
+    })]);
+    const coordinator = createCoordinator({
+      send: () => Promise.reject({
+        code: 'invalid-upstream-response', category, deliveryOutcome,
+      }),
+    });
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+      lastError: {
+        code: 'INVALID_DELIVERY_ENVELOPE', category: 'TRANSIENT', deliveryOutcome: 'UNCERTAIN',
+      },
+    });
+    const captured = clientLogs.capture.mock.calls.find(call =>
+      call[0]?.event === 'sync_delivery_uncertain')?.[0];
+    expect(captured).toMatchObject({
+      event: 'sync_delivery_uncertain',
+      context: expect.objectContaining({
+        code: 'INVALID_DELIVERY_ENVELOPE', failureCategory: 'TRANSIENT',
+        deliveryOutcome: 'UNCERTAIN',
+      }),
+    });
+    expect(validateClientLogEvent({ ...captured, timestamp: NOW }).ok).toBe(true);
   });
 
   it.each([

@@ -123,19 +123,57 @@ export function normalizeCommandError(error: unknown): NormalizedSyncError {
   const explicitCategory = apiCategory(record?.['category']);
   const status = httpStatus(record?.['status']);
   const category = explicitCategory ?? categoryForStatus(status);
-  const code = safeCode(record?.['code'], status, category);
+  const normalizedDelivery = normalizeRemoteDelivery(
+    category,
+    deliveryOutcomeOf(record?.['deliveryOutcome']),
+  );
+  const code = normalizedDelivery.invalidEnvelope
+    ? 'INVALID_DELIVERY_ENVELOPE'
+    : safeCode(record?.['code'], status, normalizedDelivery.category);
   const correlationId = safeCorrelationId(record?.['correlationId']);
   const retryAfterSeconds = safeRetryAfter(record?.['retryAfterSeconds']);
-  const deliveryOutcome = deliveryOutcomeOf(record?.['deliveryOutcome']) ?? outcomeForCategory(category);
-  const userMessage = safeUserMessage(record?.['userMessage'], category, deliveryOutcome);
+  const userMessage = safeUserMessage(
+    record?.['userMessage'],
+    normalizedDelivery.category,
+    normalizedDelivery.deliveryOutcome,
+  );
 
   return {
     code,
-    category,
+    category: normalizedDelivery.category,
     userMessage,
     ...(correlationId ? { correlationId } : {}),
     ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-    deliveryOutcome,
+    deliveryOutcome: normalizedDelivery.deliveryOutcome,
+  };
+}
+
+function normalizeRemoteDelivery(
+  category: SyncErrorCategory,
+  explicitOutcome: DeliveryOutcome | undefined,
+): {
+  readonly category: SyncErrorCategory;
+  readonly deliveryOutcome: DeliveryOutcome;
+  readonly invalidEnvelope: boolean;
+} {
+  if (category === 'AUTH') {
+    return { category, deliveryOutcome: 'NOT_DELIVERED', invalidEnvelope: false };
+  }
+  if (explicitOutcome === undefined) {
+    return { category, deliveryOutcome: outcomeForCategory(category), invalidEnvelope: false };
+  }
+  const compatible = (category === 'VALIDATION' || category === 'CONFLICT')
+    ? explicitOutcome === 'REJECTED'
+    : category === 'TRANSIENT'
+      ? explicitOutcome === 'UNCERTAIN' || explicitOutcome === 'NOT_DELIVERED'
+      : explicitOutcome === 'NOT_DELIVERED';
+  if (compatible) {
+    return { category, deliveryOutcome: explicitOutcome, invalidEnvelope: false };
+  }
+  return {
+    category: 'TRANSIENT',
+    deliveryOutcome: 'UNCERTAIN',
+    invalidEnvelope: true,
   };
 }
 

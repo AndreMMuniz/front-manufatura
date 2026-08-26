@@ -62,6 +62,39 @@ describe('sync retry policy', () => {
       .toBe('UNCERTAIN');
   });
 
+  it.each([
+    ['VALIDATION', 'UNCERTAIN'],
+    ['TRANSIENT', 'REJECTED'],
+  ] as const)('trata envelope remoto incompatível %s/%s como entrega incerta', (
+    category,
+    deliveryOutcome,
+  ) => {
+    expect(normalizeCommandError({
+      code: 'REMOTE_OUTCOME_MISMATCH', category, deliveryOutcome,
+    })).toMatchObject({
+      code: 'INVALID_DELIVERY_ENVELOPE',
+      category: 'TRANSIENT',
+      deliveryOutcome: 'UNCERTAIN',
+    });
+  });
+
+  it.each([
+    ['VALIDATION', 'REJECTED', 'VALIDATION', 'REJECTED'],
+    ['CONFLICT', 'REJECTED', 'CONFLICT', 'REJECTED'],
+    ['TRANSIENT', 'UNCERTAIN', 'TRANSIENT', 'UNCERTAIN'],
+    ['TRANSIENT', 'NOT_DELIVERED', 'TRANSIENT', 'NOT_DELIVERED'],
+    ['AUTH', 'REJECTED', 'AUTH', 'NOT_DELIVERED'],
+  ] as const)('preserva par compatível ou a precedência AUTH: %s/%s', (
+    category,
+    deliveryOutcome,
+    expectedCategory,
+    expectedOutcome,
+  ) => {
+    expect(normalizeCommandError({
+      code: 'REMOTE_CODE', category, deliveryOutcome,
+    })).toMatchObject({ category: expectedCategory, deliveryOutcome: expectedOutcome });
+  });
+
   it('não promete retry na mensagem transitória padrão quando a entrega é incerta', () => {
     expect(normalizeCommandError({ status: 502 })).toMatchObject({
       deliveryOutcome: 'UNCERTAIN',
