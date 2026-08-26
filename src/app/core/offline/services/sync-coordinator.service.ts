@@ -195,7 +195,7 @@ export class SyncCoordinatorService implements OnDestroy {
             result = validateCommandResult(request, confirmation.result);
           } catch {
             return this.keepConfirmationPending(owner, localId, 'INVALID_CONFIRMATION_RECEIPT',
-              'A consulta não confirmou a entrega.', epoch);
+              'A consulta não confirmou a entrega.', epoch, entry);
           }
           try {
             const changed = await this.outbox.confirmMatch({
@@ -204,6 +204,13 @@ export class SyncCoordinatorService implements OnDestroy {
               now: this.nowIso(),
               result,
             });
+            if (changed) {
+              this.captureTransition('sync_delivery_confirmed', 'info', entry, {
+                fromStatus: 'CONFIRMATION_PENDING',
+                toStatus: 'SYNCED',
+                deliveryOutcome: 'CONFIRMED',
+              });
+            }
             return changed ? 'confirmed' : 'pending';
           } catch {
             this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', entry);
@@ -217,6 +224,13 @@ export class SyncCoordinatorService implements OnDestroy {
               localId,
               now: this.nowIso(),
             });
+            if (changed) {
+              this.captureTransition('sync_retry_scheduled', 'warn', entry, {
+                fromStatus: 'CONFIRMATION_PENDING',
+                toStatus: 'PENDING',
+                deliveryOutcome: 'NOT_DELIVERED',
+              });
+            }
             return changed ? 'queued' : 'pending';
           } catch {
             this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', entry);
@@ -232,6 +246,15 @@ export class SyncCoordinatorService implements OnDestroy {
               code: confirmation.code,
               userMessage: confirmation.userMessage,
             });
+            if (changed) {
+              this.captureTransition('sync_delivery_uncertain', 'warn', entry, {
+                fromStatus: 'CONFIRMATION_PENDING',
+                toStatus: 'ERROR',
+                deliveryOutcome: 'UNCERTAIN',
+                failureCategory: 'CONFLICT',
+                code: safeLogCode(confirmation.code),
+              });
+            }
             return changed ? 'conflict' : 'pending';
           } catch {
             this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', entry);
@@ -245,6 +268,7 @@ export class SyncCoordinatorService implements OnDestroy {
             confirmation.code,
             confirmation.userMessage,
             epoch,
+            entry,
           );
       }
     } catch {
@@ -254,6 +278,7 @@ export class SyncCoordinatorService implements OnDestroy {
         'CONFIRMATION_LOOKUP_FAILED',
         'A consulta não foi conclusiva.',
         epoch,
+        entry,
       );
     } finally {
       this.activeRequests.delete(controller);
@@ -379,9 +404,10 @@ export class SyncCoordinatorService implements OnDestroy {
         );
         throw error;
       }
-      this.captureTransition('sync_succeeded', 'info', claimed, {
+      this.captureTransition('sync_delivery_confirmed', 'info', claimed, {
         fromStatus: 'SYNCING',
         toStatus: 'SYNCED',
+        deliveryOutcome: 'CONFIRMED',
       });
     } catch (error) {
       if (this.isCurrent(owner, epoch)) {
@@ -443,7 +469,7 @@ export class SyncCoordinatorService implements OnDestroy {
       }
       this.captureTransition('sync_blocked', 'warn', claimed, {
         fromStatus: 'SYNCING', toStatus: 'BLOCKED_AUTH',
-        failureCategory: error.category, code: error.code,
+        deliveryOutcome: 'NOT_DELIVERED', failureCategory: error.category, code: error.code,
       });
       return;
     }
@@ -473,7 +499,7 @@ export class SyncCoordinatorService implements OnDestroy {
       }
       this.captureTransition('sync_retry_scheduled', 'warn', claimed, {
         fromStatus: 'SYNCING', toStatus: 'RETRY_WAIT',
-        failureCategory: error.category, code: error.code,
+        deliveryOutcome: 'NOT_DELIVERED', failureCategory: error.category, code: error.code,
       });
       return;
     }
@@ -494,9 +520,9 @@ export class SyncCoordinatorService implements OnDestroy {
         );
         throw storageError;
       }
-      this.captureTransition('sync_failed', 'warn', claimed, {
+      this.captureTransition('sync_delivery_uncertain', 'warn', claimed, {
         fromStatus: 'SYNCING', toStatus: 'CONFIRMATION_PENDING',
-        failureCategory: error.category, code: error.code,
+        deliveryOutcome: 'UNCERTAIN', failureCategory: error.category, code: error.code,
       });
       return;
     }
@@ -518,12 +544,12 @@ export class SyncCoordinatorService implements OnDestroy {
       throw storageError;
     }
     this.captureTransition(
-      'sync_failed',
+      error.deliveryOutcome === 'REJECTED' ? 'sync_delivery_rejected' : 'sync_failed',
       'error',
       claimed,
       {
         fromStatus: 'SYNCING', toStatus: targetStatus,
-        failureCategory: error.category, code: error.code,
+        deliveryOutcome: error.deliveryOutcome, failureCategory: error.category, code: error.code,
       },
     );
   }
@@ -534,21 +560,31 @@ export class SyncCoordinatorService implements OnDestroy {
     code: string,
     userMessage: string,
     epoch: number,
+    entry: OutboxEntry<JsonValue>,
   ): Promise<ConfirmationAttemptResult> {
     if (!this.isCurrent(owner, epoch)) {
       return 'pending';
     }
     try {
-      await this.outbox.keepConfirmationPending({
+      const changed = await this.outbox.keepConfirmationPending({
         ownerId: owner,
         localId,
         now: this.nowIso(),
         code,
         userMessage,
       });
+      if (changed) {
+        this.captureTransition('sync_delivery_uncertain', 'warn', entry, {
+          fromStatus: 'CONFIRMATION_PENDING',
+          toStatus: 'CONFIRMATION_PENDING',
+          deliveryOutcome: 'UNCERTAIN',
+          failureCategory: 'TRANSIENT',
+          code: safeLogCode(code),
+        });
+      }
       return 'pending';
     } catch {
-      this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE');
+      this.captureFailure('sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', entry);
       return 'pending';
     }
   }
@@ -646,11 +682,12 @@ export class SyncCoordinatorService implements OnDestroy {
 
   private captureTransition(
     event: 'sync_send_started' | 'sync_succeeded' | 'sync_retry_scheduled'
-      | 'sync_blocked' | 'sync_failed',
+      | 'sync_blocked' | 'sync_failed' | 'sync_delivery_rejected'
+      | 'sync_delivery_uncertain' | 'sync_delivery_confirmed',
     level: 'info' | 'warn' | 'error',
     entry: OutboxEntry<JsonValue>,
     transition: Pick<ClientLogContext,
-      'fromStatus' | 'toStatus' | 'failureCategory' | 'code'>,
+      'fromStatus' | 'toStatus' | 'deliveryOutcome' | 'failureCategory' | 'code'>,
   ): void {
     const commandType = member(entry.commandType, CLIENT_COMMAND_TYPES)
       ? entry.commandType
@@ -687,4 +724,8 @@ function validDate(value: Date): string {
 
 function member<T extends string>(value: string, values: readonly T[]): value is T {
   return (values as readonly string[]).includes(value);
+}
+
+function safeLogCode(value: string): string {
+  return /^[A-Z0-9_.-]{1,64}$/.test(value) ? value : 'INVALID_CODE';
 }

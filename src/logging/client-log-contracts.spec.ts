@@ -38,6 +38,25 @@ describe('client log contracts', () => {
   });
 
   it.each([
+    'NOT_DELIVERED', 'REJECTED', 'UNCERTAIN', 'CONFIRMED',
+  ] as const)('aceita o outcome técnico permitido %s em uma transição de entrega', (deliveryOutcome) => {
+    expect(validateClientLogEvent({
+      ...valid(),
+      category: 'synchronization',
+      event: 'sync_delivery_uncertain',
+      context: {
+        commandType: 'START_OPERATION',
+        aggregateType: 'OPERATION',
+        fromStatus: 'SYNCING',
+        toStatus: 'CONFIRMATION_PENDING',
+        deliveryOutcome,
+        attemptCount: 2,
+        code: 'RESULT_RECEIPT_INVALID',
+      },
+    }).ok).toBe(true);
+  });
+
+  it.each([
     ['chave raiz extra', { ...valid(), body: { password: 'segredo' } }],
     ['categoria aberta', { ...valid(), category: 'security' }],
     ['evento aberto', { ...valid(), event: 'arbitrary_event' }],
@@ -49,6 +68,15 @@ describe('client log contracts', () => {
     ['status decimal', { ...valid(), context: { ...valid().context, status: 200.5 } }],
     ['duração infinita', { ...valid(), context: { ...valid().context, durationMs: Infinity } }],
     ['código inseguro', { ...valid(), context: { ...valid().context, code: 'Bearer segredo' } }],
+    ['outcome desconhecido', { ...valid(), context: { ...valid().context, deliveryOutcome: 'SENT' } }],
+    ['payload operacional', { ...valid(), context: { ...valid().context, payload: { quantity: 5 } } }],
+    ['resultado operacional', { ...valid(), context: { ...valid().context, result: { withinRange: false } } }],
+    ['laudo operacional', { ...valid(), context: { ...valid().context, laudo: 'segredo' } }],
+    ['observação operacional', { ...valid(), context: { ...valid().context, observacao: 'segredo' } }],
+    ['credencial operacional', { ...valid(), context: { ...valid().context, token: 'segredo' } }],
+    ['url operacional', { ...valid(), context: { ...valid().context, url: 'https://user:secret@example.test' } }],
+    ['body operacional', { ...valid(), context: { ...valid().context, body: 'senha=segredo' } }],
+    ['stack operacional', { ...valid(), context: { ...valid().context, stack: 'stack segredo' } }],
     ['tentativa negativa', { ...valid(), context: { ...valid().context, attemptCount: -1 } }],
     ['flag não booleana', { ...valid(), context: { ...valid().context, secureContext: 'sim' } }],
   ])('rejeita %s antes da sanitização', (_name, event) => {

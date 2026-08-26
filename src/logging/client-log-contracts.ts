@@ -22,6 +22,9 @@ export const CLIENT_LOG_EVENTS = [
   'sync_failed',
   'sync_cycle_failed',
   'sync_storage_failed',
+  'sync_delivery_rejected',
+  'sync_delivery_uncertain',
+  'sync_delivery_confirmed',
 ] as const;
 export type ClientLogEventName = (typeof CLIENT_LOG_EVENTS)[number];
 
@@ -80,6 +83,11 @@ export const CLIENT_SYNC_STATUSES = [
 ] as const;
 export type ClientSyncStatus = (typeof CLIENT_SYNC_STATUSES)[number];
 
+export const CLIENT_DELIVERY_OUTCOMES = [
+  'NOT_DELIVERED', 'REJECTED', 'UNCERTAIN', 'CONFIRMED',
+] as const;
+export type ClientDeliveryOutcome = (typeof CLIENT_DELIVERY_OUTCOMES)[number];
+
 export const CLIENT_FAILURE_CATEGORIES = [
   'TRANSIENT', 'AUTH', 'VALIDATION', 'CONFLICT', 'CONFIGURATION',
   'HTTP', 'NETWORK', 'TIMEOUT', 'ABORT', 'STORAGE', 'UNKNOWN',
@@ -103,6 +111,7 @@ export interface ClientLogContext {
   readonly aggregateType?: ClientAggregateType;
   readonly fromStatus?: ClientSyncStatus;
   readonly toStatus?: ClientSyncStatus;
+  readonly deliveryOutcome?: ClientDeliveryOutcome;
   readonly attemptCount?: number;
   readonly stage?: ClientSyncStage;
   readonly cryptoAvailable?: boolean;
@@ -132,6 +141,7 @@ const ROOT_KEYS = new Set([
 const CONTEXT_KEYS = new Set([
   'method', 'route', 'status', 'durationMs', 'code', 'failureCategory',
   'commandType', 'aggregateType', 'fromStatus', 'toStatus', 'attemptCount', 'stage',
+  'deliveryOutcome',
   'cryptoAvailable', 'randomUuidAvailable', 'secureContext', 'insecureHttpTestMode',
 ]);
 const LEVELS: readonly AppLogLevel[] = ['debug', 'info', 'warn', 'error'];
@@ -229,6 +239,7 @@ function validateContext(value: unknown): Readonly<ClientLogContext> | undefined
     || !optionalMember(context['aggregateType'], CLIENT_AGGREGATE_TYPES)
     || !optionalMember(context['fromStatus'], CLIENT_SYNC_STATUSES)
     || !optionalMember(context['toStatus'], CLIENT_SYNC_STATUSES)
+    || !optionalMember(context['deliveryOutcome'], CLIENT_DELIVERY_OUTCOMES)
     || !optionalInteger(context['attemptCount'], 0, 1_000_000)
     || !optionalMember(context['stage'], CLIENT_SYNC_STAGES)
     || !optionalBoolean(context['cryptoAvailable'])

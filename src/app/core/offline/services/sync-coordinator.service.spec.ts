@@ -358,6 +358,53 @@ describe('SyncCoordinatorService', () => {
       await coordinator.requestSync();
       expect(transport.send).toHaveBeenCalledTimes(1);
     }
+    if (deliveryOutcome === 'REJECTED') {
+      expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'error', category: 'synchronization', event: 'sync_delivery_rejected',
+        context: expect.objectContaining({
+          fromStatus: 'SYNCING', toStatus: 'ERROR', deliveryOutcome: 'REJECTED',
+          failureCategory: 'VALIDATION', code: 'TEST_REJECTED',
+        }),
+      }));
+    }
+    if (deliveryOutcome === 'UNCERTAIN') {
+      expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'warn', category: 'synchronization', event: 'sync_delivery_uncertain',
+        context: expect.objectContaining({
+          fromStatus: 'SYNCING', toStatus: 'CONFIRMATION_PENDING',
+          deliveryOutcome: 'UNCERTAIN', failureCategory: 'TRANSIENT', code: 'TEST_UNCERTAIN',
+        }),
+      }));
+    }
+  });
+
+  it('não rotula falha de configuração não entregue como rejeição do destino', async () => {
+    await seed(database, [entry('command')]);
+    const coordinator = createCoordinator({
+      send: () => Promise.reject({
+        code: 'MISSING_REMOTE_CONFIGURATION',
+        category: 'CONFIGURATION',
+        deliveryOutcome: 'NOT_DELIVERED',
+      }),
+    });
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({
+      status: 'ERROR', deliveryOutcome: 'NOT_DELIVERED',
+    });
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_failed',
+      context: expect.objectContaining({
+        fromStatus: 'SYNCING', toStatus: 'ERROR', deliveryOutcome: 'NOT_DELIVERED',
+        failureCategory: 'CONFIGURATION', code: 'MISSING_REMOTE_CONFIGURATION',
+      }),
+    }));
+    expect(clientLogs.capture).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_delivery_rejected',
+    }));
   });
 
   it('prioriza AUTH sobre outcome incerto para bloquear a sessão sem reagendar', async () => {
@@ -743,11 +790,13 @@ describe('SyncCoordinatorService', () => {
       }),
     }));
     expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
-      event: 'sync_succeeded', correlationId: idempotencyKey,
-      context: expect.objectContaining({ fromStatus: 'SYNCING', toStatus: 'SYNCED' }),
+      event: 'sync_delivery_confirmed', correlationId: idempotencyKey,
+      context: expect.objectContaining({
+        fromStatus: 'SYNCING', toStatus: 'SYNCED', deliveryOutcome: 'CONFIRMED',
+      }),
     }));
     expect(JSON.stringify(clientLogs.capture.mock.calls)).not.toMatch(
-      /operator-1|localId|leaseToken|payload|canonical|hash-command|quantity/,
+      /operator-1|localId|leaseToken|payload|canonical|hash-command|quantity|result|laudo|observacao|token|url|body|stack/,
     );
   });
 
@@ -837,6 +886,37 @@ describe('SyncCoordinatorService', () => {
     if (kind === 'MISSING') {
       expect(await repository.getById(OWNER, 'uncertain')).not.toHaveProperty('nextAttemptAt');
     }
+    if (kind === 'MATCH') {
+      expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'info', category: 'synchronization', event: 'sync_delivery_confirmed',
+        correlationId: 'uncertain',
+        context: expect.objectContaining({
+          commandType: 'CREATE_STOP', aggregateType: 'STOP', attemptCount: 0,
+          fromStatus: 'CONFIRMATION_PENDING', toStatus: 'SYNCED', deliveryOutcome: 'CONFIRMED',
+        }),
+      }));
+    }
+    if (kind === 'CONFLICT') {
+      expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'warn', category: 'synchronization', event: 'sync_delivery_uncertain',
+        correlationId: 'uncertain',
+        context: expect.objectContaining({
+          fromStatus: 'CONFIRMATION_PENDING', toStatus: 'ERROR', deliveryOutcome: 'UNCERTAIN',
+          failureCategory: 'CONFLICT', code: 'REMOTE_CONTENT_CONFLICT',
+        }),
+      }));
+    }
+    if (kind === 'INCONCLUSIVE') {
+      expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'warn', category: 'synchronization', event: 'sync_delivery_uncertain',
+        correlationId: 'uncertain',
+        context: expect.objectContaining({
+          fromStatus: 'CONFIRMATION_PENDING', toStatus: 'CONFIRMATION_PENDING',
+          deliveryOutcome: 'UNCERTAIN', failureCategory: 'TRANSIENT',
+          code: 'REMOTE_LOOKUP_UNAVAILABLE',
+        }),
+      }));
+    }
     expect(send).not.toHaveBeenCalled();
     const after = await repository.getById(OWNER, 'uncertain');
     expect({
@@ -850,6 +930,35 @@ describe('SyncCoordinatorService', () => {
       payloadHash: before?.payloadHash,
       idempotencyKey: before?.idempotencyKey,
     });
+  });
+
+  it('não envia código ou mensagem operacional da confirmação ao log', async () => {
+    await seed(database, [entry('uncertain', {
+      commandType: 'CREATE_STOP',
+      aggregateType: 'STOP',
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    })]);
+    const coordinator = createCoordinator({ send: vi.fn() }, {}, [{
+      commandType: 'CREATE_STOP',
+      confirm: async () => ({
+        kind: 'CONFLICT',
+        code: 'payload={"quantity":17}',
+        userMessage: 'laudo=segredo; observacao=medição privada',
+      }),
+    }]);
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe('conflict');
+
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_delivery_uncertain',
+      context: expect.objectContaining({ code: 'INVALID_CODE' }),
+    }));
+    expect(JSON.stringify(clientLogs.capture.mock.calls)).not.toMatch(
+      /quantity|laudo|segredo|observacao|medição/,
+    );
   });
 
   it('mantém entrega incerta quando o receipt da consulta não corresponde ao comando', async () => {
