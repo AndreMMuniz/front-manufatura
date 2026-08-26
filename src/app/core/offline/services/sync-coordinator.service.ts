@@ -304,6 +304,60 @@ export class SyncCoordinatorService implements OnDestroy {
       deliveryOutcome: error.deliveryOutcome,
       ...(error.correlationId ? { correlationId: error.correlationId } : {}),
     };
+    if (error.category === 'AUTH') {
+      const authError = { ...persistedError, deliveryOutcome: 'NOT_DELIVERED' as const };
+      try {
+        await this.outbox.reconcileFailure({
+          ownerId: owner,
+          localId: claimed.localId,
+          leaseToken,
+          now: validDate(now),
+          status: 'BLOCKED_AUTH',
+          deliveryOutcome: 'NOT_DELIVERED',
+          error: authError,
+        });
+      } catch (storageError) {
+        this.captureFailure(
+          'sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', claimed,
+        );
+        throw storageError;
+      }
+      this.captureTransition('sync_blocked', 'warn', claimed, {
+        fromStatus: 'SYNCING', toStatus: 'BLOCKED_AUTH',
+        failureCategory: error.category, code: error.code,
+      });
+      return;
+    }
+    if (error.category === 'TRANSIENT' && error.deliveryOutcome === 'NOT_DELIVERED') {
+      const delay = calculateRetryDelay(
+        claimed.attemptCount,
+        this.random(),
+        this.config,
+        error.retryAfterSeconds,
+      );
+      try {
+        await this.outbox.reconcileFailure({
+          ownerId: owner,
+          localId: claimed.localId,
+          leaseToken,
+          now: validDate(now),
+          status: 'RETRY_WAIT',
+          deliveryOutcome: 'NOT_DELIVERED',
+          nextAttemptAt: validDate(new Date(now.getTime() + delay)),
+          error: persistedError,
+        });
+      } catch (storageError) {
+        this.captureFailure(
+          'sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', claimed,
+        );
+        throw storageError;
+      }
+      this.captureTransition('sync_retry_scheduled', 'warn', claimed, {
+        fromStatus: 'SYNCING', toStatus: 'RETRY_WAIT',
+        failureCategory: error.category, code: error.code,
+      });
+      return;
+    }
     if (error.deliveryOutcome === 'UNCERTAIN') {
       try {
         await this.outbox.reconcileFailure({
@@ -327,37 +381,7 @@ export class SyncCoordinatorService implements OnDestroy {
       });
       return;
     }
-    if (error.category === 'TRANSIENT') {
-      const delay = calculateRetryDelay(
-        claimed.attemptCount,
-        this.random(),
-        this.config,
-        error.retryAfterSeconds,
-      );
-      try {
-        await this.outbox.reconcileFailure({
-          ownerId: owner,
-          localId: claimed.localId,
-          leaseToken,
-          now: validDate(now),
-          status: 'RETRY_WAIT',
-          deliveryOutcome: 'NOT_DELIVERED',
-          nextAttemptAt: validDate(new Date(now.getTime() + delay)),
-          error: { ...persistedError, deliveryOutcome: 'NOT_DELIVERED' },
-        });
-      } catch (storageError) {
-        this.captureFailure(
-          'sync_storage_failed', 'reconcile_failure', 'STORAGE_FAILURE', claimed,
-        );
-        throw storageError;
-      }
-      this.captureTransition('sync_retry_scheduled', 'warn', claimed, {
-        fromStatus: 'SYNCING', toStatus: 'RETRY_WAIT',
-        failureCategory: error.category, code: error.code,
-      });
-      return;
-    }
-    const targetStatus = error.category === 'AUTH' ? 'BLOCKED_AUTH' : 'ERROR';
+    const targetStatus = 'ERROR';
     try {
       await this.outbox.reconcileFailure({
         ownerId: owner,
@@ -375,8 +399,8 @@ export class SyncCoordinatorService implements OnDestroy {
       throw storageError;
     }
     this.captureTransition(
-      error.category === 'AUTH' ? 'sync_blocked' : 'sync_failed',
-      error.category === 'AUTH' ? 'warn' : 'error',
+      'sync_failed',
+      'error',
       claimed,
       {
         fromStatus: 'SYNCING', toStatus: targetStatus,

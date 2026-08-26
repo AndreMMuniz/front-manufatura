@@ -324,6 +324,64 @@ describe('SyncCoordinatorService', () => {
     expect(sends).toBe(1);
   });
 
+  it.each([
+    ['NOT_DELIVERED', 'RETRY_WAIT'],
+    ['REJECTED', 'ERROR'],
+    ['UNCERTAIN', 'CONFIRMATION_PENDING'],
+  ] as const)('reconcilia %s como %s', async (deliveryOutcome, status) => {
+    await seed(database, [entry('command')]);
+    const transport: SyncTransport = {
+      send: vi.fn().mockRejectedValueOnce({
+        status: deliveryOutcome === 'REJECTED' ? 422 : 502,
+        code: `TEST_${deliveryOutcome}`,
+        category: deliveryOutcome === 'REJECTED' ? 'VALIDATION' : 'TRANSIENT',
+        deliveryOutcome,
+        userMessage: 'Mensagem segura.',
+      }),
+    };
+    const coordinator = createCoordinator(transport);
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({
+      status,
+      deliveryOutcome,
+      lastError: { deliveryOutcome, userMessage: 'Mensagem segura.' },
+    });
+    if (deliveryOutcome === 'UNCERTAIN') {
+      await coordinator.requestSync();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('prioriza AUTH sobre outcome incerto para bloquear a sessão sem reagendar', async () => {
+    await seed(database, [entry('command')]);
+    const coordinator = createCoordinator({
+      send: () => Promise.reject({
+        status: 401,
+        code: 'TOKEN_EXPIRED',
+        category: 'AUTH',
+        deliveryOutcome: 'UNCERTAIN',
+        userMessage: 'A sessão expirou.',
+      }),
+    });
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({
+      status: 'BLOCKED_AUTH',
+      deliveryOutcome: 'NOT_DELIVERED',
+      lastError: {
+        category: 'AUTH',
+        deliveryOutcome: 'NOT_DELIVERED',
+      },
+    });
+  });
+
   it('coordena duas instâncias na mesma IDBFactory com um único claim e envio', async () => {
     const factory = new IDBFactory();
     const firstDatabase = new OfflineDatabase(() => factory, OFFLINE_DATABASE_CONFIG);

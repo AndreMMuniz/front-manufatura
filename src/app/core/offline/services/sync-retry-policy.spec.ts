@@ -62,6 +62,13 @@ describe('sync retry policy', () => {
       .toBe('UNCERTAIN');
   });
 
+  it('não promete retry na mensagem transitória padrão quando a entrega é incerta', () => {
+    expect(normalizeCommandError({ status: 502 })).toMatchObject({
+      deliveryOutcome: 'UNCERTAIN',
+      userMessage: expect.not.stringMatching(/nova tentativa será realizada/i),
+    });
+  });
+
   it('respeita categoria explícita do contrato antes do fallback HTTP', () => {
     expect(
       normalizeCommandError({

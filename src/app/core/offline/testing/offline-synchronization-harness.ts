@@ -5,6 +5,11 @@ import { OfflineDatabase } from '../database/offline-database';
 import { JsonValue } from '../models/local-record';
 import { OutboxEntry } from '../models/outbox-entry';
 import { CommandResult } from '../models/sync-command';
+import {
+  DEFAULT_SYNC_SCHEDULER_CONFIG,
+  calculateRetryDelay,
+  normalizeCommandError,
+} from '../models/sync-error';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { transactionComplete } from '../repositories/repository-utils';
 import { toSyncCommandRequest, validateCommandResult } from '../services/sync-transport';
@@ -102,7 +107,7 @@ export class OfflineSynchronizationHarness {
           body: JSON.stringify(request),
         });
         if (!response.ok) {
-          throw new TypeError('Remote sync failed.');
+          throw { status: response.status };
         }
         const result = validateCommandResult(request, (await response.json()) as CommandResult);
         await this.outbox.reconcileSuccess({
@@ -113,23 +118,70 @@ export class OfflineSynchronizationHarness {
           result,
         });
         outcomes.push({ localId: claimed.localId, status: 'SYNCED' });
-      } catch {
-        const failureTime = new Date().toISOString();
-        await this.outbox.reconcileFailure({
-          ownerId: OWNER,
-          localId: claimed.localId,
-          leaseToken,
-          now: failureTime,
-          status: 'CONFIRMATION_PENDING',
-          deliveryOutcome: 'UNCERTAIN',
-          error: {
-            code: 'NETWORK',
-            category: 'TRANSIENT',
-            userMessage: 'Resposta indisponível; tentativa preservada.',
+      } catch (failure) {
+        const error = normalizeCommandError(failure);
+        const failureTime = new Date();
+        const persistedError = {
+          code: error.code,
+          category: error.category,
+          userMessage: error.userMessage,
+          deliveryOutcome: error.deliveryOutcome,
+          ...(error.correlationId ? { correlationId: error.correlationId } : {}),
+        };
+        if (error.category === 'AUTH') {
+          await this.outbox.reconcileFailure({
+            ownerId: OWNER,
+            localId: claimed.localId,
+            leaseToken,
+            now: failureTime.toISOString(),
+            status: 'BLOCKED_AUTH',
+            deliveryOutcome: 'NOT_DELIVERED',
+            error: { ...persistedError, deliveryOutcome: 'NOT_DELIVERED' },
+          });
+          outcomes.push({ localId: claimed.localId, status: 'BLOCKED_AUTH' });
+        } else if (error.category === 'TRANSIENT' && error.deliveryOutcome === 'NOT_DELIVERED') {
+          const nextAttemptAt = new Date(
+            failureTime.getTime() + calculateRetryDelay(
+              claimed.attemptCount,
+              0.5,
+              DEFAULT_SYNC_SCHEDULER_CONFIG,
+              error.retryAfterSeconds,
+            ),
+          ).toISOString();
+          await this.outbox.reconcileFailure({
+            ownerId: OWNER,
+            localId: claimed.localId,
+            leaseToken,
+            now: failureTime.toISOString(),
+            status: 'RETRY_WAIT',
+            deliveryOutcome: 'NOT_DELIVERED',
+            nextAttemptAt,
+            error: persistedError,
+          });
+          outcomes.push({ localId: claimed.localId, status: 'RETRY_WAIT' });
+        } else if (error.deliveryOutcome === 'UNCERTAIN') {
+          await this.outbox.reconcileFailure({
+            ownerId: OWNER,
+            localId: claimed.localId,
+            leaseToken,
+            now: failureTime.toISOString(),
+            status: 'CONFIRMATION_PENDING',
             deliveryOutcome: 'UNCERTAIN',
-          },
-        });
-        outcomes.push({ localId: claimed.localId, status: 'CONFIRMATION_PENDING' });
+            error: persistedError,
+          });
+          outcomes.push({ localId: claimed.localId, status: 'CONFIRMATION_PENDING' });
+        } else {
+          await this.outbox.reconcileFailure({
+            ownerId: OWNER,
+            localId: claimed.localId,
+            leaseToken,
+            now: failureTime.toISOString(),
+            status: 'ERROR',
+            deliveryOutcome: error.deliveryOutcome,
+            error: persistedError,
+          });
+          outcomes.push({ localId: claimed.localId, status: 'ERROR' });
+        }
       }
     }
     this.result.set(JSON.stringify({ tabId: this.tabId, outcomes }));

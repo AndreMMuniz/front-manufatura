@@ -122,10 +122,10 @@ export function normalizeCommandError(error: unknown): NormalizedSyncError {
   const status = httpStatus(record?.['status']);
   const category = explicitCategory ?? categoryForStatus(status);
   const code = safeCode(record?.['code'], status, category);
-  const userMessage = safeUserMessage(record?.['userMessage'], category);
   const correlationId = safeCorrelationId(record?.['correlationId']);
   const retryAfterSeconds = safeRetryAfter(record?.['retryAfterSeconds']);
   const deliveryOutcome = deliveryOutcomeOf(record?.['deliveryOutcome']) ?? outcomeForCategory(category);
+  const userMessage = safeUserMessage(record?.['userMessage'], category, deliveryOutcome);
 
   return {
     code,
@@ -161,7 +161,7 @@ function safeError(
   return {
     code,
     category,
-    userMessage: defaultUserMessage(category),
+    userMessage: defaultUserMessage(category, deliveryOutcome),
     deliveryOutcome,
   };
 }
@@ -193,24 +193,33 @@ function safeCode(
   return status === undefined ? `SYNC_${category}` : `HTTP_${status}`;
 }
 
-function safeUserMessage(value: unknown, category: SyncErrorCategory): string {
+function safeUserMessage(
+  value: unknown,
+  category: SyncErrorCategory,
+  deliveryOutcome: DeliveryOutcome,
+): string {
   if (typeof value !== 'string') {
-    return defaultUserMessage(category);
+    return defaultUserMessage(category, deliveryOutcome);
   }
   const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 240);
   if (
     !normalized ||
     /\b(password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha))\b/i.test(normalized)
   ) {
-    return defaultUserMessage(category);
+    return defaultUserMessage(category, deliveryOutcome);
   }
   return normalized;
 }
 
-function defaultUserMessage(category: SyncErrorCategory): string {
+function defaultUserMessage(
+  category: SyncErrorCategory,
+  deliveryOutcome = outcomeForCategory(category),
+): string {
   switch (category) {
     case 'TRANSIENT':
-      return 'Serviço temporariamente indisponível; uma nova tentativa será realizada.';
+      return deliveryOutcome === 'NOT_DELIVERED'
+        ? 'Serviço temporariamente indisponível; uma nova tentativa será realizada.'
+        : 'Não foi possível confirmar a entrega; aguarde confirmação antes de tentar novamente.';
     case 'AUTH':
       return 'A sessão precisa ser renovada para continuar a sincronização.';
     case 'VALIDATION':
