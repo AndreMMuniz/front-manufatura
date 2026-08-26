@@ -7,6 +7,7 @@ import {
   SynchronizationCenterState,
 } from '../../services/synchronization-center.service';
 import { SyncCoordinatorService } from '../../../../core/offline/services/sync-coordinator.service';
+import { ConfirmationAttemptResult } from '../../../../core/offline/services/sync-coordinator.service';
 import { SynchronizationRecoveryRegistry } from '../../services/synchronization-recovery-registry';
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import {
@@ -42,7 +43,7 @@ describe('SynchronizationCenterPage', () => {
     const test = await setup(state({
       readState: 'ready',
       items: [item()],
-      counts: { pending: 0, error: 1, syncing: 0, receipts: 0 },
+      counts: { pending: 0, error: 1, confirmationPending: 0, syncing: 0, receipts: 0 },
     }));
     const trigger = test.fixture.nativeElement.querySelector('[data-testid="sync-detail-local-1"]');
 
@@ -56,6 +57,10 @@ describe('SynchronizationCenterPage', () => {
     test.fixture.detectChanges();
     const dialog = test.fixture.nativeElement.querySelector('[role="dialog"]');
     expect(dialog.textContent).toContain('OP 100');
+    expect(dialog.textContent).toContain('Resultado da entrega');
+    expect(dialog.textContent).toContain('Código técnico');
+    expect(dialog.textContent).toContain('corr-1');
+    expect(test.fixture.nativeElement.querySelector('article').textContent).not.toContain('corr-1');
     expect(dialog.textContent).not.toMatch(/payload|hash|secret/i);
     dialog.querySelector('[data-testid="sync-close-detail"]').click();
     test.fixture.detectChanges();
@@ -117,6 +122,62 @@ describe('SynchronizationCenterPage', () => {
       .textContent).toContain('preparado para nova tentativa');
   });
 
+  it('confirma entrega pendente sem oferecer retry e informa quando o Datasul não possui consulta', async () => {
+    const pendingConfirmation = {
+      ...item(),
+      syncStatus: 'CONFIRMATION_PENDING',
+      syncStatusLabel: 'Entrega não confirmada — reenvio pausado para evitar duplicidade.',
+      deliveryOutcomeLabel: 'Entrega não confirmada',
+      availableActions: ['confirm'] as const,
+    };
+    const test = await setup(
+      state({ readState: 'ready', items: [pendingConfirmation] }),
+      Promise.resolve('queued'),
+      Promise.resolve('abandoned'),
+      Promise.resolve('unsupported'),
+    );
+
+    expect(test.fixture.nativeElement.querySelector('[data-testid="sync-retry-local-1"]')).toBeNull();
+    const confirm = test.fixture.nativeElement.querySelector('[data-testid="sync-confirm-local-1"]');
+    expect(confirm.textContent).toContain('Verificar no Datasul');
+    confirm.click();
+    await test.fixture.whenStable();
+    test.fixture.detectChanges();
+
+    expect(test.confirmDelivery).toHaveBeenCalledWith('local-1');
+    expect(test.fixture.nativeElement.querySelector('[data-testid="sync-action-feedback"]').textContent)
+      .toContain('ainda não possui consulta de confirmação');
+  });
+
+  it.each([
+    ['confirmed', 'Registro confirmado no Datasul.'],
+    ['queued', 'Registro não encontrado; um novo envio seguro foi liberado.'],
+    ['conflict', 'O Datasul contém dados diferentes; intervenção necessária.'],
+    ['pending', 'A consulta não foi conclusiva; nenhum reenvio foi realizado.'],
+  ] as const)('apresenta o resultado de confirmação %s sem reenviar', async (result, message) => {
+    const pendingConfirmation = {
+      ...item(),
+      syncStatus: 'CONFIRMATION_PENDING',
+      syncStatusLabel: 'Entrega não confirmada — reenvio pausado para evitar duplicidade.',
+      deliveryOutcomeLabel: 'Entrega não confirmada',
+      availableActions: ['confirm'] as const,
+    };
+    const test = await setup(
+      state({ readState: 'ready', items: [pendingConfirmation] }),
+      Promise.resolve('queued'),
+      Promise.resolve('abandoned'),
+      Promise.resolve(result),
+    );
+
+    test.fixture.nativeElement.querySelector('[data-testid="sync-confirm-local-1"]').click();
+    await test.fixture.whenStable();
+    test.fixture.detectChanges();
+
+    expect(test.confirmDelivery).toHaveBeenCalledOnce();
+    expect(test.fixture.nativeElement.querySelector('[data-testid="sync-action-feedback"]').textContent)
+      .toContain(message);
+  });
+
   it('confirma cancelamento crítico com justificativa, bloqueia concorrência e devolve foco', async () => {
     const abandonment = deferred<'abandoned'>();
     const test = await setup(
@@ -160,12 +221,14 @@ async function setup(
   initial: SynchronizationCenterState,
   retryResult: Promise<'queued'> = Promise.resolve('queued'),
   abandonmentResult: Promise<'abandoned'> = Promise.resolve('abandoned'),
+  confirmationResult: Promise<ConfirmationAttemptResult> = Promise.resolve('unsupported'),
 ) {
   const subject = new BehaviorSubject(initial);
   const refresh = vi.fn().mockResolvedValue(undefined);
   const loadMore = vi.fn().mockResolvedValue(undefined);
   const setFilters = vi.fn();
   const retryError = vi.fn().mockReturnValue(retryResult);
+  const confirmDelivery = vi.fn().mockReturnValue(confirmationResult);
   const abandon = vi.fn().mockReturnValue(abandonmentResult);
   await TestBed.configureTestingModule({
     imports: [SynchronizationCenterPage],
@@ -180,7 +243,7 @@ async function setup(
       },
     }, {
       provide: SyncCoordinatorService,
-      useValue: { retryError },
+      useValue: { retryError, confirmDelivery },
     }, {
       provide: SynchronizationRecoveryRegistry,
       useValue: { openCorrection: vi.fn().mockResolvedValue('opened') },
@@ -204,7 +267,7 @@ async function setup(
   }).compileComponents();
   const fixture = TestBed.createComponent(SynchronizationCenterPage);
   fixture.detectChanges();
-  return { fixture, subject, refresh, loadMore, setFilters, retryError, abandon };
+  return { fixture, subject, refresh, loadMore, setFilters, retryError, confirmDelivery, abandon };
 }
 
 function deferred<T>() {
@@ -220,7 +283,7 @@ function state(overrides: Partial<SynchronizationCenterState> = {}): Synchroniza
     ownerId: 'operator-1',
     readState: 'idle',
     items: [],
-    counts: { pending: 0, error: 0, syncing: 0, receipts: 0 },
+    counts: { pending: 0, error: 0, confirmationPending: 0, syncing: 0, receipts: 0 },
     filters: { statuses: [], modules: [] },
     nextCursor: null,
     hasMore: false,
@@ -240,7 +303,9 @@ function item() {
     createdAt: '2026-07-30T12:00:01.000Z',
     ownerId: 'operator-1',
     attemptCount: 2,
+    deliveryOutcomeLabel: 'Rejeitado',
     lastMessage: 'Falha segura',
+    errorCode: 'RULE_REJECTED',
     correlationId: 'corr-1',
     businessStatus: 'APROVADO',
     syncStatus: 'ERROR',

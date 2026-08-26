@@ -31,6 +31,21 @@ describe('synchronization view model', () => {
     expect(view.correlationId).toBe('corr-1');
   });
 
+  it('mostra código técnico somente quando ele é um identificador seguro', () => {
+    const view = mapSynchronizationEntry(entry({
+      lastError: {
+        code: 'payload=secret',
+        category: 'VALIDATION',
+        deliveryOutcome: 'REJECTED',
+        userMessage: 'Regra de negócio não atendida.',
+        correlationId: 'corr-1',
+      },
+    }));
+
+    expect(view.errorCode).toBeUndefined();
+    expect(view.correlationId).toBe('corr-1');
+  });
+
   it.each([
     ['PENDING', 'Salvo neste dispositivo — envio pendente'],
     ['SYNCING', 'Sincronizando com o Datasul'],
@@ -44,6 +59,37 @@ describe('synchronization view model', () => {
 
     expect(view.syncStatusLabel).toBe(label);
     expect(view.businessStatus).toBe('APROVADO');
+  });
+
+  it.each([
+    ['NOT_DELIVERED', 'Não enviado — falha de comunicação. Nova tentativa agendada.'],
+    ['REJECTED', 'Rejeitado — Regra de negócio não atendida.'],
+    ['UNCERTAIN', 'Entrega não confirmada — reenvio pausado para evitar duplicidade.'],
+    ['CONFIRMED', 'Integrado com o Datasul.'],
+  ] as const)('apresenta %s claramente', (deliveryOutcome, label) => {
+    expect(mapSynchronizationEntry(entryFor(deliveryOutcome)).syncStatusLabel).toBe(label);
+  });
+
+  it('oferece confirmação, sem retry ou reenvio, somente para entrega pendente de confirmação', () => {
+    expect(mapSynchronizationEntry(entryFor('UNCERTAIN')).availableActions).toEqual(['confirm']);
+    expect(mapSynchronizationEntry(entryFor('NOT_DELIVERED')).availableActions)
+      .not.toContain('confirm');
+    expect(mapSynchronizationEntry(entryFor('REJECTED')).availableActions)
+      .not.toContain('confirm');
+    expect(mapSynchronizationEntry(entryFor('CONFIRMED')).availableActions)
+      .not.toContain('confirm');
+  });
+
+  it('permite retry manual apenas quando a entrega comprovadamente não ocorreu', () => {
+    expect(mapSynchronizationEntry(entry({
+      status: 'ERROR', deliveryOutcome: 'NOT_DELIVERED',
+    })).availableActions).toContain('retry');
+    expect(mapSynchronizationEntry(entry({
+      status: 'ERROR', deliveryOutcome: 'REJECTED',
+    })).availableActions).not.toContain('retry');
+    expect(mapSynchronizationEntry(entry({
+      status: 'ERROR', deliveryOutcome: 'UNCERTAIN',
+    })).availableActions).not.toContain('retry');
   });
 
   it.each([
@@ -146,8 +192,8 @@ describe('synchronization view model', () => {
     expect(buildSynchronizationIndicatorMessage({
       readState: 'ready',
       onlineHint: false,
-      counts: counts({ error: 2, pending: 3 }),
-    })).toBe('2 registros precisam de atenção');
+      counts: counts({ error: 2, confirmationPending: 1, pending: 3 }),
+    })).toBe('3 registros precisam de atenção');
     expect(buildSynchronizationIndicatorMessage({
       readState: 'ready',
       onlineHint: false,
@@ -179,16 +225,42 @@ describe('synchronization view model', () => {
 function counts(overrides: Partial<{
   pending: number;
   error: number;
+  confirmationPending: number;
   syncing: number;
   receipts: number;
 }> = {}) {
   return {
     pending: 0,
     error: 0,
+    confirmationPending: 0,
     syncing: 0,
     receipts: 0,
     ...overrides,
   };
+}
+
+function entryFor(deliveryOutcome: 'NOT_DELIVERED' | 'REJECTED' | 'UNCERTAIN' | 'CONFIRMED') {
+  const status = deliveryOutcome === 'NOT_DELIVERED'
+    ? 'RETRY_WAIT'
+    : deliveryOutcome === 'REJECTED'
+      ? 'ERROR'
+      : deliveryOutcome === 'UNCERTAIN'
+        ? 'CONFIRMATION_PENDING'
+        : 'SYNCED';
+  return entry({
+    status,
+    deliveryOutcome,
+    ...(deliveryOutcome === 'REJECTED'
+      ? {
+          lastError: {
+            code: 'RULE_REJECTED',
+            category: 'VALIDATION',
+            deliveryOutcome,
+            userMessage: 'Regra de negócio não atendida.',
+          },
+        }
+      : {}),
+  });
 }
 
 function entry(

@@ -114,6 +114,7 @@ export interface OutboxPage {
 export interface OutboxOwnerSummary {
   readonly pending: number;
   readonly error: number;
+  readonly confirmationPending: number;
   readonly syncing: number;
   readonly receipts: number;
 }
@@ -893,6 +894,7 @@ function summarizeCursor(index: IDBIndex, owner: string): Promise<OutboxOwnerSum
   return new Promise((resolve, reject) => {
     let pending = 0;
     let error = 0;
+    let confirmationPending = 0;
     let syncing = 0;
     let receipts = 0;
     const request = index.openCursor(globalThis.IDBKeyRange?.only(owner));
@@ -900,7 +902,7 @@ function summarizeCursor(index: IDBIndex, owner: string): Promise<OutboxOwnerSum
     request.onsuccess = () => {
       const cursor = request.result;
       if (!cursor) {
-        resolve({ pending, error, syncing, receipts });
+        resolve({ pending, error, confirmationPending, syncing, receipts });
         return;
       }
       const entry = cursor.value as OutboxEntry<JsonValue> & {
@@ -918,6 +920,7 @@ function summarizeCursor(index: IDBIndex, owner: string): Promise<OutboxOwnerSum
         }
         if (entry.status === 'SYNCING') syncing += 1;
         if (entry.status === 'ERROR') error += 1;
+        if (entry.status === 'CONFIRMATION_PENDING') confirmationPending += 1;
       }
       if (entry.status === 'SYNCED' && entry.receipt) receipts += 1;
       cursor.continue();

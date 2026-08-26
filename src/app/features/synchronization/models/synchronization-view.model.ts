@@ -6,6 +6,10 @@ import {
 import { OutboxEntry } from '../../../core/offline/models/outbox-entry';
 import { SyncStatus } from '../../../core/offline/models/sync-status';
 import {
+  DeliveryOutcome,
+  deliveryOutcomeOf,
+} from '../../../core/offline/models/delivery-outcome';
+import {
   DELIVERY_DISPOSITIONS,
   DeliveryDisposition,
 } from '../../../core/offline/models/delivery-disposition';
@@ -16,6 +20,7 @@ export type SynchronizationRecoveryPolicy = 'CORRECTABLE' | 'RETRY_ONLY' | 'INTE
 export type SynchronizationAction =
   | 'retry'
   | 'correct'
+  | 'confirm'
   | 'authenticate'
   | 'resolve-dependency'
   | 'abandon';
@@ -35,6 +40,7 @@ export interface SynchronizationSourceEntry extends OutboxEntry<JsonValue> {
 export interface SynchronizationCounts {
   readonly pending: number;
   readonly error: number;
+  readonly confirmationPending: number;
   readonly syncing: number;
   readonly receipts: number;
 }
@@ -71,7 +77,9 @@ export interface SynchronizationEntryView {
   readonly ownerId: string;
   readonly attemptCount: number;
   readonly lastMessage?: string;
+  readonly errorCode?: string;
   readonly correlationId?: string;
+  readonly deliveryOutcomeLabel: string;
   readonly businessStatus: string;
   readonly syncStatus: string;
   readonly syncStatusLabel: string;
@@ -153,6 +161,13 @@ const STATUS_PRESENTATIONS: Readonly<Record<SyncStatus, {
   ERROR: status('Registro preservado — precisa de atenção', 'po-icon-warning', 'danger'),
 });
 
+const DELIVERY_OUTCOME_LABELS: Readonly<Record<DeliveryOutcome, string>> = Object.freeze({
+  NOT_DELIVERED: 'Não enviado',
+  REJECTED: 'Rejeitado',
+  UNCERTAIN: 'Entrega não confirmada',
+  CONFIRMED: 'Confirmado',
+});
+
 export function mapSynchronizationEntry(
   source: SynchronizationSourceEntry,
 ): SynchronizationEntryView {
@@ -168,9 +183,16 @@ export function mapSynchronizationEntry(
     : disposition === 'SUPERSEDED'
       ? status('Substituído por comando corrigido', 'po-icon-exchange', 'neutral')
       : undefined;
+  const deliveryOutcome = deliveryOutcomeOf(source.deliveryOutcome);
+  const lastMessage = source.lastError?.userMessage
+    ? safeText(source.lastError.userMessage, 'Falha não detalhada')
+    : undefined;
+  const errorCode = safeTechnicalIdentifier(source.lastError?.code);
+  const correlationId = safeTechnicalIdentifier(source.lastError?.correlationId);
+  const outcomeState = deliveryOutcomePresentation(deliveryOutcome, lastMessage);
   const receiptState = qualityResultReceiptStatus(source);
   const payload = record(source.payload);
-  const presentation = dispositionState ?? receiptState ?? state ?? status(
+  const presentation = dispositionState ?? outcomeState ?? receiptState ?? state ?? status(
     'Estado não identificado',
     'po-icon-help',
     'neutral',
@@ -189,13 +211,19 @@ export function mapSynchronizationEntry(
     createdAt: source.createdAt,
     ownerId: source.ownerId,
     attemptCount: source.attemptCount,
-    ...(source.lastError?.userMessage
-      ? { lastMessage: safeText(source.lastError.userMessage, 'Falha não detalhada') }
+    ...(lastMessage
+      ? { lastMessage }
       : {}),
-    ...(source.lastError?.correlationId
-      ? { correlationId: safeText(source.lastError.correlationId, '') }
+    ...(errorCode
+      ? { errorCode }
+      : {}),
+    ...(correlationId
+      ? { correlationId }
       : {}),
     businessStatus: safeText(source.businessStatus, 'Não informado'),
+    deliveryOutcomeLabel: deliveryOutcome
+      ? DELIVERY_OUTCOME_LABELS[deliveryOutcome]
+      : 'Resultado da entrega ainda não determinado',
     syncStatus: String(source.status),
     syncStatusLabel: presentation.label,
     syncIcon: presentation.icon,
@@ -222,8 +250,9 @@ export function buildSynchronizationIndicatorMessage(input: {
   if (input.readState === 'error') return 'Não foi possível ler os registros locais';
   if (input.readState === 'unavailable') return 'Armazenamento local indisponível';
   if (input.readState === 'loading') return 'Consultando registros locais';
-  if (input.counts.error > 0) {
-    return `${input.counts.error} ${plural(input.counts.error, 'registro precisa', 'registros precisam')} de atenção`;
+  const needsAttention = input.counts.error + input.counts.confirmationPending;
+  if (needsAttention > 0) {
+    return `${needsAttention} ${plural(needsAttention, 'registro precisa', 'registros precisam')} de atenção`;
   }
   if (!input.onlineHint && input.counts.pending > 0) {
     return `Offline — ${input.counts.pending} ${plural(input.counts.pending, 'registro aguardando', 'registros aguardando')} envio`;
@@ -243,10 +272,13 @@ function actions(
   command: CommandPresentation | undefined,
 ): SynchronizationAction[] {
   if (disposition !== 'ACTIVE' || !command) return [];
+  if (source.status === 'CONFIRMATION_PENDING') return ['confirm'];
   if (source.status === 'ERROR') {
     return [
-      'retry',
-      ...(command.policy === 'CORRECTABLE' ? ['correct' as const] : []),
+      ...(source.deliveryOutcome === 'NOT_DELIVERED' ? ['retry' as const] : []),
+      ...(source.deliveryOutcome === 'REJECTED' && command.policy === 'CORRECTABLE'
+        ? ['correct' as const]
+        : []),
       'abandon',
     ];
   }
@@ -254,6 +286,36 @@ function actions(
   if (source.status === 'BLOCKED_DEPENDENCY') return ['resolve-dependency'];
   if (source.status !== 'SYNCED' && source.status !== 'SYNCING') return ['abandon'];
   return [];
+}
+
+function deliveryOutcomePresentation(
+  deliveryOutcome: DeliveryOutcome | undefined,
+  lastMessage: string | undefined,
+): ReturnType<typeof status> | undefined {
+  switch (deliveryOutcome) {
+    case 'NOT_DELIVERED':
+      return status(
+        'Não enviado — falha de comunicação. Nova tentativa agendada.',
+        'po-icon-clock',
+        'warning',
+      );
+    case 'REJECTED':
+      return status(
+        `Rejeitado — ${lastMessage ?? 'O comando precisa de correção.'}`,
+        'po-icon-warning',
+        'danger',
+      );
+    case 'UNCERTAIN':
+      return status(
+        'Entrega não confirmada — reenvio pausado para evitar duplicidade.',
+        'po-icon-clock',
+        'warning',
+      );
+    case 'CONFIRMED':
+      return status('Integrado com o Datasul.', 'po-icon-ok', 'success');
+    default:
+      return undefined;
+  }
 }
 
 function quality(
@@ -456,6 +518,11 @@ function safeIdentifier(value: unknown, fallback: string): string {
     typeof value === 'string' ? value.replace(/[<>]/g, '') : value,
     fallback,
   );
+}
+
+function safeTechnicalIdentifier(value: unknown): string {
+  const identifier = safeText(value, '');
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(identifier) ? identifier : '';
 }
 
 function joinIdentification(values: readonly (string | undefined)[], aggregateId: string): string {

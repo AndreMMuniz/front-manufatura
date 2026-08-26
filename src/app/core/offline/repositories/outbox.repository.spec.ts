@@ -102,8 +102,24 @@ describe('OutboxRepository processing', () => {
     expect(await repository.summarizeOwner(OWNER)).toEqual({
       pending: 3,
       error: 1,
+      confirmationPending: 0,
       syncing: 1,
       receipts: 1,
+    });
+  });
+
+  it('conta confirmação pendente como atenção sem incluí-la como retry pendente', async () => {
+    await seed(database, [
+      entry('uncertain', { status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN' }),
+      entry('retry', { status: 'RETRY_WAIT', deliveryOutcome: 'NOT_DELIVERED' }),
+    ]);
+
+    expect(await repository.summarizeOwner(OWNER)).toEqual({
+      pending: 1,
+      error: 0,
+      confirmationPending: 1,
+      syncing: 0,
+      receipts: 0,
     });
   });
 

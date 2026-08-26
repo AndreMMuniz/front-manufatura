@@ -48,6 +48,7 @@ export interface SynchronizationCenterState {
 const EMPTY_COUNTS: SynchronizationCounts = Object.freeze({
   pending: 0,
   error: 0,
+  confirmationPending: 0,
   syncing: 0,
   receipts: 0,
 });

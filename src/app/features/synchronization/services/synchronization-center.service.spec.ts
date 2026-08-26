@@ -13,6 +13,7 @@ describe('SynchronizationCenterService', () => {
       summarizeOwner: vi.fn((ownerId: string) => Promise.resolve({
         pending: ownerId === 'owner-2' ? 1 : 0,
         error: 0,
+        confirmationPending: 0,
         syncing: 0,
         receipts: 0,
       })),
@@ -40,6 +41,7 @@ describe('SynchronizationCenterService', () => {
       summarizeOwner: vi.fn().mockResolvedValue({
         pending: 1,
         error: 0,
+        confirmationPending: 0,
         syncing: 0,
         receipts: 0,
       }),
@@ -63,6 +65,7 @@ describe('SynchronizationCenterService', () => {
     expect(service.snapshot.counts).toEqual({
       pending: 1,
       error: 0,
+      confirmationPending: 0,
       syncing: 0,
       receipts: 0,
     });
@@ -83,6 +86,27 @@ describe('SynchronizationCenterService', () => {
     expect(outbox.listPage).not.toHaveBeenCalled();
     expect(outbox.summarizeOwner).not.toHaveBeenCalled();
     expect(service.snapshot).toMatchObject({ ownerId: null, items: [] });
+  });
+
+  it('preserva o filtro de confirmação pendente na consulta local', async () => {
+    const outbox = {
+      listPage: vi.fn().mockResolvedValue(page('owner-1')),
+      summarizeOwner: vi.fn().mockResolvedValue({
+        pending: 0, error: 0, confirmationPending: 1, syncing: 0, receipts: 0,
+      }),
+    } as unknown as OutboxRepository;
+    const auth = new AuthSessionService(null);
+    auth.startSession(user('owner-1'), 'token', { expiresAt: '2099-01-01T00:00:00.000Z' });
+    const service = new SynchronizationCenterService(outbox, auth, true);
+
+    service.setFilters({ statuses: ['CONFIRMATION_PENDING'], modules: [] });
+    await tick();
+
+    expect(outbox.listPage).toHaveBeenLastCalledWith(expect.objectContaining({
+      statuses: ['CONFIRMATION_PENDING'],
+    }));
+    expect(service.snapshot.counts.confirmationPending).toBe(1);
+    service.ngOnDestroy();
   });
 });
 

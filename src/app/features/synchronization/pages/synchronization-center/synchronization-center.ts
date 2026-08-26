@@ -60,7 +60,11 @@ export class SynchronizationCenterPage implements AfterViewChecked {
   readonly abandonTarget = signal<SynchronizationEntryView | null>(null);
   readonly abandonError = signal('');
   abandonReason = '';
-  readonly totalActive = computed(() => this.state().counts.pending + this.state().counts.error);
+  readonly totalActive = computed(() => (
+    this.state().counts.pending
+    + this.state().counts.error
+    + this.state().counts.confirmationPending
+  ));
 
   status = '';
   module = '';
@@ -114,6 +118,24 @@ export class SynchronizationCenterPage implements AfterViewChecked {
       });
     }
     this.actionFeedback.set(retryMessage(result));
+    await this.center.refresh();
+  }
+
+  async confirm(item: SynchronizationEntryView): Promise<void> {
+    if (this.busyIds().has(item.localId)) return;
+    this.busyIds.update(current => new Set([...current, item.localId]));
+    this.actionFeedback.set('');
+    let result: Awaited<ReturnType<SyncCoordinatorService['confirmDelivery']>>;
+    try {
+      result = await this.coordinator.confirmDelivery(item.localId);
+    } finally {
+      this.busyIds.update(current => {
+        const next = new Set(current);
+        next.delete(item.localId);
+        return next;
+      });
+    }
+    this.actionFeedback.set(confirmationMessage(result));
     await this.center.refresh();
   }
 
@@ -303,6 +325,23 @@ function retryMessage(result: ManualRetryResult): string {
       return 'O registro mudou em outra ação ou não aceita mais retry. A lista foi atualizada.';
     case 'storage-error':
       return 'Não foi possível preparar o retry no armazenamento local. O registro permanece preservado.';
+  }
+}
+
+function confirmationMessage(
+  result: Awaited<ReturnType<SyncCoordinatorService['confirmDelivery']>>,
+): string {
+  switch (result) {
+    case 'confirmed':
+      return 'Registro confirmado no Datasul.';
+    case 'queued':
+      return 'Registro não encontrado; um novo envio seguro foi liberado.';
+    case 'conflict':
+      return 'O Datasul contém dados diferentes; intervenção necessária.';
+    case 'pending':
+      return 'A consulta não foi conclusiva; nenhum reenvio foi realizado.';
+    case 'unsupported':
+      return 'Este tipo de envio ainda não possui consulta de confirmação.';
   }
 }
 

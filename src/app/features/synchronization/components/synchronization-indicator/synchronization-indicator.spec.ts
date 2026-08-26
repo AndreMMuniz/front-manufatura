@@ -16,7 +16,7 @@ describe('SynchronizationIndicator', () => {
       ownerId: 'operator-1',
       readState: 'ready',
       items: [],
-      counts: { pending: 5, error: 0, syncing: 2, receipts: 0 },
+      counts: { pending: 5, error: 0, confirmationPending: 0, syncing: 2, receipts: 0 },
       filters: { statuses: [], modules: [] },
       nextCursor: null,
       hasMore: false,
@@ -64,7 +64,7 @@ describe('SynchronizationIndicator', () => {
       ownerId: 'operator-1',
       readState: 'ready',
       items: [],
-      counts: { pending: 3, error: 0, syncing: 0, receipts: 0 },
+      counts: { pending: 3, error: 0, confirmationPending: 0, syncing: 0, receipts: 0 },
       filters: { statuses: [], modules: [] },
       nextCursor: null,
       hasMore: false,
@@ -93,7 +93,9 @@ describe('SynchronizationIndicator', () => {
     expect(live).not.toBeNull();
 
     connectivity.next(true);
-    state.next({ ...state.value, counts: { pending: 0, error: 0, syncing: 0, receipts: 1 } });
+    state.next({ ...state.value, counts: {
+      pending: 0, error: 0, confirmationPending: 0, syncing: 0, receipts: 1,
+    } });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.synchronization-indicator__popover').textContent)
       .toContain('Datasul atualizado');
