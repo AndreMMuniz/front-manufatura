@@ -49,7 +49,12 @@ export class RouteGenerationSection {
     this.qualityControlService.getProductionOrderOperations(orderNumber)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: result => this.workflow.completeOrderLookup(token, result.orderNumber, result.operations),
+        next: result => this.workflow.completeOrderLookup(
+          token,
+          result.orderNumber,
+          result.operations,
+          result.routeHistory,
+        ),
         error: () => this.workflow.failOrderLookup(token),
       });
   }

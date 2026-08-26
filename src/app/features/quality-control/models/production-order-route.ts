@@ -13,6 +13,15 @@ export interface ProductionOrderOperation {
 export interface ProductionOrderOperationsResult {
   orderNumber: string;
   operations: ProductionOrderOperation[];
+  routeHistory: ProductionOrderRouteHistoryItem[];
+}
+
+export interface ProductionOrderRouteHistoryItem {
+  sheetNumber: string;
+  orderNumber: string;
+  operationCode: string;
+  date: string | null;
+  time: string;
 }
 
 export interface GenerateInspectionRouteRequest {

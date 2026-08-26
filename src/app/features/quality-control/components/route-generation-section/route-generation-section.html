@@ -40,6 +40,37 @@
       </po-widget>
     }
 
+    @if (workflow.routeHistory().length > 0) {
+      <po-widget p-title="Últimos roteiros gerados">
+        <p class="route-generation__history-caption">
+          Até 20 fichas mais recentes retornadas para esta Ordem.
+        </p>
+        <ul class="route-generation__history" aria-label="Últimos roteiros gerados para a Ordem">
+          @for (history of workflow.routeHistory(); track $index) {
+            <li class="route-generation__history-item">
+              <dl>
+                <div>
+                  <dt>Ficha</dt>
+                  <dd>{{ history.sheetNumber }}</dd>
+                </div>
+                <div>
+                  <dt>Operação</dt>
+                  <dd>{{ history.operationCode }}</dd>
+                </div>
+                <div class="route-generation__history-created-at">
+                  <dt>Gerado em</dt>
+                  <dd>
+                    <span>{{ history.date || 'Data não informada' }}</span>
+                    <small>{{ history.time || 'Hora não informada' }}</small>
+                  </dd>
+                </div>
+              </dl>
+            </li>
+          }
+        </ul>
+      </po-widget>
+    }
+
     @if (workflow.selectedOperation()) {
       <po-widget p-title="Dados da Ordem">
         <app-ordem-info-card [route]="workflow.route()"></app-ordem-info-card>

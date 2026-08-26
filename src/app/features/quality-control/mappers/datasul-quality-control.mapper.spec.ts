@@ -12,7 +12,12 @@ describe('Datasul quality-control mapper', () => {
       total: 1, hasNext: false, items: [{
         'ds-ordem-producao': { ordem: [{
           nrOrdemProducao: 372562, codItem: '30907',
-          descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO', operacoes: [{
+          descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+          historicoRoteiros: [
+            { nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 30 },
+            { nrFicha: 64501, data: '2026-08-25', hora: '14:30', nrOrdemProducao: 372562, codOperacao: 30 },
+          ],
+          operacoes: [{
             codOperacao: 20, descricaoOperacao: 'USINAR', codItem: '30907',
             centroTrabalho: 'GL-170', codGrupoMaquina: 'TOR-004',
             splits: [{ numSplit: 2 }],
@@ -25,7 +30,48 @@ describe('Datasul quality-control mapper', () => {
         operationCode: '20', split: '2', operationDescription: 'USINAR',
         itemDescription: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
       }],
+      routeHistory: [
+        { sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '' },
+        { sheetNumber: '64501', orderNumber: '372562', operationCode: '30', date: '2026-08-25', time: '14:30' },
+      ],
     });
+  });
+
+  it('aceita contrato legado sem histórico e limita a apresentação aos 20 primeiros registros', () => {
+    const order = {
+      nrOrdemProducao: 372562, codItem: '30907', operacoes: [],
+      historicoRoteiros: Array.from({ length: 21 }, (_, index) => ({
+        nrFicha: 64000 + index,
+        data: null,
+        hora: '',
+        nrOrdemProducao: 372562,
+        codOperacao: 10,
+      })),
+    };
+    const result = mapProductionOrderEnvelope({
+      total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [order] } }],
+    });
+    expect(result.routeHistory).toHaveLength(20);
+    expect(result.routeHistory.at(-1)?.sheetNumber).toBe('64019');
+
+    delete (order as { historicoRoteiros?: unknown }).historicoRoteiros;
+    expect(mapProductionOrderEnvelope({
+      total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [order] } }],
+    }).routeHistory).toEqual([]);
+  });
+
+  it.each([
+    [{ nrFicha: 0, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 10 }],
+    [{ nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 999999, codOperacao: 10 }],
+    [{ nrFicha: 64505, data: '26/08/2026', hora: '', nrOrdemProducao: 372562, codOperacao: 10 }],
+    [{ nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 0 }],
+  ])('rejeita item inválido no histórico de roteiros', historyItem => {
+    expect(() => mapProductionOrderEnvelope({
+      total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [{
+        nrOrdemProducao: 372562, codItem: '30907', operacoes: [],
+        historicoRoteiros: [historyItem],
+      }] } }],
+    })).toThrow('invalid-upstream-response');
   });
 
   it('mantém nrFicha, resultado único, decimais e opções tabeladas', () => {

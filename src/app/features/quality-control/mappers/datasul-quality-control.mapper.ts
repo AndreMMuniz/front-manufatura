@@ -3,6 +3,7 @@ import {
   ProductionOrderOperation,
   ProductionOrderOperationsResult,
   ProductionOrderRoute,
+  ProductionOrderRouteHistoryItem,
 } from '../models/production-order-route';
 import { QualityExam, QualityExamComponent } from '../models/quality-exam';
 
@@ -18,6 +19,11 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
   const orderNumber = integerOf(order['nrOrdemProducao']).toString();
   const orderItem = textOf(order['codItem']);
   const orderItemDescription = optionalText(order['descricaoItem']);
+  const routeHistory = order['historicoRoteiros'] === undefined
+    ? []
+    : arrayOf(order['historicoRoteiros'])
+        .slice(0, 20)
+        .map(value => mapRouteHistoryItem(value, orderNumber));
   const operations = arrayOf(order['operacoes']).flatMap(operationValue => {
     const operation = objectOf(operationValue);
     const splits = arrayOf(operation['splits']);
@@ -35,7 +41,23 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
         })
       : [base];
   }) satisfies ProductionOrderOperation[];
-  return { orderNumber, operations };
+  return { orderNumber, operations, routeHistory };
+}
+
+function mapRouteHistoryItem(
+  value: unknown,
+  expectedOrderNumber: string,
+): ProductionOrderRouteHistoryItem {
+  const item = objectOf(value);
+  const orderNumber = positiveIntegerOf(item['nrOrdemProducao']).toString();
+  if (orderNumber !== expectedOrderNumber) throw invalidContract();
+  return {
+    sheetNumber: positiveIntegerOf(item['nrFicha']).toString(),
+    orderNumber,
+    operationCode: positiveIntegerOf(item['codOperacao']).toString(),
+    date: nullableDateOf(item['data']),
+    time: stringOf(item['hora']).trim(),
+  };
 }
 
 export function mapInspectionRouteEnvelope(
@@ -214,6 +236,12 @@ function nonNegativeIntegerOf(value: unknown): number {
   return integer;
 }
 
+function positiveIntegerOf(value: unknown): number {
+  const integer = integerOf(value);
+  if (integer <= 0) throw invalidContract();
+  return integer;
+}
+
 function uniqueById<T extends { readonly id: string }>(items: readonly T[]): T[] {
   if (new Set(items.map(item => item.id)).size !== items.length) throw invalidContract();
   return [...items];
@@ -231,6 +259,19 @@ function textOf(value: unknown): string {
 
 function optionalText(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function stringOf(value: unknown): string {
+  if (typeof value !== 'string') throw invalidContract();
+  return value;
+}
+
+function nullableDateOf(value: unknown): string | null {
+  if (value === null) return null;
+  const text = stringOf(value).trim();
+  if (!text) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(text)) throw invalidContract();
+  return text;
 }
 
 function invalidContract(): Error {

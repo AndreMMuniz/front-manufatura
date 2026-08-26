@@ -17,7 +17,14 @@ describe('RouteGenerationSection', () => {
   const exams = [{ id: '64379-1845', code: '1845', description: 'Exame', version: '1',
     frequency: '60', sample: '2', unit: '', nqa: '0', level: '0', components: [] }];
   const service = {
-    getProductionOrderOperations: vi.fn(() => of({ orderNumber: '372562', operations: [operation] })),
+    getProductionOrderOperations: vi.fn(() => of({
+      orderNumber: '372562',
+      operations: [operation],
+      routeHistory: [
+        { sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '' },
+        { sheetNumber: '64501', orderNumber: '372562', operationCode: '30', date: '2026-08-25', time: '14:30' },
+      ],
+    })),
     generateInspectionRoute: vi.fn(() => of({ nrFicha: 64379, routeNumber: '64379',
       processDescription: 'USINAR', currentOrder: '372562', operationCode: '20',
       operationDescription: '20 - USINAR', split: '1', itemCode: '30907', itemDescription: '30907', exams })),
@@ -91,5 +98,19 @@ describe('RouteGenerationSection', () => {
     component.scanOrder();
     expect(state.orderNumber()).toBe('');
     expect(state.routeFeedback()).toContain('não está configurada');
+  });
+
+  it('exibe o histórico retornado como informação sem ações de ficha', () => {
+    state.updateOrderNumber('372562');
+    component.searchOrder();
+    fixture.detectChanges();
+
+    const history = fixture.debugElement.query(By.css('.route-generation__history'));
+    expect(history.nativeElement.textContent).toContain('64505');
+    expect(history.nativeElement.textContent).toContain('Data não informada');
+    expect(history.nativeElement.textContent).toContain('Hora não informada');
+    expect(history.nativeElement.textContent).toContain('2026-08-25');
+    expect(history.queryAll(By.css('button, a'))).toHaveLength(0);
+    expect(state.operations()).toHaveLength(1);
   });
 });

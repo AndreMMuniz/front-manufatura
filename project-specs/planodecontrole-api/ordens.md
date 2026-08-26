@@ -1,6 +1,6 @@
 # Ordens de produção
 
-Consulta os dados de uma ordem de produção usados pela tela **Plano de Controle CQ**, incluindo operações e seus respectivos splits.
+Consulta os dados de uma ordem de produção usados pela tela **Plano de Controle CQ**, incluindo operações, seus respectivos splits e o histórico dos últimos roteiros gerados.
 
 ## Requisição
 
@@ -54,7 +54,22 @@ Campos relevantes observados:
 - `qtdProduzida`, `qtdReportada`, `qtdRefugada`, `qtdRequisitada` e `qtdAprovadaCondicional`: quantidades acumuladas da ordem.
 - `dtEmissao`, `dtInicio`, `dtTermino` e `dtOriginalTermino`: datas no formato observado `YYYY-MM-DD`.
 - `estado`, `tipo` e `prioridade`: códigos numéricos cujo significado funcional ainda não foi fornecido.
+- `historicoRoteiros`: até 20 roteiros gerados mais recentemente para a ordem, na ordenação fornecida pela API.
 - `operacoes`: operações associadas à ordem.
+
+### Histórico de roteiros
+
+O campo `historicoRoteiros` pertence ao objeto da ordem e foi observado com 20 registros. Cada registro possui:
+
+| Campo | Tipo observado | Nulável | Descrição |
+| --- | --- | --- | --- |
+| `nrFicha` | positive integer | Não | Número da ficha do roteiro de inspeção gerado. |
+| `data` | string (`YYYY-MM-DD`) | Sim | Data de geração. No payload observado, os valores ainda não preenchidos foram retornados como `null`. |
+| `hora` | string | Não | Hora de geração. No payload observado, valores não preenchidos foram retornados como string vazia (`""`). |
+| `nrOrdemProducao` | positive integer | Não | Ordem de produção à qual o roteiro pertence; deve corresponder à ordem consultada. |
+| `codOperacao` | positive integer | Não | Código da operação para a qual o roteiro foi gerado. |
+
+O frontend limita a apresentação aos primeiros 20 itens e preserva a ordenação da resposta. Para compatibilidade com respostas anteriores da API, a ausência de `historicoRoteiros` é interpretada como histórico vazio.
 
 ### Operações
 
@@ -85,5 +100,6 @@ Campos relevantes observados:
 
 - Esta documentação descreve uma resposta observada e não substitui um contrato OpenAPI oficial.
 - Campos vazios foram retornados como string vazia (`""`); datas de execução ainda não preenchidas foram retornadas como `null`.
+- Em `historicoRoteiros`, `data` pode ser `null` e `hora` pode ser `""`; a ausência desses valores não invalida os demais dados da ordem.
 - Os significados dos códigos numéricos de estado e tipo precisam ser confirmados com a regra de negócio antes de serem convertidos em enumerações no frontend.
 - A cardinalidade observada foi `total: 1` e `hasNext: false` para a ordem `372562`.

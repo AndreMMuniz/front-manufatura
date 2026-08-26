@@ -76,6 +76,25 @@ describe('QualityControlWorkflowState', () => {
     expect(state.exams()).toEqual([]);
   });
 
+  it('stores route history for the current order and clears it before another lookup', () => {
+    const state = new QualityControlWorkflowState();
+    const token = state.beginOrderLookup('372562');
+    state.completeOrderLookup(token, '372562', [], [{
+      sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '',
+    }]);
+    expect(state.routeHistory().map(item => item.sheetNumber)).toEqual(['64505']);
+
+    state.beginOrderLookup('372563');
+    expect(state.routeHistory()).toEqual([]);
+
+    const nextToken = state.beginOrderLookup('372564');
+    state.completeOrderLookup(nextToken, '372564', [], [{
+      sheetNumber: '64506', orderNumber: '372564', operationCode: '10', date: null, time: '',
+    }]);
+    state.reset();
+    expect(state.routeHistory()).toEqual([]);
+  });
+
   it('computes dirty across all normalized drafts and clears only a saved draft', () => {
     const state = loadedState();
     state.updateDraft('a-10', { result: ' 1,0 ', observation: ' ok ' });

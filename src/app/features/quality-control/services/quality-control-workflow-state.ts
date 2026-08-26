@@ -3,6 +3,7 @@ import { computed, Injectable, signal } from '@angular/core';
 import {
   ProductionOrderOperation,
   ProductionOrderRoute,
+  ProductionOrderRouteHistoryItem,
 } from '../models/production-order-route';
 import { QualityExam, QualityExamComponent, QualityMeasurement } from '../models/quality-exam';
 
@@ -17,6 +18,7 @@ export interface MeasurementDraft {
 export class QualityControlWorkflowState {
   readonly orderNumber = signal('');
   readonly operations = signal<ProductionOrderOperation[]>([]);
+  readonly routeHistory = signal<ProductionOrderRouteHistoryItem[]>([]);
   readonly selectedOperation = signal<ProductionOrderOperation | undefined>(undefined);
   readonly responsibleCode = signal('');
   readonly moveBalance = signal(false);
@@ -89,6 +91,7 @@ export class QualityControlWorkflowState {
     this.contextId += 1;
     this.orderNumber.set(orderNumber.trim());
     this.operations.set([]);
+    this.routeHistory.set([]);
     this.selectedOperation.set(undefined);
     this.responsibleCode.set('');
     this.clearRouteContext();
@@ -101,10 +104,12 @@ export class QualityControlWorkflowState {
     token: number,
     orderNumber: string,
     operations: ProductionOrderOperation[],
+    routeHistory: ProductionOrderRouteHistoryItem[] = [],
   ): boolean {
     if (!this.isCurrent(token)) return false;
     this.orderNumber.set(orderNumber);
     this.operations.set([...operations]);
+    this.routeHistory.set([...routeHistory]);
     this.isSearching.set(false);
     this.routeFeedback.set(
       operations.length
@@ -124,6 +129,7 @@ export class QualityControlWorkflowState {
     this.contextId += 1;
     this.orderNumber.set(value);
     this.operations.set([]);
+    this.routeHistory.set([]);
     this.selectedOperation.set(undefined);
     this.responsibleCode.set('');
     this.clearRouteContext();
@@ -402,6 +408,7 @@ export class QualityControlWorkflowState {
     this.contextId += 1;
     this.orderNumber.set('');
     this.operations.set([]);
+    this.routeHistory.set([]);
     this.selectedOperation.set(undefined);
     this.responsibleCode.set('');
     this.moveBalance.set(false);

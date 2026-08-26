@@ -5,7 +5,9 @@ import { QualityControlService } from './quality-control';
 
 const orderEnvelope = {
   total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [{
-    nrOrdemProducao: 372562, codItem: '30907', operacoes: [{
+    nrOrdemProducao: 372562, codItem: '30907', historicoRoteiros: [{
+      nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 30,
+    }], operacoes: [{
       codOperacao: 20, descricaoOperacao: 'USINAR', codItem: '30907',
       centroTrabalho: 'GL-170', codGrupoMaquina: 'TOR-004', splits: [{ numSplit: 1 }],
     }],
@@ -46,6 +48,7 @@ describe('QualityControlService real Datasul contracts', () => {
     const { service, http } = createService();
     await expect(firstValueFrom(service.getProductionOrderOperations('372562'))).resolves.toMatchObject({
       orderNumber: '372562', operations: [{ operationCode: '20', split: '1' }],
+      routeHistory: [{ sheetNumber: '64505', operationCode: '30', date: null, time: '' }],
     });
     expect(http.get).toHaveBeenCalledWith('/api/quality-control/orders/372562', expect.anything());
   });

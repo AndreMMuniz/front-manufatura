@@ -14,7 +14,16 @@ export interface DatasulProductionOrder {
   readonly nrOrdemProducao: number;
   readonly codItem: string;
   readonly descricaoItem?: string;
+  readonly historicoRoteiros?: readonly DatasulRouteHistoryItem[];
   readonly operacoes: readonly DatasulOperation[];
+}
+
+export interface DatasulRouteHistoryItem {
+  readonly nrFicha: number;
+  readonly data: string | null;
+  readonly hora: string;
+  readonly nrOrdemProducao: number;
+  readonly codOperacao: number;
 }
 
 export interface DatasulOperation {
