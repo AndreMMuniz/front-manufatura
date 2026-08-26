@@ -1,7 +1,10 @@
-import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, ViewChildren, QueryList, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, ViewChildren, QueryList, effect, inject, signal } from '@angular/core';
 
 import { PoButtonModule, PoDialogService } from '@po-ui/ng-components';
+import { map } from 'rxjs';
 
+import { EquipesService } from '../../../equipes/services/equipes.service';
+import { OperatorService } from '../../../shop-floor/services/operator';
 import { formatExamFrequency } from '../../models/format-exam-frequency';
 import { QualityExamComponent } from '../../models/quality-exam';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
@@ -19,7 +22,32 @@ export class InspectionSection {
 
   readonly workflow = inject(QualityControlWorkflowState);
   readonly formatExamFrequency = formatExamFrequency;
+  readonly responsibleName = signal('');
   private readonly dialog = inject(PoDialogService);
+  private readonly operatorService = inject(OperatorService);
+  private readonly equipesService = inject(EquipesService);
+  private readonly resolveResponsible = effect(onCleanup => {
+    const route = this.workflow.route();
+    const type = route?.responsibleType;
+    const code = route?.responsibleCode?.trim() ?? '';
+    this.responsibleName.set('');
+    if (!code || (type !== 'OPERADOR' && type !== 'EQUIPE')) return;
+
+    const request = type === 'EQUIPE'
+      ? this.equipesService.consultarEquipe(code).pipe(map(team => team.descricao))
+      : this.operatorService.searchOperators(code).pipe(map(operators =>
+          operators.find(operator =>
+            this.normalizeCode(operator.code) === this.normalizeCode(code))?.name));
+    const subscription = request.subscribe({
+      next: name => this.responsibleName.set(name?.trim() ?? ''),
+      error: () => this.responsibleName.set(''),
+    });
+    onCleanup(() => subscription.unsubscribe());
+  });
+
+  get responsibleLabel(): 'Operador' | 'Equipe' {
+    return this.workflow.route()?.responsibleType === 'EQUIPE' ? 'Equipe' : 'Operador';
+  }
 
   get canOpenExamEntry(): boolean {
     const selected = this.workflow.selectedComponent();
@@ -116,5 +144,9 @@ export class InspectionSection {
 
     const pad = (value: number) => value.toString().padStart(2, '0');
     return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  private normalizeCode(value: string): string {
+    return value.trim().toUpperCase();
   }
 }

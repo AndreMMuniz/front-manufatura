@@ -1,18 +1,34 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PoDialogService } from '@po-ui/ng-components';
+import { of } from 'rxjs';
 
+import { EquipesService } from '../../../equipes/services/equipes.service';
+import { OperatorService } from '../../../shop-floor/services/operator';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 import { InspectionSection } from './inspection-section';
 
 describe('InspectionSection estados local/remoto', () => {
   let fixture: ComponentFixture<InspectionSection>;
   let state: QualityControlWorkflowState;
+  const operatorService = {
+    searchOperators: vi.fn(() => of([
+      { code: '00018060', name: 'Maria da Silva', role: 'Operadora', active: true },
+    ])),
+  };
+  const equipesService = {
+    consultarEquipe: vi.fn(() => of({
+      codigo: 'AUT00037', descricao: 'Equipe Automática', turno: '1', operadores: [],
+    })),
+  };
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     await TestBed.configureTestingModule({ imports: [InspectionSection], providers: [
       QualityControlWorkflowState,
       { provide: PoDialogService, useValue: { confirm: vi.fn() } },
+      { provide: OperatorService, useValue: operatorService },
+      { provide: EquipesService, useValue: equipesService },
     ] }).compileComponents();
     state = TestBed.inject(QualityControlWorkflowState);
     state.setGeneratedRoute({ nrFicha: 64379, routeNumber: '64379', processDescription: 'P',
@@ -48,6 +64,22 @@ describe('InspectionSection estados local/remoto', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Frequência: 01:00 h');
     expect(fixture.nativeElement.textContent).toContain('Observação do Exame: -');
+  });
+
+  it('mostra o nome do operador responsável pelo roteiro', () => {
+    state.route.set({ ...state.route()!, responsibleType: 'OPERADOR', responsibleCode: '00018060' });
+
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Operador: Maria da Silva');
+  });
+
+  it('mostra o nome da equipe responsável pelo roteiro', () => {
+    state.route.set({ ...state.route()!, responsibleType: 'EQUIPE', responsibleCode: 'AUT00037' });
+
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Equipe: Equipe Automática');
   });
 
   it('formata resultado e data de apontamento em pt-BR', () => {
