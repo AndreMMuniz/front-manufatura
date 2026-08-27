@@ -113,6 +113,7 @@ function mapInspectionRouteItem(
   return {
     route: {
       nrFicha,
+      revisionCode: optionalText(routeItem['rvCodigo']).trim(),
       routeNumber: String(nrFicha),
       processDescription: operation.processDescription,
       currentOrder: context.orderNumber,

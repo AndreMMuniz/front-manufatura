@@ -61,6 +61,7 @@ Para gerar o roteiro sob responsabilidade de uma equipe, substitua `codOperador`
 | `hasNext` | boolean | Indica se existe uma próxima página de resultados. |
 | `items` | array | Lista dos roteiros encontrados. |
 | `items[].nrFicha` | integer | Número da ficha de inspeção. |
+| `items[].rvCodigo` | string | Código da revisão do item inspecionado. |
 | `items[].tipoResponsavel` | string | Tipo do responsável associado ao roteiro: `OPERADOR` ou `EQUIPE`. |
 | `items[].codResponsavel` | string | Código do operador ou da equipe associado ao roteiro. |
 | `items[].ds-roteiro` | object | Contêiner dos dados do roteiro. O nome contém hífen e exige acesso por colchetes em JavaScript/TypeScript. |

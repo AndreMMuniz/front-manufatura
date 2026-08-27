@@ -168,6 +168,22 @@ describe('Datasul quality-control mapper', () => {
     });
   });
 
+  it('preserva o código da revisão informado no item do roteiro', () => {
+    const result = mapInspectionRouteEnvelope({
+      total: 1,
+      hasNext: false,
+      items: [{ ...routeItem(64236), rvCodigo: 'R' }],
+    }, {
+      orderNumber: '372562',
+      operation: {
+        operationCode: '10', operationDescription: 'CORTE', itemCode: '30907',
+        itemDescription: 'ALAVANCA', processDescription: 'CORTE', split: '1',
+      },
+    });
+
+    expect(result.route).toMatchObject({ revisionCode: 'R' });
+  });
+
   it('mapeia a ficha real quando o Datasul identifica o responsável como Operador', () => {
     const result = mapInspectionRouteEnvelope(REAL_GENERATED_OPERATOR_ROUTE, {
       orderNumber: '372562',

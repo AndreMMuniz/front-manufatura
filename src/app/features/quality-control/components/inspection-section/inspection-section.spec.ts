@@ -63,7 +63,17 @@ describe('InspectionSection estados local/remoto', () => {
   it('mostra frequência e fallback de observação do exame', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Frequência: 01:00 h');
+    expect(fixture.nativeElement.textContent).toContain('Código da revisão: -');
     expect(fixture.nativeElement.textContent).toContain('Observação do Exame: -');
+  });
+
+  it('mostra o código da revisão do item logo após a frequência', () => {
+    state.route.set({ ...state.route()!, revisionCode: 'R' });
+
+    fixture.detectChanges();
+
+    const metadata = fixture.nativeElement.querySelector('.inspection-process__metadata').textContent;
+    expect(metadata).toMatch(/Frequência:\s*01:00 h\s*Código da revisão:\s*R/);
   });
 
   it('mostra o nome do operador responsável pelo roteiro', () => {

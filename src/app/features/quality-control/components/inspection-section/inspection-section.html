@@ -16,6 +16,7 @@
           <div><span>{{ responsibleLabel }}: </span><strong>{{ responsibleName() || 'Nome não localizado' }}</strong></div>
         }
         <div><span>Frequência: </span><strong>{{ formatExamFrequency(exam.frequency) }}</strong></div>
+        <div><span>Código da revisão: </span><strong>{{ workflow.route()?.revisionCode?.trim() || '-' }}</strong></div>
         <div><span>Amostra: </span><strong>{{ exam.sample }}</strong></div>
         <div><span>Observação do Exame: </span><strong>{{ exam.observation?.trim() || '-' }}</strong></div>
       </div>

@@ -35,6 +35,7 @@ export interface GenerateInspectionRouteRequest {
 
 export interface ProductionOrderRoute {
   nrFicha?: number;
+  revisionCode?: string;
   localId?: string;
   creationCommandId?: string;
   routeNumber: string;
