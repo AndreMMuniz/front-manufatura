@@ -39,6 +39,12 @@ export class RouteGenerationSection {
     return this.workflow.responsibleType() === 'EQUIPE' ? 'Equipe' : 'Operador';
   }
 
+  formatHistoryDate(date: string | null): string {
+    if (!date) return 'Data não informada';
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(date);
+    return match ? `${match[3]}/${match[2]}/${match[1].slice(2)}` : date;
+  }
+
   searchOrder(): void {
     if (!this.canSearchOrder) {
       this.workflow.routeFeedback.set('Informe a Ordem de Produção para consultar.');

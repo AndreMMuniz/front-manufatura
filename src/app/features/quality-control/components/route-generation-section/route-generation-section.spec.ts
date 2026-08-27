@@ -144,7 +144,8 @@ describe('RouteGenerationSection', () => {
     expect(history.nativeElement.textContent).toContain('64505');
     expect(history.nativeElement.textContent).toContain('Data não informada');
     expect(history.nativeElement.textContent).toContain('Hora não informada');
-    expect(history.nativeElement.textContent).toContain('2026-08-25');
+    expect(history.nativeElement.textContent).toContain('25/08/26');
+    expect(history.nativeElement.textContent).not.toContain('2026-08-25');
     expect(history.queryAll(By.css('button, a'))).toHaveLength(0);
     expect(state.operations()).toHaveLength(1);
   });

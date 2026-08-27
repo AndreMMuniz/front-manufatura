@@ -60,7 +60,7 @@
                 <td>{{ history.operationCode }}</td>
                 <td>
                   <span class="route-generation__history-created-at">
-                    <span>{{ history.date || 'Data não informada' }}</span>
+                    <span>{{ formatHistoryDate(history.date) }}</span>
                     <small>{{ history.time || 'Hora não informada' }}</small>
                   </span>
                 </td>
