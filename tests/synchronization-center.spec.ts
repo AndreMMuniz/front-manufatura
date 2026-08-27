@@ -416,12 +416,13 @@ async function mockAuthentication(context: BrowserContext): Promise<void> {
       : denied
         ? 'operator-denied'
         : OWNER_A;
+    const expiresAt = new Date(Date.now() + 28_800_000).toISOString();
     await route.fulfill({
       status: 200,
       json: {
         token: `e2e-token-${ownerId}`,
-        tokenExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
-        offlineSessionExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
+        tokenExpiresAt: expiresAt,
+        offlineSessionExpiresAt: expiresAt,
         usuario: {
           id: ownerId,
           nome: loginName,
