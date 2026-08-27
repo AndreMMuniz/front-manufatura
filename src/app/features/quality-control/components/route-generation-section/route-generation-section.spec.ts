@@ -148,4 +148,21 @@ describe('RouteGenerationSection', () => {
     expect(history.queryAll(By.css('button, a'))).toHaveLength(0);
     expect(state.operations()).toHaveLength(1);
   });
+
+  it('exibe um único cabeçalho para as linhas compactas do histórico', () => {
+    state.updateOrderNumber('372562');
+    component.searchOrder();
+    fixture.detectChanges();
+
+    const headers = fixture.debugElement.queryAll(By.css('.route-generation__history thead th'));
+    const rows = fixture.debugElement.queryAll(By.css('.route-generation__history tbody tr'));
+
+    expect(headers.map(header => header.nativeElement.textContent.trim())).toEqual([
+      'Ficha',
+      'Operação',
+      'Gerado em',
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(rows.every(row => row.queryAll(By.css('td')).length === 3)).toBe(true);
+  });
 });

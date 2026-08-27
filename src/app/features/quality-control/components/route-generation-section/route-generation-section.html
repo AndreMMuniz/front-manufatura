@@ -45,29 +45,29 @@
         <p class="route-generation__history-caption">
           Até 20 fichas mais recentes retornadas para esta Ordem.
         </p>
-        <ul class="route-generation__history" aria-label="Últimos roteiros gerados para a Ordem">
-          @for (history of workflow.routeHistory(); track $index) {
-            <li class="route-generation__history-item">
-              <dl>
-                <div>
-                  <dt>Ficha</dt>
-                  <dd>{{ history.sheetNumber }}</dd>
-                </div>
-                <div>
-                  <dt>Operação</dt>
-                  <dd>{{ history.operationCode }}</dd>
-                </div>
-                <div class="route-generation__history-created-at">
-                  <dt>Gerado em</dt>
-                  <dd>
+        <table class="route-generation__history" aria-label="Últimos roteiros gerados para a Ordem">
+          <thead>
+            <tr>
+              <th scope="col">Ficha</th>
+              <th scope="col">Operação</th>
+              <th scope="col">Gerado em</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (history of workflow.routeHistory(); track $index) {
+              <tr>
+                <td>{{ history.sheetNumber }}</td>
+                <td>{{ history.operationCode }}</td>
+                <td>
+                  <span class="route-generation__history-created-at">
                     <span>{{ history.date || 'Data não informada' }}</span>
                     <small>{{ history.time || 'Hora não informada' }}</small>
-                  </dd>
-                </div>
-              </dl>
-            </li>
-          }
-        </ul>
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </po-widget>
     }
 
