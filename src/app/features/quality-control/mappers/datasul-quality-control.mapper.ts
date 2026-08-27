@@ -26,7 +26,7 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
         .flatMap(value => mapOptionalRouteHistoryItem(value, orderNumber));
   const operations = arrayOf(order['operacoes']).flatMap(operationValue => {
     const operation = objectOf(operationValue);
-    const splits = arrayOf(operation['splits']);
+    const splits = operation['splits'] === undefined ? [] : arrayOf(operation['splits']);
     const base = {
       operationCode: integerOf(operation['codOperacao']).toString(),
       operationDescription: textOf(operation['descricaoOperacao']),

@@ -60,6 +60,28 @@ describe('Datasul quality-control mapper', () => {
     }).routeHistory).toEqual([]);
   });
 
+  it('mantém operação finalizada quando o Datasul omite splits', () => {
+    expect(mapProductionOrderEnvelope({
+      total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [{
+        nrOrdemProducao: 372562,
+        codItem: '30907',
+        descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+        operacoes: [{
+          codOperacao: 10,
+          descricaoOperacao: 'CORTAR / REMACHAR ALAVANCA',
+          codItem: '30907',
+          operacaoFinalizada: true,
+        }],
+      }] } }],
+    }).operations).toEqual([{
+      operationCode: '10',
+      operationDescription: 'CORTAR / REMACHAR ALAVANCA',
+      itemCode: '30907',
+      itemDescription: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+      processDescription: 'CORTAR / REMACHAR ALAVANCA',
+    }]);
+  });
+
   it('mantém a consulta da ordem quando um registro do histórico é inválido', () => {
     const result = mapProductionOrderEnvelope({
       total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [{

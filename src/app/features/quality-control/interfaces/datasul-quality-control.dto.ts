@@ -32,7 +32,7 @@ export interface DatasulOperation {
   readonly codItem: string;
   readonly centroTrabalho: string;
   readonly codGrupoMaquina: string;
-  readonly splits: readonly DatasulSplit[];
+  readonly splits?: readonly DatasulSplit[];
 }
 
 export interface DatasulSplit {
