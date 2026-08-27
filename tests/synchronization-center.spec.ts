@@ -197,7 +197,6 @@ test('retry, correção e cancelamento usam a Outbox real e mantêm feedback seg
   await expect(page).toHaveURL(/\/synchronization$/);
 
   const retry = page.getByTestId('sync-retry-retry-a');
-  const retryStartedAt = Date.now();
   await retry.dblclick();
   await expect(page.getByTestId('sync-action-feedback')).toContainText(
     'preparado para nova tentativa',
@@ -206,7 +205,15 @@ test('retry, correção e cancelamento usam a Outbox real e mantêm feedback seg
     'Nova tentativa agendada',
   );
   await expect(retry).toHaveCount(0);
-  expect(Date.now() - retryStartedAt).toBeLessThan(5_000);
+  const retrySchedule = await readRetrySchedule(page, 'retry-a');
+  expect(retrySchedule).toMatchObject({
+    status: 'RETRY_WAIT',
+    deliveryOutcome: 'NOT_DELIVERED',
+    attemptCount: 3,
+  });
+  const retryDelayMs = Date.parse(retrySchedule.nextAttemptAt) - Date.parse(retrySchedule.updatedAt);
+  expect(retryDelayMs).toBeGreaterThanOrEqual(1);
+  expect(retryDelayMs).toBeLessThanOrEqual(4_000);
 
   await page.getByTestId('sync-correct-correct-a').click();
   await expect(page).toHaveURL(/\/stoppages$/);
@@ -605,6 +612,39 @@ async function readSupersession(page: Page, originalLocalId: string): Promise<{
         : null,
     };
   }, { databaseName: DATABASE_NAME, originalId: originalLocalId });
+}
+
+async function readRetrySchedule(page: Page, localId: string): Promise<{
+  readonly status: string;
+  readonly deliveryOutcome?: string;
+  readonly attemptCount: number;
+  readonly updatedAt: string;
+  readonly nextAttemptAt: string;
+}> {
+  return page.evaluate(async ({ databaseName, entryId }) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(databaseName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction('outbox', 'readonly');
+    const entry = await new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
+      const request = transaction.objectStore('outbox').get(entryId);
+      request.onsuccess = () => resolve(request.result as Record<string, unknown> | undefined);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    if (!entry) throw new Error(`Outbox entry ${entryId} not found.`);
+    return {
+      status: String(entry['status']),
+      ...(typeof entry['deliveryOutcome'] === 'string'
+        ? { deliveryOutcome: entry['deliveryOutcome'] }
+        : {}),
+      attemptCount: Number(entry['attemptCount']),
+      updatedAt: String(entry['updatedAt']),
+      nextAttemptAt: String(entry['nextAttemptAt']),
+    };
+  }, { databaseName: DATABASE_NAME, entryId: localId });
 }
 
 async function readPairDisposition(page: Page, localId: string): Promise<[string, string]> {

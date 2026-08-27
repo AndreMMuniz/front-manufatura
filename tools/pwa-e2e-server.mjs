@@ -61,10 +61,11 @@ createServer(async (request, response) => {
       json(response, 401, { code: 'invalid-credentials' });
       return;
     }
+    const expiresAt = new Date(Date.now() + 28_800_000).toISOString();
     json(response, 200, {
       token: 'pwa-e2e-memory-token',
-      tokenExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
-      offlineSessionExpiresAt: new Date(Date.now() + 28_800_000).toISOString(),
+      tokenExpiresAt: expiresAt,
+      offlineSessionExpiresAt: expiresAt,
       usuario: {
         id: 'USR-PWA-E2E',
         nome: 'Operador PWA',
