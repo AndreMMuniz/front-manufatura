@@ -743,6 +743,45 @@ describe('gateway Plano Controle CQ', () => {
     ]));
   });
 
+  it('preserva SIM e NÃO no componente tabelado ao montar a análise da autorização', async () => {
+    const pendingRoute = structuredClone(REAL_PENDING_ROUTE) as {
+      items: Array<{ 'ds-roteiro-pendente': { roteiro: Array<{ resultados: Array<Record<string, unknown>> }> } }>;
+    };
+    pendingRoute.items[0]['ds-roteiro-pendente'].roteiro[0].resultados[0] = {
+      ...pendingRoute.items[0]['ds-roteiro-pendente'].roteiro[0].resultados[0],
+      tipoResultado: 2,
+      nrTabela: 8,
+      opcoesResultado: [
+        { nrTabela: 8, seqOpcao: 1, codComponente: 10, codExame: 164, descricao: 'SIM' },
+        { nrTabela: 8, seqOpcao: 2, codComponente: 10, codExame: 164, descricao: 'NÃO' },
+      ],
+    };
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json(pendingRoute));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations/route`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrFicha: 64514, nrOrdemProducao: 372562, codOperacao: 10 }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      items: Array<{ 'ds-roteiro': { exames: Array<{ componentes: Array<Record<string, unknown>> }> } }>;
+    };
+    expect(payload.items[0]['ds-roteiro'].exames[0].componentes[0]['opcoesResultado']).toEqual([
+      { nrTabela: 8, seqOpcao: 1, codComponente: 10, codExame: 164, descricao: 'SIM' },
+      { nrTabela: 8, seqOpcao: 2, codComponente: 10, codExame: 164, descricao: 'NÃO' },
+    ]);
+  });
+
   it('resolve a operação pela sequência ao abrir ficha da listagem geral', async () => {
     const transport = vi.fn<typeof fetch>().mockImplementation(async input => {
       const url = new URL(String(input));

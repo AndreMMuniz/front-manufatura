@@ -226,6 +226,9 @@ function selectPendingRouteEnvelope(
     componentIdentities.add(identity);
     const minValue = upstreamFiniteNumber(result['resultadoMinDefinido']);
     const maxValue = upstreamFiniteNumber(result['resultadoMaxDefinido']);
+    const resultType = upstreamPositiveInteger(result['tipoResultado']);
+    const tableNumber = upstreamNonNegativeInteger(result['nrTabela']);
+    const resultOptions = pendingResultOptions(result, examCode, componentCode, tableNumber);
     const components = exams.get(examCode) ?? [];
     components.push({
       codExame: examCode,
@@ -234,12 +237,13 @@ function selectPendingRouteEnvelope(
       referenciaTecnica: '',
       metodo: '',
       equipamento: '',
-      tipoResultado: upstreamPositiveInteger(result['tipoResultado']),
+      tipoResultado: resultType,
       unidade: '',
       numeroDecimais: 6,
       resultadoMin: minValue,
       resultadoMax: maxValue,
-      nrTabela: upstreamNonNegativeInteger(result['nrTabela']),
+      nrTabela: tableNumber,
+      ...(resultOptions === undefined ? {} : { opcoesResultado: resultOptions }),
     });
     exams.set(examCode, components);
   }
@@ -265,6 +269,38 @@ function selectPendingRouteEnvelope(
       },
     }],
   };
+}
+
+function pendingResultOptions(
+  result: JsonObject,
+  expectedExamCode: number,
+  expectedComponentCode: number,
+  expectedTableNumber: number,
+): JsonObject[] | undefined {
+  if (result['opcoesResultado'] === undefined) return undefined;
+  if (!Array.isArray(result['opcoesResultado'])) throw invalidUpstream();
+  const sequences = new Set<number>();
+  return result['opcoesResultado'].map(value => {
+    const option = upstreamObject(value);
+    const tableNumber = upstreamPositiveInteger(option['nrTabela']);
+    const sequence = upstreamPositiveInteger(option['seqOpcao']);
+    if (
+      tableNumber !== expectedTableNumber
+      || upstreamPositiveInteger(option['codComponente']) !== expectedComponentCode
+      || upstreamPositiveInteger(option['codExame']) !== expectedExamCode
+      || sequences.has(sequence)
+      || typeof option['descricao'] !== 'string'
+      || !option['descricao'].trim()
+    ) throw invalidUpstream();
+    sequences.add(sequence);
+    return {
+      nrTabela: tableNumber,
+      seqOpcao: sequence,
+      codComponente: expectedComponentCode,
+      codExame: expectedExamCode,
+      descricao: option['descricao'],
+    };
+  });
 }
 
 async function authorizedOperationCode(
