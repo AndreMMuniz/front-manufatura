@@ -236,10 +236,10 @@ export class QualityControlWorkflowState {
     return true;
   }
 
-  failRouteGeneration(token: number): void {
+  failRouteGeneration(token: number, message?: string): void {
     if (!this.isCurrent(token)) return;
     this.isGenerating.set(false);
-    this.routeFeedback.set('Nao foi possivel gerar o roteiro.');
+    this.routeFeedback.set(message ?? 'Não foi possível gerar o roteiro. Tente novamente.');
   }
 
   beginExamLoad(): number | null {

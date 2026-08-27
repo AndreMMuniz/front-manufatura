@@ -232,6 +232,32 @@ describe('gateway Plano Controle CQ', () => {
     });
   });
 
+  it('traduz roteiro em andamento do Datasul em conflito com mensagem segura', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      detailedMessage: 'Ja existe um roteiro em andamento (nrFicha 64591, situacao=2) para a Ordem 372576 / Operacao 10. Finalize-o antes de gerar um novo roteiro.',
+      code: '5',
+      message: 'Ja existe um roteiro em andamento (nrFicha 64591, situacao=2) para a Ordem 372576 / Operacao 10. Finalize-o antes de gerar um novo roteiro.',
+      type: 'error',
+    }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/routes`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrOrdemProducao: 372576, codOperacao: 10, codOperador: '00885940' }),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: 'route-already-in-progress',
+      message: 'Já existe um roteiro em andamento para esta ordem e operação. Finalize a ficha 64591 antes de gerar um novo roteiro.',
+    });
+  });
+
   it.each([
     ['nenhum responsável', {}],
     ['ambos os responsáveis', { codOperador: '00016570', codEquipe: 'AUT00037' }],

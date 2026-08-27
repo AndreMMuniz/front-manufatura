@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 
 import { PoButtonModule, PoDialogService, PoFieldModule, PoWidgetModule } from '@po-ui/ng-components';
@@ -117,7 +118,7 @@ export class RouteGenerationSection {
           if (!this.workflow.setGeneratedRoute(route, token)) return;
           this.loadExams();
         },
-        error: () => this.workflow.failRouteGeneration(token),
+        error: error => this.workflow.failRouteGeneration(token, routeGenerationErrorMessage(error)),
       });
   }
 
@@ -151,4 +152,14 @@ export class RouteGenerationSection {
       confirm: action,
     });
   }
+}
+
+function routeGenerationErrorMessage(error: unknown): string | undefined {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 409) return undefined;
+  const body = error.error;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
+  const record = body as Record<string, unknown>;
+  return record['code'] === 'route-already-in-progress' && typeof record['message'] === 'string'
+    ? record['message']
+    : undefined;
 }

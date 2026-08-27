@@ -20,6 +20,7 @@ export class QualityControlGatewayError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    readonly publicMessage?: string,
   ) {
     super(code);
     this.name = 'QualityControlGatewayError';
@@ -218,6 +219,10 @@ export class QualityControlDatasulClient {
       throw new QualityControlGatewayError(502, 'datasul-unavailable');
     }
     if (!response.ok) {
+      if (operation === 'get_quality_route') {
+        const businessError = await routeGenerationBusinessError(response);
+        if (businessError) throw businessError;
+      }
       throw new QualityControlGatewayError(
         response.status === 401 || response.status === 403 ? 502 : response.status,
         'datasul-request-failed',
@@ -236,6 +241,28 @@ export class QualityControlDatasulClient {
       throw new QualityControlGatewayError(502, 'invalid-upstream-response');
     }
   }
+}
+
+async function routeGenerationBusinessError(
+  response: Response,
+): Promise<QualityControlGatewayError | undefined> {
+  let value: unknown;
+  try {
+    value = await response.json();
+  } catch {
+    return undefined;
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const error = value as Record<string, unknown>;
+  if (error['code'] !== '5') return undefined;
+  const sourceMessage = [error['message'], error['detailedMessage']]
+    .find(message => typeof message === 'string' && message.toLocaleLowerCase('pt-BR').includes('roteiro em andamento'));
+  if (typeof sourceMessage !== 'string') return undefined;
+  const sheetNumber = /nrFicha\s+(\d+)/iu.exec(sourceMessage)?.[1];
+  const publicMessage = sheetNumber
+    ? `Já existe um roteiro em andamento para esta ordem e operação. Finalize a ficha ${sheetNumber} antes de gerar um novo roteiro.`
+    : 'Já existe um roteiro em andamento para esta ordem e operação. Finalize-o antes de gerar um novo roteiro.';
+  return new QualityControlGatewayError(409, 'route-already-in-progress', publicMessage);
 }
 
 function validatePendingAuthorizationsEnvelope(value: unknown): Array<{

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { By } from '@angular/platform-browser';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { PoDialogService } from '@po-ui/ng-components';
 
@@ -98,6 +99,40 @@ describe('RouteGenerationSection', () => {
     component.scanOrder();
     expect(state.orderNumber()).toBe('');
     expect(state.routeFeedback()).toContain('não está configurada');
+  });
+
+  it('exibe junto ao botão a mensagem de roteiro em andamento devolvida pelo gateway', () => {
+    service.generateInspectionRoute.mockReturnValueOnce(throwError(() => new HttpErrorResponse({
+      status: 409,
+      error: {
+        code: 'route-already-in-progress',
+        message: 'Já existe um roteiro em andamento para esta ordem e operação. Finalize a ficha 64591 antes de gerar um novo roteiro.',
+      },
+    })) as never);
+    state.updateOrderNumber('372576');
+    component.searchOrder();
+    component.selectOperation(state.operations()[0]);
+    state.responsibleCode.set('00885940');
+
+    component.generateRoute();
+    fixture.detectChanges();
+
+    const feedback = fixture.debugElement.query(By.css('.route-generation__feedback'));
+    expect(feedback.nativeElement.textContent).toContain(
+      'Já existe um roteiro em andamento para esta ordem e operação. Finalize a ficha 64591 antes de gerar um novo roteiro.',
+    );
+  });
+
+  it('mantém mensagem genérica quando a falha não traz erro de negócio', () => {
+    service.generateInspectionRoute.mockReturnValueOnce(throwError(() => new Error('network')) as never);
+    state.updateOrderNumber('372576');
+    component.searchOrder();
+    component.selectOperation(state.operations()[0]);
+    state.responsibleCode.set('00885940');
+
+    component.generateRoute();
+
+    expect(state.routeFeedback()).toBe('Não foi possível gerar o roteiro. Tente novamente.');
   });
 
   it('exibe o histórico retornado como informação sem ações de ficha', () => {

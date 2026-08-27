@@ -361,7 +361,10 @@ async function handle(
     res.status(200).json(await operation(client, subject));
   } catch (error) {
     if (error instanceof QualityControlGatewayError) {
-      res.status(error.status).json({ code: error.code });
+      res.status(error.status).json({
+        code: error.code,
+        ...(error.publicMessage ? { message: error.publicMessage } : {}),
+      });
       return;
     }
     res.status(400).json({ code: 'invalid-request' });
