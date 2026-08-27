@@ -23,7 +23,7 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
     ? []
     : arrayOf(order['historicoRoteiros'])
         .slice(0, 20)
-        .map(value => mapRouteHistoryItem(value, orderNumber));
+        .flatMap(value => mapOptionalRouteHistoryItem(value, orderNumber));
   const operations = arrayOf(order['operacoes']).flatMap(operationValue => {
     const operation = objectOf(operationValue);
     const splits = arrayOf(operation['splits']);
@@ -42,6 +42,18 @@ export function mapProductionOrderEnvelope(value: unknown): ProductionOrderOpera
       : [base];
   }) satisfies ProductionOrderOperation[];
   return { orderNumber, operations, routeHistory };
+}
+
+function mapOptionalRouteHistoryItem(
+  value: unknown,
+  expectedOrderNumber: string,
+): ProductionOrderRouteHistoryItem[] {
+  try {
+    return [mapRouteHistoryItem(value, expectedOrderNumber)];
+  } catch (error) {
+    if (error instanceof Error && error.message === 'invalid-upstream-response') return [];
+    throw error;
+  }
 }
 
 function mapRouteHistoryItem(

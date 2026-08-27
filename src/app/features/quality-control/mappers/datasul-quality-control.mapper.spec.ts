@@ -60,18 +60,39 @@ describe('Datasul quality-control mapper', () => {
     }).routeHistory).toEqual([]);
   });
 
+  it('mantém a consulta da ordem quando um registro do histórico é inválido', () => {
+    const result = mapProductionOrderEnvelope({
+      total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [{
+        nrOrdemProducao: 372562, codItem: '30907', operacoes: [{
+          codOperacao: 20, descricaoOperacao: 'USINAR', codItem: '30907',
+          centroTrabalho: 'GL-170', codGrupoMaquina: 'TOR-004', splits: [{ numSplit: 1 }],
+        }],
+        historicoRoteiros: [
+          { nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 30 },
+          { nrFicha: 0, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 30 },
+        ],
+      }] } }],
+    });
+
+    expect(result).toMatchObject({
+      orderNumber: '372562',
+      operations: [{ operationCode: '20', split: '1' }],
+      routeHistory: [{ sheetNumber: '64505', operationCode: '30' }],
+    });
+  });
+
   it.each([
     [{ nrFicha: 0, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 10 }],
     [{ nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 999999, codOperacao: 10 }],
     [{ nrFicha: 64505, data: '26/08/2026', hora: '', nrOrdemProducao: 372562, codOperacao: 10 }],
     [{ nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 0 }],
-  ])('rejeita item inválido no histórico de roteiros', historyItem => {
-    expect(() => mapProductionOrderEnvelope({
+  ])('ignora item inválido no histórico de roteiros', historyItem => {
+    expect(mapProductionOrderEnvelope({
       total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [{
         nrOrdemProducao: 372562, codItem: '30907', operacoes: [],
         historicoRoteiros: [historyItem],
       }] } }],
-    })).toThrow('invalid-upstream-response');
+    }).routeHistory).toEqual([]);
   });
 
   it('mantém nrFicha, resultado único, decimais e opções tabeladas', () => {
