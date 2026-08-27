@@ -185,6 +185,23 @@ describe('ExamEntryPanel resultado único', () => {
     expect(component.stopValidationMessage).toContain('motivo');
   });
 
+  it('alinha o botão Parar roteiro ao extremo direito do rodapé', () => {
+    state.applyMeasurement('e1', 'numeric', {
+      result: 24, status: 'REJECTED', withinRange: false, commandId: 'r1',
+    });
+    state.applyMeasurement('e2', 'option', {
+      selectedOption: { tableNumber: 8, sequence: 1, description: 'SIM' },
+      status: 'APPROVED', withinRange: true, commandId: 'r2',
+    });
+    fixture.detectChanges();
+
+    const stopButton = fixture.nativeElement.querySelector(
+      '.exam-entry__footer > .exam-entry__stop-action',
+    ) as HTMLElement | null;
+
+    expect(stopButton).not.toBeNull();
+  });
+
   it('usa nrTabela/seqOpcao sem inferir significado textual', async () => {
     state.openPanel('option');
     component.updateSelectedOption('8:2');
@@ -236,6 +253,7 @@ describe('ExamEntryPanel resultado único', () => {
     await vi.waitFor(() => expect(capture).toHaveBeenCalledWith(expect.objectContaining({
       commandType: 'FINALIZE_QUALITY_ROUTE', aggregateId: '64379', dependencyIds: ['r1', 'r2'],
     })));
+    await vi.waitFor(() => expect(state.canLeaveWorkspace()).toBe(true));
   });
 
   it('restaura finalização e preserva medições quando a identidade segura falha', () => {

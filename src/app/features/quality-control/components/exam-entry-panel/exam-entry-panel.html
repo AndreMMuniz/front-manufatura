@@ -90,7 +90,7 @@
     <po-button p-label="Fechar" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="closePanel()"></po-button>
     <po-button p-label="Finalizar ficha" p-kind="primary" [p-disabled]="!canCompleteExam" (p-click)="completeExam()"></po-button>
     @if (showStopRoute) {
-      <po-button p-label="Parar roteiro" p-kind="secondary" [p-danger]="true" [p-disabled]="!canStopRoute" (p-click)="stopRoute()"></po-button>
+      <po-button class="exam-entry__stop-action" p-label="Parar roteiro" p-kind="secondary" [p-danger]="true" [p-disabled]="!canStopRoute" (p-click)="stopRoute()"></po-button>
     }
   </footer>
 </section>

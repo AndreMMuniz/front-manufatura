@@ -13,8 +13,8 @@
     }
 
     <nav class="quality-workspace__actions" aria-label="Ações do Plano Controle CQ">
-      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="goBack()"></po-button>
-      <po-button p-label="Sair" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="exit()"></po-button>
+      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="workflow.isBusy() || !workflow.canLeaveWorkspace()" (p-click)="goBack()"></po-button>
+      <po-button p-label="Sair" p-kind="secondary" [p-disabled]="workflow.isBusy() || !workflow.canLeaveWorkspace()" (p-click)="exit()"></po-button>
     </nav>
   </section>
 </po-page-default>

@@ -20,6 +20,7 @@ export interface ProductionOrderRouteHistoryItem {
   sheetNumber: string;
   orderNumber: string;
   operationCode: string;
+  routeStatus: string;
   date: string | null;
   time: string;
 }

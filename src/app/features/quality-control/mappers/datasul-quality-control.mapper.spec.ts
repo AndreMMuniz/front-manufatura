@@ -27,8 +27,10 @@ describe('Datasul quality-control mapper', () => {
           nrOrdemProducao: 372562, codItem: '30907',
           descricaoItem: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
           historicoRoteiros: [
-            { nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 30 },
-            { nrFicha: 64501, data: '2026-08-25', hora: '14:30', nrOrdemProducao: 372562, codOperacao: 30 },
+            { nrFicha: 64505, data: null, hora: '', nrOrdemProducao: 372562, codOperacao: 30,
+              descSituacaoRoteiro: 'FINALIZADO' },
+            { nrFicha: 64501, data: '2026-08-25', hora: '14:30', nrOrdemProducao: 372562, codOperacao: 30,
+              descSituacaoRoteiro: 'Em andamento' },
           ],
           operacoes: [{
             codOperacao: 20, descricaoOperacao: 'USINAR', codItem: '30907',
@@ -44,8 +46,10 @@ describe('Datasul quality-control mapper', () => {
         itemDescription: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
       }],
       routeHistory: [
-        { sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '' },
-        { sheetNumber: '64501', orderNumber: '372562', operationCode: '30', date: '2026-08-25', time: '14:30' },
+        { sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '',
+          routeStatus: 'FINALIZADO' },
+        { sheetNumber: '64501', orderNumber: '372562', operationCode: '30', date: '2026-08-25', time: '14:30',
+          routeStatus: 'Em andamento' },
       ],
     });
   });

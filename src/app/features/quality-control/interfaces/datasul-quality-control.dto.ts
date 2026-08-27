@@ -24,6 +24,7 @@ export interface DatasulRouteHistoryItem {
   readonly hora: string;
   readonly nrOrdemProducao: number;
   readonly codOperacao: number;
+  readonly descSituacaoRoteiro?: string;
 }
 
 export interface DatasulOperation {

@@ -80,7 +80,8 @@ describe('QualityControlWorkflowState', () => {
     const state = new QualityControlWorkflowState();
     const token = state.beginOrderLookup('372562');
     state.completeOrderLookup(token, '372562', [], [{
-      sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '',
+      sheetNumber: '64505', orderNumber: '372562', operationCode: '30', routeStatus: 'Finalizado',
+      date: null, time: '',
     }]);
     expect(state.routeHistory().map(item => item.sheetNumber)).toEqual(['64505']);
 
@@ -89,7 +90,8 @@ describe('QualityControlWorkflowState', () => {
 
     const nextToken = state.beginOrderLookup('372564');
     state.completeOrderLookup(nextToken, '372564', [], [{
-      sheetNumber: '64506', orderNumber: '372564', operationCode: '10', date: null, time: '',
+      sheetNumber: '64506', orderNumber: '372564', operationCode: '10', routeStatus: 'Em andamento',
+      date: null, time: '',
     }]);
     state.reset();
     expect(state.routeHistory()).toEqual([]);

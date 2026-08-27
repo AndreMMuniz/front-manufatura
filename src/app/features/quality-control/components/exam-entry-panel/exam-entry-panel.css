@@ -27,6 +27,7 @@
 .exam-entry__progress-track span { background: var(--app-color-primary); display: block; height: 100%; transition: width var(--duration-normal) ease; }
 .exam-entry__footer { align-items: center; display: flex; gap: var(--app-space-md); justify-content: space-between; }
 .exam-entry__footer--with-stop { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.exam-entry__stop-action { justify-self: end; }
 @media (min-width: 1100px) { .exam-entry { border-left: 1px solid var(--app-color-border); border-top: 0; padding-left: var(--app-space-xl); padding-top: 0; } }
 @media (max-width: 720px) { .exam-entry__measurement { grid-template-columns: 1fr; } }
-@media (max-width: 480px) { .exam-entry__header { grid-template-columns: 1fr; } .exam-entry__navigation, .exam-entry__footer, .exam-entry__footer--with-stop { align-items: stretch; display: grid; grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .exam-entry__header { grid-template-columns: 1fr; } .exam-entry__navigation, .exam-entry__footer, .exam-entry__footer--with-stop { align-items: stretch; display: grid; grid-template-columns: 1fr; } .exam-entry__stop-action { justify-self: stretch; } }

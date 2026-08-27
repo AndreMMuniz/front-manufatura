@@ -50,6 +50,7 @@
             <tr>
               <th scope="col">Ficha</th>
               <th scope="col">Operação</th>
+              <th scope="col">Situação</th>
               <th scope="col">Gerado em</th>
             </tr>
           </thead>
@@ -58,6 +59,7 @@
               <tr>
                 <td>{{ history.sheetNumber }}</td>
                 <td>{{ history.operationCode }}</td>
+                <td>{{ history.routeStatus }}</td>
                 <td>
                   <span class="route-generation__history-created-at">
                     <span>{{ formatHistoryDate(history.date) }}</span>

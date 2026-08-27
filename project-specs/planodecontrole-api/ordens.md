@@ -68,6 +68,7 @@ O campo `historicoRoteiros` pertence ao objeto da ordem e foi observado com 20 r
 | `hora` | string | Não | Hora de geração. No payload observado, valores não preenchidos foram retornados como string vazia (`""`). |
 | `nrOrdemProducao` | positive integer | Não | Ordem de produção à qual o roteiro pertence; deve corresponder à ordem consultada. |
 | `codOperacao` | positive integer | Não | Código da operação para a qual o roteiro foi gerado. |
+| `descSituacaoRoteiro` | string | Não | Descrição textual da situação atual da ficha, sem dependência de capitalização no consumidor. |
 
 O frontend limita a apresentação aos primeiros 20 itens e preserva a ordenação da resposta. Para compatibilidade com respostas anteriores da API, a ausência de `historicoRoteiros` é interpretada como histórico vazio.
 

@@ -81,7 +81,7 @@ export class QualityControlWorkspacePage {
   }
 
   goBack(): void {
-    if (this.workflow.isBusy()) return;
+    if (this.workflow.isBusy() || !this.workflow.canLeaveWorkspace()) return;
     this.runAfterGlobalDiscard(
       'Voltar à localização da Ordem?',
       () => this.workflow.returnToOrderLocation(),
@@ -89,7 +89,7 @@ export class QualityControlWorkspacePage {
   }
 
   exit(): void {
-    if (this.workflow.isBusy()) return;
+    if (this.workflow.isBusy() || !this.workflow.canLeaveWorkspace()) return;
     this.runAfterGlobalDiscard('Sair do Plano Controle CQ?', () => {
       this.workflow.reset();
       void this.router.navigate(['/menu']);

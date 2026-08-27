@@ -19,8 +19,9 @@
 .route-generation__history { border: 1px solid var(--app-color-border); border-collapse: collapse; font-variant-numeric: tabular-nums; table-layout: fixed; width: 100%; }
 .route-generation__history th, .route-generation__history td { border-bottom: 1px solid var(--app-color-border); padding: var(--app-space-sm) var(--app-space-md); text-align: left; }
 .route-generation__history th { color: var(--app-color-text-muted); font-size: .75rem; font-weight: 600; text-transform: uppercase; }
-.route-generation__history th:nth-child(1) { width: 24%; }
-.route-generation__history th:nth-child(2) { width: 24%; }
+.route-generation__history th:nth-child(1) { width: 18%; }
+.route-generation__history th:nth-child(2) { width: 18%; }
+.route-generation__history th:nth-child(3) { width: 28%; }
 .route-generation__history tbody tr:last-child td { border-bottom: 0; }
 .route-generation__history td { font-weight: 600; }
 .route-generation__history-created-at { display: flex; flex-wrap: wrap; gap: var(--app-space-sm); }

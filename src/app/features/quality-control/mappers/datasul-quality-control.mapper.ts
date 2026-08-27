@@ -67,6 +67,7 @@ function mapRouteHistoryItem(
     sheetNumber: positiveIntegerOf(item['nrFicha']).toString(),
     orderNumber,
     operationCode: positiveIntegerOf(item['codOperacao']).toString(),
+    routeStatus: optionalText(item['descSituacaoRoteiro']).trim() || 'Situação não informada',
     date: nullableDateOf(item['data']),
     time: stringOf(item['hora']).trim(),
   };

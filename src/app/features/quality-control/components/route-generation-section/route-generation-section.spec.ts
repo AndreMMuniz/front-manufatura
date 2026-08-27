@@ -22,8 +22,10 @@ describe('RouteGenerationSection', () => {
       orderNumber: '372562',
       operations: [operation],
       routeHistory: [
-        { sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '' },
-        { sheetNumber: '64501', orderNumber: '372562', operationCode: '30', date: '2026-08-25', time: '14:30' },
+        { sheetNumber: '64505', orderNumber: '372562', operationCode: '30', date: null, time: '',
+          routeStatus: 'FINALIZADO' },
+        { sheetNumber: '64501', orderNumber: '372562', operationCode: '30', date: '2026-08-25', time: '14:30',
+          routeStatus: 'Em andamento' },
       ],
     })),
     generateInspectionRoute: vi.fn(() => of({ nrFicha: 64379, routeNumber: '64379',
@@ -145,6 +147,8 @@ describe('RouteGenerationSection', () => {
     expect(history.nativeElement.textContent).toContain('Data não informada');
     expect(history.nativeElement.textContent).toContain('Hora não informada');
     expect(history.nativeElement.textContent).toContain('25/08/26');
+    expect(history.nativeElement.textContent).toContain('FINALIZADO');
+    expect(history.nativeElement.textContent).toContain('Em andamento');
     expect(history.nativeElement.textContent).not.toContain('2026-08-25');
     expect(history.queryAll(By.css('button, a'))).toHaveLength(0);
     expect(state.operations()).toHaveLength(1);
@@ -161,9 +165,10 @@ describe('RouteGenerationSection', () => {
     expect(headers.map(header => header.nativeElement.textContent.trim())).toEqual([
       'Ficha',
       'Operação',
+      'Situação',
       'Gerado em',
     ]);
     expect(rows).toHaveLength(2);
-    expect(rows.every(row => row.queryAll(By.css('td')).length === 3)).toBe(true);
+    expect(rows.every(row => row.queryAll(By.css('td')).length === 4)).toBe(true);
   });
 });

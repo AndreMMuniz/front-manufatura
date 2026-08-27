@@ -341,6 +341,7 @@ export class ExamEntryPanel implements AfterViewInit {
       .subscribe({
         next: () => {
           this.workflow.isFinishing.set(false);
+          this.workflow.completeRouteFinalization();
           this.finalizationQueued = true;
           this.workflow.examFeedback.set('Finalização registrada — aguardando sincronização dos resultados.');
           this.qualityControlService.watchFinalizationDelivery(finishCommandId)

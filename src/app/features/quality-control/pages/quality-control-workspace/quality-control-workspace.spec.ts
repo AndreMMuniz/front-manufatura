@@ -1,10 +1,9 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { vi } from 'vitest';
 
 import { PoDialogService } from '@po-ui/ng-components';
-
-import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 
 import { QualityControlWorkspacePage } from './quality-control-workspace';
 
@@ -41,7 +40,7 @@ describe('QualityControlWorkspacePage', () => {
     expect(fixture.nativeElement.querySelector('app-exam-entry-panel')).toBeTruthy();
   });
 
-  it('returns from the generated route to the located order with its operation selected', () => {
+  it('returns from a finalized route to the located order with its operation selected', () => {
     const fixture = TestBed.createComponent(QualityControlWorkspacePage);
     const component = fixture.componentInstance;
     const router = TestBed.inject(Router);
@@ -67,6 +66,7 @@ describe('QualityControlWorkspacePage', () => {
       itemCode: '30907',
       itemDescription: 'Alavanca',
     });
+    component.workflow.completeRouteFinalization();
 
     component.goBack();
 
@@ -90,27 +90,56 @@ describe('QualityControlWorkspacePage', () => {
     expect(navigate).toHaveBeenCalledWith(['/menu']);
   });
 
-  it('protects workspace exit when any non-current draft is dirty', () => {
+  it('keeps navigation disabled and ignores it while a route is in progress', () => {
     const fixture = TestBed.createComponent(QualityControlWorkspacePage);
-    const dialog = (fixture.componentInstance as unknown as { dialog: PoDialogService }).dialog;
-    const confirmSpy = vi.spyOn(dialog, 'confirm');
-    const state: QualityControlWorkflowState = fixture.componentInstance.workflow;
-    state.setGeneratedRoute({ routeNumber: '1', processDescription: 'P', currentOrder: '10', operationCode: '10', operationDescription: 'P', split: '1', itemCode: 'I', itemDescription: 'Item' });
-    const token = state.beginExamLoad()!;
-    state.completeExamLoad(token, [{
-      id: 'exam', code: 'E', description: 'E', version: '1', frequency: '1', sample: '1 pc', unit: 'pc', nqa: '0', level: '1',
-      components: [
-        { id: 'c1', code: '010', description: 'C1', reference: '0 - 1', minValue: 0, maxValue: 1, unit: 'mm', sequence: 10, status: 'PENDING' },
-        { id: 'c2', code: '020', description: 'C2', reference: '0 - 1', minValue: 0, maxValue: 1, unit: 'mm', sequence: 20, status: 'PENDING' },
-      ],
-    }]);
-    state.updateDraft('c2', { result: '0' });
-    expect(state.isDirty()).toBe(true);
-    expect(state.isBusy()).toBe(false);
+    const component = fixture.componentInstance;
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.workflow.setGeneratedRoute({
+      routeNumber: '475.956',
+      processDescription: 'Corte',
+      currentOrder: '325571',
+      operationCode: '10',
+      operationDescription: '10 - Cortar chapa',
+      split: '1',
+      itemCode: '30907',
+      itemDescription: 'Alavanca',
+    });
+    fixture.detectChanges();
 
-    fixture.componentInstance.exit();
+    const navigationButtons = fixture.debugElement.queryAll(
+      By.css('.quality-workspace__actions po-button'),
+    );
+    expect(navigationButtons).toHaveLength(2);
+    expect(navigationButtons.every(button => button.componentInstance.disabled)).toBe(true);
 
-    expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({ title: 'Sair do Plano Controle CQ?' }));
-    expect(state.route()?.routeNumber).toBe('1');
+    component.goBack();
+    component.exit();
+
+    expect(component.workflow.route()?.routeNumber).toBe('475.956');
+    expect(navigate).not.toHaveBeenCalled();
   });
+
+  it('enables navigation after the route finalization is registered', () => {
+    const fixture = TestBed.createComponent(QualityControlWorkspacePage);
+    const component = fixture.componentInstance;
+    component.workflow.setGeneratedRoute({
+      routeNumber: '475.956',
+      processDescription: 'Corte',
+      currentOrder: '325571',
+      operationCode: '10',
+      operationDescription: '10 - Cortar chapa',
+      split: '1',
+      itemCode: '30907',
+      itemDescription: 'Alavanca',
+    });
+    component.workflow.completeRouteFinalization();
+    fixture.detectChanges();
+
+    const navigationButtons = fixture.debugElement.queryAll(
+      By.css('.quality-workspace__actions po-button'),
+    );
+    expect(navigationButtons.every(button => !button.componentInstance.disabled)).toBe(true);
+  });
+
 });

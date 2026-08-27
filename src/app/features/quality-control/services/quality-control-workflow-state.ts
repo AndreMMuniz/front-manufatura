@@ -39,6 +39,7 @@ export class QualityControlWorkflowState {
   readonly isFinishing = signal(false);
   readonly isStopping = signal(false);
   readonly examLoadFailed = signal(false);
+  readonly routeFinalized = signal(false);
 
   private contextId = 0;
   private examLoadSucceeded = false;
@@ -77,6 +78,9 @@ export class QualityControlWorkflowState {
       || this.isSaving()
       || this.isFinishing()
       || this.isStopping(),
+  );
+  readonly canLeaveWorkspace = computed(() =>
+    !this.route()?.routeNumber || this.routeFinalized(),
   );
   readonly isDirty = computed(() =>
     Object.entries(this.drafts()).some(([componentId, draft]) => {
@@ -228,6 +232,7 @@ export class QualityControlWorkflowState {
     this.panelOpen.set(false);
     this.drafts.set({});
     this.outOfRangeComponents.set({});
+    this.routeFinalized.set(false);
     this.isGenerating.set(false);
     this.isLoadingExams.set(false);
     this.examLoadFailed.set(false);
@@ -392,6 +397,10 @@ export class QualityControlWorkflowState {
     this.routeFeedback.set('Roteiro parado. Gere um novo roteiro após a conferência do supervisor.');
   }
 
+  completeRouteFinalization(): void {
+    if (this.route()?.routeNumber) this.routeFinalized.set(true);
+  }
+
   returnToOrderLocation(): void {
     const operation = this.selectedOperation();
     this.contextId += 1;
@@ -426,6 +435,7 @@ export class QualityControlWorkflowState {
     this.panelOpen.set(false);
     this.drafts.set({});
     this.outOfRangeComponents.set({});
+    this.routeFinalized.set(false);
     this.inspectionFeedback.set('');
     this.examFeedback.set('');
     this.isLoadingExams.set(false);
