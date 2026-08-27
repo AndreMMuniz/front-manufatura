@@ -63,6 +63,16 @@ const REAL_PENDING_ROUTE = JSON.parse(
   ),
 ) as unknown;
 
+const REAL_GENERATED_OPERATOR_ROUTE = JSON.parse(
+  readFileSync(
+    new URL(
+      '../project-specs/planodecontrole-api/examples/roteiros-372562-operacao-10-ficha-64235-response.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as unknown;
+
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
@@ -230,6 +240,24 @@ describe('gateway Plano Controle CQ', () => {
       codOperacao: 10,
       ...responsible,
     });
+  });
+
+  it('repassa integralmente ao front a ficha gerada pelo Datasul', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json(REAL_GENERATED_OPERATOR_ROUTE));
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'OPERADOR1', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/routes`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${issued.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ nrOrdemProducao: 372562, codOperacao: 10, codOperador: '00018060' }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(REAL_GENERATED_OPERATOR_ROUTE);
   });
 
   it('traduz roteiro em andamento do Datasul em conflito com mensagem segura', async () => {

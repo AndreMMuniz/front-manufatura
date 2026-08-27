@@ -141,6 +141,8 @@ const QUALITY_ROUTE = {
   items: [
     {
       nrFicha: 475956,
+      tipoResponsavel: 'Operador',
+      codResponsavel: '001',
       'ds-roteiro': {
         exames: [
           {

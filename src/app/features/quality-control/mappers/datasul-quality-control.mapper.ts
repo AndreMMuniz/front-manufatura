@@ -137,10 +137,17 @@ function mapRouteResponsible(routeItem: Record<string, unknown>): {
   const type = routeItem['tipoResponsavel'];
   const code = routeItem['codResponsavel'];
   if (type === undefined && code === undefined) return {};
-  if ((type !== 'OPERADOR' && type !== 'EQUIPE') || typeof code !== 'string' || !code.trim()) {
+  const normalizedType = typeof type === 'string'
+    ? type.trim().toLocaleUpperCase('pt-BR')
+    : type;
+  if (
+    (normalizedType !== 'OPERADOR' && normalizedType !== 'EQUIPE')
+    || typeof code !== 'string'
+    || !code.trim()
+  ) {
     throw invalidContract();
   }
-  return { responsibleType: type, responsibleCode: code.trim() };
+  return { responsibleType: normalizedType, responsibleCode: code.trim() };
 }
 
 function mapExam(value: unknown, nrFicha: number, examIndex: number): QualityExam {

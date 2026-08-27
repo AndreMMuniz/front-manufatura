@@ -1,0 +1,126 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "indReporteMod": 2,
+      "nrFicha": 64235,
+      "rvCodigo": "R",
+      "tipoResponsavel": "Operador",
+      "codResponsavel": "00018060",
+      "ds-roteiro": {
+        "exames": [
+          {
+            "componentes": [
+              {
+                "resultadoMin": 347,
+                "unidade": "MM",
+                "nrTabela": 0,
+                "codComponente": 10,
+                "descricao": "COTA 347+1mm(A3)",
+                "referenciaTecnica": "",
+                "resultadoMax": 348,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "RÉGUA LINEAR",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 3,
+                "codExame": 164
+              },
+              {
+                "resultadoMin": 16,
+                "unidade": "mm",
+                "nrTabela": 0,
+                "codComponente": 20,
+                "descricao": "COTA 18 ± 2mm  (C2)",
+                "referenciaTecnica": "",
+                "resultadoMax": 20,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "PAQUÍMETRO",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 2,
+                "codExame": 164
+              },
+              {
+                "resultadoMin": 10.9,
+                "unidade": "mm",
+                "nrTabela": 0,
+                "codComponente": 30,
+                "descricao": "COTA 10,90+ 0,6mm (D6)",
+                "referenciaTecnica": "",
+                "resultadoMax": 11.5,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "PAQUÍMETRO",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 2,
+                "codExame": 164
+              },
+              {
+                "resultadoMin": 13,
+                "unidade": "mm",
+                "nrTabela": 0,
+                "codComponente": 40,
+                "descricao": "COTA 13 + 3mm (D5)",
+                "referenciaTecnica": "",
+                "resultadoMax": 16,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "PAQUÍMETRO",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 2,
+                "codExame": 164
+              },
+              {
+                "resultadoMin": 12.59,
+                "unidade": "MM",
+                "nrTabela": 0,
+                "codComponente": 50,
+                "descricao": "COTA Ø12,7 - 0,11mm (A2)",
+                "referenciaTecnica": "",
+                "resultadoMax": 12.7,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "PAQUÍMETRO",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 3,
+                "codExame": 164
+              },
+              {
+                "resultadoMin": 27.8,
+                "unidade": "MM",
+                "nrTabela": 0,
+                "codComponente": 60,
+                "descricao": "COTA 28,0 ± 0,2mm (C1)",
+                "referenciaTecnica": "",
+                "resultadoMax": 28.2,
+                "fonteDefinicao": "generico",
+                "narrativaAprovacao": "",
+                "equipamento": "PAQUÍMETRO",
+                "tipoResultado": 1,
+                "metodo": "",
+                "numeroDecimais": 3,
+                "codExame": 164
+              }
+            ],
+            "observacao": "",
+            "frequencia": 20,
+            "nivel": 0,
+            "responsavel": "BUENO",
+            "amostra": 3,
+            "versao": 1,
+            "codExame": 164,
+            "descricao": "30907-ALAVANCA MASTER 75 OP10",
+            "nqa": 0
+          }
+        ]
+      }
+    }
+  ]
+}

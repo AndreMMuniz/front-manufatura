@@ -1,3 +1,6 @@
+// @vitest-environment node
+
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,6 +8,16 @@ import {
   mapInspectionRouteEnvelopeForSheet,
   mapProductionOrderEnvelope,
 } from './datasul-quality-control.mapper';
+
+const REAL_GENERATED_OPERATOR_ROUTE = JSON.parse(
+  readFileSync(
+    new URL(
+      '../../../../../project-specs/planodecontrole-api/examples/roteiros-372562-operacao-10-ficha-64235-response.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as unknown;
 
 describe('Datasul quality-control mapper', () => {
   it('mapeia ordem, operações e splits na ordem recebida', () => {
@@ -153,6 +166,28 @@ describe('Datasul quality-control mapper', () => {
       equipment: 'VISUAL',
       resultOptions: [{ sequence: 1, description: 'SIM' }, { sequence: 2, description: 'NÃO' }],
     });
+  });
+
+  it('mapeia a ficha real quando o Datasul identifica o responsável como Operador', () => {
+    const result = mapInspectionRouteEnvelope(REAL_GENERATED_OPERATOR_ROUTE, {
+      orderNumber: '372562',
+      operation: {
+        operationCode: '10',
+        operationDescription: 'CORTAR / REMACHAR ALAVANCA',
+        itemCode: '30907',
+        itemDescription: 'ALAVANCA CORTADOR MASTER 75/90 - USINADO',
+        processDescription: 'CORTAR / REMACHAR ALAVANCA',
+      },
+    });
+
+    expect(result.route).toMatchObject({
+      nrFicha: 64235,
+      routeNumber: '64235',
+      responsibleType: 'OPERADOR',
+      responsibleCode: '00018060',
+    });
+    expect(result.exams).toHaveLength(1);
+    expect(result.exams[0].components).toHaveLength(6);
   });
 
   it('seleciona somente a ficha solicitada para a análise autorizada', () => {
