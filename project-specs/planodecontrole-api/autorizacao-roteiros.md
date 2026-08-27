@@ -35,10 +35,11 @@ O GET de autorização devolve os resultados já registrados em `resultados[]` e
 campo `dentroFaixa` de cada componente. O frontend não recalcula essa decisão:
 componentes com `dentroFaixa: true` começam como **Aprovado pelo Datasul** e ficam
 bloqueados somente para visualização; componentes com `dentroFaixa: false`
-começam como **Fora da faixa confirmado pelo Datasul**, permanecem editáveis e
-devem ser corrigidos pelo supervisor. Depois de editar um componente fora da
-faixa, ele volta a **Não verificado** e precisa ser salvo novamente antes da
-finalização. O botão fica bloqueado enquanto houver rascunho alterado e não salvo,
+começam como **Fora da faixa confirmado pelo Datasul** e permanecem editáveis. O
+operador pode corrigir e reenviar o resultado ou manter o valor apontado para a
+finalização com autorização. Depois de editar um componente fora da faixa, ele
+volta a **Não verificado** e precisa ser salvo novamente antes da finalização. O
+botão fica bloqueado enquanto houver rascunho alterado e não salvo,
 carregamento, salvamento ou finalização em andamento; a resposta `finalizado` do
 Datasul continua sendo a decisão final.
 
@@ -236,7 +237,8 @@ registrada.
 - Não assumir que `total` representa diretamente a quantidade de fichas: no exemplo, `total` é `1`, enquanto `items[0]["ds-autorizacao"].roteirosEmAnalise` contém duas fichas.
 - Na listagem geral, não usar `sequenciaOperacao` diretamente como `opCodigo`. O BFF consulta a ordem e exige uma correspondência única entre `sequencia` e `codOperacao` antes de carregar a análise.
 - Tratar `items`, `ds-autorizacao`, `roteirosEmAnalise`, `roteiro` e `exames` ausentes ou vazios sem quebrar a tela.
-- Validar que `resultados` tenha uma identidade única por exame/componente, pertença à ficha e seja coerente com `componentesTotal` e `componentesForaFaixa`.
+- Validar que `resultados` tenha uma identidade única por exame/componente, pertença à ficha e seja coerente com `componentesTotal`.
+- Tratar `resultados[].dentroFaixa` como fonte da verdade para `componentesForaFaixa`: quando o resumo remoto divergir, manter a ficha na listagem, usar a quantidade calculada e registrar a divergência no BFF.
 - Não considerar apenas o status HTTP como sucesso: validar também `finalizado`, `componentesPendentes` e a mensagem retornada.
 - Solicitar confirmação explícita antes da finalização autorizada, pois a ação aceita componentes fora da faixa.
 - Impedir envios repetidos enquanto a finalização estiver em andamento e atualizar a listagem após o sucesso.

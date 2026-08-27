@@ -512,6 +512,43 @@ describe('gateway Plano Controle CQ', () => {
     );
   });
 
+  it('aceita resumo divergente quando os resultados identificam os componentes fora da faixa', async () => {
+    const responseBody = structuredClone(REAL_ROUTE_AUTHORIZATION) as {
+      items: Array<{
+        'ds-autorizacao': {
+          roteirosEmAnalise: Array<{
+            componentesForaFaixa: number;
+            resultados: Array<Record<string, unknown>>;
+          }>;
+        };
+      }>;
+    };
+    const route = responseBody.items[0]['ds-autorizacao'].roteirosEmAnalise[1];
+    route.componentesForaFaixa = 1;
+    route.resultados[0]['dentroFaixa'] = false;
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio',
+      secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.divergentRouteAuthorization],
+      ttlMs: 60_000,
+      now: new Date(),
+    });
+
+    const response = await fetch(`${root}/route-authorizations`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(responseBody);
+  });
+
   it('aceita classificação não informada de componente tipo 4 na consulta geral', async () => {
     const responseBody = structuredClone(REAL_ROUTE_AUTHORIZATION) as {
       items: Array<{

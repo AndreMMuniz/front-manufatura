@@ -66,6 +66,19 @@ describe('route authorization mapper', () => {
     ]);
   });
 
+  it('calcula componentes fora da faixa pelos resultados quando o resumo remoto diverge', () => {
+    const route = pending(64530);
+    route.resultados[1].dentroFaixa = false;
+
+    const [mapped] = mapPendingRoutesEnvelope({
+      total: 1,
+      hasNext: false,
+      items: [{ 'ds-autorizacao': { roteirosEmAnalise: [route] } }],
+    });
+
+    expect(mapped.outOfRangeComponents).toBe(2);
+  });
+
   it('preserva classificação não informada de componente tipo 4', () => {
     const route = pending(64382) as { resultados: Array<Record<string, unknown>> };
     route.resultados[1]['tipoResultado'] = 4;

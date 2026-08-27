@@ -14,14 +14,15 @@ export function mapPendingRoutesEnvelope(value: unknown): PendingAuthorizedRoute
       const route = objectOf(routeValue);
       const sheetNumber = positiveIntegerOf(route['nrFicha']);
       const totalComponents = nonNegativeIntegerOf(route['componentesTotal']);
-      const outOfRangeComponents = nonNegativeIntegerOf(route['componentesForaFaixa']);
+      const declaredOutOfRangeComponents = nonNegativeIntegerOf(route['componentesForaFaixa']);
+      if (declaredOutOfRangeComponents > totalComponents) throw invalidContract();
       const componentResults = arrayOf(route['resultados']).map(resultValue =>
         mapPendingComponentResult(resultValue, sheetNumber),
       );
+      const outOfRangeComponents = componentResults.filter(result => result.withinRange === false).length;
       const componentIdentities = componentResults.map(result => `${result.examCode}:${result.componentCode}`);
       if (
         componentResults.length !== totalComponents ||
-        componentResults.filter(result => result.withinRange === false).length !== outOfRangeComponents ||
         new Set(componentIdentities).size !== componentIdentities.length
       )
         throw invalidContract();

@@ -134,7 +134,11 @@ export class QualityControlDatasulClient {
       undefined,
       'list_quality_route_authorizations',
       '/api/fcq/v1/autorizacaoroteiros',
-      validatePendingAuthorizationsEnvelope,
+      value => {
+        for (const mismatch of validatePendingAuthorizationsEnvelope(value)) {
+          this.logger.warn('quality_route_authorization_summary_mismatch', mismatch);
+        }
+      },
     );
   }
 
@@ -234,9 +238,14 @@ export class QualityControlDatasulClient {
   }
 }
 
-function validatePendingAuthorizationsEnvelope(value: unknown): void {
+function validatePendingAuthorizationsEnvelope(value: unknown): Array<{
+  readonly sheetNumber: number;
+  readonly declaredOutOfRangeComponents: number;
+  readonly calculatedOutOfRangeComponents: number;
+}> {
   const envelope = authorizationEnvelope(value);
   const sheetNumbers: number[] = [];
+  const summaryMismatches = [];
   for (const itemValue of optionalArray(envelope['items'])) {
     const item = upstreamObject(itemValue);
     const dataset = item['ds-autorizacao'] === undefined ? item : upstreamObject(item['ds-autorizacao']);
@@ -269,16 +278,22 @@ function validatePendingAuthorizationsEnvelope(value: unknown): void {
         if (withinRange === null && resultType !== 4) throw invalidUpstream();
         return `${examCode}:${componentCode}`;
       });
-      if (
-        results.length !== total ||
-        results.filter(value => upstreamNullableBoolean(upstreamObject(value)['dentroFaixa']) === false).length !==
-          outOfRange ||
-        new Set(identities).size !== identities.length
-      )
+      const calculatedOutOfRange = results.filter(
+        value => upstreamNullableBoolean(upstreamObject(value)['dentroFaixa']) === false,
+      ).length;
+      if (results.length !== total || new Set(identities).size !== identities.length)
         throw invalidUpstream();
+      if (calculatedOutOfRange !== outOfRange) {
+        summaryMismatches.push({
+          sheetNumber: route['nrFicha'] as number,
+          declaredOutOfRangeComponents: outOfRange,
+          calculatedOutOfRangeComponents: calculatedOutOfRange,
+        });
+      }
     }
   }
   if (new Set(sheetNumbers).size !== sheetNumbers.length) throw invalidUpstream();
+  return summaryMismatches;
 }
 
 function validateAuthorizedFinalizationEnvelope(value: unknown): void {
