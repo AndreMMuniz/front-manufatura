@@ -176,9 +176,11 @@ a partir da configuração e da sessão autenticada.
 
 O retorno observado não contém descrições, unidade, equipamento, método nem
 opções de resultados tabelados. O BFF agrupa os componentes por `codExame` e usa
-identificadores genéricos na análise. Para permitir a correção de componentes
-`tipoResultado: 2`, a API deverá também retornar as opções da tabela e a opção
-registrada.
+identificadores genéricos na análise. Quando `opcoesResultado` estiver presente,
+o BFF valida e preserva as opções recebidas. Para componentes `tipoResultado: 2`
+da tabela binária conhecida `nrTabela: 8`, a ausência desse campo é suprida com
+as opções `seqOpcao: 1` (`SIM`) e `seqOpcao: 2` (`NÃO`). Tabelas desconhecidas
+continuam sem fallback para evitar inferir opções incorretas.
 
 ## Finalizar roteiro com autorização
 

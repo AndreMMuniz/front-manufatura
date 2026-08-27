@@ -17,6 +17,7 @@ import {
 import type { ApplicationLogger } from './logging/log-contracts';
 
 const ROOT = '/api/quality-control';
+const BINARY_RESULT_TABLE_NUMBER = 8;
 
 export interface QualityControlEndpointDependencies {
   readonly env: QualityControlEnvironment;
@@ -228,7 +229,7 @@ function selectPendingRouteEnvelope(
     const maxValue = upstreamFiniteNumber(result['resultadoMaxDefinido']);
     const resultType = upstreamPositiveInteger(result['tipoResultado']);
     const tableNumber = upstreamNonNegativeInteger(result['nrTabela']);
-    const resultOptions = pendingResultOptions(result, examCode, componentCode, tableNumber);
+    const resultOptions = pendingResultOptions(result, examCode, componentCode, resultType, tableNumber);
     const components = exams.get(examCode) ?? [];
     components.push({
       codExame: examCode,
@@ -275,9 +276,28 @@ function pendingResultOptions(
   result: JsonObject,
   expectedExamCode: number,
   expectedComponentCode: number,
+  resultType: number,
   expectedTableNumber: number,
 ): JsonObject[] | undefined {
-  if (result['opcoesResultado'] === undefined) return undefined;
+  if (result['opcoesResultado'] === undefined) {
+    if (resultType !== 2 || expectedTableNumber !== BINARY_RESULT_TABLE_NUMBER) return undefined;
+    return [
+      {
+        nrTabela: BINARY_RESULT_TABLE_NUMBER,
+        seqOpcao: 1,
+        codComponente: expectedComponentCode,
+        codExame: expectedExamCode,
+        descricao: 'SIM',
+      },
+      {
+        nrTabela: BINARY_RESULT_TABLE_NUMBER,
+        seqOpcao: 2,
+        codComponente: expectedComponentCode,
+        codExame: expectedExamCode,
+        descricao: 'NÃO',
+      },
+    ];
+  }
   if (!Array.isArray(result['opcoesResultado'])) throw invalidUpstream();
   const sequences = new Set<number>();
   return result['opcoesResultado'].map(value => {
