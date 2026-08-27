@@ -40,6 +40,16 @@ describe('CommandConfirmationRouter', () => {
       .resolves.toBeUndefined();
   });
 
+  it('reports verifier availability without sending the command', () => {
+    const router = new CommandConfirmationRouter([{
+      commandType: 'CREATE_STOP',
+      confirm: vi.fn(),
+    }]);
+
+    expect(router.supports({ commandType: 'CREATE_STOP' } as never)).toBe(true);
+    expect(router.supports({ commandType: 'END_BATCH' } as never)).toBe(false);
+  });
+
   it('rejects duplicate confirmation handlers at configuration time', () => {
     const handler = {
       commandType: 'CREATE_STOP' as const,

@@ -1161,6 +1161,35 @@ describe('SyncCoordinatorService', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('informa verificador ausente mesmo quando a sessão restaurada está offline', async () => {
+    sessionStorage.clear();
+    const clock = () => new Date('2026-07-29T13:00:00.000Z');
+    const onlineAuth = new AuthSessionService(sessionStorage, clock);
+    onlineAuth.startSession(user(), 'memory-only', {
+      expiresAt: '2026-07-29T21:00:00.000Z',
+    }, {
+      expiresAt: '2026-07-29T21:00:00.000Z',
+    });
+    auth = new AuthSessionService(sessionStorage, clock);
+    await seed(database, [entry('uncertain', {
+      commandType: 'CREATE_STOP',
+      aggregateType: 'STOP',
+      status: 'CONFIRMATION_PENDING',
+      deliveryOutcome: 'UNCERTAIN',
+    })]);
+    const send = vi.fn();
+    const coordinator = createCoordinator({ send });
+    coordinator.start();
+
+    await expect(coordinator.confirmDelivery('uncertain')).resolves.toBe('unsupported');
+
+    expect(auth.mode).toBe('OFFLINE');
+    expect(await repository.getById(OWNER, 'uncertain')).toMatchObject({
+      status: 'CONFIRMATION_PENDING', deliveryOutcome: 'UNCERTAIN',
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('rejeita configuração cujo lease não ultrapassa o timeout antes de iniciar', () => {
     const coordinator = createCoordinator(successTransport([]), {
       requestTimeoutMs: 60_000,

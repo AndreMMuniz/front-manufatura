@@ -53,4 +53,8 @@ export class CommandConfirmationRouter {
     const handler = this.handlers.get(request.commandType as OperationalCommandType);
     return handler ? handler.confirm(request, signal) : Promise.resolve(undefined);
   }
+
+  supports(request: Pick<SyncCommandRequest, 'commandType'>): boolean {
+    return this.handlers.has(request.commandType as OperationalCommandType);
+  }
 }

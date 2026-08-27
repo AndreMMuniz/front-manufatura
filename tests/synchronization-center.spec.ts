@@ -11,7 +11,20 @@ const OWNER_B = 'operator-sync-b';
 interface SeedEntry {
   readonly localId: string;
   readonly ownerId: string;
-  readonly status: 'PENDING' | 'BLOCKED_AUTH' | 'ERROR' | 'SYNCED';
+  readonly status:
+    | 'PENDING'
+    | 'BLOCKED_AUTH'
+    | 'ERROR'
+    | 'SYNCED'
+    | 'CONFIRMATION_PENDING';
+  readonly deliveryOutcome?: 'NOT_DELIVERED' | 'REJECTED' | 'UNCERTAIN' | 'CONFIRMED';
+  readonly lastError?: {
+    readonly code: string;
+    readonly category: 'TRANSIENT' | 'AUTH' | 'VALIDATION' | 'CONFLICT' | 'CONFIGURATION';
+    readonly deliveryOutcome: 'NOT_DELIVERED' | 'REJECTED' | 'UNCERTAIN';
+    readonly userMessage: string;
+    readonly correlationId?: string;
+  };
   readonly commandType?: string;
   readonly aggregateType?: string;
   readonly aggregateId?: string;
@@ -22,6 +35,7 @@ interface SeedEntry {
     readonly receivedAt: string;
     readonly processedAt: string;
     readonly duplicate: boolean;
+    readonly confirmationMethod?: 'REMOTE_QUERY';
   };
 }
 
@@ -120,12 +134,25 @@ test('retry, correção e cancelamento usam a Outbox real e mantêm feedback seg
   test.setTimeout(60_000);
   await page.route('**/api/operations/report', route => route.fulfill({
     status: 503,
-    json: { code: 'datasul-unavailable' },
+    json: route.request().headers()['idempotency-key'] === 'retry-a'
+      ? {
+          code: 'CONNECT_REFUSED',
+          category: 'TRANSIENT',
+          deliveryOutcome: 'NOT_DELIVERED',
+          userMessage: 'O destino não pôde ser alcançado.',
+        }
+      : { code: 'datasul-unavailable' },
   }));
   await page.goto('/login');
   await login(page, 'owner-a');
   await seedEntries(page, [
-    { localId: 'retry-a', ownerId: OWNER_A, status: 'ERROR', aggregateId: 'OP-RETRY' },
+    {
+      localId: 'retry-a',
+      ownerId: OWNER_A,
+      status: 'ERROR',
+      aggregateId: 'OP-RETRY',
+      deliveryOutcome: 'NOT_DELIVERED',
+    },
     {
       localId: 'correct-a',
       ownerId: OWNER_A,
@@ -133,6 +160,13 @@ test('retry, correção e cancelamento usam a Outbox real e mantêm feedback seg
       aggregateType: 'STOP',
       aggregateId: 'STOP-CORRECT',
       commandType: 'CREATE_STOP',
+      deliveryOutcome: 'REJECTED',
+      lastError: {
+        code: 'STOP_VALIDATION_REJECTED',
+        category: 'VALIDATION',
+        deliveryOutcome: 'REJECTED',
+        userMessage: 'A parada precisa ser corrigida antes do envio.',
+      },
       occurredAt: '2026-07-30T15:00:00.000Z',
       payload: {
         localId: 'correct-a',
@@ -253,6 +287,125 @@ test('cancelamento tem liberação de desenvolvimento e apenas uma aba vence a r
   expect(await readPairDisposition(denied, 'denied')).toEqual(['ACTIVE', 'ACTIVE']);
 });
 
+test('resultado CQ incerto não reenvia após 502 e a Central explica os outcomes de entrega', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  let resultPutCount = 0;
+  await page.route('**/api/quality-control/results', async route => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    resultPutCount += 1;
+    await route.fulfill({
+      status: 502,
+      json: {
+        code: 'invalid-upstream-response',
+        category: 'TRANSIENT',
+        deliveryOutcome: 'UNCERTAIN',
+        userMessage: 'O destino respondeu, mas a gravação ainda precisa ser confirmada.',
+        correlationId: 'corr-e2e-invalid-receipt',
+      },
+    });
+  });
+  await page.goto('/login');
+  await login(page, 'owner-a');
+  await seedEntries(page, [
+    {
+      localId: 'uncertain-after-put',
+      ownerId: OWNER_A,
+      status: 'PENDING',
+      aggregateType: 'QUALITY_EXAM',
+      aggregateId: 'quality-uncertain',
+      commandType: 'SAVE_QUALITY_RESULT',
+      payload: { nrFicha: 751, codExame: 31, codComponente: 7, resultado: 15.5 },
+    },
+    {
+      localId: 'rejected-with-reason',
+      ownerId: OWNER_A,
+      status: 'ERROR',
+      aggregateType: 'QUALITY_EXAM',
+      aggregateId: 'quality-rejected',
+      commandType: 'SAVE_QUALITY_RESULT',
+      deliveryOutcome: 'REJECTED',
+      lastError: {
+        code: 'RULE_REJECTED',
+        category: 'VALIDATION',
+        deliveryOutcome: 'REJECTED',
+        userMessage: 'A regra de qualidade não permite este resultado.',
+        correlationId: 'corr-e2e-rejected',
+      },
+    },
+    {
+      localId: 'not-delivered-retry',
+      ownerId: OWNER_A,
+      status: 'ERROR',
+      aggregateId: 'operation-not-delivered',
+      commandType: 'REPORT_OPERATION',
+      deliveryOutcome: 'NOT_DELIVERED',
+      lastError: {
+        code: 'CONNECT_REFUSED',
+        category: 'TRANSIENT',
+        deliveryOutcome: 'NOT_DELIVERED',
+        userMessage: 'O destino não pôde ser alcançado.',
+      },
+    },
+    {
+      localId: 'confirmed-by-query',
+      ownerId: OWNER_A,
+      status: 'SYNCED',
+      aggregateType: 'QUALITY_EXAM',
+      aggregateId: 'quality-confirmed',
+      commandType: 'SAVE_QUALITY_RESULT',
+      deliveryOutcome: 'CONFIRMED',
+      receipt: {
+        serverRecordId: 'datasul-query-751',
+        receivedAt: '2026-07-30T11:01:00.000Z',
+        processedAt: '2026-07-30T11:01:01.000Z',
+        duplicate: false,
+        confirmationMethod: 'REMOTE_QUERY',
+      },
+    },
+  ]);
+
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => resultPutCount).toBe(1);
+  await page.goto('/synchronization');
+  await invalidateProjection(page);
+
+  await expect(page.getByTestId('sync-status-uncertain-after-put')).toContainText(
+    'Entrega não confirmada',
+  );
+  await expect(page.getByTestId('sync-retry-uncertain-after-put')).toHaveCount(0);
+  await expect(page.getByTestId('sync-confirm-uncertain-after-put')).toBeVisible();
+  await expect(page.getByTestId('sync-status-rejected-with-reason')).toContainText(
+    'Rejeitado — A regra de qualidade não permite este resultado.',
+  );
+  await expect(page.getByTestId('sync-retry-rejected-with-reason')).toHaveCount(0);
+  await expect(page.getByTestId('sync-status-not-delivered-retry')).toContainText(
+    'Não enviado — falha de comunicação',
+  );
+  await expect(page.getByTestId('sync-retry-not-delivered-retry')).toBeVisible();
+  await expect(page.getByTestId('sync-status-confirmed-by-query')).toContainText(
+    'Integrado com o Datasul',
+  );
+
+  await page.getByTestId('sync-detail-confirmed-by-query').click();
+  await expect(page.getByRole('dialog', { name: 'Detalhes do registro' })).toContainText(
+    'Confirmado por consulta ao Datasul.',
+  );
+  await page.getByTestId('sync-close-detail').click();
+
+  await page.getByTestId('sync-confirm-uncertain-after-put').click();
+  await expect(page.getByTestId('sync-action-feedback')).toContainText(
+    'ainda não possui consulta de confirmação',
+  );
+  await page.reload();
+  await page.reload();
+  await expect(page.getByTestId('sync-status-uncertain-after-put')).toContainText(
+    'Entrega não confirmada',
+  );
+  expect(resultPutCount).toBe(1);
+});
+
 async function mockAuthentication(context: BrowserContext): Promise<void> {
   await context.route('**/api/auth/login', async route => {
     const body = route.request().postDataJSON() as { login?: string };
@@ -351,18 +504,22 @@ async function seedEntries(page: Page, entries: readonly SeedEntry[]): Promise<v
       };
       transaction.objectStore('localRecords').put({
         ...common,
-        databaseVersion: 3,
+        databaseVersion: 4,
         initialSyncStatus: 'PENDING',
       });
       transaction.objectStore('outbox').put({
         ...common,
         status: value.status,
         attemptCount: value.status === 'ERROR' ? 2 : 0,
-        ...(value.status === 'ERROR'
+        ...(value.deliveryOutcome ? { deliveryOutcome: value.deliveryOutcome } : {}),
+        ...(value.lastError
+          ? { lastError: value.lastError }
+          : value.status === 'ERROR'
           ? {
               lastError: {
                 code: 'UNSUPPORTED_COMMAND',
                 category: 'CONFIGURATION',
+                deliveryOutcome: 'NOT_DELIVERED',
                 userMessage: 'Adapter Datasul ainda não configurado.',
               },
             }
@@ -380,11 +537,10 @@ async function seedEntries(page: Page, entries: readonly SeedEntry[]): Promise<v
 }
 
 async function selectStoppageContext(page: Page): Promise<void> {
-  const area = page.getByRole('combobox', { name: 'Área de Produção' });
+  const area = page.getByRole('textbox', { name: 'Área de Produção' });
   const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
-  await area.focus();
-  await area.press('ArrowDown');
-  await area.press('Enter');
+  await area.fill('4001');
+  await area.blur();
   await expect(center).toBeEnabled();
   await center.selectOption('CT-EXT-01');
 }

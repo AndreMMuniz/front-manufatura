@@ -158,7 +158,7 @@ export class SyncCoordinatorService implements OnDestroy {
 
   async confirmDelivery(localId: string): Promise<ConfirmationAttemptResult> {
     const owner = this.activeOwner;
-    if (!owner || !this.remoteCredentialAvailable) {
+    if (!owner) {
       return 'pending';
     }
     const epoch = this.sessionEpoch;
@@ -172,12 +172,20 @@ export class SyncCoordinatorService implements OnDestroy {
     if (
       !entry ||
       entry.status !== 'CONFIRMATION_PENDING' ||
-      !this.isCurrent(owner, epoch)
+      !this.started ||
+      this.activeOwner !== owner ||
+      this.sessionEpoch !== epoch
     ) {
       return 'pending';
     }
 
     const request = toSyncCommandRequest(entry);
+    if (!this.confirmations.supports(request)) {
+      return 'unsupported';
+    }
+    if (!this.remoteCredentialAvailable) {
+      return 'pending';
+    }
     const controller = new AbortController();
     this.activeRequests.add(controller);
     try {
