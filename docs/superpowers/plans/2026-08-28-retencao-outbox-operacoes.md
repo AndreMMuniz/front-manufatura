@@ -20,6 +20,8 @@
 - A migration v4 deve ser aditiva e preservar integralmente bancos v1, v2 e v3.
 - Erro de cleanup deve ser observável, mas não pode alterar um comando já reconciliado nem derrubar o ciclo de sync.
 - Não modificar migrations históricas v1–v3.
+- Processar no máximo 25 agregados encerrados por execução de cleanup; ciclos posteriores continuam
+  o trabalho. Esse teto limita scans/transações pós-sync sem alterar os 30 dias/500 recibos.
 
 ---
 
@@ -310,6 +312,7 @@ Expected: FAIL com import não resolvido.
 ```ts
 export const SYNC_RETENTION_DAYS = 30;
 export const SYNC_RETENTION_MAX_PER_OWNER = 500;
+export const SYNC_RETENTION_MAX_AGGREGATES_PER_RUN = 25;
 
 export interface SyncRetentionSummary {
   readonly compactedAggregates: number;
@@ -496,9 +499,21 @@ Run: `graphify update .`
 
 Expected: atualização AST concluída.
 
-Run: `graphify query "Quando registros REPORT_OPERATION podem ser compactados e quais recibos permanecem?"`
+Run:
 
-Expected: o subgrafo inclui `SyncRetentionService`, `SyncRetentionRepository`, `SYNC_RECEIPTS_STORE`, `END_OPERATION` e `SyncCoordinatorService`.
+```bash
+graphify explain "SyncRetentionService"
+graphify explain ".compactClosedAggregate()"
+graphify explain "SyncCoordinatorService"
+```
+
+Expected: os símbolos AST apontam, respectivamente, para a política limitada de retenção, a
+revalidação transacional do agregado e o gatilho pós-ciclo não bloqueante. Uma query em linguagem
+natural pode ser usada como navegação complementar, mas não deve exigir o literal `END_OPERATION`:
+literais de string não são nós AST garantidos. A seleção de `END_OPERATION` sincronizado permanece
+verificada pelos specs do serviço e do repositório.
+
+Run opcional: `graphify query "Quando recibos sincronizados podem ser compactados?"`
 
 - [ ] **Step 5: Commit final**
 
