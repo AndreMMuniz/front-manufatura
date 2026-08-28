@@ -9,6 +9,10 @@ import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 import { AuthSession } from '../../../../core/auth/auth.models';
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import {
+  PersistedSyncError,
+  RemoteCommandReceipt,
+} from '../../../../core/offline/models/outbox-entry';
+import {
   GerenciarEquipeResultado,
   GerenciarEquipeSlide,
 } from '../../../equipes/components/gerenciar-equipe-slide/gerenciar-equipe-slide';
@@ -16,7 +20,12 @@ import { OperationalContextService } from '../../../shop-floor/services/operatio
 import { ReporteParadasService } from '../../../reporte-paradas/services/reporte-paradas.service';
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { OperacaoInfoCard } from '../../components/operacao-info-card/operacao-info-card';
-import { EstadoOperacao, OrdemCentroTrabalho, ReportOperacao } from '../../models/report-operacao.model';
+import {
+  EstadoOperacao,
+  OrdemCentroTrabalho,
+  ReportOperacao,
+  ReporteOperacaoResultado,
+} from '../../models/report-operacao.model';
 import { ReportOperacaoWorkflowState } from '../../services/report-operacao-workflow-state';
 import { ReportOperacaoService } from '../../services/report-operacao.service';
 import { ReportOperacaoPage } from './report-operacao-page';
@@ -64,6 +73,17 @@ describe('ReportOperacaoPage', () => {
       areaCode: '4001', workCenterCode: 'CT-EXT-01',
     },
   ];
+  const receipt: RemoteCommandReceipt = {
+    serverRecordId: 'DATASUL-1',
+    receivedAt: '2026-08-28T13:00:00.000Z',
+    processedAt: '2026-08-28T13:00:01.000Z',
+    duplicate: false,
+  };
+  const persistedError: PersistedSyncError = {
+    code: 'INVALID_REPORT',
+    category: 'VALIDATION',
+    userMessage: 'O Datasul rejeitou o reporte.',
+  };
 
   beforeEach(async () => {
     router = { navigate: vi.fn().mockResolvedValue(true) };
@@ -98,7 +118,11 @@ describe('ReportOperacaoPage', () => {
       iniciarOperacao: vi.fn(request => of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio })),
       reportarOperacao: vi.fn(() => {
         reportSequence += 1;
-        return of({ apontamentoId: `APT-${reportSequence}`, reportadoEm: new Date() });
+        return of({
+          apontamentoId: `APT-${reportSequence}`,
+          reportadoEm: new Date(),
+          delivery: { status: 'PENDING' as const },
+        });
       }),
       encerrarOperacao: vi.fn(() => of({ apontamentoId: 'ENC-1', reportadoEm: new Date() })),
       validarReporte: vi.fn(() => ''),
@@ -421,6 +445,58 @@ describe('ReportOperacaoPage', () => {
     expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
   });
 
+  it('confirma recebimento quando a Outbox reconcilia SYNCED', () => {
+    service.reportarOperacao.mockReturnValue(of({
+      apontamentoId: 'APT-1',
+      reportadoEm: new Date('2026-08-28T10:00:00-03:00'),
+      delivery: { status: 'SYNCED', receipt },
+    }));
+
+    submitReport({ quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+
+    expect(notification.success).toHaveBeenCalledWith('Reporte enviado ao Datasul.');
+    expect(component.reportes).toHaveLength(1);
+  });
+
+  it('avisa quando o reporte local ficou pendente', () => {
+    service.reportarOperacao.mockReturnValue(of({
+      apontamentoId: 'APT-1', reportadoEm: new Date(), delivery: { status: 'PENDING' },
+    }));
+
+    submitReport({ quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+
+    expect(notification.warning).toHaveBeenCalledWith(
+      'Datasul indisponível — reporte salvo como pendente.',
+    );
+    expect(component.reportes).toHaveLength(1);
+  });
+
+  it('não cria outro comando quando o Datasul rejeita o reporte', () => {
+    service.reportarOperacao.mockReturnValue(of({
+      apontamentoId: 'APT-1',
+      reportadoEm: new Date(),
+      delivery: { status: 'ERROR', error: persistedError },
+    }));
+    const confirmarReporte = vi.fn();
+    const informarErro = vi.fn();
+    submitReport(
+      { quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0 },
+      () => {
+        (component as unknown as {
+          reporteSlide: { confirmarReporte: typeof confirmarReporte; informarErro: typeof informarErro };
+        }).reporteSlide = { confirmarReporte, informarErro };
+      },
+    );
+
+    expect(service.reportarOperacao).toHaveBeenCalledOnce();
+    expect(confirmarReporte).toHaveBeenCalledOnce();
+    expect(informarErro).not.toHaveBeenCalled();
+    expect(notification.error).toHaveBeenCalledWith(
+      `${persistedError.userMessage} Abra o Centro de Sincronização para corrigir.`,
+    );
+    expect(component.reportes).toHaveLength(1);
+  });
+
   it('accepts rework without a scrap reason', () => {
     fixture.detectChanges();
     selectContextAndConsult();
@@ -463,7 +539,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('captures the final report without closing the split and makes END depend on it', () => {
-    const finalReport = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+    const finalReport = new Subject<ReporteOperacaoResultado>();
     service.reportarOperacao.mockReturnValueOnce(finalReport);
     fixture.detectChanges();
     selectContextAndConsult();
@@ -479,7 +555,7 @@ describe('ReportOperacaoPage', () => {
       finalizarSplit: true,
     });
     component.areaCode = 'contexto-visual-obsoleto';
-    finalReport.next({ apontamentoId: 'APT-1', reportadoEm: new Date() });
+    finalReport.next({ apontamentoId: 'APT-1', reportadoEm: new Date(), delivery: { status: 'PENDING' } });
     finalReport.complete();
 
     expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
@@ -569,7 +645,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('does not apply a stale partial-report response to another operation', () => {
-    const pending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+    const pending = new Subject<ReporteOperacaoResultado>();
     vi.mocked(service.reportarOperacao).mockReturnValue(pending.asObservable());
     fixture.detectChanges();
     selectContextAndConsult();
@@ -582,7 +658,7 @@ describe('ReportOperacaoPage', () => {
 
     component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
     component.operacao = baseOperacao({ ordem: '450002', op: 'OP-10459' });
-    pending.next({ apontamentoId: 'STALE', reportadoEm: new Date(2026, 6, 23, 9) });
+    pending.next({ apontamentoId: 'STALE', reportadoEm: new Date(2026, 6, 23, 9), delivery: { status: 'PENDING' } });
 
     expect(component.operacao.ordem).toBe('450002');
     expect(component.reportes).toEqual([]);
@@ -590,7 +666,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('keeps the recoverable workflow state while a partial report is pending', () => {
-    const pending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+    const pending = new Subject<ReporteOperacaoResultado>();
     vi.mocked(service.reportarOperacao).mockReturnValue(pending.asObservable());
     fixture.detectChanges();
     selectContextAndConsult();
@@ -1078,6 +1154,21 @@ describe('ReportOperacaoPage', () => {
     component.onAreaChange('4001');
     component.onWorkCenterChange('CT-EXT-01');
     component.consultOrders();
+  }
+
+  function submitReport(draft: {
+    readonly quantidadeAprovada: number;
+    readonly quantidadeRetrabalho: number;
+    readonly quantidadeRefugo: number;
+  }, beforeSubmit?: () => void): void {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+    beforeSubmit?.();
+    component.salvarReporte(draft);
   }
 });
 

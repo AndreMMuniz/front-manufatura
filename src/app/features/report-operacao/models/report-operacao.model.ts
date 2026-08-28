@@ -87,6 +87,7 @@ export interface ReporteParcialOperacao {
   readonly quantidadeRefugo: number;
   readonly refugoItens: ReadonlyArray<ReporteRefugoItem>;
   readonly commandId?: string;
+  readonly deliveryStatus?: ImmediateDeliveryResult['status'];
 }
 
 export interface ResultadoConsultaOP {

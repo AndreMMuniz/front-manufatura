@@ -984,6 +984,7 @@ export class ReportOperacaoPage implements OnInit {
             quantidadeRefugo,
             refugoItens: refugoItens.map(item => ({ ...item })),
             commandId: result.apontamentoId,
+            deliveryStatus: result.delivery.status,
           };
           this.reportes = [...this.reportes, reporte];
           this.operacao = this.withDerivedTotals({
@@ -994,12 +995,24 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setActiveOperation(this.operacao, this.estado);
           this.workflowState.addReporte(reporte);
           this.reporteSlide?.confirmarReporte(reporte);
+          switch (result.delivery.status) {
+            case 'SYNCED':
+              this.feedback = 'Reporte enviado ao Datasul. A operação continua ativa.';
+              this.notification.success('Reporte enviado ao Datasul.');
+              break;
+            case 'PENDING':
+              this.feedback = 'Datasul indisponível — reporte salvo como pendente. A operação continua ativa.';
+              this.notification.warning('Datasul indisponível — reporte salvo como pendente.');
+              break;
+            case 'ERROR':
+              this.feedback = `${result.delivery.error.userMessage} Abra o Centro de Sincronização para corrigir.`;
+              this.notification.error(this.feedback);
+              break;
+          }
           if (draft.finalizarSplit) {
             this.endOperation();
             return;
           }
-          this.feedback = 'Salvo neste dispositivo — envio pendente. A operação continua ativa.';
-          this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.changeDetector.markForCheck();
         },
         error: () => {

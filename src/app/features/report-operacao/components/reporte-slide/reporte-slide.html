@@ -73,6 +73,13 @@
             <small>Refugo</small>{{ formatQuantidade(reporte.quantidadeRefugo) }}
           </span>
         </div>
+        <small class="reporte-slide__delivery-status">
+          {{ reporte.deliveryStatus === 'SYNCED'
+            ? 'Enviado ao Datasul'
+            : reporte.deliveryStatus === 'ERROR'
+              ? 'Rejeitado pelo Datasul'
+              : 'Envio pendente' }}
+        </small>
         @if (reporte.refugoItens.length > 0) {
           <div class="reporte-slide__reasons">
             @for (item of reporte.refugoItens; track item.codigo + $index) {
