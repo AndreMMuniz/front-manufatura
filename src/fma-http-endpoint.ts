@@ -439,7 +439,7 @@ function reportSplit(item: JsonObject, batch: boolean): JsonObject {
   const rework = nonNegativeFinite(item['quantidadeRetrabalho']);
   const scrap = nonNegativeFinite(item['quantidadeRefugo']);
   const reasons = objectArray(item['refugoItens']);
-  const requiresReason = scrap > 0 || rework > 0;
+  const requiresReason = scrap > 0;
   if ((requiresReason && reasons.length !== 1) || (!requiresReason && reasons.length !== 0)) {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }

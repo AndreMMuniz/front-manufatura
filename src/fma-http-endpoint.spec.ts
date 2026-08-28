@@ -145,8 +145,8 @@ describe('gateway FMA', () => {
     };
     const body = {
       ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
-      quantidadeAprovada: 10, quantidadeRetrabalho: 1, quantidadeRefugo: 0,
-      refugoItens: [{ codigo: '05', descricao: 'Retrabalho', quantidade: 1 }],
+      quantidadeAprovada: 10, quantidadeRetrabalho: 1, quantidadeRefugo: 2,
+      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
       dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
       dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
       tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
@@ -156,14 +156,8 @@ describe('gateway FMA', () => {
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({
       codAreaProduc: '4113', codCtrab: 'LASER-01-01', codOperador: '00016570', codEquipe: '',
       finalizarSplit: false,
-      splits: [{ nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1, qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 0, codMotivoRefugo: '05' }],
+      splits: [{ nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1, qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 2, codMotivoRefugo: '05' }],
     }));
-
-    const invalid = await fetch(`${root}/api/operations/report`, {
-      method: 'POST', headers: { ...headers, 'idempotency-key': 'invalid-reason' },
-      body: JSON.stringify({ ...body, refugoItens: [] }),
-    });
-    expect(invalid.status).toBe(400);
     const ending = await fetch(`${root}/api/operations/end`, {
       method: 'POST', headers: { ...headers, 'idempotency-key': 'end-1' }, body: JSON.stringify({
         ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
@@ -177,6 +171,57 @@ describe('gateway FMA', () => {
       codAreaProduc: '4113', codCtrab: 'LASER-01-01', nrOrdemProducao: 372572,
       opCodigo: 10, numSplitOperac: 1,
     });
+  });
+
+  it('envia retrabalho sem exigir codMotivoRefugo', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/operations/report`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'report-rework-without-reason',
+      },
+      body: JSON.stringify({
+        ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+        quantidadeAprovada: 10, quantidadeRetrabalho: 1, quantidadeRefugo: 0, refugoItens: [],
+        dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+        dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
+        tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
+      }),
+    });
+
+    expect(result.status).toBe(200);
+    const split = JSON.parse(String(transport.mock.calls[0][1]?.body)).splits[0];
+    expect(split).toEqual({
+      nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1,
+      qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 0, codMotivoRefugo: '',
+    });
+    expect(split).not.toHaveProperty('quantidadeMotivo');
+  });
+
+  it('rejeita refugo sem exatamente um motivo', async () => {
+    const transport = vi.fn<typeof fetch>();
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/operations/report`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'report-scrap-without-reason',
+      },
+      body: JSON.stringify({
+        ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+        quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 2, refugoItens: [],
+        dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+        dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
+        tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
+      }),
+    });
+
+    expect(result.status).toBe(400);
+    expect(transport).not.toHaveBeenCalled();
   });
 
   it.each([true, false])('aceita encerramento com operacaoFechada=%s e mantém retry idempotente', async operacaoFechada => {
