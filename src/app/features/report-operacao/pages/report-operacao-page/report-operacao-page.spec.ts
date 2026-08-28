@@ -573,6 +573,29 @@ describe('ReportOperacaoPage', () => {
     }));
   });
 
+  it('keeps the split active when Datasul rejects the final report', () => {
+    service.reportarOperacao.mockReturnValueOnce(of({
+      apontamentoId: 'APT-1',
+      reportadoEm: new Date(),
+      delivery: { status: 'ERROR', error: persistedError },
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
+
+    component.salvarReporte({
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      finalizarSplit: true,
+    });
+
+    expect(service.encerrarOperacao).not.toHaveBeenCalled();
+  });
+
   it('does not mutate Datasul while only opening repeated final-report confirmations', () => {
     const abrir = vi.fn();
     fixture.detectChanges();

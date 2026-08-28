@@ -1009,7 +1009,7 @@ export class ReportOperacaoPage implements OnInit {
               this.notification.error(this.feedback);
               break;
           }
-          if (draft.finalizarSplit) {
+          if (draft.finalizarSplit && result.delivery.status !== 'ERROR') {
             this.endOperation();
             return;
           }
