@@ -11,7 +11,7 @@ const scrapReasonService = {
 };
 
 describe('ReporteSlide', () => {
-  it('renders the abbreviated reason quantity label with the order number', async () => {
+  it('mostra Motivo Refugo automaticamente e remove controles de quantidade do motivo', async () => {
     await TestBed.configureTestingModule({
       imports: [ReporteSlide],
       providers: [
@@ -20,18 +20,21 @@ describe('ReporteSlide', () => {
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(ReporteSlide);
-    fixture.componentInstance.ordem = '370574';
 
     fixture.detectChanges();
     fixture.componentInstance.abrir([]);
-    fixture.componentInstance.editingRefugo = true;
+    fixture.componentInstance.atualizarQuantidade('quantidadeRefugo', 2);
     fixture.detectChanges();
 
-    expect(document.body.textContent).toContain('Qtde do motivo da Ordem 370574');
+    expect(scrapReasonService.buscarMotivos).toHaveBeenCalledWith('');
+    expect(document.body.textContent).toContain('Motivo Refugo');
+    expect(document.body.textContent).not.toContain('Editar Motivo');
+    expect(document.body.textContent).not.toContain('Qtde do motivo');
+    expect(document.body.textContent).not.toContain('Adicionar motivo');
   });
 
   it('sums only approved and scrap quantities in the displayed total', () => {
-    const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     component.quantidadeAprovada = 100;
     component.quantidadeRetrabalho = 2;
     component.quantidadeRefugo = 10;
@@ -39,12 +42,27 @@ describe('ReporteSlide', () => {
     expect(component.totalInformado).toBe(110);
   });
 
-  it('requires one reason when a report contains only rework', () => {
-    const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
-    component.quantidadeRetrabalho = 2;
+  it('permite retrabalho sem motivo e exige motivo quando há refugo', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
+    component.atualizarQuantidade('quantidadeRetrabalho', 1);
+    expect(component.canSave).toBe(true);
 
-    expect(component.totalInformado).toBe(0);
+    component.atualizarQuantidade('quantidadeRefugo', 1);
     expect(component.canSave).toBe(false);
+  });
+
+  it('limpa o motivo ao voltar a quantidade de refugo para zero', () => {
+    const component = new ReporteSlide(
+      { markForCheck: vi.fn() } as never,
+      { confirm: vi.fn() } as never,
+      scrapReasonService as never,
+    );
+    component.atualizarQuantidade('quantidadeRefugo', 2);
+    component.atualizarMotivo('05');
+
+    component.atualizarQuantidade('quantidadeRefugo', 0);
+
+    expect(component.motivoCodigo).toBe('');
   });
 
   it('emits one draft and blocks duplicate saves while waiting for the service', () => {
@@ -75,7 +93,19 @@ describe('ReporteSlide', () => {
     expect(component.quantidadeAprovada).toBe(3);
     expect(component.validationMessage).toBe('Falha de comunicação.');
 
-    component.confirmarReporte({
+    const pageSlide = { close: vi.fn() };
+    const pwaWorkState = { setCaptureActive: vi.fn() };
+    const confirmComponent = new ReporteSlide(
+      { markForCheck: vi.fn() } as never,
+      { confirm: vi.fn() } as never,
+      scrapReasonService as never,
+      pwaWorkState as never,
+    );
+    (confirmComponent as unknown as { pageSlide: typeof pageSlide }).pageSlide = pageSlide;
+    (confirmComponent as unknown as { slideOpen: boolean }).slideOpen = true;
+    confirmComponent.salvando = true;
+    confirmComponent.quantidadeAprovada = 3;
+    confirmComponent.confirmarReporte({
       id: 'APT-1',
       idempotencyKey: 'draft-1',
       registradoEm: new Date(2026, 6, 23, 10),
@@ -89,8 +119,10 @@ describe('ReporteSlide', () => {
       refugoItens: [],
     });
 
-    expect(component.quantidadeAprovada).toBe(0);
-    expect(component.historico).toHaveLength(1);
+    expect(confirmComponent.quantidadeAprovada).toBe(0);
+    expect(confirmComponent.historico).toHaveLength(1);
+    expect(pageSlide.close).toHaveBeenCalledOnce();
+    expect(pwaWorkState.setCaptureActive).toHaveBeenLastCalledWith('report-operation', false);
   });
 
   it('reuses the idempotency key when retrying the same preserved draft', () => {
@@ -138,7 +170,7 @@ describe('ReporteSlide', () => {
     expect(component.formatDataHora(new Date('invalid'))).toBe('Data inválida');
   });
 
-  it('requires exactly one reason for scrap or rework', () => {
+  it('exige motivo quando há refugo sem motivo selecionado', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
     const emitted = vi.fn();
     component.reporteSolicitado.subscribe(emitted);
@@ -150,76 +182,22 @@ describe('ReporteSlide', () => {
 
     expect(emitted).not.toHaveBeenCalled();
     expect(component.validationMessage).toBe(
-      'Informe exatamente um motivo de refugo ou retrabalho da Ordem 450001.',
+      'Informe um motivo de refugo da Ordem 450001.',
     );
   });
 
-  it('adds, consolidates and removes scrap reasons', () => {
+  it('deriva a quantidade do motivo da própria quantidade de refugo', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
-    component.editarRefugo();
-
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(1.25);
-    component.adicionarMotivo();
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(0.75);
-    component.adicionarMotivo();
-
-    expect(component.refugoItens).toEqual([
-      { codigo: '05', descricao: 'Borra', quantidade: 2 },
-    ]);
-
-    component.removerMotivo(0);
-
-    expect(component.refugoItens).toEqual([]);
-  });
-
-  it('emits a defensive copy of valid reasons and preserves it after a failed request', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
-    const emitted: Array<{ idempotencyKey?: string; refugoItens?: ReadonlyArray<{ codigo: string }> }> = [];
-    component.reporteSolicitado.subscribe(draft => emitted.push(draft));
+    const emitted = vi.spyOn(component.reporteSolicitado, 'emit');
+    component.atualizarQuantidade('quantidadeAprovada', 10);
     component.atualizarQuantidade('quantidadeRefugo', 2);
-    component.editarRefugo();
     component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(2);
-    component.adicionarMotivo();
-
-    component.salvar();
-    component.informarErro('Falha de comunicação.');
     component.salvar();
 
-    expect(emitted).toHaveLength(2);
-    expect(emitted[0]).toEqual(expect.objectContaining({
+    expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRefugo: 2,
       refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
     }));
-    expect(emitted[1].idempotencyKey).toBe(emitted[0].idempotencyKey);
-    expect(emitted[1].refugoItens).not.toBe(emitted[0].refugoItens);
-    expect(component.refugoItens).toEqual([
-      { codigo: '05', descricao: 'Borra', quantidade: 2 },
-    ]);
-    expect(component.hasDraft).toBe(true);
-  });
-
-  it('asks before discarding a draft that contains only a reason', () => {
-    const confirm = vi.fn();
-    const component = new ReporteSlide(
-      { markForCheck: vi.fn() } as never,
-      { confirm } as never,
-      scrapReasonService as never,
-    );
-    component.editarRefugo();
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(1);
-    component.adicionarMotivo();
-
-    component.voltar();
-
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Descartar reporte?',
-      message: 'Existem quantidades ainda não salvas. Deseja descartá-las?',
-    }));
-    expect(component.refugoItens).toHaveLength(1);
   });
 
   it('keeps the report open and reports an error when the reasons catalog fails', () => {
@@ -230,70 +208,18 @@ describe('ReporteSlide', () => {
     );
     component.quantidadeAprovada = 1;
 
-    component.editarRefugo();
+    component.atualizarQuantidade('quantidadeRefugo', 1);
 
-    expect(component.editingRefugo).toBe(true);
     expect(component.quantidadeAprovada).toBe(1);
     expect(component.validationMessage).toBe('Não foi possível carregar os motivos de refugo.');
-  });
-
-  it('clears stale catalog options before a reload that fails', () => {
-    const buscarMotivos = vi.fn()
-      .mockReturnValueOnce(of([{ codigo: '05', descricao: 'Borra' }]))
-      .mockReturnValueOnce(throwError(() => new Error('network')));
-    const component = new ReporteSlide(
-      { markForCheck: vi.fn() } as never,
-      { confirm: vi.fn() } as never,
-      { buscarMotivos } as never,
-    );
-
-    component.editarRefugo();
-    expect(component.motivoOptions).toHaveLength(1);
-    component.editarRefugo();
-
-    expect(component.motivoOptions).toEqual([]);
-    expect(component.carregandoMotivos).toBe(false);
-    expect(component.validationMessage).toBe('Não foi possível carregar os motivos de refugo.');
-  });
-
-  it('blocks saving while a reason entry has not been added', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
-    const emitted = vi.fn();
-    component.reporteSolicitado.subscribe(emitted);
-    component.quantidadeAprovada = 1;
-    component.editarRefugo();
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(0.5);
-
-    component.salvar();
-
-    expect(emitted).not.toHaveBeenCalled();
-    expect(component.validationMessage).toBe(
-      'Adicione ou limpe o motivo em edição antes de salvar o reporte.',
-    );
-  });
-
-  it('rejects reason quantities that round to zero', () => {
-    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
-    component.editarRefugo();
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(0.0004);
-
-    component.adicionarMotivo();
-
-    expect(component.refugoItens).toEqual([]);
-    expect(component.validationMessage).toContain('arredondamento para três casas');
   });
 
   it('emits the same three-decimal values used by reason validation', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     const emitted = vi.fn();
     component.reporteSolicitado.subscribe(emitted);
-    component.quantidadeRefugo = 1.2344;
-    component.editarRefugo();
+    component.atualizarQuantidade('quantidadeRefugo', 1.2344);
     component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(1.2344);
-    component.adicionarMotivo();
 
     component.salvar();
 

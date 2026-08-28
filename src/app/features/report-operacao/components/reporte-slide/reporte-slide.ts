@@ -52,18 +52,20 @@ export class ReporteSlide implements OnDestroy {
   quantidadeAprovada = 0;
   quantidadeRetrabalho = 0;
   quantidadeRefugo = 0;
-  refugoItens: ReadonlyArray<ReporteRefugoItem> = [];
   historico: ReadonlyArray<ReporteParcialOperacao> = [];
   salvando = false;
   validationMessage = '';
-  editingRefugo = false;
   carregandoMotivos = false;
   motivoCodigo = '';
-  quantidadeMotivo = 0;
-  motivoOptions: ReadonlyArray<{ readonly label: string; readonly value: string }> = [];
+  motivoOptions: ReadonlyArray<{
+    readonly label: string;
+    readonly value: string;
+    readonly descricao: string;
+  }> = [];
   private idempotencyKey = '';
   private finalizarAoSalvar = false;
   private motivosRequest = 0;
+  private slideOpen = false;
   private readonly destroyed$ = new Subject<void>();
 
   constructor(
@@ -95,9 +97,7 @@ export class ReporteSlide implements OnDestroy {
   get hasDraft(): boolean {
     return [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
       .some(quantidade => quantidade !== 0)
-      || this.refugoItens.length > 0
-      || this.motivoCodigo.trim().length > 0
-      || this.quantidadeMotivo !== 0;
+      || this.motivoCodigo.trim().length > 0;
   }
 
   get ordemLabel(): string {
@@ -110,104 +110,27 @@ export class ReporteSlide implements OnDestroy {
   ): void {
     const quantidade = typeof valor === 'number' ? valor : 0;
     if (Object.is(this[campo], quantidade)) {
+      if (campo === 'quantidadeRefugo' && this.round3(quantidade) <= 0) {
+        this.motivoCodigo = '';
+      }
       return;
     }
 
     this[campo] = quantidade;
     this.idempotencyKey = '';
     this.validationMessage = '';
-  }
-
-  editarRefugo(): void {
-    if (this.salvando || this.carregandoMotivos) {
-      return;
+    if (campo === 'quantidadeRefugo') {
+      if (this.round3(quantidade) > 0) {
+        this.carregarMotivos();
+      } else {
+        this.motivoCodigo = '';
+      }
     }
-    if (this.editingRefugo && (this.motivoCodigo.trim() || this.quantidadeMotivo !== 0)) {
-      this.validationMessage = 'Adicione ou limpe o motivo em edição antes de recarregar.';
-      return;
-    }
-
-    this.editingRefugo = true;
-    this.carregandoMotivos = true;
-    this.motivoCodigo = '';
-    this.quantidadeMotivo = 0;
-    this.motivoOptions = [];
-    this.validationMessage = '';
-    const request = ++this.motivosRequest;
-    this.motivoService.buscarMotivos('')
-      .pipe(takeUntil(this.destroyed$))
-      .subscribe({
-        next: motivos => {
-          if (request !== this.motivosRequest || !this.editingRefugo) {
-            return;
-          }
-          this.motivoOptions = motivos.map(motivo => ({
-            label: `${motivo.codigo} - ${motivo.descricao}`,
-            value: motivo.codigo,
-          }));
-          this.carregandoMotivos = false;
-          this.changeDetector.markForCheck();
-        },
-        error: () => {
-          if (request !== this.motivosRequest || !this.editingRefugo) {
-            return;
-          }
-          this.motivoOptions = [];
-          this.carregandoMotivos = false;
-          this.validationMessage = 'Não foi possível carregar os motivos de refugo.';
-          this.changeDetector.markForCheck();
-        },
-      });
   }
 
   atualizarMotivo(codigo: string | null | undefined): void {
     this.motivoCodigo = codigo ?? '';
     this.validationMessage = '';
-  }
-
-  atualizarQuantidadeMotivo(valor: number | null | undefined): void {
-    this.quantidadeMotivo = typeof valor === 'number' ? valor : 0;
-    this.validationMessage = '';
-  }
-
-  adicionarMotivo(): void {
-    const option = this.motivoOptions.find(item => item.value === this.motivoCodigo);
-    if (!option || !Number.isFinite(this.quantidadeMotivo) || this.quantidadeMotivo <= 0) {
-      this.validationMessage = 'Selecione um motivo e informe uma quantidade maior que zero.';
-      return;
-    }
-
-    const quantidade = this.round3(this.quantidadeMotivo);
-    if (quantidade <= 0) {
-      this.validationMessage = 'A quantidade do motivo deve possuir valor após o arredondamento para três casas.';
-      return;
-    }
-
-    const atual = this.refugoItens.find(item => item.codigo === option.value);
-    this.refugoItens = atual
-      ? this.refugoItens.map(item => item.codigo === option.value
-        ? { ...item, quantidade: this.round3(item.quantidade + quantidade) }
-        : item)
-      : [
-          ...this.refugoItens,
-          {
-            codigo: option.value,
-            descricao: option.label.replace(`${option.value} - `, ''),
-            quantidade,
-          },
-        ];
-    this.motivoCodigo = '';
-    this.quantidadeMotivo = 0;
-    this.draftChanged();
-  }
-
-  removerMotivo(index: number): void {
-    if (this.salvando || index < 0 || index >= this.refugoItens.length) {
-      return;
-    }
-
-    this.refugoItens = this.refugoItens.filter((_item, itemIndex) => itemIndex !== index);
-    this.draftChanged();
   }
 
   abrir(reportes: ReadonlyArray<ReporteParcialOperacao>, finalizarAoSalvar = false): void {
@@ -222,6 +145,7 @@ export class ReporteSlide implements OnDestroy {
     this.finalizarAoSalvar = finalizarAoSalvar;
     this.pwaWorkState.setCaptureActive('report-operation', true);
     this.pageSlide.open();
+    this.slideOpen = true;
     this.changeDetector.markForCheck();
   }
 
@@ -239,15 +163,20 @@ export class ReporteSlide implements OnDestroy {
     this.salvando = true;
     this.validationMessage = '';
     this.idempotencyKey ||= this.createIdempotencyKey();
+    const motivo = this.motivoOptions.find(option => option.value === this.motivoCodigo);
+    const refugoItens: ReadonlyArray<ReporteRefugoItem> = motivo
+      ? [{
+          codigo: motivo.value,
+          descricao: motivo.descricao,
+          quantidade: this.round3(this.quantidadeRefugo),
+        }]
+      : [];
     this.reporteSolicitado.emit({
       idempotencyKey: this.idempotencyKey,
       quantidadeAprovada: this.round3(this.quantidadeAprovada),
       quantidadeRetrabalho: this.round3(this.quantidadeRetrabalho),
       quantidadeRefugo: this.round3(this.quantidadeRefugo),
-      refugoItens: this.refugoItens.map(item => ({
-        ...item,
-        quantidade: this.round3(item.quantidade),
-      })),
+      refugoItens,
       finalizarSplit: this.finalizarAoSalvar,
     });
   }
@@ -262,6 +191,11 @@ export class ReporteSlide implements OnDestroy {
     }];
     this.salvando = false;
     this.resetDraft();
+    this.pwaWorkState.setCaptureActive('report-operation', false);
+    if (this.slideOpen) {
+      this.slideOpen = false;
+      this.pageSlide.close();
+    }
     this.changeDetector.markForCheck();
   }
 
@@ -274,7 +208,10 @@ export class ReporteSlide implements OnDestroy {
   voltar(): void {
     if (!this.hasDraft) {
       this.pwaWorkState.setCaptureActive('report-operation', false);
-      this.pageSlide.close();
+      if (this.slideOpen) {
+        this.slideOpen = false;
+        this.pageSlide.close();
+      }
       return;
     }
 
@@ -284,7 +221,10 @@ export class ReporteSlide implements OnDestroy {
       confirm: () => {
         this.resetDraft();
         this.pwaWorkState.setCaptureActive('report-operation', false);
-        this.pageSlide.close();
+        if (this.slideOpen) {
+          this.slideOpen = false;
+          this.pageSlide.close();
+        }
       },
       literals: { cancel: 'Cancelar', confirm: 'Descartar' },
     });
@@ -312,11 +252,10 @@ export class ReporteSlide implements OnDestroy {
     this.quantidadeAprovada = 0;
     this.quantidadeRetrabalho = 0;
     this.quantidadeRefugo = 0;
-    this.refugoItens = [];
     this.idempotencyKey = '';
     this.finalizarAoSalvar = false;
     this.validationMessage = '';
-    this.resetReasonEditor();
+    this.motivoCodigo = '';
   }
 
   private validationError(): string {
@@ -324,7 +263,6 @@ export class ReporteSlide implements OnDestroy {
       this.quantidadeAprovada,
       this.quantidadeRetrabalho,
       this.quantidadeRefugo,
-      ...this.refugoItens.map(item => item.quantidade),
     ];
     if (quantidades.some(quantidade => !Number.isFinite(quantidade) || quantidade < 0)) {
       return 'As quantidades não podem ser negativas.';
@@ -333,32 +271,34 @@ export class ReporteSlide implements OnDestroy {
       .some(quantidade => this.round3(quantidade) > 0)) {
       return 'Informe ao menos uma quantidade produzida.';
     }
-    if (this.motivoCodigo.trim() || this.quantidadeMotivo !== 0) {
-      return 'Adicione ou limpe o motivo em edição antes de salvar o reporte.';
-    }
-
-    const requiresReason = this.quantidadeRefugo > 0 || this.quantidadeRetrabalho > 0;
-    if (requiresReason && this.refugoItens.length !== 1) {
-      return `Informe exatamente um motivo de refugo ou retrabalho${this.ordemLabel}.`;
-    }
-    if (!requiresReason && this.refugoItens.length !== 0) {
-      return `Remova o motivo${this.ordemLabel}, pois não há refugo ou retrabalho.`;
+    if (this.round3(this.quantidadeRefugo) > 0 && !this.motivoCodigo.trim()) {
+      return `Informe um motivo de refugo${this.ordemLabel}.`;
     }
     return '';
   }
 
-  private draftChanged(): void {
-    this.idempotencyKey = '';
-    this.validationMessage = '';
-  }
-
-  private resetReasonEditor(): void {
-    this.motivosRequest += 1;
-    this.editingRefugo = false;
-    this.carregandoMotivos = false;
-    this.motivoCodigo = '';
-    this.quantidadeMotivo = 0;
-    this.motivoOptions = [];
+  private carregarMotivos(): void {
+    if (this.carregandoMotivos || this.motivoOptions.length > 0) return;
+    this.carregandoMotivos = true;
+    const request = ++this.motivosRequest;
+    this.motivoService.buscarMotivos('').pipe(takeUntil(this.destroyed$)).subscribe({
+      next: motivos => {
+        if (request !== this.motivosRequest) return;
+        this.motivoOptions = motivos.map(motivo => ({
+          label: `${motivo.codigo} - ${motivo.descricao}`,
+          value: motivo.codigo,
+          descricao: motivo.descricao,
+        }));
+        this.carregandoMotivos = false;
+        this.changeDetector.markForCheck();
+      },
+      error: () => {
+        if (request !== this.motivosRequest) return;
+        this.carregandoMotivos = false;
+        this.validationMessage = 'Não foi possível carregar os motivos de refugo.';
+        this.changeDetector.markForCheck();
+      },
+    });
   }
 
   private round3(value: number): number {
