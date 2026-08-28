@@ -27,10 +27,9 @@ describe('ReporteSlide', () => {
     fixture.detectChanges();
 
     expect(scrapReasonService.buscarMotivos).toHaveBeenCalledWith('');
-    expect(document.body.textContent).toContain('Motivo Refugo');
-    expect(document.body.textContent).not.toContain('Editar Motivo');
-    expect(document.body.textContent).not.toContain('Qtde do motivo');
-    expect(document.body.textContent).not.toContain('Adicionar motivo');
+    expect(fixture.nativeElement.querySelector('po-select[name="reporteMotivoRefugo"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('po-number')).toHaveLength(3);
+    expect(fixture.nativeElement.querySelectorAll('.reporte-slide__footer po-button')).toHaveLength(2);
   });
 
   it('sums only approved and scrap quantities in the displayed total', () => {
