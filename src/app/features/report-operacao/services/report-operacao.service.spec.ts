@@ -1,15 +1,23 @@
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
 
 import { AuthSession } from '../../../core/auth/auth.models';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OfflineStorageError } from '../../../core/offline/models/offline-storage-error';
+import { LOCAL_RECORDS_STORE, OUTBOX_STORE } from '../../../core/offline/database/database-schema';
+import { OFFLINE_DATABASE_CONFIG, OfflineDatabase } from '../../../core/offline/database/offline-database';
+import { JsonValue, LocalRecord } from '../../../core/offline/models/local-record';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
+import { OutboxEntry } from '../../../core/offline/models/outbox-entry';
+import { transactionComplete } from '../../../core/offline/repositories/repository-utils';
+import { SyncRetentionRepository } from '../../../core/offline/repositories/sync-retention.repository';
+import { SyncRetentionService } from '../../../core/offline/services/sync-retention.service';
 import { ReportOperacao } from '../models/report-operacao.model';
 
 import { ReportOperacaoService } from './report-operacao.service';
@@ -148,6 +156,32 @@ describe('ReportOperacaoService', () => {
     expect(restored?.reportes).toEqual([
       expect.objectContaining({ id: report.localId, deliveryStatus: 'ERROR' }),
     ]);
+  });
+
+  it('mantém START e REPORT restauráveis enquanto não existe END_OPERATION sincronizado', async () => {
+    const database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
+    const localRecords = new LocalRecordRepository(database);
+    const outbox = new OutboxRepository(database);
+    const retention = new SyncRetentionService(
+      outbox,
+      new SyncRetentionRepository(database),
+      () => new Date('2026-08-28T13:00:00.000Z'),
+      { currentUser: session$.value?.user ?? null } as AuthSessionService,
+    );
+    listLocalRecords.mockImplementation(ownerId => localRecords.listByOwner(ownerId));
+    listOutbox.mockImplementation(ownerId => outbox.listByOwner(ownerId));
+
+    try {
+      await seedActiveOperationWithReport(database);
+      await retention.cleanupOwner('1');
+
+      const restored = await firstValueFrom(service.restaurarOperacaoAtiva());
+
+      expect(restored?.operation.ordem).toBe('450001');
+      expect(restored?.reportes).toHaveLength(1);
+    } finally {
+      database.close();
+    }
   });
 
   it('falha sem devolver a projeção se o owner muda durante a leitura da Outbox', async () => {
@@ -545,6 +579,60 @@ function persistedReport(localId: string, quantidadeAprovada: number, createdAt:
       horaFim: '09:00',
       finalizarSplit: false,
     },
+  };
+}
+
+async function seedActiveOperationWithReport(database: OfflineDatabase): Promise<void> {
+  const records = [
+    activeLocalRecord(persistedStart()),
+    activeLocalRecord(persistedReport('report-active', 1, '2026-08-28T09:00:00.000Z')),
+  ];
+  const transaction = await database.createTransaction([LOCAL_RECORDS_STORE, OUTBOX_STORE], 'readwrite');
+  const completed = transactionComplete(transaction);
+  const localStore = transaction.objectStore(LOCAL_RECORDS_STORE);
+  const outboxStore = transaction.objectStore(OUTBOX_STORE);
+
+  for (const record of records) {
+    localStore.add(record);
+    outboxStore.add(activeOutboxEntry(record));
+  }
+  await completed;
+}
+
+function activeLocalRecord(
+  record: ReturnType<typeof persistedStart> | ReturnType<typeof persistedReport>,
+): LocalRecord<JsonValue> {
+  return {
+    ...record,
+    databaseVersion: 4,
+    payloadSchemaVersion: 1,
+    canonicalPayload: JSON.stringify(record.payload),
+    payloadHash: `hash-${record.localId}`,
+    dependencyIds: [],
+    updatedAt: record.createdAt,
+    payload: record.payload as JsonValue,
+  };
+}
+
+function activeOutboxEntry(record: LocalRecord<JsonValue>): OutboxEntry<JsonValue> {
+  return {
+    localId: record.localId,
+    idempotencyKey: record.idempotencyKey,
+    payloadSchemaVersion: record.payloadSchemaVersion,
+    aggregateType: record.aggregateType,
+    aggregateId: record.aggregateId,
+    commandType: record.commandType,
+    payload: record.payload,
+    canonicalPayload: record.canonicalPayload,
+    payloadHash: record.payloadHash,
+    ownerId: record.ownerId,
+    status: 'SYNCED',
+    dependencyIds: record.dependencyIds,
+    attemptCount: 1,
+    occurredAt: record.occurredAt,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    synchronizedAt: record.createdAt,
   };
 }
 
