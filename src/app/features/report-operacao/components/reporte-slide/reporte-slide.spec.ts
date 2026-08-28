@@ -139,6 +139,34 @@ describe('ReporteSlide', () => {
     expect(emitted[1].idempotencyKey).toBe(emitted[0].idempotencyKey);
   });
 
+  it('preserva a chave para o mesmo motivo e a invalida quando o motivo realmente muda', () => {
+    const component = new ReporteSlide(
+      { markForCheck: vi.fn() } as never,
+      { confirm: vi.fn() } as never,
+      scrapReasonService as never,
+    );
+    component.motivoOptions = [
+      { label: '05 - Borra', value: '05', descricao: 'Borra' },
+      { label: '07 - Trinca', value: '07', descricao: 'Trinca' },
+    ];
+    const emitted: Array<{ idempotencyKey?: string }> = [];
+    component.reporteSolicitado.subscribe(draft => emitted.push(draft));
+    component.atualizarQuantidade('quantidadeRefugo', 1);
+    component.atualizarMotivo('05');
+
+    component.salvar();
+    component.informarErro('Resposta perdida.');
+    component.atualizarMotivo('05');
+    component.salvar();
+    component.informarErro('Falha local.');
+    component.atualizarMotivo('07');
+    component.salvar();
+
+    expect(emitted).toHaveLength(3);
+    expect(emitted[1].idempotencyKey).toBe(emitted[0].idempotencyKey);
+    expect(emitted[2].idempotencyKey).not.toBe(emitted[1].idempotencyKey);
+  });
+
   it('disables saving when any quantity is negative or non-finite', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
     component.quantidadeAprovada = 10;
@@ -167,6 +195,41 @@ describe('ReporteSlide', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never);
 
     expect(component.formatDataHora(new Date('invalid'))).toBe('Data inválida');
+  });
+
+  it.each([
+    ['SYNCED', 'Enviado ao Datasul'],
+    ['ERROR', 'Rejeitado pelo Datasul'],
+    [undefined, 'Envio pendente'],
+  ] as const)('renderiza o rótulo histórico de %s', async (deliveryStatus, expectedLabel) => {
+    await TestBed.configureTestingModule({
+      imports: [ReporteSlide],
+      providers: [
+        provideNoopAnimations(),
+        { provide: MotivoRefugoService, useValue: scrapReasonService },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ReporteSlide);
+    fixture.detectChanges();
+
+    fixture.componentInstance.abrir([{
+      id: 'report-1',
+      idempotencyKey: 'report-1',
+      registradoEm: new Date('2026-08-28T10:00:00.000Z'),
+      dataInicio: new Date('2026-08-28T09:00:00.000Z'),
+      horaInicio: '09:00',
+      dataFim: new Date('2026-08-28T10:00:00.000Z'),
+      horaFim: '10:00',
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+      ...(deliveryStatus ? { deliveryStatus } : {}),
+    }]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.reporte-slide__delivery-status')?.textContent)
+      .toContain(expectedLabel);
   });
 
   it('exige motivo quando há refugo sem motivo selecionado', () => {

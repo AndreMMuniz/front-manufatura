@@ -3,10 +3,16 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, delay, from, map, of, switchMap } from 'rxjs';
 
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
+import { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
+import { JsonValue, LocalRecord } from '../../../core/offline/models/local-record';
+import { OfflineStorageError } from '../../../core/offline/models/offline-storage-error';
+import { OutboxEntry } from '../../../core/offline/models/outbox-entry';
 import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { EquipeResponseDTO } from '../../equipes/interfaces/equipe.dto';
@@ -28,6 +34,14 @@ import {
   TipoResponsavelOperacao,
 } from '../models/report-operacao.model';
 
+interface RestoredActiveOperation {
+  readonly area: AreaProducao;
+  readonly workCenter: WorkCenter;
+  readonly operation: ReportOperacao;
+  readonly responsavel: ResponsavelOperacao;
+  readonly reportes: ReadonlyArray<ReporteParcialOperacao>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportOperacaoService {
   private readonly productionCatalog = inject(ProductionContextCatalogService);
@@ -35,6 +49,7 @@ export class ReportOperacaoService {
   private readonly immediateDelivery = inject(ImmediateCommandDeliveryService);
   private readonly authSession = inject(AuthSessionService);
   private readonly localRecords = inject(LocalRecordRepository);
+  private readonly outbox = inject(OutboxRepository);
   private readonly api = inject(AuthenticatedApiService);
 
   listarAreasProducao(): Observable<ReadonlyArray<AreaProducao>> {
@@ -141,21 +156,45 @@ export class ReportOperacaoService {
     );
   }
 
-  restaurarOperacaoAtiva(): Observable<{
-    readonly area: AreaProducao;
-    readonly workCenter: WorkCenter;
-    readonly operation: ReportOperacao;
-    readonly responsavel: ResponsavelOperacao;
-    readonly reportes: ReadonlyArray<ReporteParcialOperacao>;
-  } | null> {
+  restaurarOperacaoAtiva(): Observable<RestoredActiveOperation | null> {
     const ownerId = this.authSession.currentUser?.id.trim();
     if (!ownerId) return of(null);
-    return from(this.localRecords.listByOwner(ownerId)).pipe(map(records => {
-      const starts = [...records]
+    return from(this.restoreActiveOperation(ownerId));
+  }
+
+  private async restoreActiveOperation(ownerId: string): Promise<RestoredActiveOperation | null> {
+    let sessionEpoch = 0;
+    const sessionSubscription = this.authSession.session$.subscribe(() => {
+      sessionEpoch += 1;
+    });
+    const observedEpoch = sessionEpoch;
+    try {
+      this.assertRestorationSession(ownerId, observedEpoch, sessionEpoch);
+      const records = await this.localRecords.listByOwner(ownerId);
+      this.assertRestorationSession(ownerId, observedEpoch, sessionEpoch);
+      const outboxEntries = await this.outbox.listByOwner(ownerId);
+      this.assertRestorationSession(ownerId, observedEpoch, sessionEpoch);
+      const outboxById = new Map(
+        outboxEntries
+          .filter(entry => entry.ownerId === ownerId)
+          .map(entry => [entry.localId, entry] as const),
+      );
+      const activeRecords = records.filter(record => {
+        if (
+          record.ownerId !== ownerId
+          || deliveryDispositionOf(record.deliveryDisposition) !== 'ACTIVE'
+        ) {
+          return false;
+        }
+        const outboxEntry = outboxById.get(record.localId);
+        return !outboxEntry
+          || deliveryDispositionOf(outboxEntry.deliveryDisposition) === 'ACTIVE';
+      });
+      const starts = [...activeRecords]
         .filter(record => record.commandType === 'START_OPERATION')
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       const start = starts.find(candidate =>
-        !records.some(record => record.aggregateId === candidate.aggregateId && (
+        !activeRecords.some(record => record.aggregateId === candidate.aggregateId && (
           record.commandType === 'END_OPERATION'
           || (record.commandType === 'REPORT_OPERATION'
             && (record.payload as Record<string, unknown>)['finalizarSplit'] === true)
@@ -183,12 +222,17 @@ export class ReportOperacaoService {
       ) {
         return null;
       }
-      const reportes = records
+      const reportes = activeRecords
         .filter(record =>
           record.commandType === 'REPORT_OPERATION'
           && record.aggregateId === start.aggregateId)
-        .flatMap(record => this.restoreOperationReport(record.payload, record));
-      return {
+        .sort((left, right) => this.compareLogicalPosition(left, right))
+        .flatMap(record => this.restoreOperationReport(
+          record.payload,
+          record,
+          this.deliveryStatus(outboxById.get(record.localId)),
+        ));
+      const restored: RestoredActiveOperation = {
         area: { ...area },
         workCenter: { ...workCenter },
         operation,
@@ -199,7 +243,11 @@ export class ReportOperacaoService {
         },
         reportes,
       };
-    }));
+      this.assertRestorationSession(ownerId, observedEpoch, sessionEpoch);
+      return restored;
+    } finally {
+      sessionSubscription.unsubscribe();
+    }
   }
 
   reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteOperacaoResultado> {
@@ -239,6 +287,9 @@ export class ReportOperacaoService {
         apontamentoId: confirmation.localId,
         reportadoEm,
         delivery,
+        ...(confirmation.supersedesLocalId
+          ? { supersedesLocalId: confirmation.supersedesLocalId }
+          : {}),
       })))),
     );
   }
@@ -422,6 +473,7 @@ export class ReportOperacaoService {
   private restoreOperationReport(
     payload: unknown,
     record: { readonly localId: string; readonly idempotencyKey: string; readonly createdAt: string },
+    deliveryStatus?: ImmediateDeliveryResult['status'],
   ): readonly ReporteParcialOperacao[] {
     if (!payload || typeof payload !== 'object') return [];
     const value = payload as Record<string, unknown>;
@@ -447,6 +499,36 @@ export class ReportOperacaoService {
       refugoItens: Array.isArray(value['refugoItens'])
         ? value['refugoItens'] as ReporteParcialOperacao['refugoItens']
         : [],
+      ...(deliveryStatus ? { deliveryStatus } : {}),
     }];
+  }
+
+  private deliveryStatus(entry: OutboxEntry<JsonValue> | undefined): ImmediateDeliveryResult['status'] | undefined {
+    if (!entry) return undefined;
+    if (entry.status === 'SYNCED') return 'SYNCED';
+    if (entry.status === 'ERROR') return 'ERROR';
+    return 'PENDING';
+  }
+
+  private compareLogicalPosition(left: LocalRecord<JsonValue>, right: LocalRecord<JsonValue>): number {
+    const leftAt = left.logicalOccurredAt ?? left.occurredAt ?? left.createdAt;
+    const rightAt = right.logicalOccurredAt ?? right.occurredAt ?? right.createdAt;
+    return leftAt.localeCompare(rightAt) || left.localId.localeCompare(right.localId);
+  }
+
+  private assertRestorationSession(
+    ownerId: string,
+    observedEpoch: number,
+    currentEpoch: number,
+  ): void {
+    if (
+      currentEpoch !== observedEpoch
+      || this.authSession.currentUser?.id.trim() !== ownerId
+    ) {
+      throw new OfflineStorageError(
+        'PAYLOAD_INVALID',
+        'A sessão autenticada mudou durante a restauração da operação.',
+      );
+    }
   }
 }

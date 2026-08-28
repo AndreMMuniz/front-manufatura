@@ -129,7 +129,11 @@ export class ReporteSlide implements OnDestroy {
   }
 
   atualizarMotivo(codigo: string | null | undefined): void {
-    this.motivoCodigo = codigo ?? '';
+    const motivoCodigo = codigo ?? '';
+    if (motivoCodigo !== this.motivoCodigo) {
+      this.idempotencyKey = '';
+    }
+    this.motivoCodigo = motivoCodigo;
     this.validationMessage = '';
   }
 
@@ -182,13 +186,26 @@ export class ReporteSlide implements OnDestroy {
   }
 
   confirmarReporte(reporte: ReporteParcialOperacao): void {
-    this.historico = [...this.historico, {
+    const confirmed = {
       ...reporte,
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
-    }];
+    };
+    const supersededIndex = confirmed.supersedesLocalId
+      ? this.historico.findIndex(item =>
+          item.id === confirmed.supersedesLocalId
+          || item.commandId === confirmed.supersedesLocalId)
+      : -1;
+    this.historico = supersededIndex < 0
+      ? [...this.historico, confirmed]
+      : this.historico.flatMap((item, index) => {
+          if (index === supersededIndex) return [confirmed];
+          return item.id === confirmed.id || item.commandId === confirmed.commandId
+            ? []
+            : [item];
+        });
     this.salvando = false;
     this.resetDraft();
     this.pwaWorkState.setCaptureActive('report-operation', false);

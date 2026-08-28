@@ -20,36 +20,64 @@ export class ImmediateCommandDeliveryService {
   ) {}
 
   async deliver(localId: string): Promise<ImmediateDeliveryResult> {
-    const ownerId = this.auth.currentUser?.id.trim();
-    if (!ownerId) {
-      throw new OfflineStorageError(
-        'PAYLOAD_INVALID',
-        'Não existe owner autenticado para observar o envio.',
-      );
-    }
+    let sessionEpoch = 0;
+    const sessionSubscription = this.auth.session$?.subscribe(() => {
+      sessionEpoch += 1;
+    });
+    try {
+      const ownerId = this.auth.currentUser?.id.trim();
+      const observedEpoch = sessionEpoch;
+      if (!ownerId) {
+        throw new OfflineStorageError(
+          'PAYLOAD_INVALID',
+          'Não existe owner autenticado para observar o envio.',
+        );
+      }
 
-    await this.waitForCycle();
-    const currentOwnerId = this.auth.currentUser?.id.trim();
-    if (!currentOwnerId || currentOwnerId !== ownerId) {
+      await this.waitForCycle();
+      this.assertCurrentSession(ownerId, observedEpoch, sessionEpoch);
+      const entry = await this.outbox.getById(ownerId, localId);
+      this.assertCurrentSession(ownerId, observedEpoch, sessionEpoch);
+      if (!entry) {
+        throw new OfflineStorageError(
+          'CONFLICT',
+          'O comando salvo não foi encontrado na Outbox.',
+        );
+      }
+      if (entry.status === 'SYNCED') {
+        if (!entry.receipt) {
+          throw new OfflineStorageError(
+            'SCHEMA_INVALID',
+            'A confirmação sincronizada não possui receipt remoto.',
+          );
+        }
+        return { status: 'SYNCED', receipt: entry.receipt };
+      }
+      if (entry.status === 'ERROR') {
+        if (!entry.lastError) {
+          throw new OfflineStorageError(
+            'SCHEMA_INVALID',
+            'O erro persistido não possui classificação segura.',
+          );
+        }
+        return { status: 'ERROR', error: entry.lastError };
+      }
+      return { status: 'PENDING' };
+    } finally {
+      sessionSubscription?.unsubscribe();
+    }
+  }
+
+  private assertCurrentSession(ownerId: string, observedEpoch: number, currentEpoch: number): void {
+    if (
+      currentEpoch !== observedEpoch
+      || this.auth.currentUser?.id.trim() !== ownerId
+    ) {
       throw new OfflineStorageError(
         'PAYLOAD_INVALID',
         'A sessão autenticada mudou durante a observação do envio.',
       );
     }
-    const entry = await this.outbox.getById(ownerId, localId);
-    if (!entry) {
-      throw new OfflineStorageError(
-        'CONFLICT',
-        'O comando salvo não foi encontrado na Outbox.',
-      );
-    }
-    if (entry.status === 'SYNCED' && entry.receipt) {
-      return { status: 'SYNCED', receipt: entry.receipt };
-    }
-    if (entry.status === 'ERROR' && entry.lastError) {
-      return { status: 'ERROR', error: entry.lastError };
-    }
-    return { status: 'PENDING' };
   }
 
   private waitForCycle(): Promise<void> {

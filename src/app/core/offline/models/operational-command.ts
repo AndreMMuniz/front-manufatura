@@ -74,6 +74,7 @@ export interface LocalCommandConfirmation {
   readonly payloadHash: string;
   readonly committedAt: string;
   readonly syncStatus: InitialOperationalSyncStatus;
+  readonly supersedesLocalId?: string;
 }
 
 function definition(aggregateType: OperationalAggregateType): OperationalCommandDefinition {

@@ -153,7 +153,7 @@ describe('OperationalCommandFacade', () => {
       correction as never,
     );
 
-    await facade.capture({
+    const result = await facade.capture({
       commandType: 'REPORT_OPERATION',
       aggregateId: 'FORM-GENERATED-AGGREGATE',
       businessStatus: 'REPORTADA',
@@ -173,6 +173,7 @@ describe('OperationalCommandFacade', () => {
       }),
     );
     expect(correction.clear).toHaveBeenCalledWith('original-id');
+    expect(result).toMatchObject({ supersedesLocalId: 'original-id' });
   });
 
   it.each(OPERATIONAL_COMMAND_TYPES)(

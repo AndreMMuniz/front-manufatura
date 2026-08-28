@@ -6,7 +6,10 @@ import { AuthSession } from '../../../core/auth/auth.models';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
+import { OfflineStorageError } from '../../../core/offline/models/offline-storage-error';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
+import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { ReportOperacao } from '../models/report-operacao.model';
 
 import { ReportOperacaoService } from './report-operacao.service';
@@ -16,9 +19,12 @@ describe('ReportOperacaoService', () => {
   let apiGet: ReturnType<typeof vi.fn>;
   let capture: ReturnType<typeof vi.fn>;
   let deliver: ReturnType<typeof vi.fn>;
+  let listLocalRecords: ReturnType<typeof vi.fn>;
+  let listOutbox: ReturnType<typeof vi.fn>;
+  let session$: BehaviorSubject<AuthSession | null>;
 
   beforeEach(() => {
-    const session$ = new BehaviorSubject<AuthSession | null>({
+    session$ = new BehaviorSubject<AuthSession | null>({
       user: { id: '1', nome: 'Andre', login: 'andre', permissoes: [] },
       mode: 'ONLINE',
       token: 'token',
@@ -69,10 +75,22 @@ describe('ReportOperacaoService', () => {
       };
     });
     deliver = vi.fn().mockResolvedValue({ status: 'PENDING' });
+    listLocalRecords = vi.fn().mockResolvedValue([]);
+    listOutbox = vi.fn().mockResolvedValue([]);
     TestBed.configureTestingModule({
       providers: [
-        { provide: AuthSessionService, useValue: { session$ } },
+        {
+          provide: AuthSessionService,
+          useValue: {
+            session$,
+            get currentUser() {
+              return session$.value?.user ?? null;
+            },
+          },
+        },
         { provide: AuthenticatedApiService, useValue: { get: apiGet } },
+        { provide: LocalRecordRepository, useValue: { listByOwner: listLocalRecords } },
+        { provide: OutboxRepository, useValue: { listByOwner: listOutbox } },
         {
           provide: OperationalCommandFacade,
           useValue: { capture },
@@ -84,6 +102,74 @@ describe('ReportOperacaoService', () => {
       ],
     });
     service = TestBed.inject(ReportOperacaoService);
+  });
+
+  it('restaura somente versões ativas e projeta o status atual da Outbox', async () => {
+    const start = persistedStart();
+    const synced = persistedReport('report-synced', 2, '2026-08-28T09:00:00.000Z');
+    const rejected = persistedReport('report-rejected', 5, '2026-08-28T10:00:00.000Z');
+    const correction = {
+      ...persistedReport('report-correction', 3, '2026-08-28T11:00:00.000Z'),
+      logicalOccurredAt: rejected.occurredAt,
+      supersedesLocalId: rejected.localId,
+    };
+    listLocalRecords.mockResolvedValue([start, synced, rejected, correction]);
+    listOutbox.mockResolvedValue([
+      outboxProjection(synced, 'SYNCED'),
+      {
+        ...outboxProjection(rejected, 'ERROR'),
+        deliveryDisposition: 'SUPERSEDED',
+        supersededByLocalId: correction.localId,
+      },
+      {
+        ...outboxProjection(correction, 'RETRY_WAIT'),
+        supersedesLocalId: rejected.localId,
+      },
+    ]);
+
+    const restored = await firstValueFrom(service.restaurarOperacaoAtiva());
+
+    expect(listLocalRecords).toHaveBeenCalledWith('1');
+    expect(listOutbox).toHaveBeenCalledWith('1');
+    expect(restored?.reportes).toEqual([
+      expect.objectContaining({ id: 'report-synced', quantidadeAprovada: 2, deliveryStatus: 'SYNCED' }),
+      expect.objectContaining({ id: 'report-correction', quantidadeAprovada: 3, deliveryStatus: 'PENDING' }),
+    ]);
+    expect(restored?.reportes.map(report => report.id)).not.toContain('report-rejected');
+  });
+
+  it('restaura um reporte ativo rejeitado com status ERROR', async () => {
+    const report = persistedReport('report-error', 1, '2026-08-28T09:00:00.000Z');
+    listLocalRecords.mockResolvedValue([persistedStart(), report]);
+    listOutbox.mockResolvedValue([outboxProjection(report, 'ERROR')]);
+
+    const restored = await firstValueFrom(service.restaurarOperacaoAtiva());
+
+    expect(restored?.reportes).toEqual([
+      expect.objectContaining({ id: report.localId, deliveryStatus: 'ERROR' }),
+    ]);
+  });
+
+  it('falha sem devolver a projeção se o owner muda durante a leitura da Outbox', async () => {
+    let resolveOutbox!: (entries: readonly unknown[]) => void;
+    listLocalRecords.mockResolvedValue([persistedStart()]);
+    listOutbox.mockImplementation(() => new Promise(resolve => { resolveOutbox = resolve; }));
+
+    const restoration = firstValueFrom(service.restaurarOperacaoAtiva());
+    await vi.waitFor(() => expect(listOutbox).toHaveBeenCalledOnce());
+    session$.next({
+      user: { id: '2', nome: 'Outra', login: 'outra', permissoes: [] },
+      mode: 'ONLINE',
+      token: 'token-2',
+      authenticatedAt: new Date(),
+      lastValidatedAt: new Date(),
+    });
+    resolveOutbox([]);
+
+    await expect(restoration).rejects.toMatchObject({
+      name: 'OfflineStorageError',
+      code: 'PAYLOAD_INVALID',
+    } satisfies Partial<OfflineStorageError>);
   });
 
   it('loads a valid operation from the Datasul HTTP boundary', async () => {
@@ -340,6 +426,26 @@ describe('ReportOperacaoService', () => {
     expect(result.delivery).toEqual({ status: 'ERROR', error });
   });
 
+  it('propaga a identidade do reporte substituído pela captura de correção', async () => {
+    capture.mockResolvedValue({
+      localId: 'report-correction',
+      aggregateId: '450001|OP-10458|01',
+      idempotencyKey: 'report-correction',
+      payloadHash: 'hash-correction',
+      committedAt: '2026-08-28T10:05:00.000Z',
+      syncStatus: 'PENDING',
+      supersedesLocalId: 'report-rejected',
+    });
+
+    const result = await firstValueFrom(service.reportarOperacao(reportRequest()));
+
+    expect(result).toMatchObject({
+      apontamentoId: 'report-correction',
+      supersedesLocalId: 'report-rejected',
+      delivery: { status: 'PENDING' },
+    });
+  });
+
   it('freezes area and work center in the END_OPERATION payload', async () => {
     await firstValueFrom(service.encerrarOperacao({
       idempotencyKey: 'end-372561-10-1',
@@ -388,6 +494,69 @@ function reportRequest() {
     tipoResponsavel: 'OPERADOR' as const,
     codigoResponsavel: 'OP-001',
     ct: 'CT-EXT-01',
+  };
+}
+
+function persistedStart() {
+  return {
+    localId: 'start-1',
+    idempotencyKey: 'start-1',
+    aggregateType: 'OPERATION',
+    aggregateId: '450001|OP-10458|01',
+    commandType: 'START_OPERATION',
+    ownerId: '1',
+    occurredAt: '2026-08-28T08:00:00.000Z',
+    createdAt: '2026-08-28T08:00:00.000Z',
+    deliveryDisposition: 'ACTIVE' as const,
+    payload: {
+      area: { code: '4001', description: 'Produção' },
+      workCenter: {
+        code: 'CT-EXT-01', description: 'Extrusão', areaCode: '4001', area: 'Produção',
+        machineGroup: 'Extrusoras', establishment: '101', active: true,
+      },
+      operation: baseOperacao(),
+      tipoResponsavel: 'OPERADOR',
+      codigoResponsavel: 'OP-001',
+      operador: 'Ana Silva',
+      equipe: '',
+    },
+  };
+}
+
+function persistedReport(localId: string, quantidadeAprovada: number, createdAt: string) {
+  return {
+    localId,
+    idempotencyKey: localId,
+    aggregateType: 'OPERATION',
+    aggregateId: '450001|OP-10458|01',
+    commandType: 'REPORT_OPERATION',
+    ownerId: '1',
+    occurredAt: createdAt,
+    createdAt,
+    deliveryDisposition: 'ACTIVE' as const,
+    payload: {
+      quantidadeAprovada,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+      dataInicio: '2026-08-28T08:00:00.000Z',
+      horaInicio: '08:00',
+      dataFim: createdAt,
+      horaFim: '09:00',
+      finalizarSplit: false,
+    },
+  };
+}
+
+function outboxProjection(
+  record: ReturnType<typeof persistedReport>,
+  status: 'SYNCED' | 'ERROR' | 'RETRY_WAIT',
+) {
+  return {
+    localId: record.localId,
+    ownerId: record.ownerId,
+    status,
+    deliveryDisposition: record.deliveryDisposition,
   };
 }
 

@@ -20,6 +20,9 @@ import {
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
+import {
+  OperationalCorrectionContextService,
+} from '../../../../core/offline/services/operational-correction-context.service';
 import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
 import {
   OperationalCorrectionNotice,
@@ -89,6 +92,7 @@ export class ReportOperacaoPage implements OnInit {
   private readonly recentContextService = inject(RecentProductionContextService);
   private readonly authSession = inject(AuthSessionService);
   private readonly idempotency = inject(IdempotencyService);
+  private readonly correctionContext = inject(OperationalCorrectionContextService);
   private readonly reporteParadasService = inject(ReporteParadasService);
   private readonly notification = inject(PoNotificationService);
   private readonly dialog = inject(PoDialogService);
@@ -229,7 +233,9 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   get reporteDisabled(): boolean {
-    return this.isBusy || !this.canEditProduction;
+    return this.isBusy
+      || !this.canEditProduction
+      || (this.hasRejectedReport() && !this.matchingReportCorrection());
   }
 
   get encerrarDisabled(): boolean {
@@ -895,6 +901,14 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private reportOperation(draft: ReporteParcialDraft): void {
+    if (this.hasRejectedReport() && !this.matchingReportCorrection()) {
+      const message = 'Há um reporte rejeitado pelo Datasul. Abra o Centro de Sincronização para corrigir antes de criar outro reporte.';
+      this.feedback = message;
+      this.notification.error(message);
+      this.reporteSlide?.informarErro(message);
+      this.changeDetector.markForCheck();
+      return;
+    }
     const operation = this.operacao;
     const responsavel = this.responsavelSelecionado;
     const refugoItens: NonNullable<ReportarOperacaoRequest['refugoItens']> =
@@ -992,15 +1006,18 @@ export class ReportOperacaoPage implements OnInit {
             refugoItens: refugoItens.map(item => ({ ...item })),
             commandId: result.apontamentoId,
             deliveryStatus: result.delivery.status,
+            ...(result.supersedesLocalId
+              ? { supersedesLocalId: result.supersedesLocalId }
+              : {}),
           };
-          this.reportes = [...this.reportes, reporte];
+          this.reportes = this.reconcileReportes(this.reportes, reporte);
           this.operacao = this.withDerivedTotals({
             ...operation,
             ...end,
           }, this.reportes);
           this.estado = EstadoOperacao.OperacaoIniciada;
           this.workflowState.setActiveOperation(this.operacao, this.estado);
-          this.workflowState.addReporte(reporte);
+          this.workflowState.reconcileReporte(reporte);
           this.reporteSlide?.confirmarReporte(reporte);
           switch (result.delivery.status) {
             case 'SYNCED':
@@ -1296,6 +1313,50 @@ export class ReportOperacaoPage implements OnInit {
         reportes.reduce((total, reporte) => total + reporte.quantidadeRefugo, 0),
       ),
     };
+  }
+
+  private hasRejectedReport(): boolean {
+    return this.reportes.some(reporte => reporte.deliveryStatus === 'ERROR');
+  }
+
+  private matchingReportCorrection() {
+    const rejected = this.reportes.filter(reporte => reporte.deliveryStatus === 'ERROR');
+    const ownerId = this.authSession.currentUser?.id.trim();
+    const operation = this.operacao;
+    if (rejected.length !== 1 || !ownerId || !operation) return null;
+    const correction = this.correctionContext.matching(ownerId, 'REPORT_OPERATION');
+    return correction
+      && (
+        correction.sourceLocalId === rejected[0].id
+        || correction.sourceLocalId === rejected[0].commandId
+      )
+      && correction.aggregateType === 'OPERATION'
+      && correction.aggregateId === this.operationAggregateId(operation)
+      ? correction
+      : null;
+  }
+
+  private operationAggregateId(operation: ReportOperacao): string {
+    return [operation.ordem, operation.op, operation.split]
+      .map(value => this.normalizeCode(value))
+      .join('|');
+  }
+
+  private reconcileReportes(
+    current: ReadonlyArray<ReporteParcialOperacao>,
+    replacement: ReporteParcialOperacao,
+  ): ReadonlyArray<ReporteParcialOperacao> {
+    const supersededId = replacement.supersedesLocalId;
+    if (!supersededId) return [...current, replacement];
+    const supersededIndex = current.findIndex(report =>
+      report.id === supersededId || report.commandId === supersededId);
+    if (supersededIndex < 0) return [...current, replacement];
+    return current.flatMap((report, index) => {
+      if (index === supersededIndex) return [replacement];
+      return report.id === replacement.id || report.commandId === replacement.commandId
+        ? []
+        : [report];
+    });
   }
 
   private loadResponsaveis(): void {

@@ -88,6 +88,7 @@ export interface ReporteParcialOperacao {
   readonly refugoItens: ReadonlyArray<ReporteRefugoItem>;
   readonly commandId?: string;
   readonly deliveryStatus?: ImmediateDeliveryResult['status'];
+  readonly supersedesLocalId?: string;
 }
 
 export interface ResultadoConsultaOP {
@@ -103,4 +104,5 @@ export interface ReporteResultado {
 
 export interface ReporteOperacaoResultado extends ReporteResultado {
   readonly delivery: ImmediateDeliveryResult;
+  readonly supersedesLocalId?: string;
 }

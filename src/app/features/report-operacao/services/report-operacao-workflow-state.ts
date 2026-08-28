@@ -151,6 +151,35 @@ export class ReportOperacaoWorkflowState {
     }));
   }
 
+  reconcileReporte(reporte: ReporteParcialOperacao): void {
+    this.value.update(current => {
+      const replacement = this.cloneReporte(reporte);
+      const supersededId = replacement.supersedesLocalId;
+      if (!supersededId) {
+        return {
+          ...current,
+          reportes: current.reportes.some(item =>
+            item.id === replacement.id || item.idempotencyKey === replacement.idempotencyKey)
+            ? current.reportes
+            : [...current.reportes, replacement],
+        };
+      }
+      const supersededIndex = current.reportes.findIndex(item =>
+        item.id === supersededId || item.commandId === supersededId);
+      return {
+        ...current,
+        reportes: supersededIndex < 0
+          ? [...current.reportes, replacement]
+          : current.reportes.flatMap((item, index) => {
+              if (index === supersededIndex) return [replacement];
+              return item.id === replacement.id || item.commandId === replacement.commandId
+                ? []
+                : [item];
+            }),
+      };
+    });
+  }
+
   completeActiveOrder(): OrdemCentroTrabalho | null {
     const current = this.value();
     const queue = current.activeOrder

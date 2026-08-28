@@ -9,6 +9,9 @@ import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 import { AuthSession } from '../../../../core/auth/auth.models';
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import {
+  OperationalCorrectionContextService,
+} from '../../../../core/offline/services/operational-correction-context.service';
+import {
   PersistedSyncError,
   RemoteCommandReceipt,
 } from '../../../../core/offline/models/outbox-entry';
@@ -49,6 +52,7 @@ describe('ReportOperacaoPage', () => {
   let operationalContext: { currentContext: ReturnType<typeof context> | null; setContext: ReturnType<typeof vi.fn> };
   let reportSequence: number;
   let session$: BehaviorSubject<AuthSession | null>;
+  let correctionContext: OperationalCorrectionContextService;
   let service: {
     listarAreasProducao: ReturnType<typeof vi.fn>;
     pesquisarCentrosTrabalho: ReturnType<typeof vi.fn>;
@@ -136,7 +140,13 @@ describe('ReportOperacaoPage', () => {
         { provide: Router, useValue: router },
         {
           provide: AuthSessionService,
-          useValue: { session$, isAuthenticated: () => session$.value !== null },
+          useValue: {
+            session$,
+            isAuthenticated: () => session$.value !== null,
+            get currentUser() {
+              return session$.value?.user ?? null;
+            },
+          },
         },
         { provide: ActivatedRoute, useValue: { snapshot: { data: {} } } },
         { provide: ReportOperacaoService, useValue: service },
@@ -153,6 +163,7 @@ describe('ReportOperacaoPage', () => {
 
     fixture = TestBed.createComponent(ReportOperacaoPage);
     component = fixture.componentInstance;
+    correctionContext = TestBed.inject(OperationalCorrectionContextService);
     const actualDialog = (component as unknown as { dialog: PoDialogService }).dialog;
     dialog = { confirm: vi.spyOn(actualDialog, 'confirm').mockImplementation(() => undefined) };
   });
@@ -495,7 +506,82 @@ describe('ReportOperacaoPage', () => {
       `${persistedError.userMessage} Abra o Centro de Sincronização para corrigir.`,
     );
     expect(component.reportes).toHaveLength(1);
+    expect(component.reporteDisabled).toBe(true);
+
+    correctionContext.activate({
+      ownerId: '1',
+      sourceLocalId: 'outro-reporte',
+      commandType: 'REPORT_OPERATION',
+      aggregateType: 'OPERATION',
+      aggregateId: '450001|OP-10458|01',
+      payloadSchemaVersion: 1,
+      draft: {},
+    });
+    component.salvarReporte({
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+    });
+
+    expect(service.reportarOperacao).toHaveBeenCalledOnce();
   });
+
+  it.each(['SYNCED', 'PENDING'] as const)(
+    'substitui semanticamente o ERROR pela correção %s e permite encerrar',
+    (deliveryStatus) => {
+      const ending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
+      service.reportarOperacao
+        .mockReturnValueOnce(of({
+          apontamentoId: 'APT-ERROR',
+          reportadoEm: new Date('2026-08-28T10:00:00.000Z'),
+          delivery: { status: 'ERROR', error: persistedError },
+        }))
+        .mockReturnValueOnce(of({
+          apontamentoId: 'APT-CORRECTION',
+          supersedesLocalId: 'APT-ERROR',
+          reportadoEm: new Date('2026-08-28T10:05:00.000Z'),
+          delivery: deliveryStatus === 'SYNCED'
+            ? { status: 'SYNCED', receipt }
+            : { status: 'PENDING' },
+        }));
+      service.encerrarOperacao.mockReturnValue(ending);
+      submitReport({ quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+      expect(correctionContext.activate({
+        ownerId: '1',
+        sourceLocalId: 'APT-ERROR',
+        commandType: 'REPORT_OPERATION',
+        aggregateType: 'OPERATION',
+        aggregateId: '450001|OP-10458|01',
+        payloadSchemaVersion: 1,
+        draft: {},
+      })).toBe(true);
+
+      component.salvarReporte({
+        quantidadeAprovada: 4,
+        quantidadeRetrabalho: 0,
+        quantidadeRefugo: 0,
+        finalizarSplit: true,
+      });
+
+      expect(service.reportarOperacao).toHaveBeenCalledTimes(2);
+      expect(component.reportes).toEqual([
+        expect.objectContaining({
+          id: 'APT-CORRECTION',
+          supersedesLocalId: 'APT-ERROR',
+          quantidadeAprovada: 4,
+          deliveryStatus,
+        }),
+      ]);
+      expect(component.operacao?.quantidadeAprovada).toBe(4);
+      expect(workflow.snapshot().reportes).toEqual([
+        expect.objectContaining({ id: 'APT-CORRECTION', quantidadeAprovada: 4 }),
+      ]);
+      expect(service.encerrarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+        dependencyIds: ['APT-CORRECTION'],
+      }));
+      expect(component.reportes.some(report => report.deliveryStatus === 'ERROR')).toBe(false);
+    },
+  );
 
   it('accepts rework without a scrap reason', () => {
     fixture.detectChanges();

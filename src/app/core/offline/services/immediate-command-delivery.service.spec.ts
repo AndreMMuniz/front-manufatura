@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BehaviorSubject, Observable } from 'rxjs';
 
 import { OfflineStorageError } from '../models/offline-storage-error';
 import {
@@ -154,6 +155,53 @@ describe('ImmediateCommandDeliveryService', () => {
     expect(outbox.getById).not.toHaveBeenCalled();
   });
 
+  it('falha se a sessão muda enquanto a leitura da Outbox está pendente, mesmo voltando ao owner original', async () => {
+    let resolveEntry!: (value: OutboxEntry) => void;
+    const session$ = new BehaviorSubject<{ readonly user: { readonly id: string } } | null>({
+      user: { id: 'operator-1' },
+    });
+    const outbox = {
+      getById: vi.fn(() => new Promise<OutboxEntry>((resolve) => { resolveEntry = resolve; })),
+    };
+    const service = createService(
+      { requestSync: vi.fn().mockResolvedValue(undefined) },
+      outbox,
+      undefined,
+      {
+        session$,
+        get currentUser() {
+          return session$.value?.user ?? null;
+        },
+      },
+    );
+
+    const delivery = service.deliver(entry.localId);
+    await vi.waitFor(() => expect(outbox.getById).toHaveBeenCalledOnce());
+    session$.next({ user: { id: 'operator-2' } });
+    session$.next({ user: { id: 'operator-1' } });
+    resolveEntry({ ...entry, status: 'SYNCED', receipt });
+
+    await expect(delivery).rejects.toMatchObject({
+      name: 'OfflineStorageError',
+      code: 'PAYLOAD_INVALID',
+    } satisfies Partial<OfflineStorageError>);
+  });
+
+  it.each([
+    ['SYNCED sem receipt', { ...entry, status: 'SYNCED' as const }],
+    ['ERROR sem lastError', { ...entry, status: 'ERROR' as const }],
+  ])('rejeita %s como schema inválido', async (_description, malformedEntry) => {
+    const service = createService(
+      { requestSync: vi.fn().mockResolvedValue(undefined) },
+      { getById: vi.fn().mockResolvedValue(malformedEntry) },
+    );
+
+    await expect(service.deliver(entry.localId)).rejects.toMatchObject({
+      name: 'OfflineStorageError',
+      code: 'SCHEMA_INVALID',
+    } satisfies Partial<OfflineStorageError>);
+  });
+
   it('falha como armazenamento quando não há owner autenticado', async () => {
     const coordinator = { requestSync: vi.fn() };
     const outbox = { getById: vi.fn() };
@@ -184,7 +232,10 @@ function createService(
   coordinator: { readonly requestSync: () => Promise<void> },
   outbox: { readonly getById: (ownerId: string, localId: string) => Promise<OutboxEntry | null> },
   scheduler: TimeoutScheduler = immediateScheduler(),
-  authSession: { readonly currentUser: { readonly id: string } | null } = {
+  authSession: {
+    readonly currentUser: { readonly id: string } | null;
+    readonly session$?: Observable<unknown>;
+  } = {
     currentUser: { id: 'operator-1' },
   },
 ): ImmediateCommandDeliveryService {

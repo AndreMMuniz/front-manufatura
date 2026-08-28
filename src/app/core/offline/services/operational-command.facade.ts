@@ -135,6 +135,7 @@ export class OperationalCommandFacade {
       syncStatus: persisted.outboxEntry.status === 'BLOCKED_AUTH'
         ? 'BLOCKED_AUTH'
         : 'PENDING',
+      supersedesLocalId: originalLocalId,
     });
   }
 }
