@@ -12,14 +12,47 @@ import {
   DATABASE_VERSION,
   OFFLINE_DATABASE_SCHEMA,
   OUTBOX_STORE,
+  SYNC_RECEIPTS_STORE,
 } from './database-schema';
 
 describe('database migrations', () => {
+  it('cria syncReceipts na versão 4 com índices de owner, expiração e agregado', async () => {
+    const database = await openDatabase(new IDBFactory(), DATABASE_VERSION, DATABASE_MIGRATIONS);
+    const store = database.transaction(SYNC_RECEIPTS_STORE).objectStore(SYNC_RECEIPTS_STORE);
+
+    expect(DATABASE_VERSION).toBe(4);
+    expect([...database.objectStoreNames]).toEqual(['localRecords', 'outbox', 'syncReceipts']);
+    expect([...store.indexNames]).toEqual([
+      'ownerAggregate',
+      'ownerArchivedAt',
+      'ownerExpiresAt',
+      'ownerId',
+    ]);
+    database.close();
+  });
+
+  it('preserva stores v3 e adiciona syncReceipts no upgrade', async () => {
+    const factory = new IDBFactory();
+    const versionThree = await openDatabase(factory, 3, DATABASE_MIGRATIONS.slice(0, 3));
+    await addAndComplete(versionThree, OUTBOX_STORE, pendingFixture('ERROR'));
+    versionThree.close();
+
+    const versionFour = await openDatabase(factory, 4, DATABASE_MIGRATIONS);
+
+    expect(
+      await requestResult(
+        versionFour.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).getAll(),
+      ),
+    ).toHaveLength(1);
+    expect(versionFour.objectStoreNames.contains(SYNC_RECEIPTS_STORE)).toBe(true);
+    versionFour.close();
+  });
+
   it('cria o schema 0 -> target com stores, key paths e índices obrigatórios', async () => {
     const database = await openDatabase(new IDBFactory(), DATABASE_VERSION, DATABASE_MIGRATIONS);
 
     expect(database.name).toBe(DATABASE_NAME);
-    expect([...database.objectStoreNames]).toEqual(['localRecords', 'outbox']);
+    expect([...database.objectStoreNames]).toEqual(['localRecords', 'outbox', 'syncReceipts']);
 
     for (const storeSchema of OFFLINE_DATABASE_SCHEMA.stores) {
       const transaction = database.transaction(storeSchema.name, 'readonly');

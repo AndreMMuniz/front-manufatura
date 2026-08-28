@@ -1,10 +1,14 @@
 export const DATABASE_NAME = 'plano-de-controle-operational';
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 
 export const LOCAL_RECORDS_STORE = 'localRecords';
 export const OUTBOX_STORE = 'outbox';
+export const SYNC_RECEIPTS_STORE = 'syncReceipts';
 
-export type OfflineStoreName = typeof LOCAL_RECORDS_STORE | typeof OUTBOX_STORE;
+export type OfflineStoreName =
+  | typeof LOCAL_RECORDS_STORE
+  | typeof OUTBOX_STORE
+  | typeof SYNC_RECEIPTS_STORE;
 
 export interface OfflineIndexSchema {
   readonly name: string;
@@ -81,6 +85,28 @@ export const OFFLINE_DATABASE_SCHEMA: OfflineDatabaseSchema = {
         },
         // Recuperação cronológica global da Outbox.
         { name: 'createdAt', keyPath: 'createdAt', unique: false },
+      ],
+    },
+    {
+      name: SYNC_RECEIPTS_STORE,
+      keyPath: 'localId',
+      indexes: [
+        { name: 'ownerId', keyPath: 'ownerId', unique: false },
+        {
+          name: 'ownerArchivedAt',
+          keyPath: ['ownerId', 'archivedAt'],
+          unique: false,
+        },
+        {
+          name: 'ownerExpiresAt',
+          keyPath: ['ownerId', 'expiresAt'],
+          unique: false,
+        },
+        {
+          name: 'ownerAggregate',
+          keyPath: ['ownerId', 'aggregateType', 'aggregateId'],
+          unique: false,
+        },
       ],
     },
   ],

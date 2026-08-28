@@ -3,6 +3,7 @@ import {
   DATABASE_VERSION,
   LOCAL_RECORDS_STORE,
   OUTBOX_STORE,
+  SYNC_RECEIPTS_STORE,
 } from './database-schema';
 
 export interface DatabaseMigrationContext {
@@ -115,10 +116,26 @@ const SYNCHRONIZATION_CENTER_MIGRATION: DatabaseMigration = {
   },
 };
 
+const SYNC_RECEIPTS_MIGRATION: DatabaseMigration = {
+  toVersion: 4,
+  migrate: ({ database }) => {
+    const store = database.createObjectStore(SYNC_RECEIPTS_STORE, { keyPath: 'localId' });
+    store.createIndex('ownerId', 'ownerId', { unique: false });
+    store.createIndex('ownerArchivedAt', ['ownerId', 'archivedAt'], { unique: false });
+    store.createIndex('ownerExpiresAt', ['ownerId', 'expiresAt'], { unique: false });
+    store.createIndex(
+      'ownerAggregate',
+      ['ownerId', 'aggregateType', 'aggregateId'],
+      { unique: false },
+    );
+  },
+};
+
 export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
   INITIAL_SCHEMA_MIGRATION,
   SCHEDULER_SCHEMA_MIGRATION,
   SYNCHRONIZATION_CENTER_MIGRATION,
+  SYNC_RECEIPTS_MIGRATION,
 ]);
 
 export function runDatabaseMigrations(request: RunMigrationsRequest): void {
