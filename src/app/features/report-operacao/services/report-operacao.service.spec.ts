@@ -173,7 +173,12 @@ describe('ReportOperacaoService', () => {
 
     try {
       await seedActiveOperationWithReport(database);
-      await retention.cleanupOwner('1');
+      await expect(retention.cleanupOwner('1')).resolves.toEqual({
+        compactedAggregates: 0,
+        prunedReceipts: 0,
+      });
+      await expect(retainedLocalIds(localRecords)).resolves.toEqual(['report-active', 'start-1']);
+      await expect(retainedOutboxIds(outbox)).resolves.toEqual(['report-active', 'start-1']);
 
       const restored = await firstValueFrom(service.restaurarOperacaoAtiva());
 
@@ -633,7 +638,21 @@ function activeOutboxEntry(record: LocalRecord<JsonValue>): OutboxEntry<JsonValu
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     synchronizedAt: record.createdAt,
+    receipt: {
+      serverRecordId: `server-${record.localId}`,
+      receivedAt: record.createdAt,
+      processedAt: record.createdAt,
+      duplicate: false,
+    },
   };
+}
+
+async function retainedLocalIds(repository: LocalRecordRepository): Promise<string[]> {
+  return (await repository.listByOwner('1')).map(record => record.localId).sort();
+}
+
+async function retainedOutboxIds(repository: OutboxRepository): Promise<string[]> {
+  return (await repository.listByOwner('1')).map(entry => entry.localId).sort();
 }
 
 function outboxProjection(
