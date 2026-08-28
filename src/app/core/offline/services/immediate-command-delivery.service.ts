@@ -29,6 +29,13 @@ export class ImmediateCommandDeliveryService {
     }
 
     await this.waitForCycle();
+    const currentOwnerId = this.auth.currentUser?.id.trim();
+    if (!currentOwnerId || currentOwnerId !== ownerId) {
+      throw new OfflineStorageError(
+        'PAYLOAD_INVALID',
+        'A sessão autenticada mudou durante a observação do envio.',
+      );
+    }
     const entry = await this.outbox.getById(ownerId, localId);
     if (!entry) {
       throw new OfflineStorageError(

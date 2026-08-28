@@ -106,10 +106,58 @@ describe('ImmediateCommandDeliveryService', () => {
     await expect(service.deliver(entry.localId)).resolves.toEqual({ status: 'PENDING' });
   });
 
+  it('falha antes da Outbox quando a sessão encerra durante o ciclo', async () => {
+    let resolveCycle!: () => void;
+    let currentUser: { readonly id: string } | null = { id: 'operator-1' };
+    const coordinator = {
+      requestSync: vi.fn(() => new Promise<void>((resolve) => { resolveCycle = resolve; })),
+    };
+    const outbox = { getById: vi.fn() };
+    const service = createService(coordinator, outbox, undefined, {
+      get currentUser() {
+        return currentUser;
+      },
+    });
+
+    const delivery = service.deliver(entry.localId);
+    currentUser = null;
+    resolveCycle();
+
+    await expect(delivery).rejects.toMatchObject({
+      name: 'OfflineStorageError',
+      code: 'PAYLOAD_INVALID',
+    } satisfies Partial<OfflineStorageError>);
+    expect(outbox.getById).not.toHaveBeenCalled();
+  });
+
+  it('falha antes da Outbox quando outro owner assume a sessão durante o ciclo', async () => {
+    let resolveCycle!: () => void;
+    let currentUser: { readonly id: string } | null = { id: 'operator-1' };
+    const coordinator = {
+      requestSync: vi.fn(() => new Promise<void>((resolve) => { resolveCycle = resolve; })),
+    };
+    const outbox = { getById: vi.fn() };
+    const service = createService(coordinator, outbox, undefined, {
+      get currentUser() {
+        return currentUser;
+      },
+    });
+
+    const delivery = service.deliver(entry.localId);
+    currentUser = { id: 'operator-2' };
+    resolveCycle();
+
+    await expect(delivery).rejects.toMatchObject({
+      name: 'OfflineStorageError',
+      code: 'PAYLOAD_INVALID',
+    } satisfies Partial<OfflineStorageError>);
+    expect(outbox.getById).not.toHaveBeenCalled();
+  });
+
   it('falha como armazenamento quando não há owner autenticado', async () => {
     const coordinator = { requestSync: vi.fn() };
     const outbox = { getById: vi.fn() };
-    const service = createService(coordinator, outbox, undefined, null);
+    const service = createService(coordinator, outbox, undefined, { currentUser: null });
 
     await expect(service.deliver(entry.localId)).rejects.toMatchObject({
       name: 'OfflineStorageError',
@@ -136,12 +184,14 @@ function createService(
   coordinator: { readonly requestSync: () => Promise<void> },
   outbox: { readonly getById: (ownerId: string, localId: string) => Promise<OutboxEntry | null> },
   scheduler: TimeoutScheduler = immediateScheduler(),
-  currentUser: { readonly id: string } | null = { id: 'operator-1' },
+  authSession: { readonly currentUser: { readonly id: string } | null } = {
+    currentUser: { id: 'operator-1' },
+  },
 ): ImmediateCommandDeliveryService {
   return new ImmediateCommandDeliveryService(
     coordinator as never,
     outbox as never,
-    { currentUser } as never,
+    authSession as never,
     schedulerConfig(),
     scheduler,
   );
