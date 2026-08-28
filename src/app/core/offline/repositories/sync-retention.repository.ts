@@ -117,25 +117,40 @@ export class SyncRetentionRepository {
 
     const transaction = await this.database.createTransaction([SYNC_RECEIPTS_STORE], 'readwrite');
     const completed = transactionComplete(transaction);
-    const store = transaction.objectStore(SYNC_RECEIPTS_STORE);
-    const records = await requestResult<SyncReceiptRecord[]>(
-      store.index('ownerId').getAll(owner),
-      'Não foi possível listar os recibos sincronizados.',
-    );
-    const ordered = [...records].sort(
-      (left, right) =>
-        Date.parse(right.archivedAt) - Date.parse(left.archivedAt) ||
-        right.archivedAt.localeCompare(left.archivedAt) ||
-        right.localId.localeCompare(left.localId),
-    );
-    const nowTimestamp = Date.parse(now);
-    const expired = ordered.filter((record) => Date.parse(record.expiresAt) <= nowTimestamp);
-    const overflow = ordered.slice(Math.max(0, maxRecords));
-    const deleteIds = new Set([...expired, ...overflow].map((record) => record.localId));
 
-    for (const localId of deleteIds) store.delete(localId);
-    await completed;
-    return deleteIds.size;
+    try {
+      const store = transaction.objectStore(SYNC_RECEIPTS_STORE);
+      const records = await requestResult<SyncReceiptRecord[]>(
+        store.index('ownerId').getAll(owner),
+        'Não foi possível listar os recibos sincronizados.',
+      );
+      const ordered = [...records].sort(
+        (left, right) =>
+          Date.parse(right.archivedAt) - Date.parse(left.archivedAt) ||
+          right.archivedAt.localeCompare(left.archivedAt) ||
+          right.localId.localeCompare(left.localId),
+      );
+      const nowTimestamp = Date.parse(now);
+      const expired = ordered.filter((record) => Date.parse(record.expiresAt) <= nowTimestamp);
+      const overflow = ordered.slice(Math.max(0, maxRecords));
+      const deleteIds = new Set([...expired, ...overflow].map((record) => record.localId));
+
+      for (const localId of deleteIds) store.delete(localId);
+      await completed;
+      return deleteIds.size;
+    } catch (error) {
+      try {
+        transaction.abort();
+      } catch {
+        // A transação pode já ter sido abortada pela request que falhou.
+      }
+      try {
+        await completed;
+      } catch {
+        // Preserva a causa original observada durante a poda.
+      }
+      throw toOfflineStorageError(error, 'Não foi possível podar os recibos sincronizados.');
+    }
   }
 }
 

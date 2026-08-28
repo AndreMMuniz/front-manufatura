@@ -161,6 +161,27 @@ describe('SyncRetentionRepository', () => {
     expect(activity.publish).toHaveBeenCalledOnce();
   });
 
+  it('publica atividade somente depois do commit dos três stores', async () => {
+    await seedClosedAggregate();
+    const createTransaction = database.createTransaction.bind(database);
+    let committed = false;
+    let committedWhenPublished: boolean | undefined;
+    vi.spyOn(database, 'createTransaction').mockImplementation(async (storeNames, mode) => {
+      const transaction = await createTransaction(storeNames, mode);
+      transaction.addEventListener('complete', () => {
+        committed = true;
+      });
+      return transaction;
+    });
+    vi.mocked(activity.publish).mockImplementation(() => {
+      committedWhenPublished = committed;
+    });
+
+    await expect(compact()).resolves.toBe('compacted');
+
+    expect(committedWhenPublished).toBe(true);
+  });
+
   it('faz rollback integral quando um put no receipt store falha', async () => {
     await seedClosedAggregate();
     const probe = await database.createTransaction([SYNC_RECEIPTS_STORE], 'readonly');
@@ -185,6 +206,36 @@ describe('SyncRetentionRepository', () => {
     expect(await readStore<OutboxEntry<JsonValue>>(OUTBOX_STORE)).toHaveLength(3);
     expect(await readStore<LocalRecord<JsonValue>>(LOCAL_RECORDS_STORE)).toHaveLength(3);
     expect(await readStore<SyncReceiptRecord>(SYNC_RECEIPTS_STORE)).toHaveLength(0);
+    expect(activity.publish).not.toHaveBeenCalled();
+  });
+
+  it('faz rollback integral quando a transação aborta assincronamente após enfileirar mutações', async () => {
+    await seedClosedAggregate();
+    const probe = await database.createTransaction([SYNC_RECEIPTS_STORE], 'readonly');
+    const receiptStore = probe.objectStore(SYNC_RECEIPTS_STORE);
+    const objectStorePrototype = Object.getPrototypeOf(receiptStore) as IDBObjectStore;
+    const originalPut = objectStorePrototype.put;
+    await transactionComplete(probe);
+    let receiptPuts = 0;
+    vi.spyOn(objectStorePrototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey,
+    ) {
+      const request =
+        key === undefined ? originalPut.call(this, value) : originalPut.call(this, value, key);
+      if (this.name === SYNC_RECEIPTS_STORE && ++receiptPuts === 3) {
+        queueMicrotask(() => this.transaction.abort());
+      }
+      return request;
+    });
+
+    await expect(compact()).rejects.toEqual(expect.objectContaining({ code: 'ABORTED' }));
+
+    expect(await readStore<OutboxEntry<JsonValue>>(OUTBOX_STORE)).toHaveLength(3);
+    expect(await readStore<LocalRecord<JsonValue>>(LOCAL_RECORDS_STORE)).toHaveLength(3);
+    expect(await readStore<SyncReceiptRecord>(SYNC_RECEIPTS_STORE)).toHaveLength(0);
+    expect(receiptPuts).toBe(3);
     expect(activity.publish).not.toHaveBeenCalled();
   });
 
@@ -228,6 +279,41 @@ describe('SyncRetentionRepository', () => {
     ).toEqual(['foreign', 'middle', 'newest']);
   });
 
+  it('desempata archivedAt por localId descendente antes de aplicar o limite', async () => {
+    await seedReceipts([
+      receiptRecord('tie-a', OWNER, '2026-08-03T00:00:00.000Z'),
+      receiptRecord('tie-c', OWNER, '2026-08-03T00:00:00.000Z'),
+      receiptRecord('tie-b', OWNER, '2026-08-03T00:00:00.000Z'),
+    ]);
+
+    await expect(repository.pruneReceipts(OWNER, ARCHIVED_AT, 2)).resolves.toBe(1);
+
+    expect(
+      (await readStore<SyncReceiptRecord>(SYNC_RECEIPTS_STORE)).map((item) => item.localId).sort(),
+    ).toEqual(['tie-b', 'tie-c']);
+  });
+
+  it('aplica o limite efetivo de 500 quando o owner possui 501 recibos', async () => {
+    const records = Array.from({ length: 501 }, (_, index) =>
+      receiptRecord(
+        `receipt-${index.toString().padStart(3, '0')}`,
+        OWNER,
+        new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+      ),
+    );
+    await seedReceipts(records);
+
+    await expect(repository.pruneReceipts(OWNER, ARCHIVED_AT, 500)).resolves.toBe(1);
+
+    const retainedIds = (await readStore<SyncReceiptRecord>(SYNC_RECEIPTS_STORE)).map(
+      (item) => item.localId,
+    );
+    expect(retainedIds).toHaveLength(500);
+    expect(retainedIds).not.toContain('receipt-000');
+    expect(retainedIds).toContain('receipt-001');
+    expect(retainedIds).toContain('receipt-500');
+  });
+
   it('poda a união de expirados e excedentes sem contar o mesmo recibo duas vezes', async () => {
     await seedReceipts([
       receiptRecord(
@@ -262,6 +348,50 @@ describe('SyncRetentionRepository', () => {
       TypeError,
     );
     expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it('aborta e consome a conclusão quando getAll falha assincronamente', async () => {
+    await seedReceipts([receiptRecord('retained', OWNER, '2026-08-03T00:00:00.000Z')]);
+    const probe = await database.createTransaction([SYNC_RECEIPTS_STORE], 'readonly');
+    const index = probe.objectStore(SYNC_RECEIPTS_STORE).index('ownerId');
+    const indexPrototype = Object.getPrototypeOf(index) as IDBIndex;
+    const transactionPrototype = Object.getPrototypeOf(probe) as IDBTransaction;
+    const originalGetAll = indexPrototype.getAll;
+    const abortSpy = vi.spyOn(transactionPrototype, 'abort');
+    await transactionComplete(probe);
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    vi.spyOn(indexPrototype, 'getAll').mockImplementation(function (
+      this: IDBIndex,
+      query?: IDBValidKey | IDBKeyRange | null,
+      count?: number,
+    ) {
+      const request =
+        count === undefined
+          ? query === undefined
+            ? originalGetAll.call(this)
+            : originalGetAll.call(this, query)
+          : originalGetAll.call(this, query, count);
+      if (this.objectStore.name === SYNC_RECEIPTS_STORE && this.name === 'ownerId') {
+        queueMicrotask(() => this.objectStore.transaction.abort());
+      }
+      return request;
+    });
+
+    try {
+      await expect(repository.pruneReceipts(OWNER, ARCHIVED_AT, 500)).rejects.toEqual(
+        expect.objectContaining({ code: 'ABORTED' }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(abortSpy).toHaveBeenCalledTimes(2);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 
   function compact(): Promise<'compacted' | 'ineligible'> {
