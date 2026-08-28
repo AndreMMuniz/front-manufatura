@@ -11,6 +11,7 @@ import { OutboxRepository } from '../repositories/outbox.repository';
 import { transactionComplete } from '../repositories/repository-utils';
 import { IdempotencyService } from './idempotency.service';
 import { SyncCoordinatorService } from './sync-coordinator.service';
+import { SyncRetentionService } from './sync-retention.service';
 import { SyncTransport, TimeoutScheduler } from './sync-transport';
 import { SyncTriggerReason, SyncTriggerService } from './sync-trigger.service';
 
@@ -26,6 +27,7 @@ describe('SyncCoordinatorService', () => {
   let uuidIndex: number;
   let currentTime: string;
   let clientLogs: { capture: ReturnType<typeof vi.fn> };
+  let retention: { cleanupOwner: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
@@ -42,6 +44,68 @@ describe('SyncCoordinatorService', () => {
     uuidIndex = 0;
     currentTime = NOW;
     clientLogs = { capture: vi.fn() };
+    retention = { cleanupOwner: vi.fn().mockResolvedValue({
+      compactedAggregates: 0,
+      prunedReceipts: 0,
+    }) };
+  });
+
+  it('executa retenção depois de drenar o owner', async () => {
+    await seed(database, [entry('command')]);
+    const statusesAtCleanup: OutboxEntry['status'][] = [];
+    retention.cleanupOwner.mockImplementation(async () => {
+      statusesAtCleanup.push(...(await repository.listByOwner(OWNER)).map(item => item.status));
+    });
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(retention.cleanupOwner).toHaveBeenCalledWith(OWNER);
+    expect(statusesAtCleanup.length).toBeGreaterThan(0);
+    expect(statusesAtCleanup.every(status => status === 'SYNCED')).toBe(true);
+  });
+
+  it('executa retenção quando o owner não possui candidatos', async () => {
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(retention.cleanupOwner).toHaveBeenCalledWith(OWNER);
+  });
+
+  it('não rejeita o ciclo nem altera SYNCED quando o cleanup falha', async () => {
+    await seed(database, [entry('command')]);
+    retention.cleanupOwner.mockRejectedValue(new Error('storage'));
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await expect(coordinator.requestSync()).resolves.toBeUndefined();
+
+    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
+    expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'sync_storage_failed',
+      context: { stage: 'retention', code: 'STORAGE_FAILURE' },
+    }));
+  });
+
+  it('não executa retenção para owner e epoch que ficaram obsoletos', async () => {
+    vi.spyOn(repository, 'listCandidates').mockImplementationOnce(async () => {
+      auth.logout();
+      return [];
+    });
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    await coordinator.requestSync();
+
+    expect(repository.listCandidates).toHaveBeenCalled();
+    expect(retention.cleanupOwner).not.toHaveBeenCalled();
   });
 
   it('serializa um agregado, paraleliza agregados independentes e limita concorrência', async () => {
@@ -756,6 +820,7 @@ describe('SyncCoordinatorService', () => {
       timeout,
       undefined,
       clientLogs as never,
+      retention as unknown as SyncRetentionService,
     );
   }
 

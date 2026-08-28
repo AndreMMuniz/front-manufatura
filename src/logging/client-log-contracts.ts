@@ -88,7 +88,7 @@ export type ClientFailureCategory = (typeof CLIENT_FAILURE_CATEGORIES)[number];
 
 export const CLIENT_SYNC_STAGES = [
   'trigger', 'cycle', 'resume', 'manual_retry', 'list', 'claim',
-  'release', 'reconcile_success', 'reconcile_failure',
+  'release', 'reconcile_success', 'reconcile_failure', 'retention',
 ] as const;
 export type ClientSyncStage = (typeof CLIENT_SYNC_STAGES)[number];
 

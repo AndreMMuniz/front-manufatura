@@ -20,6 +20,8 @@ import {
 import { JsonValue } from '../models/local-record';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { IdempotencyService } from './idempotency.service';
+import { SYNC_CLOCK, SyncClock } from './sync-clock';
+import { SyncRetentionService } from './sync-retention.service';
 import {
   SYNC_TIMEOUT_SCHEDULER,
   SYNC_TRANSPORT,
@@ -34,7 +36,6 @@ import {
 } from './sync-trigger.service';
 import { SupervisorProofVault } from './supervisor-proof-vault';
 
-export type SyncClock = () => Date;
 export type SyncRandom = () => number;
 export type ManualRetryResult =
   | 'queued'
@@ -42,10 +43,7 @@ export type ManualRetryResult =
   | 'stale-or-ineligible'
   | 'storage-error';
 
-export const SYNC_CLOCK = new InjectionToken<SyncClock>('SYNC_CLOCK', {
-  providedIn: 'root',
-  factory: () => () => new Date(),
-});
+export { SYNC_CLOCK, type SyncClock } from './sync-clock';
 
 export const SYNC_RANDOM = new InjectionToken<SyncRandom>('SYNC_RANDOM', {
   providedIn: 'root',
@@ -77,6 +75,10 @@ export class SyncCoordinatorService implements OnDestroy {
     private readonly clientLogs: ClientLogService = {
       capture: () => undefined,
     } as unknown as ClientLogService,
+    @Inject(SyncRetentionService)
+    private readonly retention: Pick<SyncRetentionService, 'cleanupOwner'> = {
+      cleanupOwner: async () => ({ compactedAggregates: 0, prunedReceipts: 0 }),
+    },
   ) {}
 
   start(): void {
@@ -167,28 +169,38 @@ export class SyncCoordinatorService implements OnDestroy {
   }
 
   private async processOwner(owner: string, epoch: number): Promise<void> {
-    while (this.isCurrent(owner, epoch)) {
-      let candidates: readonly OutboxEntry<JsonValue>[];
-      try {
-        candidates = await this.outbox.listCandidates(
-          owner,
-          this.nowIso(),
-          this.config.batchSize,
+    try {
+      while (this.isCurrent(owner, epoch)) {
+        let candidates: readonly OutboxEntry<JsonValue>[];
+        try {
+          candidates = await this.outbox.listCandidates(
+            owner,
+            this.nowIso(),
+            this.config.batchSize,
+          );
+        } catch (error) {
+          this.captureFailure('sync_storage_failed', 'list', 'STORAGE_FAILURE');
+          throw error;
+        }
+        if (candidates.length === 0 || !this.isCurrent(owner, epoch)) {
+          return;
+        }
+        const claimedCount = await this.runWithConcurrency(
+          candidates,
+          this.config.concurrency,
+          (entry) => this.processEntry(owner, epoch, entry),
         );
-      } catch (error) {
-        this.captureFailure('sync_storage_failed', 'list', 'STORAGE_FAILURE');
-        throw error;
+        if (claimedCount === 0) {
+          return;
+        }
       }
-      if (candidates.length === 0 || !this.isCurrent(owner, epoch)) {
-        return;
-      }
-      const claimedCount = await this.runWithConcurrency(
-        candidates,
-        this.config.concurrency,
-        (entry) => this.processEntry(owner, epoch, entry),
-      );
-      if (claimedCount === 0) {
-        return;
+    } finally {
+      if (this.isCurrent(owner, epoch)) {
+        try {
+          await this.retention.cleanupOwner(owner);
+        } catch {
+          this.captureFailure('sync_storage_failed', 'retention', 'STORAGE_FAILURE');
+        }
       }
     }
   }

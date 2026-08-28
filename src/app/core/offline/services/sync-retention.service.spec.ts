@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from '../../auth/auth-session.service';
 import { OutboxEntry } from '../models/outbox-entry';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { SyncRetentionRepository } from '../repositories/sync-retention.repository';
@@ -10,6 +11,36 @@ const NOW = '2026-08-28T13:00:00.000Z';
 const EXPIRES_AT = '2026-09-27T13:00:00.000Z';
 
 describe('SyncRetentionService', () => {
+  it('executa a retenção para o owner autenticado normalizado', async () => {
+    const outbox = { listByOwner: vi.fn().mockResolvedValue([]) };
+    const retention = {
+      compactClosedAggregate: vi.fn(),
+      pruneReceipts: vi.fn().mockResolvedValue(0),
+    };
+    const service = createService(outbox, retention, { id: `  ${OWNER}  ` });
+
+    await expect(service.cleanupCurrentOwner()).resolves.toEqual({
+      compactedAggregates: 0,
+      prunedReceipts: 0,
+    });
+
+    expect(outbox.listByOwner).toHaveBeenCalledWith(OWNER);
+  });
+
+  it('ignora a retenção quando não existe owner autenticado', async () => {
+    const outbox = { listByOwner: vi.fn() };
+    const retention = {
+      compactClosedAggregate: vi.fn(),
+      pruneReceipts: vi.fn(),
+    };
+    const service = createService(outbox, retention);
+
+    await expect(service.cleanupCurrentOwner()).resolves.toBeNull();
+
+    expect(outbox.listByOwner).not.toHaveBeenCalled();
+    expect(retention.pruneReceipts).not.toHaveBeenCalled();
+  });
+
   it('compacta uma vez cada operação encerrada e aplica a retenção do owner', async () => {
     const outbox = { listByOwner: vi.fn().mockResolvedValue([
       endEntry('op-1'),
@@ -82,11 +113,13 @@ function createService(
     ) => Promise<'compacted' | 'ineligible'>;
     readonly pruneReceipts: (ownerId: string, now: string, maxRecords: number) => Promise<number>;
   },
+  currentUser: { readonly id: string } | null = null,
 ): SyncRetentionService {
   return new SyncRetentionService(
     outbox as OutboxRepository,
     retention as SyncRetentionRepository,
     () => new Date(NOW),
+    { currentUser } as AuthSessionService,
   );
 }
 

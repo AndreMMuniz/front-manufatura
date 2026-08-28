@@ -37,6 +37,20 @@ describe('client log contracts', () => {
     expect(result.event.context).toEqual(valid().context);
   });
 
+  it('aceita a etapa de retenção para tornar falhas de cleanup observáveis', () => {
+    const result = validateClientLogEvent({
+      ...valid(),
+      category: 'synchronization',
+      event: 'sync_storage_failed',
+      context: { stage: 'retention', code: 'STORAGE_FAILURE' },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      event: { context: { stage: 'retention', code: 'STORAGE_FAILURE' } },
+    });
+  });
+
   it.each([
     ['chave raiz extra', { ...valid(), body: { password: 'segredo' } }],
     ['categoria aberta', { ...valid(), category: 'security' }],

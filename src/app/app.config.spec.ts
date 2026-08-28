@@ -11,14 +11,18 @@ describe('appConfig sync bootstrap', () => {
     const coordinator = { start: vi.fn() };
     const pwaUpdate = { start: vi.fn() };
     const storageHealth = { assess: vi.fn() };
+    const retention = { cleanupCurrentOwner: vi.fn() };
     const scheduleAfterRender = vi.fn();
 
-    initializeSyncRuntime('server', coordinator, scheduleAfterRender, pwaUpdate, storageHealth);
+    initializeSyncRuntime(
+      'server', coordinator, scheduleAfterRender, pwaUpdate, storageHealth, retention,
+    );
 
     expect(scheduleAfterRender).not.toHaveBeenCalled();
     expect(coordinator.start).not.toHaveBeenCalled();
     expect(pwaUpdate.start).not.toHaveBeenCalled();
     expect(storageHealth.assess).not.toHaveBeenCalled();
+    expect(retention.cleanupCurrentOwner).not.toHaveBeenCalled();
   });
 
   it('inicia PWA antes do sincronizador e somente depois da renderização no browser', () => {
@@ -32,15 +36,39 @@ describe('appConfig sync bootstrap', () => {
         return Promise.resolve();
       }),
     };
+    const retention = {
+      cleanupCurrentOwner: vi.fn(() => {
+        order.push('retention');
+        return Promise.resolve(null);
+      }),
+    };
     const scheduleAfterRender = vi.fn((callback: () => void) => callback());
 
-    initializeSyncRuntime('browser', coordinator, scheduleAfterRender, pwaUpdate, storageHealth);
+    initializeSyncRuntime(
+      'browser', coordinator, scheduleAfterRender, pwaUpdate, storageHealth, retention,
+    );
 
     expect(scheduleAfterRender).toHaveBeenCalledOnce();
     expect(pwaUpdate.start).toHaveBeenCalledOnce();
     expect(storageHealth.assess).toHaveBeenCalledOnce();
+    expect(retention.cleanupCurrentOwner).toHaveBeenCalledOnce();
     expect(coordinator.start).toHaveBeenCalledOnce();
-    expect(order).toEqual(['pwa', 'storage', 'sync']);
+    expect(order).toEqual(['pwa', 'storage', 'retention', 'sync']);
+  });
+
+  it('absorve falha da retenção no startup e ainda inicia o sincronizador', async () => {
+    const coordinator = { start: vi.fn() };
+    const retention = {
+      cleanupCurrentOwner: vi.fn().mockRejectedValue(new Error('storage')),
+    };
+    const scheduleAfterRender = vi.fn((callback: () => void) => callback());
+
+    initializeSyncRuntime(
+      'browser', coordinator, scheduleAfterRender, undefined, undefined, retention,
+    );
+    await Promise.resolve();
+
+    expect(coordinator.start).toHaveBeenCalledOnce();
   });
 
   it('mantém harnesses fora das rotas padrão e os habilita apenas na configuração E2E', () => {

@@ -30,6 +30,7 @@ import { SyncCoordinatorService } from './core/offline/services/sync-coordinator
 import { provideServiceWorker } from '@angular/service-worker';
 import { PwaUpdateService } from './core/offline/pwa/pwa-update.service';
 import { StorageHealthService } from './core/offline/services/storage-health.service';
+import { SyncRetentionService } from './core/offline/services/sync-retention.service';
 import { SYNC_COMMAND_HANDLERS } from './core/offline/services/command-transport-router';
 import {
   FinalizeQualityRouteSyncHandler,
@@ -57,11 +58,13 @@ export function initializeSyncRuntime(
   scheduleAfterRender: AfterRenderScheduler = afterNextRender,
   pwaUpdate?: Pick<PwaUpdateService, 'start'>,
   storageHealth?: Pick<StorageHealthService, 'assess'>,
+  retention?: Pick<SyncRetentionService, 'cleanupCurrentOwner'>,
 ): void {
   if (isPlatformBrowser(platformId as object)) {
     scheduleAfterRender(() => {
       pwaUpdate?.start();
       void storageHealth?.assess();
+      void retention?.cleanupCurrentOwner().catch(() => undefined);
       coordinator.start();
     });
   }
@@ -94,12 +97,14 @@ export const appConfig: ApplicationConfig = {
       const coordinator = inject(SyncCoordinatorService);
       const pwaUpdate = inject(PwaUpdateService);
       const storageHealth = inject(StorageHealthService);
+      const retention = inject(SyncRetentionService);
       initializeSyncRuntime(
         inject(PLATFORM_ID),
         coordinator,
         afterNextRender,
         pwaUpdate,
         storageHealth,
+        retention,
       );
     }),
   ],

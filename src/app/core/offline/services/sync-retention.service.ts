@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@angular/core';
 
+import { AuthSessionService } from '../../auth/auth-session.service';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { SyncRetentionRepository } from '../repositories/sync-retention.repository';
-import { SYNC_CLOCK, SyncClock } from './sync-coordinator.service';
+import { SYNC_CLOCK, SyncClock } from './sync-clock';
 
 export const SYNC_RETENTION_DAYS = 30;
 export const SYNC_RETENTION_MAX_PER_OWNER = 500;
@@ -18,7 +19,14 @@ export class SyncRetentionService {
     private readonly outbox: OutboxRepository,
     private readonly retention: SyncRetentionRepository,
     @Inject(SYNC_CLOCK) private readonly clock: SyncClock,
+    @Inject(AuthSessionService)
+    private readonly auth: AuthSessionService = { currentUser: null } as AuthSessionService,
   ) {}
+
+  async cleanupCurrentOwner(): Promise<SyncRetentionSummary | null> {
+    const ownerId = this.auth.currentUser?.id.trim();
+    return ownerId ? this.cleanupOwner(ownerId) : null;
+  }
 
   async cleanupOwner(ownerId: string): Promise<SyncRetentionSummary> {
     const now = this.clock();
