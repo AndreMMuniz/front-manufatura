@@ -7,6 +7,7 @@ import { SyncRetentionRepository } from '../repositories/sync-retention.reposito
 import { SyncRetentionService } from './sync-retention.service';
 
 const OWNER = 'operator-1';
+const OTHER_OWNER = 'operator-2';
 const NOW = '2026-08-28T13:00:00.000Z';
 const EXPIRES_AT = '2026-09-27T13:00:00.000Z';
 
@@ -64,6 +65,89 @@ describe('SyncRetentionService', () => {
       [OWNER, 'OPERATION', 'op-2', NOW, EXPIRES_AT],
     ]);
     expect(retention.pruneReceipts).toHaveBeenCalledWith(OWNER, NOW, 500);
+  });
+
+  it('limita cada execução aos primeiros 25 agregados encerrados', async () => {
+    const outbox = { listByOwner: vi.fn().mockResolvedValue(
+      Array.from({ length: 26 }, (_, index) => endEntry(`op-${index + 1}`)),
+    ) };
+    const retention = {
+      compactClosedAggregate: vi.fn().mockResolvedValue('compacted'),
+      pruneReceipts: vi.fn().mockResolvedValue(0),
+    };
+    const service = createService(outbox, retention);
+
+    await expect(service.cleanupOwner(OWNER)).resolves.toEqual({
+      compactedAggregates: 25,
+      prunedReceipts: 0,
+    });
+
+    expect(retention.compactClosedAggregate).toHaveBeenCalledTimes(25);
+    expect(retention.compactClosedAggregate).toHaveBeenLastCalledWith(
+      OWNER,
+      'OPERATION',
+      'op-25',
+      NOW,
+      EXPIRES_AT,
+    );
+    expect(retention.pruneReceipts).toHaveBeenCalledWith(OWNER, NOW, 500);
+  });
+
+  it('compartilha uma única execução concorrente para o mesmo owner', async () => {
+    let releaseList: (entries: readonly OutboxEntry[]) => void = () => undefined;
+    const pendingList = new Promise<readonly OutboxEntry[]>((resolve) => {
+      releaseList = resolve;
+    });
+    const outbox = { listByOwner: vi.fn().mockReturnValue(pendingList) };
+    const retention = {
+      compactClosedAggregate: vi.fn(),
+      pruneReceipts: vi.fn().mockResolvedValue(0),
+    };
+    const service = createService(outbox, retention);
+
+    const first = service.cleanupOwner(OWNER);
+    const second = service.cleanupOwner(OWNER);
+
+    try {
+      expect(outbox.listByOwner).toHaveBeenCalledOnce();
+    } finally {
+      releaseList([]);
+      await Promise.allSettled([first, second]);
+    }
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { compactedAggregates: 0, prunedReceipts: 0 },
+      { compactedAggregates: 0, prunedReceipts: 0 },
+    ]);
+    expect(retention.pruneReceipts).toHaveBeenCalledOnce();
+  });
+
+  it('não bloqueia a retenção de outro owner enquanto uma execução está ativa', async () => {
+    let releaseOwner: (entries: readonly OutboxEntry[]) => void = () => undefined;
+    const pendingOwner = new Promise<readonly OutboxEntry[]>((resolve) => {
+      releaseOwner = resolve;
+    });
+    const outbox = {
+      listByOwner: vi.fn((ownerId: string) =>
+        ownerId === OWNER ? pendingOwner : Promise.resolve([])),
+    };
+    const retention = {
+      compactClosedAggregate: vi.fn(),
+      pruneReceipts: vi.fn().mockResolvedValue(0),
+    };
+    const service = createService(outbox, retention);
+    const firstOwner = service.cleanupOwner(OWNER);
+
+    try {
+      await expect(service.cleanupOwner(OTHER_OWNER)).resolves.toEqual({
+        compactedAggregates: 0,
+        prunedReceipts: 0,
+      });
+      expect(retention.pruneReceipts).toHaveBeenCalledWith(OTHER_OWNER, NOW, 500);
+    } finally {
+      releaseOwner([]);
+      await firstOwner;
+    }
   });
 
   it('não seleciona operação ativa nem encerramento que ainda não foi sincronizado', async () => {

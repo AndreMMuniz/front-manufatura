@@ -161,6 +161,26 @@ describe('SyncRetentionRepository', () => {
     expect(activity.publish).toHaveBeenCalledOnce();
   });
 
+  it('compacta somente o owner solicitado quando outro possui o mesmo agregado', async () => {
+    await seedClosedAggregate();
+    await seedAggregate([
+      outboxEntry('other-start-operation', 'START_OPERATION', { ownerId: OTHER_OWNER }),
+      outboxEntry('other-report-operation', 'REPORT_OPERATION', { ownerId: OTHER_OWNER }),
+      outboxEntry('other-end-operation', 'END_OPERATION', { ownerId: OTHER_OWNER }),
+    ]);
+
+    await expect(compact()).resolves.toBe('compacted');
+
+    expect((await readStore<OutboxEntry<JsonValue>>(OUTBOX_STORE)).map((entry) => entry.ownerId))
+      .toEqual([OTHER_OWNER, OTHER_OWNER, OTHER_OWNER]);
+    expect((await readStore<LocalRecord<JsonValue>>(LOCAL_RECORDS_STORE)).map(
+      (record) => record.ownerId,
+    )).toEqual([OTHER_OWNER, OTHER_OWNER, OTHER_OWNER]);
+    expect((await readStore<SyncReceiptRecord>(SYNC_RECEIPTS_STORE)).map(
+      (record) => record.ownerId,
+    )).toEqual([OWNER, OWNER, OWNER]);
+  });
+
   it('publica atividade somente depois do commit dos três stores', async () => {
     await seedClosedAggregate();
     const createTransaction = database.createTransaction.bind(database);
@@ -493,6 +513,7 @@ function outboxEntry(
     readonly aggregateId?: string;
     readonly dependencyIds?: readonly string[];
     readonly deliveryDisposition?: 'SUPERSEDED' | 'ABANDONED';
+    readonly ownerId?: string;
   } = {},
 ): OutboxEntry<JsonValue> {
   const status = options.status ?? 'SYNCED';
@@ -507,7 +528,7 @@ function outboxEntry(
     payload: { localId },
     canonicalPayload: JSON.stringify({ localId }),
     payloadHash: `hash-${localId}`,
-    ownerId: OWNER,
+    ownerId: options.ownerId ?? OWNER,
     status,
     dependencyIds: options.dependencyIds ?? [],
     attemptCount: synchronized ? 1 : 0,

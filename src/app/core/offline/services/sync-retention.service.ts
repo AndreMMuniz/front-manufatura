@@ -7,6 +7,7 @@ import { SYNC_CLOCK, SyncClock } from './sync-clock';
 
 export const SYNC_RETENTION_DAYS = 30;
 export const SYNC_RETENTION_MAX_PER_OWNER = 500;
+export const SYNC_RETENTION_MAX_AGGREGATES_PER_RUN = 25;
 
 export interface SyncRetentionSummary {
   readonly compactedAggregates: number;
@@ -15,6 +16,8 @@ export interface SyncRetentionSummary {
 
 @Injectable({ providedIn: 'root' })
 export class SyncRetentionService {
+  private readonly activeCleanups = new Map<string, Promise<SyncRetentionSummary>>();
+
   constructor(
     private readonly outbox: OutboxRepository,
     private readonly retention: SyncRetentionRepository,
@@ -28,7 +31,23 @@ export class SyncRetentionService {
     return ownerId ? this.cleanupOwner(ownerId) : null;
   }
 
-  async cleanupOwner(ownerId: string): Promise<SyncRetentionSummary> {
+  cleanupOwner(ownerId: string): Promise<SyncRetentionSummary> {
+    const owner = ownerId.trim();
+    const active = this.activeCleanups.get(owner);
+    if (active) {
+      return active;
+    }
+
+    const cleanup = this.runCleanupOwner(owner);
+    this.activeCleanups.set(owner, cleanup);
+    void cleanup.then(
+      () => this.releaseCleanup(owner, cleanup),
+      () => this.releaseCleanup(owner, cleanup),
+    );
+    return cleanup;
+  }
+
+  private async runCleanupOwner(ownerId: string): Promise<SyncRetentionSummary> {
     const now = this.clock();
     const archivedAt = now.toISOString();
     const expiresAt = new Date(
@@ -46,6 +65,9 @@ export class SyncRetentionService {
       const aggregateKey = `${entry.aggregateType}\u0000${entry.aggregateId}`;
       if (aggregateKeys.has(aggregateKey)) {
         continue;
+      }
+      if (aggregateKeys.size >= SYNC_RETENTION_MAX_AGGREGATES_PER_RUN) {
+        break;
       }
       aggregateKeys.add(aggregateKey);
 
@@ -67,5 +89,11 @@ export class SyncRetentionService {
       SYNC_RETENTION_MAX_PER_OWNER,
     );
     return { compactedAggregates, prunedReceipts };
+  }
+
+  private releaseCleanup(ownerId: string, cleanup: Promise<SyncRetentionSummary>): void {
+    if (this.activeCleanups.get(ownerId) === cleanup) {
+      this.activeCleanups.delete(ownerId);
+    }
   }
 }

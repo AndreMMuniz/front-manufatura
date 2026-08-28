@@ -63,8 +63,38 @@ describe('SyncCoordinatorService', () => {
     await coordinator.requestSync();
 
     expect(retention.cleanupOwner).toHaveBeenCalledWith(OWNER);
+    await eventually(() => statusesAtCleanup.length > 0);
     expect(statusesAtCleanup.length).toBeGreaterThan(0);
     expect(statusesAtCleanup.every(status => status === 'SYNCED')).toBe(true);
+  });
+
+  it('conclui requestSync sem aguardar a retenção pós-ciclo', async () => {
+    let releaseCleanup = () => undefined;
+    const pendingCleanup = new Promise<{ compactedAggregates: number; prunedReceipts: number }>(
+      (resolve) => {
+        releaseCleanup = () => resolve({ compactedAggregates: 0, prunedReceipts: 0 });
+      },
+    );
+    retention.cleanupOwner.mockReturnValue(pendingCleanup);
+    const coordinator = createCoordinator(successTransport([]));
+    authenticate();
+    coordinator.start();
+
+    const request = coordinator.requestSync();
+
+    try {
+      await eventually(() => retention.cleanupOwner.mock.calls.length > 0);
+      const firstToSettle = await Promise.race([
+        request.then(() => 'request-sync' as const),
+        new Promise<'cleanup-pending'>((resolve) => {
+          globalThis.setTimeout(() => resolve('cleanup-pending'), 0);
+        }),
+      ]);
+      expect(firstToSettle).toBe('request-sync');
+    } finally {
+      releaseCleanup();
+      await request;
+    }
   });
 
   it('executa retenção quando o owner não possui candidatos', async () => {
@@ -87,6 +117,7 @@ describe('SyncCoordinatorService', () => {
     await expect(coordinator.requestSync()).resolves.toBeUndefined();
 
     expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
+    await eventually(() => clientLogs.capture.mock.calls.length > 0);
     expect(clientLogs.capture).toHaveBeenCalledWith(expect.objectContaining({
       event: 'sync_storage_failed',
       context: { stage: 'retention', code: 'STORAGE_FAILURE' },

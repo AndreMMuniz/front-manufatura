@@ -58,17 +58,25 @@ describe('appConfig sync bootstrap', () => {
 
   it('absorve falha da retenção no startup e ainda inicia o sincronizador', async () => {
     const coordinator = { start: vi.fn() };
+    const clientLogs = { capture: vi.fn() };
     const retention = {
-      cleanupCurrentOwner: vi.fn().mockRejectedValue(new Error('storage')),
+      cleanupCurrentOwner: vi.fn().mockRejectedValue(new Error('owner-1 payload segredo')),
     };
     const scheduleAfterRender = vi.fn((callback: () => void) => callback());
 
     initializeSyncRuntime(
-      'browser', coordinator, scheduleAfterRender, undefined, undefined, retention,
+      'browser', coordinator, scheduleAfterRender, undefined, undefined, retention, clientLogs,
     );
     await Promise.resolve();
 
     expect(coordinator.start).toHaveBeenCalledOnce();
+    expect(clientLogs.capture).toHaveBeenCalledWith({
+      level: 'error',
+      category: 'synchronization',
+      event: 'sync_storage_failed',
+      context: { stage: 'retention', code: 'STORAGE_FAILURE' },
+    });
+    expect(JSON.stringify(clientLogs.capture.mock.calls)).not.toMatch(/owner-1|payload|segredo/);
   });
 
   it('mantém harnesses fora das rotas padrão e os habilita apenas na configuração E2E', () => {

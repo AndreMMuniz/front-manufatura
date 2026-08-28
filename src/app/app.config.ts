@@ -49,6 +49,7 @@ import {
 import { INSECURE_HTTP_TEST_MODE } from './core/runtime/insecure-http-test-mode';
 import { ClientErrorHandler } from './core/logging/client-error-handler';
 import { clientLogInterceptor } from './core/logging/client-log.interceptor';
+import { ClientLogService } from './core/logging/client-log.service';
 
 export type AfterRenderScheduler = (callback: () => void) => void;
 
@@ -59,12 +60,24 @@ export function initializeSyncRuntime(
   pwaUpdate?: Pick<PwaUpdateService, 'start'>,
   storageHealth?: Pick<StorageHealthService, 'assess'>,
   retention?: Pick<SyncRetentionService, 'cleanupCurrentOwner'>,
+  clientLogs?: Pick<ClientLogService, 'capture'>,
 ): void {
   if (isPlatformBrowser(platformId as object)) {
     scheduleAfterRender(() => {
       pwaUpdate?.start();
       void storageHealth?.assess();
-      void retention?.cleanupCurrentOwner().catch(() => undefined);
+      void retention?.cleanupCurrentOwner().catch(() => {
+        try {
+          clientLogs?.capture({
+            level: 'error',
+            category: 'synchronization',
+            event: 'sync_storage_failed',
+            context: { stage: 'retention', code: 'STORAGE_FAILURE' },
+          });
+        } catch {
+          // O startup e a sincronização não podem depender do sink de diagnóstico.
+        }
+      });
       coordinator.start();
     });
   }
@@ -98,6 +111,7 @@ export const appConfig: ApplicationConfig = {
       const pwaUpdate = inject(PwaUpdateService);
       const storageHealth = inject(StorageHealthService);
       const retention = inject(SyncRetentionService);
+      const clientLogs = inject(ClientLogService);
       initializeSyncRuntime(
         inject(PLATFORM_ID),
         coordinator,
@@ -105,6 +119,7 @@ export const appConfig: ApplicationConfig = {
         pwaUpdate,
         storageHealth,
         retention,
+        clientLogs,
       );
     }),
   ],

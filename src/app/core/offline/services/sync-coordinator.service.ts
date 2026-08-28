@@ -196,12 +196,18 @@ export class SyncCoordinatorService implements OnDestroy {
       }
     } finally {
       if (this.isCurrent(owner, epoch)) {
-        try {
-          await this.retention.cleanupOwner(owner);
-        } catch {
-          this.captureFailure('sync_storage_failed', 'retention', 'STORAGE_FAILURE');
-        }
+        this.startRetention(owner);
       }
+    }
+  }
+
+  private startRetention(owner: string): void {
+    try {
+      void this.retention.cleanupOwner(owner).catch(() => {
+        this.captureFailure('sync_storage_failed', 'retention', 'STORAGE_FAILURE');
+      });
+    } catch {
+      this.captureFailure('sync_storage_failed', 'retention', 'STORAGE_FAILURE');
     }
   }
 
