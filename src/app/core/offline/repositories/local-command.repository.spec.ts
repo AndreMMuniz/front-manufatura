@@ -2,7 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OFFLINE_DATABASE_CONFIG, OfflineDatabase } from '../database/offline-database';
-import { OUTBOX_STORE } from '../database/database-schema';
+import { DATABASE_VERSION, OUTBOX_STORE } from '../database/database-schema';
 import { OfflineStorageError } from '../models/offline-storage-error';
 import { IdempotencyService } from '../services/idempotency.service';
 import { PayloadIntegrityService } from '../services/payload-integrity.service';
@@ -54,7 +54,7 @@ describe('LocalCommandRepository', () => {
       idempotencyKey: COMMAND_ID,
       committedAt: NOW,
       localRecord: {
-        databaseVersion: 3,
+        databaseVersion: DATABASE_VERSION,
         ownerId: 'operator-1',
         payloadSchemaVersion: 2,
       },
