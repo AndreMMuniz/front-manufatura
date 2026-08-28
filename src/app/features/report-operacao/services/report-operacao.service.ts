@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, delay, from, map, of, switchMap } from 'rxjs';
 
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
@@ -19,6 +20,7 @@ import {
 import {
   OrdemCentroTrabalho,
   ReportOperacao,
+  ReporteOperacaoResultado,
   ReporteResultado,
   ReporteParcialOperacao,
   ResponsavelOperacao,
@@ -30,6 +32,7 @@ import {
 export class ReportOperacaoService {
   private readonly productionCatalog = inject(ProductionContextCatalogService);
   private readonly commands = inject(OperationalCommandFacade);
+  private readonly immediateDelivery = inject(ImmediateCommandDeliveryService);
   private readonly authSession = inject(AuthSessionService);
   private readonly localRecords = inject(LocalRecordRepository);
   private readonly api = inject(AuthenticatedApiService);
@@ -199,9 +202,9 @@ export class ReportOperacaoService {
     }));
   }
 
-  reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteResultado> {
+  reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteOperacaoResultado> {
     const reportadoEm = new Date(this.combineDateTime(request.dataFim, request.horaFim));
-    return from(this.commands.capture({
+    const command = {
       commandType: 'REPORT_OPERATION',
       aggregateId: this.operationAggregateId(request.ordem, request.op, request.split),
       businessStatus: 'REPORTADA',
@@ -228,10 +231,16 @@ export class ReportOperacaoService {
         codigoResponsavel: request.codigoResponsavel,
         ct: request.ct,
       },
-    })).pipe(map(confirmation => ({
-      apontamentoId: confirmation.localId,
-      reportadoEm,
-    })));
+    } as const;
+    return from(this.commands.capture(command)).pipe(
+      switchMap(confirmation => from(
+        this.immediateDelivery.deliver(confirmation.localId),
+      ).pipe(map(delivery => ({
+        apontamentoId: confirmation.localId,
+        reportadoEm,
+        delivery,
+      })))),
+    );
   }
 
   encerrarOperacao(request: EncerrarOperacaoRequest): Observable<ReporteResultado> {

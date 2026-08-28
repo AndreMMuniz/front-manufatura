@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthSession } from '../../../core/auth/auth.models';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { ReportOperacao } from '../models/report-operacao.model';
 
@@ -14,6 +15,7 @@ describe('ReportOperacaoService', () => {
   let service: ReportOperacaoService;
   let apiGet: ReturnType<typeof vi.fn>;
   let capture: ReturnType<typeof vi.fn>;
+  let deliver: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     const session$ = new BehaviorSubject<AuthSession | null>({
@@ -66,6 +68,7 @@ describe('ReportOperacaoService', () => {
         syncStatus: 'PENDING',
       };
     });
+    deliver = vi.fn().mockResolvedValue({ status: 'PENDING' });
     TestBed.configureTestingModule({
       providers: [
         { provide: AuthSessionService, useValue: { session$ } },
@@ -73,6 +76,10 @@ describe('ReportOperacaoService', () => {
         {
           provide: OperationalCommandFacade,
           useValue: { capture },
+        },
+        {
+          provide: ImmediateCommandDeliveryService,
+          useValue: { deliver },
         },
       ],
     });
@@ -275,6 +282,64 @@ describe('ReportOperacaoService', () => {
     expect(retry.reportadoEm).toEqual(first.reportadoEm);
   });
 
+  it('persists a report before awaiting its remote delivery for the same local ID', async () => {
+    const order: string[] = [];
+    const confirmation = {
+      localId: 'report-local-id',
+      idempotencyKey: 'report-key',
+      payloadHash: 'hash',
+      committedAt: '2026-07-30T12:00:00.000Z',
+      syncStatus: 'PENDING',
+    };
+    const receipt = {
+      serverRecordId: 'erp-report-1',
+      receivedAt: '2026-07-30T12:00:01.000Z',
+      processedAt: '2026-07-30T12:00:02.000Z',
+      duplicate: false,
+    };
+    capture.mockImplementation(async () => {
+      order.push('capture');
+      return confirmation;
+    });
+    deliver.mockImplementation(async (localId: string) => {
+      order.push(`deliver:${localId}`);
+      return { status: 'SYNCED', receipt } as const;
+    });
+
+    const result = await firstValueFrom(service.reportarOperacao(reportRequest()));
+
+    expect(order).toEqual(['capture', `deliver:${confirmation.localId}`]);
+    expect(capture).toHaveBeenCalledOnce();
+    expect(result).toEqual({
+      apontamentoId: confirmation.localId,
+      reportadoEm: expect.any(Date),
+      delivery: { status: 'SYNCED', receipt },
+    });
+  });
+
+  it('returns a pending delivery after capturing the report once', async () => {
+    deliver.mockResolvedValue({ status: 'PENDING' });
+
+    const result = await firstValueFrom(service.reportarOperacao(reportRequest()));
+
+    expect(capture).toHaveBeenCalledOnce();
+    expect(result.delivery).toEqual({ status: 'PENDING' });
+  });
+
+  it('returns a failed delivery after capturing the report once', async () => {
+    const error = {
+      code: 'INVALID_REPORT',
+      category: 'VALIDATION',
+      userMessage: 'O reporte foi rejeitado.',
+    };
+    deliver.mockResolvedValue({ status: 'ERROR', error });
+
+    const result = await firstValueFrom(service.reportarOperacao(reportRequest()));
+
+    expect(capture).toHaveBeenCalledOnce();
+    expect(result.delivery).toEqual({ status: 'ERROR', error });
+  });
+
   it('freezes area and work center in the END_OPERATION payload', async () => {
     await firstValueFrom(service.encerrarOperacao({
       idempotencyKey: 'end-372561-10-1',
@@ -301,6 +366,30 @@ describe('ReportOperacaoService', () => {
     }));
   });
 });
+
+function reportRequest() {
+  return {
+    idempotencyKey: 'report-key',
+    ordem: '450001',
+    op: 'OP-10458',
+    split: '01',
+    areaCode: '4001',
+    finalizarSplit: false,
+    quantidadeAprovada: 1,
+    quantidadeRetrabalho: 0,
+    quantidadeRefugo: 0,
+    refugoItens: [],
+    dataInicio: new Date(2026, 6, 30, 8),
+    horaInicio: '08:00',
+    dataFim: new Date(2026, 6, 30, 9),
+    horaFim: '09:00',
+    operador: 'Ana Silva',
+    equipe: '',
+    tipoResponsavel: 'OPERADOR' as const,
+    codigoResponsavel: 'OP-001',
+    ct: 'CT-EXT-01',
+  };
+}
 
 function baseOperacao(overrides: Partial<ReportOperacao> = {}): ReportOperacao {
   return {

@@ -1,3 +1,5 @@
+import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
+
 export enum EstadoOperacao {
   SemOP = 'SemOP',
   Carregando = 'Carregando',
@@ -96,4 +98,8 @@ export interface ResultadoConsultaOP {
 export interface ReporteResultado {
   readonly apontamentoId: string;
   readonly reportadoEm: Date;
+}
+
+export interface ReporteOperacaoResultado extends ReporteResultado {
+  readonly delivery: ImmediateDeliveryResult;
 }
