@@ -1,7 +1,7 @@
 # Reporte de operação com envio imediato e fallback local
 
 **Data:** 2026-08-28
-**Status:** Aguardando revisão do usuário
+**Status:** Aprovado pelo usuário
 
 ## Contexto
 
