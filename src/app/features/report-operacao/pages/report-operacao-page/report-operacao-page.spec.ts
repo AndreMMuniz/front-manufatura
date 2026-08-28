@@ -596,6 +596,46 @@ describe('ReportOperacaoPage', () => {
     expect(service.encerrarOperacao).not.toHaveBeenCalled();
   });
 
+  it('blocks manual finalization after a report was rejected by Datasul', () => {
+    service.reportarOperacao
+      .mockReturnValueOnce(of({
+        apontamentoId: 'APT-ERROR',
+        reportadoEm: new Date(),
+        delivery: { status: 'ERROR', error: persistedError },
+      }))
+      .mockReturnValueOnce(of({
+        apontamentoId: 'APT-FINAL',
+        reportadoEm: new Date(),
+        delivery: { status: 'PENDING' },
+      }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
+    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+    const confirmarReporte = vi.fn();
+    const abrir = vi.fn(() => component.salvarReporte({
+      quantidadeAprovada: 1,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      finalizarSplit: true,
+    }));
+    (component as unknown as {
+      reporteSlide: { abrir: typeof abrir; confirmarReporte: typeof confirmarReporte };
+    }).reporteSlide = { abrir, confirmarReporte };
+
+    component.solicitarEncerramento();
+    vi.mocked(dialog.confirm).mock.calls[0]?.[0].confirm();
+
+    expect(abrir).not.toHaveBeenCalled();
+    expect(service.encerrarOperacao).not.toHaveBeenCalled();
+    expect(notification.error).toHaveBeenCalledWith(
+      'Há um reporte rejeitado pelo Datasul. Abra o Centro de Sincronização para corrigir antes de encerrar a operação.',
+    );
+  });
+
   it('does not mutate Datasul while only opening repeated final-report confirmations', () => {
     const abrir = vi.fn();
     fixture.detectChanges();

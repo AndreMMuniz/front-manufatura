@@ -500,6 +500,13 @@ export class ReportOperacaoPage implements OnInit {
     if (this.encerrando || this.encerrarDisabled) {
       return;
     }
+    if (this.reportes.some(reporte => reporte.deliveryStatus === 'ERROR')) {
+      const message = 'Há um reporte rejeitado pelo Datasul. Abra o Centro de Sincronização para corrigir antes de encerrar a operação.';
+      this.feedback = message;
+      this.notification.error(message);
+      this.changeDetector.markForCheck();
+      return;
+    }
 
     this.dialog.confirm({
       title: 'Encerrar operação?',
