@@ -400,7 +400,7 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 1,
       quantidadeRefugo: 0,
-      refugoItens: [{ codigo: '05', descricao: 'Retrabalho', quantidade: 1 }],
+      refugoItens: [],
     });
 
     expect(service.reportarOperacao).toHaveBeenCalledTimes(2);
@@ -419,6 +419,29 @@ describe('ReportOperacaoPage', () => {
       codigoResponsavel: '001',
     });
     expect(router.navigate).not.toHaveBeenCalledWith(['/work-center']);
+  });
+
+  it('accepts rework without a scrap reason', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
+
+    component.salvarReporte({
+      quantidadeAprovada: 0,
+      quantidadeRetrabalho: 1,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+    });
+
+    expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      quantidadeRetrabalho: 1,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+    }));
+    expect(component.reportes).toHaveLength(1);
   });
 
   it('opens the final report capture when ending is confirmed', () => {
@@ -797,7 +820,7 @@ describe('ReportOperacaoPage', () => {
 
     expect(service.reportarOperacao).not.toHaveBeenCalled();
     expect(component.feedback).toBe(
-      'Informe exatamente um motivo de refugo ou retrabalho para a Ordem 450001.',
+      'Informe exatamente um motivo de refugo para a Ordem 450001.',
     );
   });
 

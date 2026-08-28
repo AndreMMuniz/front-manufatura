@@ -928,13 +928,13 @@ export class ReportOperacaoPage implements OnInit {
     );
     const invalidReason = refugoItens.some(item =>
       !Number.isFinite(item.quantidade) || item.quantidade <= 0);
-    const requiresReason = quantidadeRefugo > 0 || quantidadeRetrabalho > 0;
+    const requiresReason = quantidadeRefugo > 0;
     const reasonValidation = invalidReason
       ? 'Os motivos de refugo devem possuir quantidades válidas e maiores que zero.'
-      : requiresReason && refugoItens.length !== 1
-        ? `Informe exatamente um motivo de refugo ou retrabalho para a Ordem ${operation.ordem}.`
+        : requiresReason && refugoItens.length !== 1
+        ? `Informe exatamente um motivo de refugo para a Ordem ${operation.ordem}.`
         : !requiresReason && refugoItens.length !== 0
-          ? `Remova o motivo da Ordem ${operation.ordem}, pois não há refugo ou retrabalho.`
+          ? `Remova o motivo da Ordem ${operation.ordem}, pois não há refugo.`
         : '';
 
     if (validation || reasonValidation) {
