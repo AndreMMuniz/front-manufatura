@@ -1,13 +1,35 @@
 import { vi } from 'vitest';
 import { of, throwError } from 'rxjs';
+import { TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { ReporteSlide } from './reporte-slide';
+import { MotivoRefugoService } from '../../services/motivo-refugo.service';
 
 const scrapReasonService = {
   buscarMotivos: vi.fn(() => of([{ codigo: '05', descricao: 'Borra' }])),
 };
 
 describe('ReporteSlide', () => {
+  it('renders the abbreviated reason quantity label with the order number', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ReporteSlide],
+      providers: [
+        provideNoopAnimations(),
+        { provide: MotivoRefugoService, useValue: scrapReasonService },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ReporteSlide);
+    fixture.componentInstance.ordem = '370574';
+
+    fixture.detectChanges();
+    fixture.componentInstance.abrir([]);
+    fixture.componentInstance.editingRefugo = true;
+    fixture.detectChanges();
+
+    expect(document.body.textContent).toContain('Qtde do motivo da Ordem 370574');
+  });
+
   it('sums only approved and scrap quantities in the displayed total', () => {
     const component = new ReporteSlide({} as never, { confirm: vi.fn() } as never);
     component.quantidadeAprovada = 100;
