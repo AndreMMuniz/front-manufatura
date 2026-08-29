@@ -577,6 +577,39 @@ describe('gateway FMA', () => {
     expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciaordem?companyId=1&codUsuario=mjocelio');
   });
 
+  it('preserva o motivo de negócio quando o Datasul rejeita o início com HTTP 500', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      type: 'error',
+      message: 'Split já iniciado.',
+      details: [{ message: 'Split já iniciado.' }],
+    }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/operations/start`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+        'idempotency-key': '123e4567-e89b-42d3-a456-426614174000',
+      },
+      body: JSON.stringify({
+        ordem: '372562', op: '10', split: '1', areaCode: '4104',
+        workCenterCode: 'PRE-006-02', tipoResponsavel: 'OPERADOR',
+        codigoResponsavel: '00016570', dataInicio: '2026-07-21T12:35:00.000Z',
+        horaInicio: '09:35',
+      }),
+    });
+
+    expect(result.status).toBe(500);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'Split já iniciado.',
+    });
+  });
+
   it('fecha acesso sem permissão e rejeita payload inválido antes do Datasul', async () => {
     const transport = vi.fn<typeof fetch>();
     const root = await startGateway(transport);

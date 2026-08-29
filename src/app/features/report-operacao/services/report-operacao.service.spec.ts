@@ -158,6 +158,21 @@ describe('ReportOperacaoService', () => {
     ]);
   });
 
+  it('não restaura como ativa uma operação cujo início foi rejeitado pelo Datasul', async () => {
+    const start = persistedStart();
+    listLocalRecords.mockResolvedValue([start]);
+    listOutbox.mockResolvedValue([{
+      ...outboxProjection(start, 'ERROR'),
+      lastError: {
+        code: 'DATASUL_COMMAND_REJECTED',
+        category: 'VALIDATION',
+        userMessage: 'Split já iniciado.',
+      },
+    }]);
+
+    await expect(firstValueFrom(service.restaurarOperacaoAtiva())).resolves.toBeNull();
+  });
+
   it('mantém START e REPORT restauráveis enquanto não existe END_OPERATION sincronizado', async () => {
     const database = new OfflineDatabase(() => new IDBFactory(), OFFLINE_DATABASE_CONFIG);
     const localRecords = new LocalRecordRepository(database);
@@ -407,6 +422,24 @@ describe('ReportOperacaoService', () => {
     expect(retry.reportadoEm).toEqual(first.reportadoEm);
   });
 
+  it('persiste e observa a entrega remota antes de concluir o início da operação', async () => {
+    const error = {
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION' as const,
+      userMessage: 'Split já iniciado.',
+    };
+    deliver.mockResolvedValue({ status: 'ERROR', error });
+
+    const result = await firstValueFrom(service.iniciarOperacao(startOperationRequest()));
+
+    expect(capture).toHaveBeenCalledOnce();
+    expect(deliver).toHaveBeenCalledWith('start-operation-key');
+    expect(result).toMatchObject({
+      idempotencyKey: 'start-operation-key',
+      delivery: { status: 'ERROR', error },
+    });
+  });
+
   it('persists a report before awaiting its remote delivery for the same local ID', async () => {
     const order: string[] = [];
     const confirmation = {
@@ -536,6 +569,29 @@ function reportRequest() {
   };
 }
 
+function startOperationRequest() {
+  return {
+    idempotencyKey: 'start-operation-key',
+    ordem: '450001',
+    op: 'OP-10458',
+    split: '01',
+    areaCode: '4001',
+    workCenterCode: 'CT-EXT-01',
+    area: { code: '4001', description: 'Produção' },
+    workCenter: {
+      code: 'CT-EXT-01', description: 'Extrusão', areaCode: '4001', area: 'Produção',
+      machineGroup: 'Extrusoras', establishment: '101', active: true,
+    },
+    operationSnapshot: baseOperacao(),
+    operador: 'Ana Silva',
+    equipe: '',
+    tipoResponsavel: 'OPERADOR' as const,
+    codigoResponsavel: 'OP-001',
+    dataInicio: new Date(2026, 6, 30, 8),
+    horaInicio: '08:00',
+  };
+}
+
 function persistedStart() {
   return {
     localId: 'start-1',
@@ -656,7 +712,7 @@ async function retainedOutboxIds(repository: OutboxRepository): Promise<string[]
 }
 
 function outboxProjection(
-  record: ReturnType<typeof persistedReport>,
+  record: ReturnType<typeof persistedStart> | ReturnType<typeof persistedReport>,
   status: 'SYNCED' | 'ERROR' | 'RETRY_WAIT',
 ) {
   return {

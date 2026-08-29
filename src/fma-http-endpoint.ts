@@ -653,7 +653,9 @@ class FmaClient {
     }
     if (!response.ok) {
       const upstreamBody = await optionalJson(response);
-      const businessError = stopBusinessError(upstreamBody, observableRoute);
+      const businessError = method === 'GET'
+        ? undefined
+        : commandBusinessError(upstreamBody, observableRoute, response.status);
       if (businessError) throw businessError;
       throw new QualityControlGatewayError(response.status, 'datasul-request-failed');
     }
@@ -661,7 +663,7 @@ class FmaClient {
       const raw = await response.text();
       const parsed = raw.trim() ? JSON.parse(raw) as unknown : allowEmpty ? {} : invalidUpstream();
       if (allowEmpty && raw.trim() && isDatasulErrorEnvelope(parsed)) {
-        const businessError = stopBusinessError(parsed, observableRoute);
+        const businessError = commandBusinessError(parsed, observableRoute, 422);
         if (businessError) throw businessError;
         throw new QualityControlGatewayError(502, 'datasul-request-failed');
       }
@@ -921,6 +923,24 @@ function stopBusinessError(value: unknown, route: string): FmaPublicCommandError
     return new FmaPublicCommandError(422, 'DATASUL_FUTURE_STOP', 'VALIDATION', future);
   }
   return undefined;
+}
+
+function commandBusinessError(
+  value: unknown,
+  route: string,
+  status: number,
+): FmaPublicCommandError | undefined {
+  const knownError = stopBusinessError(value, route);
+  if (knownError) return knownError;
+  const reason = datasulMessages(value).at(-1);
+  return reason
+    ? new FmaPublicCommandError(
+        status,
+        'DATASUL_COMMAND_REJECTED',
+        'VALIDATION',
+        reason,
+      )
+    : undefined;
 }
 
 function datasulMessages(value: unknown): string[] {

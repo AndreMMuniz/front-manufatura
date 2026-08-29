@@ -119,7 +119,11 @@ describe('ReportOperacaoPage', () => {
         { tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' },
         { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Equipe A' },
       ])),
-      iniciarOperacao: vi.fn(request => of({ dataInicio: request.dataInicio, horaInicio: request.horaInicio })),
+      iniciarOperacao: vi.fn(request => of({
+        dataInicio: request.dataInicio,
+        horaInicio: request.horaInicio,
+        delivery: { status: 'PENDING' as const },
+      })),
       reportarOperacao: vi.fn(() => {
         reportSequence += 1;
         return of({
@@ -847,6 +851,39 @@ describe('ReportOperacaoPage', () => {
     expect(component.operacao).toEqual(original);
     expect(workflow.snapshot().operation).toEqual(original);
     expect(component.estado).toBe(EstadoOperacao.Erro);
+  });
+
+  it('mostra o motivo do Datasul e não inicia a operação quando o split já foi iniciado', () => {
+    service.iniciarOperacao.mockImplementation(request => of({
+      dataInicio: request.dataInicio,
+      horaInicio: request.horaInicio,
+      idempotencyKey: request.idempotencyKey,
+      delivery: {
+        status: 'ERROR' as const,
+        error: {
+          code: 'DATASUL_COMMAND_REJECTED',
+          category: 'VALIDATION' as const,
+          userMessage: 'Split já iniciado.',
+        },
+      },
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    const original = component.operacao;
+
+    component.iniciarOperacao();
+
+    expect(component.operacao).toEqual(original);
+    expect(workflow.snapshot().operation).toEqual(original);
+    expect(component.estado).toBe(EstadoOperacao.Erro);
+    expect(component.feedback).toBe('Split já iniciado.');
+    expect(notification.error).toHaveBeenCalledWith('Split já iniciado.');
+    expect(notification.success).not.toHaveBeenCalledWith(
+      'Salvo neste dispositivo — envio pendente.',
+    );
   });
 
   it('asks before discarding an active workflow and preserves it until confirmation', () => {

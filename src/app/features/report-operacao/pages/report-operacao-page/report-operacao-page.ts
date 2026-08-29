@@ -861,6 +861,15 @@ export class ReportOperacaoPage implements OnInit {
           || this.operacao?.op !== operation.op
           || this.workflowState.snapshot().activeOrder?.id !== activeOrderId
         ) return;
+        if (start.delivery.status === 'ERROR') {
+          this.estado = EstadoOperacao.Erro;
+          this.operacao = operation;
+          this.workflowState.setActiveOperation(operation, this.estado);
+          this.feedback = start.delivery.error.userMessage;
+          this.notification.error(this.feedback);
+          this.changeDetector.markForCheck();
+          return;
+        }
         this.operacao = {
           ...operation,
           operador,
@@ -878,7 +887,11 @@ export class ReportOperacaoPage implements OnInit {
         this.feedback = this.auxiliaryFlow === 'refugo'
           ? 'Operação iniciada. Informe a quantidade de refugo no reporte.'
           : 'Operação iniciada. Informe as quantidades para reportar.';
-        this.notification.success('Salvo neste dispositivo — envio pendente.');
+        if (start.delivery.status === 'SYNCED') {
+          this.notification.success('Operação iniciada no Datasul.');
+        } else {
+          this.notification.warning('Datasul indisponível — início salvo como pendente.');
+        }
         if (this.auxiliaryFlow === 'refugo') {
           this.abrirRefugo();
         }

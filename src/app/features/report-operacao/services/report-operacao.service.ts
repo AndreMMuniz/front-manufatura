@@ -98,6 +98,7 @@ export class ReportOperacaoService {
     readonly dataInicio: Date;
     readonly horaInicio: string;
     readonly idempotencyKey: string;
+    readonly delivery: ImmediateDeliveryResult;
   }> {
     const aggregateId = this.operationAggregateId(request.ordem, request.op, request.split);
     return from(this.commands.capture({
@@ -122,11 +123,16 @@ export class ReportOperacaoService {
         dataInicio: request.dataInicio.toISOString(),
         horaInicio: request.horaInicio,
       },
-    })).pipe(map(confirmation => ({
-      dataInicio: request.dataInicio,
-      horaInicio: request.horaInicio,
-      idempotencyKey: confirmation.idempotencyKey,
-    })));
+    })).pipe(
+      switchMap(confirmation => from(
+        this.immediateDelivery.deliver(confirmation.localId),
+      ).pipe(map(delivery => ({
+        dataInicio: request.dataInicio,
+        horaInicio: request.horaInicio,
+        idempotencyKey: confirmation.idempotencyKey,
+        delivery,
+      })))),
+    );
   }
 
   listarResponsaveis(
@@ -191,7 +197,9 @@ export class ReportOperacaoService {
           || deliveryDispositionOf(outboxEntry.deliveryDisposition) === 'ACTIVE';
       });
       const starts = [...activeRecords]
-        .filter(record => record.commandType === 'START_OPERATION')
+        .filter(record =>
+          record.commandType === 'START_OPERATION'
+          && outboxById.get(record.localId)?.status !== 'ERROR')
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       const start = starts.find(candidate =>
         !activeRecords.some(record => record.aggregateId === candidate.aggregateId && (
