@@ -523,20 +523,77 @@ describe('gateway FMA', () => {
 
   it('adapta ordens liberadas e dados de abertura do apontamento', async () => {
     const transport = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(response('ordensLiberadas', [{ codItemOp: '31149', opCodigo: 10, nrOrdemProducao: 370215, numSplitOperac: 11 }]))
+      .mockResolvedValueOnce(response('ordensLiberadas', [{ codItemOp: '31149', opCodigo: 10, nrOrdemProducao: 370215, numSplitOperac: 11, indEstadoSplit: 4 }]))
       .mockResolvedValueOnce(response('dadosApontamento', [{ desOperacao: 'CORTAR', qtdOrdem: 1000, qtdAprovada: 0, opCodigo: 10, itCodigo: '30907', desGrupoMaquina: 'PRENSA', desModelTurno: '2T', numSplitOperac: 11, qtdRefugo: 0, qtdSaldo: 1000, nrOrdemProducao: 370215, un: 'UN', codCtrab: 'PRE-006-02', descItem: 'ALAVANCA', codGrupoMaquina: 'PRE-006', qtdRetrabalho: 0, desCtrab: 'PRENSA 45T' }]));
     const root = await startGateway(transport);
     const authorization = `Bearer ${await token()}`;
 
     const orders = await fetch(`${root}/api/production-orders?areaCode=4104&workCenterCode=PRE-006-02&status=RELEASED`, { headers: { authorization } });
     await expect(orders.json()).resolves.toEqual([{
-      id: '370215|31149|10|11', ordem: '370215', itemOp: '31149', operacao: '10', split: '11', areaCode: '4104', workCenterCode: 'PRE-006-02',
+      id: '370215|31149|10|11', ordem: '370215', itemOp: '31149', operacao: '10', split: '11',
+      indEstadoSplit: 4, areaCode: '4104', workCenterCode: 'PRE-006-02',
     }]);
 
     const operation = await fetch(`${root}/api/production-orders/370215/operations/10?split=11&areaCode=4104&workCenterCode=PRE-006-02`, { headers: { authorization } });
     await expect(operation.json()).resolves.toEqual(expect.objectContaining({
       ordem: '370215', op: '10', split: '11', item: '30907', descricao: 'ALAVANCA', quantidadeSaldo: 1000, ct: 'PRE-006-02', turno: '2T',
     }));
+  });
+
+  it('devolve o início real ao abrir um split que já está iniciado', async () => {
+    const opening = {
+      desOperacao: 'CORTAR', qtdOrdem: 1000, qtdAprovada: 0, opCodigo: 10,
+      itCodigo: '30907', desGrupoMaquina: 'PRENSA', desModelTurno: '2T',
+      numSplitOperac: 11, qtdRefugo: 0, qtdSaldo: 1000, nrOrdemProducao: 370215,
+      un: 'UN', codCtrab: 'PRE-006-02', descItem: 'ALAVANCA', codGrupoMaquina: 'PRE-006',
+      qtdRetrabalho: 0, desCtrab: 'PRENSA 45T',
+    };
+    const orderDetails = {
+      total: 1,
+      hasNext: false,
+      items: [{
+        'ds-ordem-producao': {
+          ordem: [{
+            nrOrdemProducao: 370215,
+            codItem: '30907',
+            operacoes: [{
+              codOperacao: 10,
+              dtInicioReal: '2026-08-29',
+              horaInicioReal: '09:35',
+              splits: [{
+                numSplit: 11,
+                estadoSplit: 4,
+                dtInicioOperacao: '2026-08-29',
+                segsInicioOperacao: 34_500,
+              }],
+            }],
+          }],
+        },
+      }],
+    };
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response('dadosApontamento', [opening]))
+      .mockResolvedValueOnce(new Response(JSON.stringify(orderDetails), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    const root = await startGateway(transport);
+    const result = await fetch(
+      `${root}/api/production-orders/370215/operations/10?split=11&splitState=4&areaCode=4104&workCenterCode=PRE-006-02`,
+      { headers: { authorization: `Bearer ${await token()}` } },
+    );
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual(expect.objectContaining({
+      ordem: '370215',
+      op: '10',
+      split: '11',
+      dataInicio: '2026-08-29',
+      horaInicio: '09:35',
+    }));
+    expect(String(transport.mock.calls[1]?.[0])).toBe(
+      'https://datasul.example.test/api/fcq/v1/ordens/370215?companyId=1&codUsuario=mjocelio',
+    );
   });
 
   it('preserva o modo de reporte da abertura sem converter valores inválidos', async () => {

@@ -45,6 +45,8 @@ export interface ReportOperacaoResponseDTO {
   readonly linha: string;
   readonly ct: string;
   readonly grupoMaquina: string;
+  readonly dataInicio?: string;
+  readonly horaInicio?: string;
   readonly operador: string;
   readonly equipe: string;
   readonly turno: string;

@@ -786,7 +786,10 @@ export class ReportOperacaoPage implements OnInit {
 
           this.operacao = result.operacao;
           this.preencherInicio(result.operacao);
-          this.estado = EstadoOperacao.OPEncontrada;
+          const alreadyStarted = Boolean(result.operacao.dataInicio && result.operacao.horaInicio);
+          this.estado = alreadyStarted
+            ? EstadoOperacao.OperacaoIniciada
+            : EstadoOperacao.OPEncontrada;
           this.consultaEstado = 'ordens-disponiveis';
           this.contextError = '';
           this.retryTarget = null;
@@ -797,8 +800,14 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setResponsavel(null);
           this.applyApiReportType(this.operacao);
           this.loadResponsaveis();
-          this.feedback = `Ordem ${order.ordem} carregada. Inicie a operação.`;
-          this.notification.success('OP carregada.');
+          if (alreadyStarted) {
+            const startDate = this.formatDate(result.operacao.dataInicio!);
+            this.feedback = `Ordem ${order.ordem} já iniciada em ${startDate} às ${result.operacao.horaInicio}. Informe as quantidades para reportar.`;
+            this.notification.information(this.feedback);
+          } else {
+            this.feedback = `Ordem ${order.ordem} carregada. Inicie a operação.`;
+            this.notification.success('OP carregada.');
+          }
           this.changeDetector.markForCheck();
         },
         error: () => {
@@ -1270,6 +1279,13 @@ export class ReportOperacaoPage implements OnInit {
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   }
 
+  private formatDate(date: Date): string {
+    return [date.getDate(), date.getMonth() + 1]
+      .map(value => String(value).padStart(2, '0'))
+      .concat(String(date.getFullYear()))
+      .join('/');
+  }
+
   private preencherInicio(operation: ReportOperacao | null): void {
     if (operation?.dataInicio) {
       this.dataInicioSelecionada = operation.dataInicio;
@@ -1419,8 +1435,12 @@ export class ReportOperacaoPage implements OnInit {
               : 'Nenhuma equipe ou operador elegível. Tente novamente.';
             this.feedback = this.responsaveisError;
           }
-          if (this.operacao && !this.responsavelCodigo && !tipoApi) {
-            this.selectInitialResponsavel(this.operacao);
+          if (
+            this.operacao
+            && !this.responsavelCodigo
+            && (!tipoApi || Boolean(this.operacao.dataInicio))
+          ) {
+            this.selectInitialResponsavel(this.operacao, tipoApi);
           }
           this.changeDetector.markForCheck();
         },
@@ -1451,17 +1471,27 @@ export class ReportOperacaoPage implements OnInit {
       });
   }
 
-  private selectInitialResponsavel(operacao: ReportOperacao): void {
+  private selectInitialResponsavel(
+    operacao: ReportOperacao,
+    tipoObrigatorio: TipoResponsavelOperacao | null = null,
+  ): void {
+    const responsaveis = tipoObrigatorio
+      ? this.responsaveis.filter(item => item.tipo === tipoObrigatorio)
+      : this.responsaveis;
     const snapshotResponsavel = this.workflowState.snapshot().responsavel;
+    const snapshotElegivel = snapshotResponsavel
+      && (!tipoObrigatorio || snapshotResponsavel.tipo === tipoObrigatorio)
+      ? snapshotResponsavel
+      : null;
     const contextoOperador = this.operationalContext.currentContext?.operator;
     const responsavel =
-      snapshotResponsavel
-      ?? this.responsaveis.find(item =>
+      snapshotElegivel
+      ?? responsaveis.find(item =>
         item.tipo === 'OPERADOR'
         && (item.codigo === contextoOperador?.code || item.nome === contextoOperador?.name),
       )
-      ?? this.responsaveis.find(item => item.tipo === 'OPERADOR' && item.nome === operacao.operador)
-      ?? this.responsaveis.find(item => item.tipo === 'EQUIPE' && item.nome === operacao.equipe)
+      ?? responsaveis.find(item => item.tipo === 'OPERADOR' && item.nome === operacao.operador)
+      ?? responsaveis.find(item => item.tipo === 'EQUIPE' && item.nome === operacao.equipe)
       ?? null;
 
     this.tipoResponsavel = responsavel?.tipo ?? 'OPERADOR';

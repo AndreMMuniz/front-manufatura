@@ -19,6 +19,7 @@ export interface OrdemCentroTrabalho {
   readonly itemOp: string;
   readonly operacao: string;
   readonly split: string;
+  readonly indEstadoSplit?: number;
   readonly areaCode?: string;
   readonly workCenterCode?: string;
 }

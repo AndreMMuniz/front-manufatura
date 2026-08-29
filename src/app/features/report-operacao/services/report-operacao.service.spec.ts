@@ -18,7 +18,7 @@ import { OutboxEntry } from '../../../core/offline/models/outbox-entry';
 import { transactionComplete } from '../../../core/offline/repositories/repository-utils';
 import { SyncRetentionRepository } from '../../../core/offline/repositories/sync-retention.repository';
 import { SyncRetentionService } from '../../../core/offline/services/sync-retention.service';
-import { ReportOperacao } from '../models/report-operacao.model';
+import { OrdemCentroTrabalho, ReportOperacao } from '../models/report-operacao.model';
 
 import { ReportOperacaoService } from './report-operacao.service';
 
@@ -233,6 +233,29 @@ describe('ReportOperacaoService', () => {
     expect(result.sucesso).toBe(true);
     expect(result.operacao?.item).toBe('PERFIL-100');
     expect(result.operacao?.quantidadeSaldo).toBe(320);
+  });
+
+  it('carrega a data e hora reais de um split já iniciado', async () => {
+    apiGet.mockReturnValueOnce(of({
+      ordem: '450001', op: '10', split: '01', item: 'PERFIL-100',
+      descricao: 'Perfil', unidade: 'PC', roteiro: '10 - Extrusão', quantidadeOrdem: 500,
+      quantidadeSaldo: 320, linha: 'Extrusão', ct: 'CT-EXT-01', grupoMaquina: 'Extrusoras',
+      operador: '', equipe: '', turno: '1º Turno', dataInicio: '2026-08-29', horaInicio: '09:35',
+    }));
+    const order = {
+      id: '450001|PERFIL-100|10|01', ordem: '450001', itemOp: 'PERFIL-100',
+      operacao: '10', split: '01', indEstadoSplit: 4,
+      areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    } as OrdemCentroTrabalho & { readonly indEstadoSplit: number };
+
+    const result = await firstValueFrom(service.carregarOrdemSelecionada(order));
+
+    expect(apiGet).toHaveBeenCalledWith(
+      '/api/production-orders/450001/operations/10',
+      { split: '01', splitState: 4, areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+    );
+    expect(result.operacao?.dataInicio).toEqual(new Date(2026, 7, 29));
+    expect(result.operacao?.horaInicio).toBe('09:35');
   });
 
   it('propagates an unknown operation API error', async () => {

@@ -86,6 +86,7 @@ export class ReportOperacaoService {
       `/api/production-orders/${encodeURIComponent(ordem.ordem)}/operations/${encodeURIComponent(ordem.operacao)}`,
       {
         split: ordem.split,
+        splitState: ordem.indEstadoSplit,
         areaCode: ordem.areaCode,
         workCenterCode: ordem.workCenterCode,
       },
@@ -395,14 +396,28 @@ export class ReportOperacaoService {
   }
 
   private mapOperacao(dto: ReportOperacaoResponseDTO): ReportOperacao {
+    const { dataInicio, horaInicio, ...operation } = dto;
+    const parsedStart = dataInicio ? this.parseLocalDate(dataInicio) : undefined;
     return {
-      ...dto,
-      horaInicio: '',
+      ...operation,
+      ...(parsedStart && horaInicio ? { dataInicio: parsedStart } : {}),
+      horaInicio: parsedStart && horaInicio ? horaInicio : '',
       horaFim: '',
       quantidadeAprovada: 0,
       quantidadeRetrabalho: 0,
       quantidadeRefugo: 0,
     };
+  }
+
+  private parseLocalDate(value: string): Date | undefined {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!match) return undefined;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return date.getFullYear() === Number(match[1])
+      && date.getMonth() === Number(match[2]) - 1
+      && date.getDate() === Number(match[3])
+      ? date
+      : undefined;
   }
 
   private normalize(value: string): string {

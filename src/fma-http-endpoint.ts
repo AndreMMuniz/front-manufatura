@@ -104,9 +104,10 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
       const itemOp = text(item['codItemOp']);
       const operacao = integerText(item['opCodigo']);
       const split = integerText(item['numSplitOperac']);
+      const indEstadoSplit = positiveIntegerUpstream(item['indEstadoSplit']);
       return {
         id: `${ordem}|${itemOp}|${operacao}|${split}`,
-        ordem, itemOp, operacao, split, areaCode, workCenterCode,
+        ordem, itemOp, operacao, split, indEstadoSplit, areaCode, workCenterCode,
       };
     });
   }));
@@ -115,17 +116,31 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     handle(req, res, dependencies, async client => {
       const areaCode = requiredText(req.query['areaCode']);
       const workCenterCode = requiredText(req.query['workCenterCode']);
+      const orderNumber = positiveInteger(req.params['order']);
+      const operationCode = positiveInteger(req.params['operation']);
+      const splitNumber = positiveInteger(req.query['split']);
+      const splitState = req.query['splitState'] === undefined
+        ? undefined
+        : positiveInteger(req.query['splitState']);
       const upstream = await client.request('GET', '/api/fma/v1/abrirapontamento', undefined, {
         codAreaProduc: areaCode,
         codCtrab: workCenterCode,
-        nrOrdemProducao: positiveInteger(req.params['order']),
-        opCodigo: positiveInteger(req.params['operation']),
-        numSplitOperac: positiveInteger(req.query['split']),
+        nrOrdemProducao: orderNumber,
+        opCodigo: operationCode,
+        numSplitOperac: splitNumber,
       });
       const item = objectOfUpstream(single(dataset(upstream, 'dadosApontamento')));
       const reportModeValue = item['indReporteMod'] ?? item['indReportMod'];
       const indReporteMod = typeof reportModeValue === 'number' && Number.isSafeInteger(reportModeValue)
         ? reportModeValue
+        : undefined;
+      const start = splitState === 4
+        ? startedSplitDetails(
+            await client.request('GET', `/api/fcq/v1/ordens/${orderNumber}`),
+            orderNumber,
+            operationCode,
+            splitNumber,
+          )
         : undefined;
       return {
         ordem: integerText(item['nrOrdemProducao']),
@@ -141,6 +156,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         ct: text(item['codCtrab']),
         grupoMaquina: text(item['desGrupoMaquina']),
         ...(indReporteMod === undefined ? {} : { indReporteMod }),
+        ...(start ?? {}),
         operador: '', equipe: '', turno: text(item['desModelTurno']),
       };
     }));
@@ -764,6 +780,65 @@ function dataset(value: unknown, name: string): readonly unknown[] {
   const rows = objectOfUpstream(items[0])[name];
   if (!Array.isArray(rows)) throw new QualityControlGatewayError(502, 'invalid-upstream-response');
   return rows;
+}
+
+function startedSplitDetails(
+  value: unknown,
+  expectedOrder: number,
+  expectedOperation: number,
+  expectedSplit: number,
+): { readonly dataInicio: string; readonly horaInicio: string } {
+  const envelope = objectOfUpstream(value);
+  const items = envelope['items'];
+  if (!Array.isArray(items) || items.length !== 1) return invalidUpstream();
+  const dataset = objectOfUpstream(objectOfUpstream(items[0])['ds-ordem-producao']);
+  const orders = dataset['ordem'];
+  if (!Array.isArray(orders)) return invalidUpstream();
+  const order = orders.map(objectOfUpstream).find(candidate =>
+    candidate['nrOrdemProducao'] === expectedOrder);
+  if (!order || !Array.isArray(order['operacoes'])) return invalidUpstream();
+  const operation = order['operacoes'].map(objectOfUpstream).find(candidate =>
+    candidate['codOperacao'] === expectedOperation);
+  if (!operation || !Array.isArray(operation['splits'])) return invalidUpstream();
+  const split = operation['splits'].map(objectOfUpstream).find(candidate =>
+    candidate['numSplit'] === expectedSplit && candidate['estadoSplit'] === 4);
+  if (!split) return invalidUpstream();
+
+  const dataInicio = upstreamDate(split['dtInicioOperacao'])
+    ?? upstreamDate(operation['dtInicioReal']);
+  const horaInicio = upstreamTimeFromSeconds(split['segsInicioOperacao'])
+    ?? upstreamTime(operation['horaInicioReal']);
+  if (!dataInicio || !horaInicio) return invalidUpstream();
+  return { dataInicio, horaInicio };
+}
+
+function upstreamDate(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day
+    ? value
+    : undefined;
+}
+
+function upstreamTimeFromSeconds(value: unknown): string | undefined {
+  if (!Number.isSafeInteger(value) || (value as number) < 0 || (value as number) >= 86_400) {
+    return undefined;
+  }
+  const hours = Math.floor((value as number) / 3_600);
+  const minutes = Math.floor(((value as number) % 3_600) / 60);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function upstreamTime(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const compact = /^(\d{2})(\d{2})$/.exec(value.trim());
+  const separated = /^(\d{2}):(\d{2})$/.exec(value.trim());
+  const match = separated ?? compact;
+  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return undefined;
+  return `${match[1]}:${match[2]}`;
 }
 
 function objectOf(value: unknown): JsonObject {

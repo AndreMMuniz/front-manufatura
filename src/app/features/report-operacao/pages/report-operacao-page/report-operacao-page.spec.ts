@@ -326,6 +326,36 @@ describe('ReportOperacaoPage', () => {
     expect(component.estado).toBe(EstadoOperacao.OPEncontrada);
   });
 
+  it('abre um split já iniciado diretamente para reporte com o início real', () => {
+    const startedAt = new Date(2026, 7, 29);
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 2,
+        dataInicio: startedAt,
+        horaInicio: '09:35',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    operationalContext.currentContext = context();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+
+    expect(component.estado).toBe(EstadoOperacao.OperacaoIniciada);
+    expect(workflow.snapshot().operationState).toBe(EstadoOperacao.OperacaoIniciada);
+    expect(component.dataInicioSelecionada).toEqual(startedAt);
+    expect(component.horaInicioSelecionada).toBe('09:35');
+    expect(component.iniciarDisabled).toBe(true);
+    expect(component.reporteDisabled).toBe(false);
+    expect(component.encerrarDisabled).toBe(false);
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva',
+    });
+    expect(component.feedback).toContain('já iniciada em 29/08/2026 às 09:35');
+  });
+
   it('fixa o tipo Operador no modo 2 e mantém a escolha do operador habilitada', () => {
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
       sucesso: true, operacao: baseOperacaoComModo(2),
