@@ -133,7 +133,13 @@ describe('gateway FMA', () => {
 
   it('traduz reporte final individual sem fechar o split e encerra o split em chamada dependente', async () => {
     const transport = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(response('reporteOrdem', [{
+        qtdRefugada: 2, qtdAprovada: 10, finalizarSplit: false,
+        dataInicioReporte: '2026-08-14', opCodigo: 10, horaInicioReporte: '',
+        mensagem: 'Reporte gravado com sucesso', numSplitOperac: 1,
+        nrOrdemProducao: 372572, horaFimReporte: '', codCtrab: 'LASER-01-01',
+        qtdRetrabalho: 1, dataFimReporte: '2026-08-14',
+      }]))
       .mockResolvedValueOnce(response('splitResultado', [{
         operacaoFechada: true, opCodigo: 10, nrOrdemProducao: 372572,
         mensagem: 'Split encerrado', numSplitOperac: 1, estadoSplit: 5,
@@ -153,11 +159,33 @@ describe('gateway FMA', () => {
     };
     const result = await fetch(`${root}/api/operations/report`, { method: 'POST', headers, body: JSON.stringify(body) });
     expect(result.status).toBe(200);
-    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({
-      codAreaProduc: '4113', codCtrab: 'LASER-01-01', codOperador: '00016570', codEquipe: '',
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
+      codAreaProduc: '4113',
+      codCtrab: 'LASER-01-01',
+      nrOrdemProducao: 372572,
+      opCodigo: 10,
+      numSplitOperac: 1,
+      qtdAprovada: 10,
+      qtdRetrabalho: 1,
+      qtdRefugada: 2,
+      dataInicioReporte: '2026-08-14',
+      horaInicioReporte: '07:18',
+      dataFimReporte: '2026-08-14',
+      horaFimReporte: '08:25',
+      codOperador: '00016570',
+      codEquipe: '',
+      codFerramenta: '',
+      codReferencia: '',
+      loteSerie: '',
+      dataValidadeLote: '',
+      codMotivoRefugo: '05',
+      contaRefugo: '',
+      dataInicioSetup: '',
+      horaInicioSetup: '',
+      dataFimSetup: '',
+      horaFimSetup: '',
       finalizarSplit: false,
-      splits: [{ nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1, qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 2, codMotivoRefugo: '05' }],
-    }));
+    });
     const ending = await fetch(`${root}/api/operations/end`, {
       method: 'POST', headers: { ...headers, 'idempotency-key': 'end-1' }, body: JSON.stringify({
         ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
@@ -193,12 +221,13 @@ describe('gateway FMA', () => {
     });
 
     expect(result.status).toBe(200);
-    const split = JSON.parse(String(transport.mock.calls[0][1]?.body)).splits[0];
-    expect(split).toEqual({
+    const command = JSON.parse(String(transport.mock.calls[0][1]?.body));
+    expect(command).toEqual(expect.objectContaining({
       nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1,
       qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 0, codMotivoRefugo: '',
-    });
-    expect(split).not.toHaveProperty('quantidadeMotivo');
+    }));
+    expect(command).not.toHaveProperty('splits');
+    expect(command).not.toHaveProperty('quantidadeMotivo');
   });
 
   it('rejeita refugo sem exatamente um motivo', async () => {

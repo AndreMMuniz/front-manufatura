@@ -1,0 +1,25 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "reporteOrdem": [
+        {
+          "qtdRefugada": 0.0,
+          "qtdAprovada": 100.0,
+          "finalizarSplit": false,
+          "dataInicioReporte": "2026-08-29",
+          "opCodigo": 10,
+          "horaInicioReporte": "",
+          "mensagem": "Reporte gravado com sucesso",
+          "numSplitOperac": 1,
+          "nrOrdemProducao": 372577,
+          "horaFimReporte": "",
+          "codCtrab": "PRE-006-02",
+          "qtdRetrabalho": 0.0,
+          "dataFimReporte": "2026-08-29"
+        }
+      ]
+    }
+  ]
+}

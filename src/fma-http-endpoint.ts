@@ -417,7 +417,7 @@ function reportCommand(body: JsonObject, batch: boolean): JsonObject {
     + Number(split['qtdAprovada']) + Number(split['qtdRetrabalho']) + Number(split['qtdRefugada']), 0) <= 0) {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
-  return {
+  const common = {
     codAreaProduc: requiredText(context['areaCode']),
     codCtrab: requiredText(batch ? context['workCenterCode'] : body['ct']),
     dataInicioReporte,
@@ -430,7 +430,17 @@ function reportCommand(body: JsonObject, batch: boolean): JsonObject {
     ),
     ...emptySetupFields(),
     finalizarSplit: requiredBoolean(body['finalizarSplit']),
-    splits,
+  };
+  if (batch) {
+    return { ...common, splits };
+  }
+  return {
+    ...common,
+    ...splits[0],
+    codReferencia: '',
+    loteSerie: '',
+    dataValidadeLote: '',
+    contaRefugo: '',
   };
 }
 
