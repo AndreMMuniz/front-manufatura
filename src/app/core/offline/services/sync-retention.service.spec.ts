@@ -93,6 +93,40 @@ describe('SyncRetentionService', () => {
     expect(retention.pruneReceipts).toHaveBeenCalledWith(OWNER, NOW, 500);
   });
 
+  it('alcança o agregado elegível no ciclo seguinte sem exceder 25 tentativas', async () => {
+    const outbox = { listByOwner: vi.fn().mockResolvedValue(
+      Array.from({ length: 26 }, (_, index) => endEntry(`op-${index + 1}`)),
+    ) };
+    let attempts: string[] = [];
+    const retention = {
+      compactClosedAggregate: async (
+        _ownerId: string,
+        _aggregateType: string,
+        aggregateId: string,
+      ): Promise<'compacted' | 'ineligible'> => {
+        attempts.push(aggregateId);
+        return aggregateId === 'op-26' ? 'compacted' : 'ineligible';
+      },
+      pruneReceipts: async () => 0,
+    };
+    const service = createService(outbox, retention);
+
+    await expect(service.cleanupOwner(OWNER)).resolves.toEqual({
+      compactedAggregates: 0,
+      prunedReceipts: 0,
+    });
+    expect(attempts).toHaveLength(25);
+    expect(attempts).not.toContain('op-26');
+
+    attempts = [];
+    await expect(service.cleanupOwner(OWNER)).resolves.toEqual({
+      compactedAggregates: 1,
+      prunedReceipts: 0,
+    });
+    expect(attempts).toHaveLength(25);
+    expect(attempts[0]).toBe('op-26');
+  });
+
   it('compartilha uma única execução concorrente para o mesmo owner', async () => {
     let releaseList: (entries: readonly OutboxEntry[]) => void = () => undefined;
     const pendingList = new Promise<readonly OutboxEntry[]>((resolve) => {

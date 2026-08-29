@@ -22,6 +22,10 @@
 - Não modificar migrations históricas v1–v3.
 - Processar no máximo 25 agregados encerrados por execução de cleanup; ciclos posteriores continuam
   o trabalho. Esse teto limita scans/transações pós-sync sem alterar os 30 dias/500 recibos.
+- Selecionar a janela de 25 por cursor round-robin determinístico e isolado por owner. O cursor
+  avança antes de cada tentativa, de modo que agregados persistentemente inelegíveis ou uma falha
+  transacional não bloqueiem os seguintes em ciclos posteriores. O cursor escolhe apenas a janela:
+  a revalidação de estado, receipt e dependências continua autoritativa dentro da transação.
 
 ---
 

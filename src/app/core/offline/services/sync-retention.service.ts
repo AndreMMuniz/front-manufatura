@@ -14,9 +14,16 @@ export interface SyncRetentionSummary {
   readonly prunedReceipts: number;
 }
 
+interface RetentionAggregateCandidate {
+  readonly key: string;
+  readonly aggregateType: string;
+  readonly aggregateId: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SyncRetentionService {
   private readonly activeCleanups = new Map<string, Promise<SyncRetentionSummary>>();
+  private readonly lastAttemptedAggregateKeys = new Map<string, string>();
 
   constructor(
     private readonly outbox: OutboxRepository,
@@ -55,6 +62,7 @@ export class SyncRetentionService {
     ).toISOString();
     const entries = await this.outbox.listByOwner(ownerId);
     const aggregateKeys = new Set<string>();
+    const candidates: RetentionAggregateCandidate[] = [];
     let compactedAggregates = 0;
 
     for (const entry of entries) {
@@ -66,15 +74,34 @@ export class SyncRetentionService {
       if (aggregateKeys.has(aggregateKey)) {
         continue;
       }
-      if (aggregateKeys.size >= SYNC_RETENTION_MAX_AGGREGATES_PER_RUN) {
-        break;
-      }
       aggregateKeys.add(aggregateKey);
+      candidates.push({
+        key: aggregateKey,
+        aggregateType: entry.aggregateType,
+        aggregateId: entry.aggregateId,
+      });
+    }
+
+    if (candidates.length === 0) {
+      this.lastAttemptedAggregateKeys.delete(ownerId);
+    }
+    const lastAttemptedKey = this.lastAttemptedAggregateKeys.get(ownerId);
+    const lastAttemptedIndex = candidates.findIndex(({ key }) => key === lastAttemptedKey);
+    const startIndex = lastAttemptedIndex < 0 ? 0 : (lastAttemptedIndex + 1) % candidates.length;
+
+    for (
+      let offset = 0;
+      offset < candidates.length && offset < SYNC_RETENTION_MAX_AGGREGATES_PER_RUN;
+      offset += 1
+    ) {
+      const candidate = candidates[(startIndex + offset) % candidates.length];
+      // Avança antes da transação: ineligible/falha não pode fixar a janela do próximo ciclo.
+      this.lastAttemptedAggregateKeys.set(ownerId, candidate.key);
 
       const result = await this.retention.compactClosedAggregate(
         ownerId,
-        entry.aggregateType,
-        entry.aggregateId,
+        candidate.aggregateType,
+        candidate.aggregateId,
         archivedAt,
         expiresAt,
       );
