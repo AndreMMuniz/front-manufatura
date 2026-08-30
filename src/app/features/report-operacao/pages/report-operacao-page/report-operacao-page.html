@@ -57,7 +57,7 @@
         [tipoResponsavel]="tipoResponsavel"
         [responsavelCodigo]="responsavelCodigo"
         [tipoResponsavelDisabled]="tipoResponsavelDefinidoPelaApi || operacao.dataInicio !== undefined || isBusy"
-        [responsavelDisabled]="operacao.dataInicio !== undefined || isBusy"
+        [responsavelDisabled]="responsavelDisabled"
         [loadingResponsaveis]="loadingResponsaveis"
         [responsaveisError]="responsaveisError"
         [gerenciarEquipeDisabled]="!canManageTeam"

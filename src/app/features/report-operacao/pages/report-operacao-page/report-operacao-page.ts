@@ -135,6 +135,7 @@ export class ReportOperacaoPage implements OnInit {
   private startIdempotencyKey = '';
   private endIdempotencyKey = '';
   private responsaveisRequest = 0;
+  private responsavelPendenteEmOrdemIniciada = false;
   private teamGeneration = 0;
   private activeTeamContext: {
     readonly generation: number;
@@ -217,6 +218,11 @@ export class ReportOperacaoPage implements OnInit {
 
   get tipoResponsavelDefinidoPelaApi(): boolean {
     return this.operacao?.indReporteMod === 2 || this.operacao?.indReporteMod === 3;
+  }
+
+  get responsavelDisabled(): boolean {
+    return this.isBusy
+      || Boolean(this.operacao?.dataInicio && !this.responsavelPendenteEmOrdemIniciada);
   }
 
   get iniciarDisabled(): boolean {
@@ -399,12 +405,13 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   alterarResponsavel(codigo: string): void {
-    if (this.operacao?.dataInicio || this.isBusy) {
+    if (this.responsavelDisabled) {
       return;
     }
 
     this.responsavelCodigo = this.normalizeCode(codigo ?? '');
     this.workflowState.setResponsavel(this.responsavelSelecionado);
+    if (this.operacao?.dataInicio) this.updateStartedOperationFeedback();
   }
 
   alterarDataInicio(dataInicio: Date | string | null): void {
@@ -799,10 +806,10 @@ export class ReportOperacaoPage implements OnInit {
           this.workflowState.setScrap([], '');
           this.workflowState.setResponsavel(null);
           this.applyApiReportType(this.operacao);
+          this.responsavelPendenteEmOrdemIniciada = alreadyStarted;
           this.loadResponsaveis();
           if (alreadyStarted) {
-            const startDate = this.formatDate(result.operacao.dataInicio!);
-            this.feedback = `Ordem ${order.ordem} já iniciada em ${startDate} às ${result.operacao.horaInicio}. Informe as quantidades para reportar.`;
+            this.updateStartedOperationFeedback();
             this.notification.information(this.feedback);
           } else {
             this.feedback = `Ordem ${order.ordem} carregada. Inicie a operação.`;
@@ -943,7 +950,9 @@ export class ReportOperacaoPage implements OnInit {
     const quantidadeRefugo = this.round3(draft.quantidadeRefugo);
     const idempotencyKey = draft.idempotencyKey ?? this.idempotency.resolve();
     if (!operation?.dataInicio || !operation.horaInicio || !responsavel || !this.canEditProduction) {
-      const message = 'Inicie a operação com uma equipe ou operador válido antes de reportar.';
+      const message = operation?.dataInicio && operation.horaInicio && !responsavel
+        ? `Selecione ${this.tipoResponsavel === 'EQUIPE' ? 'uma equipe válida' : 'um operador válido'} para realizar o reporte.`
+        : 'Inicie a operação com uma equipe ou operador válido antes de reportar.';
       this.feedback = message;
       this.notification.warning(message);
       this.reporteSlide?.informarErro(message);
@@ -1190,6 +1199,9 @@ export class ReportOperacaoPage implements OnInit {
     this.preencherInicio(this.operacao);
     this.tipoResponsavel = snapshot.responsavel?.tipo ?? 'OPERADOR';
     this.responsavelCodigo = snapshot.responsavel?.codigo ?? '';
+    this.responsavelPendenteEmOrdemIniciada = Boolean(
+      snapshot.operation?.dataInicio && !snapshot.responsavel,
+    );
     if (snapshot.operation) {
       if (snapshot.operationState === EstadoOperacao.Reportando) {
         this.workflowState.setActiveOperation(this.operacao!, this.estado);
@@ -1218,6 +1230,7 @@ export class ReportOperacaoPage implements OnInit {
     this.horaInicioSelecionada = '';
     this.startIdempotencyKey = '';
     this.endIdempotencyKey = '';
+    this.responsavelPendenteEmOrdemIniciada = false;
   }
 
   private invalidateRequests(): void {
@@ -1442,6 +1455,10 @@ export class ReportOperacaoPage implements OnInit {
           ) {
             this.selectInitialResponsavel(this.operacao, tipoApi);
           }
+          if (this.operacao?.dataInicio) {
+            this.responsavelPendenteEmOrdemIniciada = !this.responsavelSelecionado;
+            if (!this.responsaveisError) this.updateStartedOperationFeedback();
+          }
           this.changeDetector.markForCheck();
         },
         error: () => {
@@ -1504,6 +1521,20 @@ export class ReportOperacaoPage implements OnInit {
     if (!tipo) return;
     this.tipoResponsavel = tipo;
     this.responsavelCodigo = '';
+  }
+
+  private updateStartedOperationFeedback(): void {
+    if (!this.operacao?.dataInicio || !this.operacao.horaInicio) return;
+    const startDate = this.formatDate(this.operacao.dataInicio);
+    const prefix = `Ordem ${this.operacao.ordem} já iniciada em ${startDate} às ${this.operacao.horaInicio}.`;
+    if (this.responsavelPendenteEmOrdemIniciada && !this.responsavelSelecionado) {
+      const responsavel = this.tipoResponsavel === 'EQUIPE'
+        ? 'a equipe responsável'
+        : 'o operador responsável';
+      this.feedback = `${prefix} Selecione ${responsavel} para realizar o reporte.`;
+      return;
+    }
+    this.feedback = `${prefix} Informe as quantidades para reportar.`;
   }
 
   private apiReportType(operacao: ReportOperacao | null): TipoResponsavelOperacao | null {

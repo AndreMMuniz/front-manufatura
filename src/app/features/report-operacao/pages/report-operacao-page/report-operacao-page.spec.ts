@@ -356,6 +356,92 @@ describe('ReportOperacaoPage', () => {
     expect(component.feedback).toContain('já iniciada em 29/08/2026 às 09:35');
   });
 
+  it('solicita um operador quando a ordem já iniciada não informa o responsável', () => {
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 2,
+        dataInicio: new Date(2026, 7, 29),
+        horaInicio: '15:59',
+        operador: '',
+        equipe: '',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+    fixture.detectChanges();
+    const card = fixture.debugElement.query(By.directive(OperacaoInfoCard))
+      .componentInstance as OperacaoInfoCard;
+
+    expect(card.responsavelDisabled).toBe(false);
+    expect(component.responsavelSelecionado).toBeNull();
+    expect(component.feedback).toContain(
+      'Ordem 450001 já iniciada em 29/08/2026 às 15:59. Selecione o operador responsável para realizar o reporte.',
+    );
+  });
+
+  it('reporta uma ordem já iniciada após selecionar o operador ausente', () => {
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 2,
+        dataInicio: new Date(2026, 7, 29),
+        horaInicio: '15:59',
+        operador: '',
+        equipe: '',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+
+    component.alterarResponsavel('001');
+    expect(component.feedback).toContain('Informe as quantidades para reportar.');
+    component.salvarReporte({
+      quantidadeAprovada: 10,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+    });
+
+    expect(service.iniciarOperacao).not.toHaveBeenCalled();
+    expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      tipoResponsavel: 'OPERADOR',
+      codigoResponsavel: '001',
+    }));
+  });
+
+  it('não solicita novo início quando falta o operador de uma ordem já iniciada', () => {
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 2,
+        dataInicio: new Date(2026, 7, 29),
+        horaInicio: '15:59',
+        operador: '',
+        equipe: '',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+
+    component.salvarReporte({
+      quantidadeAprovada: 10,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+    });
+
+    expect(component.feedback).toBe('Selecione um operador válido para realizar o reporte.');
+    expect(notification.warning).toHaveBeenCalledWith(component.feedback);
+  });
+
   it('fixa o tipo Operador no modo 2 e mantém a escolha do operador habilitada', () => {
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
       sucesso: true, operacao: baseOperacaoComModo(2),
