@@ -482,28 +482,18 @@ describe('SyncCoordinatorService', () => {
     expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'SYNCED' });
   });
 
-  it('não repete ERROR automaticamente e retry manual preserva identidade/conteúdo', async () => {
+  it('terminaliza rejeição de negócio sem permitir entrada na fila de retry', async () => {
     await seed(database, [entry('command')]);
     const before = await repository.getById(OWNER, 'command');
-    let accepts = false;
     let sends = 0;
     const transport: SyncTransport = {
-      send: async (request) => {
+      send: async () => {
         sends += 1;
-        if (!accepts) {
-          throw {
-            status: 422,
-            code: 'BUSINESS_RULE',
-            category: 'VALIDATION',
-            userMessage: 'Regra de negócio não atendida.',
-          };
-        }
-        return {
-          serverRecordId: 'server-command',
-          idempotencyKey: request.idempotencyKey,
-          receivedAt: NOW,
-          processedAt: NOW,
-          duplicate: false,
+        throw {
+          status: 422,
+          code: 'BUSINESS_RULE',
+          category: 'VALIDATION',
+          userMessage: 'Motivo de refugo inválido.',
         };
       },
     };
@@ -516,17 +506,17 @@ describe('SyncCoordinatorService', () => {
     await coordinator.requestSync();
 
     expect(sends).toBe(1);
-    expect(await repository.getById(OWNER, 'command')).toMatchObject({ status: 'ERROR' });
-
-    accepts = true;
-    expect(await coordinator.retryError('command')).toBe('queued');
     expect(await repository.getById(OWNER, 'command')).toMatchObject({
-      status: 'PENDING',
-      manualRetryCount: 1,
+      status: 'ERROR',
+      deliveryDisposition: 'REJECTED',
+      lastError: {
+        code: 'BUSINESS_RULE',
+        category: 'VALIDATION',
+        userMessage: 'Motivo de refugo inválido.',
+      },
     });
-    await eventually(() => sends === 2);
+    expect(await coordinator.retryError('command')).toBe('stale-or-ineligible');
     const after = await repository.getById(OWNER, 'command');
-    expect(after).toMatchObject({ status: 'SYNCED' });
     expect({
       idempotencyKey: after?.idempotencyKey,
       payloadHash: after?.payloadHash,

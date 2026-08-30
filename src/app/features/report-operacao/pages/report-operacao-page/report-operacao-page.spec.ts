@@ -602,7 +602,7 @@ describe('ReportOperacaoPage', () => {
     expect(component.reportes).toHaveLength(1);
   });
 
-  it('não cria outro comando quando o Datasul rejeita o reporte', () => {
+  it('não incorpora reporte rejeitado nem direciona o operador para a fila', () => {
     service.reportarOperacao.mockReturnValue(of({
       apontamentoId: 'APT-1',
       reportadoEm: new Date(),
@@ -620,30 +620,11 @@ describe('ReportOperacaoPage', () => {
     );
 
     expect(service.reportarOperacao).toHaveBeenCalledOnce();
-    expect(confirmarReporte).toHaveBeenCalledOnce();
-    expect(informarErro).not.toHaveBeenCalled();
-    expect(notification.error).toHaveBeenCalledWith(
-      `${persistedError.userMessage} Abra o Centro de Sincronização para corrigir.`,
-    );
-    expect(component.reportes).toHaveLength(1);
-    expect(component.reporteDisabled).toBe(true);
-
-    correctionContext.activate({
-      ownerId: '1',
-      sourceLocalId: 'outro-reporte',
-      commandType: 'REPORT_OPERATION',
-      aggregateType: 'OPERATION',
-      aggregateId: '450001|OP-10458|01',
-      payloadSchemaVersion: 1,
-      draft: {},
-    });
-    component.salvarReporte({
-      quantidadeAprovada: 1,
-      quantidadeRetrabalho: 0,
-      quantidadeRefugo: 0,
-    });
-
-    expect(service.reportarOperacao).toHaveBeenCalledOnce();
+    expect(confirmarReporte).not.toHaveBeenCalled();
+    expect(informarErro).toHaveBeenCalledWith(persistedError.userMessage);
+    expect(notification.error).toHaveBeenCalledWith(persistedError.userMessage);
+    expect(component.reportes).toHaveLength(0);
+    expect(component.reporteDisabled).toBe(false);
   });
 
   it.each(['SYNCED', 'PENDING'] as const)(
@@ -802,18 +783,12 @@ describe('ReportOperacaoPage', () => {
     expect(service.encerrarOperacao).not.toHaveBeenCalled();
   });
 
-  it('blocks manual finalization after a report was rejected by Datasul', () => {
-    service.reportarOperacao
-      .mockReturnValueOnce(of({
-        apontamentoId: 'APT-ERROR',
-        reportadoEm: new Date(),
-        delivery: { status: 'ERROR', error: persistedError },
-      }))
-      .mockReturnValueOnce(of({
-        apontamentoId: 'APT-FINAL',
-        reportadoEm: new Date(),
-        delivery: { status: 'PENDING' },
-      }));
+  it('permite abrir um novo reporte final após rejeição definitiva do Datasul', () => {
+    service.reportarOperacao.mockReturnValueOnce(of({
+      apontamentoId: 'APT-ERROR',
+      reportadoEm: new Date(),
+      delivery: { status: 'ERROR', error: persistedError },
+    }));
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -822,12 +797,7 @@ describe('ReportOperacaoPage', () => {
     component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
     component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
     const confirmarReporte = vi.fn();
-    const abrir = vi.fn(() => component.salvarReporte({
-      quantidadeAprovada: 1,
-      quantidadeRetrabalho: 0,
-      quantidadeRefugo: 0,
-      finalizarSplit: true,
-    }));
+    const abrir = vi.fn();
     (component as unknown as {
       reporteSlide: { abrir: typeof abrir; confirmarReporte: typeof confirmarReporte };
     }).reporteSlide = { abrir, confirmarReporte };
@@ -835,11 +805,9 @@ describe('ReportOperacaoPage', () => {
     component.solicitarEncerramento();
     vi.mocked(dialog.confirm).mock.calls[0]?.[0].confirm();
 
-    expect(abrir).not.toHaveBeenCalled();
+    expect(abrir).toHaveBeenCalledWith([], true);
     expect(service.encerrarOperacao).not.toHaveBeenCalled();
-    expect(notification.error).toHaveBeenCalledWith(
-      'Há um reporte rejeitado pelo Datasul. Abra o Centro de Sincronização para corrigir antes de encerrar a operação.',
-    );
+    expect(notification.error).toHaveBeenCalledWith(persistedError.userMessage);
   });
 
   it('does not mutate Datasul while only opening repeated final-report confirmations', () => {

@@ -16,7 +16,8 @@ O projeto exige que escritas operacionais sejam persistidas localmente antes de 
 - Exibir o dropdown **Motivo Refugo** automaticamente quando `Qtde Refugo > 0`.
 - Exigir motivo somente quando houver refugo; retrabalho sem refugo não exige motivo.
 - Ao salvar, tentar enviar imediatamente e aguardar um resultado remoto observável.
-- Se a tentativa remota não puder ser concluída, preservar o reporte localmente como pendente.
+- Se a tentativa remota não puder ser concluída por falha transitória de comunicação, preservar o reporte localmente como pendente.
+- Se o Datasul responder com rejeição funcional, preservar somente o histórico técnico terminal, sem incorporar o reporte ao negócio nem criar demanda de retry.
 - Impedir crescimento indefinido da base local sem comprometer dependências, histórico ativo ou auditoria de falhas.
 - Manter idempotência entre tentativa imediata, timeout e reenvios posteriores.
 
@@ -111,15 +112,15 @@ Em falha de rede, timeout, servidor indisponível ou ausência temporária de se
 - a interface informa **Datasul indisponível — reporte salvo como pendente**;
 - o Centro de Sincronização continua responsável por retry e visibilidade.
 
-### Erro permanente ou corrigível
+### Rejeição funcional definitiva
 
-Em validação, conflito de idempotência ou rejeição classificada como corrigível:
+Em validação, conflito ou rejeição funcional explicitamente devolvida pelo Datasul:
 
-- o comando permanece rastreável no estado de erro;
-- o drawer fecha e o rascunho local não é reenviado como um novo comando;
-- a interface informa que o Datasul rejeitou o reporte;
-- o usuário é direcionável ao fluxo de correção existente;
-- o erro não é apresentado como simples sucesso local.
+- o comando permanece rastreável como histórico terminal `REJECTED`;
+- o comando não entra na fila ativa, não recebe retry automático ou manual e não oferece correção no Centro de Sincronização;
+- o reporte rejeitado não é incorporado aos totais nem ao histórico de negócio da operação;
+- o drawer preserva os dados apresentados e exibe somente o motivo seguro devolvido pelo Datasul;
+- a operação permanece ativa e uma nova ação explícita do operador nasce como outro comando, sem reutilizar silenciosamente a rejeição.
 
 ### Resposta perdida após processamento
 
@@ -168,11 +169,12 @@ A retenção será baseada em estado e dependências, não apenas em idade ou qu
 6. O payload externo contém as três quantidades e somente o código do motivo.
 7. Salvamento online aguarda e apresenta confirmação remota.
 8. Falha transitória mantém exatamente um comando pendente e apresenta fallback local.
-9. Timeout após processamento não duplica o reporte no retry.
-10. Um `START_OPERATION` pendente é entregue antes do `REPORT_OPERATION` dependente.
-11. Dois cliques rápidos produzem um único comando e uma única chave idempotente.
-12. A compactação não remove pendências, erros ou comandos com dependentes ativos.
-13. Um agregado concluído e sincronizado torna-se elegível para compactação.
+9. Rejeição funcional fica apenas no histórico terminal, não altera os totais e não oferece retry ou correção.
+10. Timeout após processamento não duplica o reporte no retry.
+11. Um `START_OPERATION` pendente é entregue antes do `REPORT_OPERATION` dependente.
+12. Dois cliques rápidos produzem um único comando e uma única chave idempotente.
+13. A compactação não remove pendências, erros ou comandos com dependentes ativos.
+14. Um agregado concluído e sincronizado torna-se elegível para compactação.
 
 ## Observabilidade e segurança
 

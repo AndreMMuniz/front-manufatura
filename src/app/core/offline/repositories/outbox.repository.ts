@@ -3,7 +3,10 @@ import { Injectable } from '@angular/core';
 import { OfflineDatabase } from '../database/offline-database';
 import { OUTBOX_STORE } from '../database/database-schema';
 import { JsonValue } from '../models/local-record';
-import { deliveryDispositionOf } from '../models/delivery-disposition';
+import {
+  DeliveryDisposition,
+  deliveryDispositionOf,
+} from '../models/delivery-disposition';
 import {
   OutboxEntry,
   PersistedSyncError,
@@ -40,6 +43,7 @@ interface ReconcileFailureBase {
   readonly leaseToken: string;
   readonly now: string;
   readonly error: PersistedSyncError;
+  readonly deliveryDisposition?: DeliveryDisposition;
 }
 
 export type ReconcileFailureRequest =
@@ -377,6 +381,9 @@ export class OutboxRepository {
     const failed: OutboxEntry<JsonValue> = {
       ...withoutRuntimeState(current),
       status: request.status,
+      ...(request.deliveryDisposition
+        ? { deliveryDisposition: request.deliveryDisposition }
+        : {}),
       ...(request.status === 'RETRY_WAIT'
         ? { nextAttemptAt: validIso(request.nextAttemptAt) }
         : {}),
@@ -786,9 +793,9 @@ function matchesPageQuery(entry: OutboxEntry<JsonValue>, query: OutboxPageQuery)
   const disposition = deliveryDispositionOf(entry.deliveryDisposition);
   const statuses = query.statuses;
   const dispositionFilters = statuses?.filter(status =>
-    status === 'ABANDONED' || status === 'SUPERSEDED') ?? [];
+    status === 'ABANDONED' || status === 'SUPERSEDED' || status === 'REJECTED') ?? [];
   const syncStatusFilters = statuses?.filter(status =>
-    status !== 'ABANDONED' && status !== 'SUPERSEDED') ?? [];
+    status !== 'ABANDONED' && status !== 'SUPERSEDED' && status !== 'REJECTED') ?? [];
   return (
     (
       !statuses?.length

@@ -113,6 +113,12 @@ Autenticação expirada continuará usando `BLOCKED_AUTH`. Dependências locais
 continuarão usando `BLOCKED_DEPENDENCY`. Essas condições não devem mascarar o
 resultado de entrega já conhecido.
 
+No armazenamento local, `VALIDATION` e `CONFLICT` recebem também a disposição
+terminal `REJECTED`. Essa disposição retira o comando dos contadores ativos e
+do retry manual, mas preserva identidade, payload sanitizado, mensagem e
+tentativa como histórico auditável. Registros legados equivalentes são
+normalizados na migração da base sem alterar falhas `TRANSIENT`.
+
 O retry manual também ficará indisponível em `CONFIRMATION_PENDING`. Caso não
 exista verificador para o comando, o painel informará que a confirmação exige
 intervenção. Um novo envio somente poderá nascer como outro comando por uma

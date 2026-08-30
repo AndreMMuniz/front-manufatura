@@ -131,11 +131,37 @@ const SYNC_RECEIPTS_MIGRATION: DatabaseMigration = {
   },
 };
 
+const TERMINAL_BUSINESS_REJECTIONS_MIGRATION: DatabaseMigration = {
+  toVersion: 5,
+  migrate: ({ transaction }) => {
+    const request = transaction.objectStore(OUTBOX_STORE).openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      const entry = cursor.value as Readonly<Record<string, unknown>>;
+      const lastError = entry['lastError'];
+      const category = lastError && typeof lastError === 'object'
+        ? (lastError as Readonly<Record<string, unknown>>)['category']
+        : undefined;
+      const disposition = entry['deliveryDisposition'];
+      if (
+        entry['status'] === 'ERROR'
+        && (disposition === undefined || disposition === 'ACTIVE')
+        && (category === 'VALIDATION' || category === 'CONFLICT')
+      ) {
+        cursor.update({ ...entry, deliveryDisposition: 'REJECTED' });
+      }
+      cursor.continue();
+    };
+  },
+};
+
 export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
   INITIAL_SCHEMA_MIGRATION,
   SCHEDULER_SCHEMA_MIGRATION,
   SYNCHRONIZATION_CENTER_MIGRATION,
   SYNC_RECEIPTS_MIGRATION,
+  TERMINAL_BUSINESS_REJECTIONS_MIGRATION,
 ]);
 
 export function runDatabaseMigrations(request: RunMigrationsRequest): void {

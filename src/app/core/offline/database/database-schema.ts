@@ -1,5 +1,5 @@
 export const DATABASE_NAME = 'plano-de-controle-operational';
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 
 export const LOCAL_RECORDS_STORE = 'localRecords';
 export const OUTBOX_STORE = 'outbox';

@@ -358,6 +358,12 @@ export class SyncCoordinatorService implements OnDestroy {
         leaseToken,
         now: validDate(now),
         status: targetStatus,
+        ...(
+          targetStatus === 'ERROR'
+          && (error.category === 'VALIDATION' || error.category === 'CONFLICT')
+            ? { deliveryDisposition: 'REJECTED' as const }
+            : {}
+        ),
         error: persistedError,
       });
     } catch (storageError) {

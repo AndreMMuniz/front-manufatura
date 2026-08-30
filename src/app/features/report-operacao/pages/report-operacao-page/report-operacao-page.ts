@@ -1024,6 +1024,16 @@ export class ReportOperacaoPage implements OnInit {
             || this.operacao?.op !== operation.op
             || this.workflowState.snapshot().activeOrder?.id !== activeOrderId
           ) return;
+          if (result.delivery.status === 'ERROR') {
+            this.estado = EstadoOperacao.OperacaoIniciada;
+            this.operacao = operation;
+            this.workflowState.setActiveOperation(operation, this.estado);
+            this.feedback = result.delivery.error.userMessage;
+            this.reporteSlide?.informarErro(this.feedback);
+            this.notification.error(this.feedback);
+            this.changeDetector.markForCheck();
+            return;
+          }
           const reporte: ReporteParcialOperacao = {
             id: result.apontamentoId,
             idempotencyKey,
@@ -1059,12 +1069,8 @@ export class ReportOperacaoPage implements OnInit {
               this.feedback = 'Datasul indisponível — reporte salvo como pendente. A operação continua ativa.';
               this.notification.warning('Datasul indisponível — reporte salvo como pendente.');
               break;
-            case 'ERROR':
-              this.feedback = `${result.delivery.error.userMessage} Abra o Centro de Sincronização para corrigir.`;
-              this.notification.error(this.feedback);
-              break;
           }
-          if (draft.finalizarSplit && result.delivery.status !== 'ERROR') {
+          if (draft.finalizarSplit) {
             this.endOperation();
             return;
           }

@@ -82,6 +82,7 @@ describe('synchronization view model', () => {
   it.each([
     ['ABANDONED', 'Cancelado com justificativa'],
     ['SUPERSEDED', 'Substituído por comando corrigido'],
+    ['REJECTED', 'Rejeitado pelo Datasul — sem nova tentativa'],
   ] as const)('prioriza a disposição %s sobre o estado anterior', (deliveryDisposition, label) => {
     const view = mapSynchronizationEntry(entry({ status: 'ERROR', deliveryDisposition }));
 
@@ -192,10 +193,10 @@ function counts(overrides: Partial<{
 
 function entry(
   overrides: Partial<OutboxEntry<JsonValue> & {
-    deliveryDisposition: 'ACTIVE' | 'ABANDONED' | 'SUPERSEDED';
+    deliveryDisposition: 'ACTIVE' | 'ABANDONED' | 'SUPERSEDED' | 'REJECTED';
   }> = {},
 ): OutboxEntry<JsonValue> & {
-  readonly deliveryDisposition?: 'ACTIVE' | 'ABANDONED' | 'SUPERSEDED';
+  readonly deliveryDisposition?: 'ACTIVE' | 'ABANDONED' | 'SUPERSEDED' | 'REJECTED';
 } {
   return {
     localId: 'local-1',

@@ -162,7 +162,9 @@ export function mapSynchronizationEntry(
     ? status('Cancelado com justificativa', 'po-icon-close', 'neutral')
     : disposition === 'SUPERSEDED'
       ? status('Substituído por comando corrigido', 'po-icon-exchange', 'neutral')
-      : undefined;
+      : disposition === 'REJECTED'
+        ? status('Rejeitado pelo Datasul — sem nova tentativa', 'po-icon-warning', 'danger')
+        : undefined;
   const receiptState = qualityResultReceiptStatus(source);
   const payload = record(source.payload);
   const presentation = dispositionState ?? receiptState ?? state ?? status(

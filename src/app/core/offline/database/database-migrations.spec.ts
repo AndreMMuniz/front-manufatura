@@ -16,11 +16,11 @@ import {
 } from './database-schema';
 
 describe('database migrations', () => {
-  it('cria syncReceipts na versão 4 com índices de owner, expiração e agregado', async () => {
+  it('mantém syncReceipts no schema atual com índices de owner, expiração e agregado', async () => {
     const database = await openDatabase(new IDBFactory(), DATABASE_VERSION, DATABASE_MIGRATIONS);
     const store = database.transaction(SYNC_RECEIPTS_STORE).objectStore(SYNC_RECEIPTS_STORE);
 
-    expect(DATABASE_VERSION).toBe(4);
+    expect(DATABASE_VERSION).toBe(5);
     expect([...database.objectStoreNames]).toEqual(['localRecords', 'outbox', 'syncReceipts']);
     expect([...store.indexNames]).toEqual([
       'ownerAggregate',
@@ -46,6 +46,49 @@ describe('database migrations', () => {
     ).toHaveLength(1);
     expect(versionFour.objectStoreNames.contains(SYNC_RECEIPTS_STORE)).toBe(true);
     versionFour.close();
+  });
+
+  it('terminaliza rejeições funcionais antigas sem terminalizar falhas transitórias', async () => {
+    const factory = new IDBFactory();
+    const versionFour = await openDatabase(factory, 4, DATABASE_MIGRATIONS.slice(0, 4));
+    const rejected = {
+      ...pendingFixture('ERROR', 0),
+      lastError: {
+        code: 'DATASUL_COMMAND_REJECTED',
+        category: 'VALIDATION' as const,
+        userMessage: 'Motivo de refugo inválido.',
+      },
+    };
+    const transient = {
+      ...pendingFixture('RETRY_WAIT', 1),
+      nextAttemptAt: '2026-07-28T15:01:00.000Z',
+      lastError: {
+        code: 'NETWORK',
+        category: 'TRANSIENT' as const,
+        userMessage: 'Serviço temporariamente indisponível.',
+      },
+    };
+    await addAndComplete(versionFour, OUTBOX_STORE, rejected);
+    await addAndComplete(versionFour, OUTBOX_STORE, transient);
+    versionFour.close();
+
+    const upgraded = await openDatabase(factory, DATABASE_VERSION, DATABASE_MIGRATIONS);
+    const entries = await requestResult<OutboxEntry[]>(
+      upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).getAll(),
+    );
+
+    expect(entries.find(entry => entry.localId === rejected.localId)).toMatchObject({
+      status: 'ERROR',
+      deliveryDisposition: 'REJECTED',
+      lastError: rejected.lastError,
+    });
+    expect(entries.find(entry => entry.localId === transient.localId)).toMatchObject({
+      status: 'RETRY_WAIT',
+      lastError: transient.lastError,
+    });
+    expect(entries.find(entry => entry.localId === transient.localId))
+      .not.toHaveProperty('deliveryDisposition');
+    upgraded.close();
   });
 
   it('cria o schema 0 -> target com stores, key paths e índices obrigatórios', async () => {
