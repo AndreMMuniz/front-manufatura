@@ -79,7 +79,15 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
         batchId: 'batch-1',
         iniciadoEm: new Date(2026, 6, 23, 8, 15),
         ordensIniciadas: ['2', '1'],
-        delivery: { status: 'PENDING' as const },
+        delivery: {
+          status: 'SYNCED' as const,
+          receipt: {
+            serverRecordId: 'datasul:batch:1',
+            receivedAt: '2026-07-23T11:15:01.000Z',
+            processedAt: '2026-07-23T11:15:01.000Z',
+            duplicate: false,
+          },
+        },
       })),
       listarReportesBatelada: vi.fn(() => of([])),
       reportarBateladaParcial: vi.fn(request => of({
@@ -245,9 +253,8 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(serviceMock.iniciarBatelada).toHaveBeenCalledOnce();
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.inicio?.ordensIniciadas).toEqual(['2', '1']);
-    expect(notificationMock.warning).toHaveBeenCalledWith(
-      'Datasul indisponível — início salvo como pendente.',
-    );
+    expect(notificationMock.success).toHaveBeenCalledWith('Comando de início enviado ao Datasul.');
+    expect(notificationMock.warning).not.toHaveBeenCalled();
   });
 
   it('confirma o início somente quando a entrega foi sincronizada', () => {

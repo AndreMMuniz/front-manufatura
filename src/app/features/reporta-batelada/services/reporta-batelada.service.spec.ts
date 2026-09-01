@@ -1,8 +1,10 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
@@ -27,6 +29,8 @@ describe('ReportaBateladaService', () => {
   let service: ReportaBateladaService;
   let session$: BehaviorSubject<unknown>;
   let currentUser: { readonly id: string } | null;
+  let apiPost: ReturnType<typeof vi.fn>;
+  let capture: ReturnType<typeof vi.fn>;
   let deliver: ReturnType<typeof vi.fn>;
   let listLocalRecords: ReturnType<typeof vi.fn>;
   let listOutbox: ReturnType<typeof vi.fn>;
@@ -41,6 +45,22 @@ describe('ReportaBateladaService', () => {
   beforeEach(() => {
     session$ = new BehaviorSubject<unknown>({ user: 'operador' });
     currentUser = null;
+    apiPost = vi.fn((
+      _url: string,
+      body: { readonly ordens: ReadonlyArray<{ readonly id: string }> },
+      idempotencyKey: string,
+    ) => of({
+      serverRecordId: `datasul:batch-start:${idempotencyKey}`,
+      idempotencyKey,
+      receivedAt: '2026-08-18T12:00:01.000Z',
+      processedAt: '2026-08-18T12:00:01.000Z',
+      duplicate: false,
+      orderResults: body.ordens.map(ordem => ({
+        orderId: ordem.id,
+        success: true,
+        serverRecordId: `datasul:order:${ordem.id}`,
+      })),
+    }));
     deliver = vi.fn().mockImplementation(async (localId: string) => localId.startsWith('idem-')
       ? {
         status: 'SYNCED',
@@ -71,9 +91,27 @@ describe('ReportaBateladaService', () => {
     };
 
     const captured = new Map<string, { readonly fingerprint: string; readonly result: object }>();
+    capture = vi.fn(async (request: { idempotencyKey?: string; payload?: unknown }) => {
+      const idempotencyKey = request.idempotencyKey ?? globalThis.crypto.randomUUID();
+      const fingerprint = JSON.stringify(request.payload);
+      const prior = captured.get(idempotencyKey);
+      if (prior && prior.fingerprint !== fingerprint) {
+        throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
+      }
+      const result = prior?.result ?? {
+        localId: idempotencyKey,
+        idempotencyKey,
+        payloadHash: 'hash',
+        committedAt: '2026-07-30T12:00:00.000Z',
+        syncStatus: 'PENDING',
+      };
+      captured.set(idempotencyKey, { fingerprint, result });
+      return result;
+    });
     TestBed.configureTestingModule({
       providers: [
         ReportaBateladaService,
+        { provide: AuthenticatedApiService, useValue: { post: apiPost } },
         {
           provide: AuthSessionService,
           useValue: {
@@ -91,26 +129,7 @@ describe('ReportaBateladaService', () => {
         { provide: ImmediateCommandDeliveryService, useValue: { deliver } },
         {
           provide: OperationalCommandFacade,
-          useValue: {
-            capture: vi.fn(async (request: { idempotencyKey?: string; payload?: unknown }) => {
-              const idempotencyKey =
-                request.idempotencyKey ?? globalThis.crypto.randomUUID();
-              const fingerprint = JSON.stringify(request.payload);
-              const prior = captured.get(idempotencyKey);
-              if (prior && prior.fingerprint !== fingerprint) {
-                throw new Error('A chave de idempotência já foi usada com outro conteúdo.');
-              }
-              const result = prior?.result ?? {
-                localId: idempotencyKey,
-                idempotencyKey,
-                payloadHash: 'hash',
-                committedAt: '2026-07-30T12:00:00.000Z',
-                syncStatus: 'PENDING',
-              };
-              captured.set(idempotencyKey, { fingerprint, result });
-              return result;
-            }),
-          },
+          useValue: { capture },
         },
       ],
     });
@@ -191,90 +210,66 @@ describe('ReportaBateladaService', () => {
     )).toThrowError('A batelada deve conter ordens únicas.');
   });
 
-  it('starts the complete batch atomically and returns a defensive timestamp', async () => {
-    currentUser = { id: 'operator-1' };
+  it('starts the complete batch directly without creating an Outbox command', async () => {
     const request = service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       responsavel(),
       [order('1'), order('2')],
     );
+    apiPost.mockReturnValueOnce(of({
+      serverRecordId: 'datasul:batch-start:1',
+      idempotencyKey: request.idempotencyKey,
+      receivedAt: '2026-08-18T12:00:01.000Z',
+      processedAt: '2026-08-18T12:00:02.000Z',
+      duplicate: false,
+      orderResults: [
+        { orderId: '1', success: true, serverRecordId: 'datasul:order:1' },
+        { orderId: '2', success: true, serverRecordId: 'datasul:order:2' },
+      ],
+    }));
 
     const result = await firstValueFrom(service.iniciarBatelada(request));
 
-    expect(result.batchId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
+    expect(result.batchId).toBe(request.batchId);
     expect(result.ordensIniciadas).toEqual(['1', '2']);
     expect(result.iniciadoEm).toBeInstanceOf(Date);
-    expect(result.delivery).toEqual({ status: 'PENDING' });
-    expect(deliver).toHaveBeenCalledWith(result.startCommandId);
-    expect(getOutbox).toHaveBeenCalledWith('operator-1', result.startCommandId);
-  });
-
-  it.each([
-    ['SYNCED', {
-      status: 'SYNCED' as const,
+    expect(result.delivery).toEqual({
+      status: 'SYNCED',
       receipt: {
-        serverRecordId: 'datasul:batch:1',
+        serverRecordId: 'datasul:batch-start:1',
         receivedAt: '2026-08-18T12:00:01.000Z',
-        processedAt: '2026-08-18T12:00:01.000Z',
+        processedAt: '2026-08-18T12:00:02.000Z',
         duplicate: false,
+        orderResults: [
+          { orderId: '1', success: true, serverRecordId: 'datasul:order:1' },
+          { orderId: '2', success: true, serverRecordId: 'datasul:order:2' },
+        ],
       },
-    }],
-    ['ERROR', {
-      status: 'ERROR' as const,
-      error: {
-        code: 'DATASUL_COMMAND_REJECTED',
-        category: 'VALIDATION' as const,
-        userMessage: 'A ordem já está iniciada.',
-      },
-    }],
-  ])('anexa o resultado imediato %s ao início capturado', async (_status, delivery) => {
-    currentUser = { id: 'operator-1' };
-    deliver.mockResolvedValueOnce(delivery);
-    const request = service.montarComandoInicio(
-      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
-      responsavel(),
-      [order('1'), order('2')],
-    );
-
-    await expect(firstValueFrom(service.iniciarBatelada(request))).resolves.toEqual(
-      expect.objectContaining({ delivery }),
-    );
+    });
+    expect(apiPost).toHaveBeenCalledWith('/api/batches/start', {
+      batchId: request.batchId,
+      contexto: request.contexto,
+      responsavel: request.responsavel,
+      ordens: request.ordens,
+      iniciadoEm: request.occurredAt,
+      dataInicio: request.dataInicio,
+      horaInicio: request.horaInicio,
+    }, request.idempotencyKey);
+    expect(capture).not.toHaveBeenCalled();
+    expect(deliver).not.toHaveBeenCalled();
+    expect(getOutbox).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['BLOCKED_AUTH', {
-      code: 'SESSION_REQUIRED',
-      category: 'AUTH',
-      userMessage: 'A sessão precisa ser renovada para continuar a sincronização.',
-    }],
-    ['BLOCKED_DEPENDENCY', {
-      code: 'DEPENDENCY_BLOCKED',
-      category: 'CONFIGURATION',
-      userMessage: 'O início depende de outro comando.',
-    }],
-  ])('não chama %s de indisponibilidade pendente', async (status, lastError) => {
-    currentUser = { id: 'operator-1' };
-    getOutbox.mockResolvedValueOnce({ status, lastError });
-    const request = service.montarComandoInicio(
-      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
-      responsavel(),
-      [order('1'), order('2')],
-    );
-
-    await expect(firstValueFrom(service.iniciarBatelada(request))).resolves.toEqual(
-      expect.objectContaining({ delivery: { status: 'ERROR', error: lastError } }),
-    );
-  });
-
-  it.each([
-    ['entrada ausente', null],
-    ['SYNCED sem receipt', { status: 'SYNCED' }],
-    ['PENDING sem tentativa transitória', { status: 'PENDING' }],
-  ])('não mascara %s como falha de conexão', async (_scenario, entry) => {
-    currentUser = { id: 'operator-1' };
-    getOutbox.mockResolvedValueOnce(entry);
+  it('returns a direct Datasul rejection without enqueueing the batch start', async () => {
+    const remoteError = {
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION' as const,
+      userMessage: 'A ordem já está iniciada.',
+    };
+    apiPost.mockReturnValueOnce(throwError(() => new HttpErrorResponse({
+      status: 422,
+      error: remoteError,
+    })));
     const request = service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       responsavel(),
@@ -283,10 +278,10 @@ describe('ReportaBateladaService', () => {
 
     const result = await firstValueFrom(service.iniciarBatelada(request));
 
-    expect(result.delivery).toEqual(expect.objectContaining({ status: 'ERROR' }));
-    if (result.delivery.status === 'ERROR') {
-      expect(result.delivery.error.category).toBe('CONFIGURATION');
-    }
+    expect(result.delivery).toEqual({ status: 'ERROR', error: remoteError });
+    expect(capture).not.toHaveBeenCalled();
+    expect(deliver).not.toHaveBeenCalled();
+    expect(getOutbox).not.toHaveBeenCalled();
   });
 
   it.each([

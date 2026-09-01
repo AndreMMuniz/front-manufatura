@@ -1,11 +1,18 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 
-import { Observable, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
+import { Observable, catchError, defer, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
 import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
-import type { OutboxEntry } from '../../../core/offline/models/outbox-entry';
+import type {
+  OutboxEntry,
+  PersistedSyncError,
+  RemoteCommandReceipt,
+} from '../../../core/offline/models/outbox-entry';
+import { normalizeCommandError } from '../../../core/offline/models/sync-error';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { IdempotencyService } from '../../../core/offline/services/idempotency.service';
@@ -43,10 +50,22 @@ interface BatchMockRecord {
   encerrada: boolean;
 }
 
+interface DirectBatchStartReceipt extends RemoteCommandReceipt {
+  readonly idempotencyKey: string;
+}
+
+class InvalidDirectBatchStartReceiptError extends Error {
+  constructor() {
+    super('invalid-direct-batch-start-receipt');
+    this.name = 'InvalidDirectBatchStartReceiptError';
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportaBateladaService {
   private readonly reportCatalog = inject(ReportOperacaoService);
   private readonly productionCatalog = inject(ProductionContextCatalogService);
+  private readonly api = inject(AuthenticatedApiService);
   private readonly authSession = inject(AuthSessionService, { optional: true });
   private readonly idempotency = inject(IdempotencyService);
   private readonly commands = inject(OperationalCommandFacade);
@@ -238,41 +257,39 @@ export class ReportaBateladaService {
     if (Number.isNaN(iniciadoEm.getTime())) {
       throw new Error('O instante de início da batelada é inválido.');
     }
-    return from(this.commands.capture({
-      commandType: 'START_BATCH',
-      aggregateId: batchId,
-      businessStatus: 'INICIADA',
-      idempotencyKey,
-      occurredAt: iniciadoEm.toISOString(),
-      payload: {
+    const orderIds = request.ordens.map(ordem => ordem.id);
+    const payload = {
+      batchId,
+      contexto: { ...request.contexto },
+      responsavel: { ...request.responsavel },
+      ordens: request.ordens.map(ordem => ({ ...ordem })),
+      iniciadoEm: iniciadoEm.toISOString(),
+      dataInicio: request.dataInicio,
+      horaInicio: request.horaInicio,
+    };
+    return defer(() => this.api.post<DirectBatchStartReceipt>(
+      '/api/batches/start', payload, idempotencyKey,
+    )).pipe(
+      map(response => {
+        const receipt = this.validateDirectStartReceipt(response, idempotencyKey, orderIds);
+        const inicio: InicioBateladaEntregue = {
+          batchId,
+          iniciadoEm,
+          ordensIniciadas: orderIds,
+          startCommandId: idempotencyKey,
+          delivery: { status: 'SYNCED', receipt },
+        };
+        this.batches.set(batchId, { orderIds: [...orderIds], encerrada: false });
+        this.reportsByBatch.set(batchId, []);
+        return this.cloneInicio(inicio) as InicioBateladaEntregue;
+      }),
+      catchError(error => of(this.cloneInicio({
         batchId,
-        contexto: { ...request.contexto },
-        responsavel: { ...request.responsavel },
-        ordens: request.ordens.map(ordem => ({ ...ordem })),
-        iniciadoEm: iniciadoEm.toISOString(),
-        dataInicio: request.dataInicio,
-        horaInicio: request.horaInicio,
-      },
-    })).pipe(
-      switchMap(confirmation => from(this.deliverStart(confirmation.localId)).pipe(
-        map(delivery => {
-          const inicio: InicioBateladaEntregue = {
-            batchId,
-            iniciadoEm,
-            ordensIniciadas: request.ordens.map(ordem => ordem.id),
-            startCommandId: confirmation.idempotencyKey,
-            delivery,
-          };
-          if (delivery.status !== 'ERROR') {
-            this.batches.set(inicio.batchId, {
-              orderIds: [...inicio.ordensIniciadas],
-              encerrada: false,
-            });
-            this.reportsByBatch.set(inicio.batchId, []);
-          }
-          return this.cloneInicio(inicio) as InicioBateladaEntregue;
-        }),
-      )),
+        iniciadoEm,
+        ordensIniciadas: orderIds,
+        startCommandId: idempotencyKey,
+        delivery: { status: 'ERROR', error: this.directStartError(error) },
+      }) as InicioBateladaEntregue)),
     );
   }
 
@@ -639,6 +656,81 @@ export class ReportaBateladaService {
     };
   }
 
+  private validateDirectStartReceipt(
+    response: DirectBatchStartReceipt,
+    expectedIdempotencyKey: string,
+    expectedOrderIds: ReadonlyArray<string>,
+  ): RemoteCommandReceipt {
+    const results = Array.isArray(response?.orderResults) ? response.orderResults : [];
+    const expected = new Set(expectedOrderIds);
+    const received = new Set(results.map(result => result.orderId));
+    const complete =
+      typeof response?.serverRecordId === 'string' && response.serverRecordId.trim().length > 0
+      && response.idempotencyKey === expectedIdempotencyKey
+      && typeof response.receivedAt === 'string'
+      && !Number.isNaN(Date.parse(response.receivedAt))
+      && typeof response.processedAt === 'string'
+      && !Number.isNaN(Date.parse(response.processedAt))
+      && typeof response.duplicate === 'boolean'
+      && expected.size === expectedOrderIds.length
+      && results.length === expected.size
+      && results.every(result => result.success === true && expected.has(result.orderId))
+      && [...expected].every(orderId => received.has(orderId));
+    if (!complete) throw new InvalidDirectBatchStartReceiptError();
+    return {
+      serverRecordId: response.serverRecordId,
+      receivedAt: response.receivedAt,
+      processedAt: response.processedAt,
+      duplicate: response.duplicate,
+      ...(response.correlationId ? { correlationId: response.correlationId } : {}),
+      orderResults: results.map(result => ({ ...result })),
+    };
+  }
+
+  private directStartError(error: unknown): PersistedSyncError {
+    if (error instanceof InvalidDirectBatchStartReceiptError) {
+      return {
+        code: 'BATCH_START_INVALID_RECEIPT',
+        category: 'CONFIGURATION',
+        userMessage: 'O Datasul respondeu ao início da batelada sem uma confirmação válida.',
+      };
+    }
+    const response = error instanceof HttpErrorResponse ? error : null;
+    const body = response?.error;
+    const publicError = body && typeof body === 'object' && !Array.isArray(body)
+      ? { status: response.status, ...(body as Readonly<Record<string, unknown>>) }
+      : error;
+    const normalized = normalizeCommandError(publicError);
+    const publicBody = body && typeof body === 'object' && !Array.isArray(body)
+      ? body as Readonly<Record<string, unknown>>
+      : null;
+    const hasPublicMessage = typeof publicBody?.['userMessage'] === 'string';
+    const userMessage = hasPublicMessage
+      ? normalized.userMessage
+      : this.directStartDefaultMessage(normalized.category);
+    return {
+      code: normalized.code,
+      category: normalized.category,
+      userMessage,
+      ...(normalized.correlationId ? { correlationId: normalized.correlationId } : {}),
+    };
+  }
+
+  private directStartDefaultMessage(category: PersistedSyncError['category']): string {
+    switch (category) {
+      case 'AUTH':
+        return 'A sessão precisa ser renovada antes de iniciar a batelada.';
+      case 'TRANSIENT':
+        return 'Não foi possível comunicar com o Datasul. Tente iniciar a batelada novamente.';
+      case 'VALIDATION':
+        return 'O Datasul rejeitou os dados enviados para iniciar a batelada.';
+      case 'CONFLICT':
+        return 'O início da batelada conflita com o estado atual das ordens no Datasul.';
+      case 'CONFIGURATION':
+        return 'Não foi possível enviar o início da batelada ao Datasul.';
+    }
+  }
+
   private deliveryResult(
     entry: OutboxEntry | null | undefined,
   ): InicioBateladaEntregue['delivery'] {
@@ -703,20 +795,6 @@ export class ReportaBateladaService {
 
   private cloneDelivery(delivery: InicioBateladaEntregue['delivery']): InicioBateladaEntregue['delivery'] {
     return structuredClone(delivery);
-  }
-
-  private async deliverStart(localId: string): Promise<ImmediateDeliveryResult> {
-    const observed = await this.immediateDelivery.deliver(localId);
-    if (observed.status !== 'PENDING') return observed;
-    const ownerId = this.authSession?.currentUser?.id.trim();
-    if (!ownerId) {
-      return this.deliveryError(
-        'BATCH_START_SESSION_REQUIRED',
-        'AUTH',
-        'A sessão precisa ser renovada antes de iniciar a batelada.',
-      );
-    }
-    return this.deliveryResult(await this.outbox.getById(ownerId, localId));
   }
 
   private async deliverReport(localId: string): Promise<ImmediateDeliveryResult> {
