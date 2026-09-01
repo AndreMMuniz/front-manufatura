@@ -276,7 +276,6 @@ export class ReportaBateladaService {
           batchId,
           iniciadoEm,
           ordensIniciadas: orderIds,
-          startCommandId: idempotencyKey,
           delivery: { status: 'SYNCED', receipt },
         };
         this.batches.set(batchId, { orderIds: [...orderIds], encerrada: false });
@@ -287,7 +286,6 @@ export class ReportaBateladaService {
         batchId,
         iniciadoEm,
         ordensIniciadas: orderIds,
-        startCommandId: idempotencyKey,
         delivery: { status: 'ERROR', error: this.directStartError(error) },
       }) as InicioBateladaEntregue)),
     );

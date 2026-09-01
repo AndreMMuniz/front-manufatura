@@ -233,6 +233,7 @@ describe('ReportaBateladaService', () => {
     expect(result.batchId).toBe(request.batchId);
     expect(result.ordensIniciadas).toEqual(['1', '2']);
     expect(result.iniciadoEm).toBeInstanceOf(Date);
+    expect(result.startCommandId).toBeUndefined();
     expect(result.delivery).toEqual({
       status: 'SYNCED',
       receipt: {
