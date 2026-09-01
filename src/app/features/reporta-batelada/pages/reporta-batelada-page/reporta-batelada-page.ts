@@ -520,7 +520,7 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   sair(): void {
-    this.navigateProtected(['/quality-control']);
+    this.discardProtected(() => this.resetCurrentBatch());
   }
 
   abrirReporte(): void {
@@ -803,26 +803,21 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   private navigateProtected(commands: ReadonlyArray<string>): void {
-    if (!this.started && !this.workflow.hasUnsavedDraft()) {
-      this.invalidateTeamContext();
-      this.workflow.clear();
-      this.syncView();
+    this.discardProtected(() => {
+      this.resetCurrentBatch();
       void this.router.navigate([...commands]);
+    });
+  }
+
+  private discardProtected(action: () => void): void {
+    if (!this.started && !this.workflow.hasUnsavedDraft()) {
+      action();
       return;
     }
     this.dialog.confirm({
       title: 'Sair da batelada?',
       message: 'A batelada está iniciada ou possui alterações não salvas. Deseja sair e descartar o fluxo atual?',
-      confirm: () => {
-        this.invalidateTeamContext();
-        this.historyRequest += 1;
-        this.reportRequest += 1;
-        this.endingRequest += 1;
-        this.startRequest += 1;
-        this.workflow.clear();
-        this.syncView();
-        void this.router.navigate([...commands]);
-      },
+      confirm: action,
       literals: { cancel: 'Cancelar', confirm: 'Sair' },
     });
   }
@@ -844,6 +839,29 @@ export class ReportaBateladaPage implements OnInit {
     this.view = this.workflow.snapshot();
     this.selectedIds = new Set(this.view.selectedOrderIds);
     this.changeDetector.markForCheck();
+  }
+
+  private resetCurrentBatch(): void {
+    this.invalidateTeamContext();
+    this.centersRequest += 1;
+    this.ordersRequest += 1;
+    this.responsaveisRequest += 1;
+    this.historyRequest += 1;
+    this.reportRequest += 1;
+    this.endingRequest += 1;
+    this.startRequest += 1;
+    this.pendingStartCommand = null;
+    this.endIdempotencyKey = null;
+    this.responsaveisRetry = null;
+    this.loadingAreas = false;
+    this.loadingCenters = false;
+    this.loadingResponsaveis = false;
+    this.responsaveisErrorMessage = '';
+    this.areaCode = '';
+    this.areas = [];
+    this.centers = [];
+    this.workflow.clear();
+    this.syncView();
   }
 
   private invalidateTeamContext(): void {

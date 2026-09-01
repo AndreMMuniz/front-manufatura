@@ -636,16 +636,46 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     }));
   });
 
-  it('clears the prepared batch before leaving so other orders can be selected later', () => {
+  it('clears the prepared batch in place so another production context can be selected', () => {
     prepareForStart();
 
     component.sair();
+    fixture.detectChanges();
 
     expect(component.view.estado).toBe('ContextoPendente');
+    expect(component.areaCode).toBe('');
+    expect(component.areas).toEqual([]);
+    expect(component.centers).toEqual([]);
     expect(component.view.selectedOrderIds).toEqual([]);
     expect(component.view.composition).toEqual([]);
     expect(component.selectedIds.size).toBe(0);
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/quality-control']);
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+
+    const contextCard = fixture.debugElement.query(By.directive(ContextoProducaoSelector))
+      .componentInstance as ContextoProducaoSelector;
+    expect(contextCard.disabled).toBe(false);
+    expect(contextCard.areaCode).toBe('');
+    expect(contextCard.workCenterCode).toBe('');
+  });
+
+  it('finishes pending context loading when leaving the current batch', () => {
+    const pending = new Subject<ReadonlyArray<ReturnType<typeof context>['workCenter']>>();
+    component.areas = [
+      { code: '4001', description: 'Produção' },
+      { code: '4002', description: 'Qualidade' },
+    ];
+    serviceMock.pesquisarCentros.mockReturnValueOnce(pending);
+    component.selecionarArea('4002');
+
+    expect(component.loadingCenters).toBe(true);
+
+    component.sair();
+    pending.next([{ ...context().workCenter, areaCode: '4002' }]);
+
+    expect(component.loadingCenters).toBe(false);
+    expect(component.areaCode).toBe('');
+    expect(component.centers).toEqual([]);
+    expect(component.view.estado).toBe('ContextoPendente');
   });
 
   it('protects navigation while the joint start is still pending', () => {
