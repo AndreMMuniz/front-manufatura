@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { PoDialogService } from '@po-ui/ng-components';
+import { By } from '@angular/platform-browser';
+import { PoDialogService, PoPageSlideComponent } from '@po-ui/ng-components';
 import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -10,6 +11,24 @@ import { OrdemLiberadaBatelada, ReporteParcialBatelada } from '../../models/repo
 import { ReporteBateladaSlide } from './reporte-batelada-slide';
 
 describe('ReporteBateladaSlide', () => {
+  it('uses the same small drawer size as the order report', () => {
+    TestBed.configureTestingModule({
+      imports: [ReporteBateladaSlide],
+      providers: [
+        provideNoopAnimations(),
+        { provide: PoDialogService, useValue: { confirm: vi.fn() } },
+        { provide: MotivoRefugoService, useValue: { buscarMotivos: () => of([]) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ReporteBateladaSlide);
+    fixture.detectChanges();
+
+    const pageSlide = fixture.debugElement.query(By.directive(PoPageSlideComponent))
+      .componentInstance as PoPageSlideComponent;
+
+    expect(pageSlide.size).toBe('sm');
+  });
+
   it('sums only approved and scrap quantities in the displayed total', () => {
     const { component } = createComponent();
     component.abrir(orders(), [], null);

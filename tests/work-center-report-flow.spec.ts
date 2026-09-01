@@ -18,9 +18,10 @@ async function login(page: import('@playwright/test').Page, returnUrl = '/menu')
 }
 
 async function selectProductionContext(page: import('@playwright/test').Page) {
-  const area = page.getByRole('combobox', { name: 'Área de Produção' });
+  const area = page.getByRole('textbox', { name: 'Área de Produção' });
   await expect(area).toBeEnabled();
-  await area.selectOption('4001');
+  await area.fill('4001');
+  await area.blur();
 
   const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
   await expect(center).toBeEnabled();
@@ -449,10 +450,10 @@ test.describe('fluxo de Reporte Batelada', () => {
 
     const drawerContainer = drawer.locator('.po-page-slide-container');
     await page.setViewportSize({ width: 800, height: 800 });
-    await expect(drawerContainer).toHaveCSS('width', '640px');
+    await expect(drawerContainer).toHaveCSS('width', '320px');
 
     await page.setViewportSize({ width: 480, height: 800 });
-    await expect(drawerContainer).toHaveCSS('width', '480px');
+    await expect(drawerContainer).toHaveCSS('width', '192px');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();
     await page.setViewportSize({ width: 1024, height: 768 });
