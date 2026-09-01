@@ -114,6 +114,9 @@ export function normalizeCommandError(error: unknown): NormalizedSyncError {
   }
 
   const record = asRecord(error);
+  if (record?.['status'] === 0) {
+    return safeError('NETWORK', 'TRANSIENT');
+  }
   const explicitCategory = apiCategory(record?.['category']);
   const status = httpStatus(record?.['status']);
   const category = explicitCategory ?? categoryForStatus(status);

@@ -320,6 +320,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
         iniciadoEm: new Date(inicio.iniciadoEm),
         ordensIniciadas: [...inicio.ordensIniciadas],
         ...(inicio.startCommandId ? { startCommandId: inicio.startCommandId } : {}),
+        ...(inicio.delivery ? { delivery: { ...inicio.delivery } } : {}),
       },
     }));
   }
@@ -668,6 +669,9 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
             ordensIniciadas: [...snapshot.inicio.ordensIniciadas],
             ...(snapshot.inicio.startCommandId
               ? { startCommandId: snapshot.inicio.startCommandId }
+              : {}),
+            ...(snapshot.inicio.delivery
+              ? { delivery: { ...snapshot.inicio.delivery } }
               : {}),
           }
         : null,

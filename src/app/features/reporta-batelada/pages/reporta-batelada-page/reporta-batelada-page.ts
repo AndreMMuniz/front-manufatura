@@ -466,10 +466,23 @@ export class ReportaBateladaPage implements OnInit {
         if (startRequest !== this.startRequest || !this.sessionActive) {
           return;
         }
+        if (inicio.delivery.status === 'ERROR') {
+          const message = inicio.delivery.error.userMessage;
+          this.workflow.failStart(message);
+          this.pendingStartCommand = null;
+          this.endIdempotencyKey = null;
+          this.notification.error(message);
+          this.syncView();
+          return;
+        }
         this.workflow.completeStart(inicio);
         this.pendingStartCommand = null;
         this.endIdempotencyKey = null;
-        this.notification.success('Salvo neste dispositivo — envio pendente.');
+        if (inicio.delivery.status === 'SYNCED') {
+          this.notification.success('Batelada iniciada no Datasul.');
+        } else {
+          this.notification.warning('Datasul indisponível — início salvo como pendente.');
+        }
         this.syncView();
       },
       error: () => {

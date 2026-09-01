@@ -1,3 +1,5 @@
+import { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
+
 export enum EstadoBatelada {
   ContextoPendente = 'ContextoPendente',
   ConsultandoOrdens = 'ConsultandoOrdens',
@@ -41,7 +43,12 @@ export interface InicioBatelada {
   readonly iniciadoEm: Date;
   readonly ordensIniciadas: ReadonlyArray<string>;
   readonly startCommandId?: string;
+  readonly delivery?: ImmediateDeliveryResult;
 }
+
+export type InicioBateladaEntregue = InicioBatelada & {
+  readonly delivery: ImmediateDeliveryResult;
+};
 
 export interface MotivoRefugoBatelada {
   readonly motivoCode: string;

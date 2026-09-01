@@ -3,8 +3,11 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { IdempotencyService } from '../../../core/offline/services/idempotency.service';
+import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
 import { AreaProducao } from '../../shop-floor/models/production-area';
@@ -23,6 +26,7 @@ import {
   ContextoBatelada,
   EncerramentoBatelada,
   InicioBatelada,
+  InicioBateladaEntregue,
   ItemReporteBatelada,
   OrdemLiberadaBatelada,
   ReporteParcialBatelada,
@@ -43,7 +47,9 @@ export class ReportaBateladaService {
   private readonly authSession = inject(AuthSessionService, { optional: true });
   private readonly idempotency = inject(IdempotencyService);
   private readonly commands = inject(OperationalCommandFacade);
+  private readonly immediateDelivery = inject(ImmediateCommandDeliveryService);
   private readonly localRecords = inject(LocalRecordRepository);
+  private readonly outbox = inject(OutboxRepository);
   private readonly batches = new Map<string, BatchMockRecord>();
   private readonly reportsByBatch = new Map<string, ReadonlyArray<ReporteParcialBatelada>>();
   private stoppedWorkflow: ReportaBateladaWorkflowSnapshot | null = null;
@@ -73,13 +79,31 @@ export class ReportaBateladaService {
   restaurarBateladaAtiva(): Observable<ReportaBateladaWorkflowSnapshot | null> {
     const ownerId = this.authSession?.currentUser?.id.trim();
     if (!ownerId) return of(null);
-    return from(this.localRecords.listByOwner(ownerId)).pipe(
-      switchMap(records => {
-        const starts = [...records]
-          .filter(record => record.commandType === 'START_BATCH')
+    return from(Promise.all([
+      this.localRecords.listByOwner(ownerId),
+      this.outbox.listByOwner(ownerId),
+    ])).pipe(
+      switchMap(([records, outboxEntries]) => {
+        const outboxById = new Map(
+          outboxEntries
+            .filter(entry => entry.ownerId === ownerId)
+            .map(entry => [entry.localId, entry] as const),
+        );
+        const activeRecords = records.filter(record => {
+          if (
+            record.ownerId !== ownerId
+            || deliveryDispositionOf(record.deliveryDisposition) !== 'ACTIVE'
+          ) return false;
+          const entry = outboxById.get(record.localId);
+          return !entry || deliveryDispositionOf(entry.deliveryDisposition) === 'ACTIVE';
+        });
+        const starts = [...activeRecords]
+          .filter(record =>
+            record.commandType === 'START_BATCH'
+            && outboxById.get(record.localId)?.status !== 'ERROR')
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
         const start = starts.find(candidate =>
-          !records.some(record => record.aggregateId === candidate.aggregateId && (
+          !activeRecords.some(record => record.aggregateId === candidate.aggregateId && (
             record.commandType === 'END_BATCH'
             || (record.commandType === 'REPORT_BATCH'
               && (record.payload as Record<string, unknown>)['finalizarSplit'] === true)
@@ -110,6 +134,7 @@ export class ReportaBateladaService {
             iniciadoEm: new Date(start.occurredAt),
             ordensIniciadas: ordens.map(ordem => ordem.id),
             startCommandId: start.idempotencyKey,
+            delivery: this.deliveryResult(outboxById.get(start.localId)),
           };
           return {
             area,
@@ -202,7 +227,7 @@ export class ReportaBateladaService {
     };
   }
 
-  iniciarBatelada(request: IniciarBateladaRequest): Observable<InicioBatelada> {
+  iniciarBatelada(request: IniciarBateladaRequest): Observable<InicioBateladaEntregue> {
     const batchId = this.idempotency.resolve(request.batchId);
     const idempotencyKey = this.idempotency.resolve(request.idempotencyKey);
     const iniciadoEm = request.occurredAt
@@ -227,20 +252,25 @@ export class ReportaBateladaService {
         horaInicio: request.horaInicio,
       },
     })).pipe(
-      map(confirmation => {
-        const inicio: InicioBatelada = {
-          batchId,
-          iniciadoEm,
-          ordensIniciadas: request.ordens.map(ordem => ordem.id),
-          startCommandId: confirmation.idempotencyKey,
-        };
-        this.batches.set(inicio.batchId, {
-          orderIds: [...inicio.ordensIniciadas],
-          encerrada: false,
-        });
-        this.reportsByBatch.set(inicio.batchId, []);
-        return this.cloneInicio(inicio);
-      }),
+      switchMap(confirmation => from(this.immediateDelivery.deliver(confirmation.localId)).pipe(
+        map(delivery => {
+          const inicio: InicioBateladaEntregue = {
+            batchId,
+            iniciadoEm,
+            ordensIniciadas: request.ordens.map(ordem => ordem.id),
+            startCommandId: confirmation.idempotencyKey,
+            delivery,
+          };
+          if (delivery.status !== 'ERROR') {
+            this.batches.set(inicio.batchId, {
+              orderIds: [...inicio.ordensIniciadas],
+              encerrada: false,
+            });
+            this.reportsByBatch.set(inicio.batchId, []);
+          }
+          return this.cloneInicio(inicio) as InicioBateladaEntregue;
+        }),
+      )),
     );
   }
 
@@ -594,7 +624,27 @@ export class ReportaBateladaService {
       iniciadoEm: new Date(inicio.iniciadoEm),
       ordensIniciadas: [...inicio.ordensIniciadas],
       ...(inicio.startCommandId ? { startCommandId: inicio.startCommandId } : {}),
+      ...(inicio.delivery ? { delivery: this.cloneDelivery(inicio.delivery) } : {}),
     };
+  }
+
+  private deliveryResult(
+    entry: Awaited<ReturnType<OutboxRepository['listByOwner']>>[number] | undefined,
+  ): InicioBateladaEntregue['delivery'] {
+    if (entry?.status === 'SYNCED' && entry.receipt) {
+      return { status: 'SYNCED', receipt: { ...entry.receipt } };
+    }
+    return { status: 'PENDING' };
+  }
+
+  private cloneDelivery(delivery: InicioBateladaEntregue['delivery']): InicioBateladaEntregue['delivery'] {
+    if (delivery.status === 'SYNCED') {
+      return { status: 'SYNCED', receipt: { ...delivery.receipt } };
+    }
+    if (delivery.status === 'ERROR') {
+      return { status: 'ERROR', error: { ...delivery.error } };
+    }
+    return { status: 'PENDING' };
   }
 
   private cloneItems(

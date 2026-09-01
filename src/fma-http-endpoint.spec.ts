@@ -67,6 +67,27 @@ function response(dataset: string, rows: unknown[]): Response {
   });
 }
 
+async function postBatchStart(root: string, idempotencyKey: string): Promise<Response> {
+  return fetch(`${root}/api/batches/start`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${await token([APP_PERMISSIONS.batchReporting])}`,
+      'content-type': 'application/json',
+      'idempotency-key': idempotencyKey,
+    },
+    body: JSON.stringify({
+      contexto: { areaCode: '4114', workCenterCode: 'DOBR-01-01' },
+      responsavel: { tipo: 'OPERADOR', codigo: '00016570' },
+      dataInicio: '2026-08-14',
+      horaInicio: '09:35',
+      ordens: [
+        { id: '372569|ITEM|20|1', ordem: '372569', operacao: '20', split: '1' },
+        { id: '372570|ITEM|20|1', ordem: '372570', operacao: '20', split: '1' },
+      ],
+    }),
+  });
+}
+
 describe('gateway FMA', () => {
   it('não inventa um catálogo de Áreas sem endpoint correspondente no FMA', async () => {
     const transport = vi.fn<typeof fetch>();
@@ -427,6 +448,60 @@ describe('gateway FMA', () => {
     expect(reportReceipt.orderResults).toHaveLength(2);
     expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciarordembatelada');
     expect(String(transport.mock.calls[1][0])).toContain('/api/fma/v1/reporteordembatelada');
+  });
+
+  it('preserva a mensagem de rejeição do Datasul em HTTP não-2xx ao iniciar batelada', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      type: 'error',
+      message: 'A ordem 372569 já está iniciada.',
+      details: [],
+    }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+
+    const result = await postBatchStart(root, 'batch-rejected-http');
+
+    expect(result.status).toBe(500);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'A ordem 372569 já está iniciada.',
+    });
+  });
+
+  it('trata envelope de erro em HTTP 2xx como rejeição terminal ao iniciar batelada', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      type: 'error',
+      detailedMessage: 'O centro de trabalho não permite iniciar esta ordem.',
+      details: [],
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+
+    const result = await postBatchStart(root, 'batch-rejected-envelope');
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'O centro de trabalho não permite iniciar esta ordem.',
+    });
+  });
+
+  it('devolve fallback terminal quando o Datasul respondeu sem mensagem segura', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      type: 'error',
+      message: 'Falha interna com token=segredo-que-nao-pode-sair.',
+      details: [],
+    }), { status: 503, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+
+    const result = await postBatchStart(root, 'batch-rejected-without-message');
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_BATCH_START_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'O Datasul rejeitou o início da batelada sem informar o motivo. Verifique as ordens antes de tentar novamente.',
+    });
   });
 
   it('classifica parada aberta, retroativa e finalização posterior', async () => {

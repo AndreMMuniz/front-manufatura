@@ -3,6 +3,9 @@ import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
+import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
+import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
+import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { ReportOperacaoService } from '../../report-operacao/services/report-operacao.service';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
@@ -23,6 +26,10 @@ import { ReportaBateladaService } from './reporta-batelada.service';
 describe('ReportaBateladaService', () => {
   let service: ReportaBateladaService;
   let session$: BehaviorSubject<unknown>;
+  let currentUser: { readonly id: string } | null;
+  let deliver: ReturnType<typeof vi.fn>;
+  let listLocalRecords: ReturnType<typeof vi.fn>;
+  let listOutbox: ReturnType<typeof vi.fn>;
   let catalogMock: {
     listarAreas: ReturnType<typeof vi.fn>;
     pesquisarCentros: ReturnType<typeof vi.fn>;
@@ -32,6 +39,10 @@ describe('ReportaBateladaService', () => {
 
   beforeEach(() => {
     session$ = new BehaviorSubject<unknown>({ user: 'operador' });
+    currentUser = null;
+    deliver = vi.fn().mockResolvedValue({ status: 'PENDING' });
+    listLocalRecords = vi.fn().mockResolvedValue([]);
+    listOutbox = vi.fn().mockResolvedValue([]);
     catalogMock = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([workCenter()])),
@@ -43,9 +54,18 @@ describe('ReportaBateladaService', () => {
     TestBed.configureTestingModule({
       providers: [
         ReportaBateladaService,
-        { provide: AuthSessionService, useValue: { session$ } },
+        {
+          provide: AuthSessionService,
+          useValue: {
+            session$,
+            get currentUser() { return currentUser; },
+          },
+        },
         { provide: ReportOperacaoService, useValue: catalogMock },
         { provide: ProductionContextCatalogService, useValue: catalogMock },
+        { provide: LocalRecordRepository, useValue: { listByOwner: listLocalRecords } },
+        { provide: OutboxRepository, useValue: { listByOwner: listOutbox } },
+        { provide: ImmediateCommandDeliveryService, useValue: { deliver } },
         {
           provide: OperationalCommandFacade,
           useValue: {
@@ -162,6 +182,59 @@ describe('ReportaBateladaService', () => {
     );
     expect(result.ordensIniciadas).toEqual(['1', '2']);
     expect(result.iniciadoEm).toBeInstanceOf(Date);
+    expect(result.delivery).toEqual({ status: 'PENDING' });
+    expect(deliver).toHaveBeenCalledWith(result.startCommandId);
+  });
+
+  it.each([
+    ['SYNCED', {
+      status: 'SYNCED' as const,
+      receipt: {
+        serverRecordId: 'datasul:batch:1',
+        receivedAt: '2026-08-18T12:00:01.000Z',
+        processedAt: '2026-08-18T12:00:01.000Z',
+        duplicate: false,
+      },
+    }],
+    ['ERROR', {
+      status: 'ERROR' as const,
+      error: {
+        code: 'DATASUL_COMMAND_REJECTED',
+        category: 'VALIDATION' as const,
+        userMessage: 'A ordem já está iniciada.',
+      },
+    }],
+  ])('anexa o resultado imediato %s ao início capturado', async (_status, delivery) => {
+    deliver.mockResolvedValueOnce(delivery);
+    const request = service.montarComandoInicio(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      responsavel(),
+      [order('1'), order('2')],
+    );
+
+    await expect(firstValueFrom(service.iniciarBatelada(request))).resolves.toEqual(
+      expect.objectContaining({ delivery }),
+    );
+  });
+
+  it.each([
+    ['status ERROR', { status: 'ERROR' }],
+    ['disposição REJECTED', { status: 'PENDING', deliveryDisposition: 'REJECTED' }],
+  ])('não restaura um START_BATCH com %s', async (_scenario, outboxState) => {
+    currentUser = { id: 'operator-1' };
+    const start = persistedBatchStart();
+    listLocalRecords.mockResolvedValue([start]);
+    listOutbox.mockResolvedValue([{
+      ...persistedBatchOutbox(start),
+      ...outboxState,
+      lastError: {
+        code: 'DATASUL_COMMAND_REJECTED',
+        category: 'VALIDATION',
+        userMessage: 'A ordem já está iniciada.',
+      },
+    }]);
+
+    await expect(firstValueFrom(service.restaurarBateladaAtiva())).resolves.toBeNull();
   });
 
   it.each([
@@ -511,6 +584,44 @@ function order(id: string): OrdemLiberadaBatelada {
 
 function responsavel(): ResponsavelBatelada {
   return { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' };
+}
+
+function persistedBatchStart() {
+  const payload = {
+    batchId: 'batch-rejected',
+    contexto: { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+    responsavel: responsavel(),
+    ordens: [order('1'), order('2')],
+    iniciadoEm: '2026-08-18T12:00:00.000Z',
+    dataInicio: '2026-08-18',
+    horaInicio: '09:00',
+  };
+  return {
+    localId: 'start-rejected',
+    idempotencyKey: 'start-rejected',
+    databaseVersion: 1,
+    payloadSchemaVersion: 1,
+    aggregateType: 'BATCH',
+    aggregateId: 'batch-rejected',
+    commandType: 'START_BATCH',
+    payload,
+    canonicalPayload: JSON.stringify(payload),
+    payloadHash: 'hash',
+    ownerId: 'operator-1',
+    businessStatus: 'INICIADA',
+    dependencyIds: [],
+    occurredAt: '2026-08-18T12:00:00.000Z',
+    createdAt: '2026-08-18T12:00:00.000Z',
+    updatedAt: '2026-08-18T12:00:00.000Z',
+  };
+}
+
+function persistedBatchOutbox(start: ReturnType<typeof persistedBatchStart>) {
+  return {
+    ...start,
+    status: 'PENDING',
+    attemptCount: 0,
+  };
 }
 
 const _areaTypeCheck: AreaProducaoBatelada = { code: '4001', description: 'Produção' };

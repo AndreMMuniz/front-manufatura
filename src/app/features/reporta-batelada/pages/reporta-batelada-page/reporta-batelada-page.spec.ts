@@ -79,6 +79,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
         batchId: 'batch-1',
         iniciadoEm: new Date(2026, 6, 23, 8, 15),
         ordensIniciadas: ['2', '1'],
+        delivery: { status: 'PENDING' as const },
       })),
       listarReportesBatelada: vi.fn(() => of([])),
       reportarBateladaParcial: vi.fn(request => of({
@@ -243,6 +244,65 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(serviceMock.iniciarBatelada).toHaveBeenCalledOnce();
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.inicio?.ordensIniciadas).toEqual(['2', '1']);
+    expect(notificationMock.warning).toHaveBeenCalledWith(
+      'Datasul indisponível — início salvo como pendente.',
+    );
+  });
+
+  it('confirma o início somente quando a entrega foi sincronizada', () => {
+    serviceMock.iniciarBatelada.mockReturnValueOnce(of({
+      batchId: 'batch-1',
+      iniciadoEm: new Date(2026, 6, 23, 8, 15),
+      ordensIniciadas: ['2', '1'],
+      delivery: {
+        status: 'SYNCED',
+        receipt: {
+          serverRecordId: 'datasul:batch:1',
+          receivedAt: '2026-07-23T11:15:01.000Z',
+          processedAt: '2026-07-23T11:15:01.000Z',
+          duplicate: false,
+        },
+      },
+    }));
+    prepareForStart();
+
+    component.iniciarBatelada();
+
+    expect(component.view.estado).toBe('BateladaIniciada');
+    expect(notificationMock.success).toHaveBeenCalledWith('Batelada iniciada no Datasul.');
+    expect(notificationMock.warning).not.toHaveBeenCalled();
+  });
+
+  it('mostra a rejeição do Datasul, mantém a composição editável e descarta a identidade rejeitada', () => {
+    const remoteMessage = 'A ordem 450002 já está iniciada em outro centro de trabalho.';
+    serviceMock.iniciarBatelada.mockReturnValueOnce(of({
+      batchId: 'batch-rejected',
+      iniciadoEm: new Date(2026, 6, 23, 8, 15),
+      ordensIniciadas: ['2', '1'],
+      delivery: {
+        status: 'ERROR',
+        error: {
+          code: 'DATASUL_COMMAND_REJECTED',
+          category: 'VALIDATION',
+          userMessage: remoteMessage,
+        },
+      },
+    }));
+    prepareForStart();
+
+    component.iniciarBatelada();
+
+    expect(component.view.estado).toBe('BateladaPreparada');
+    expect(component.view.batchId).toBeNull();
+    expect(component.view.composition.map(order => order.id)).toEqual(['2', '1']);
+    expect(component.view.responsavel?.codigo).toBe('OP-001');
+    expect(component.view.errorMessage).toBe(remoteMessage);
+    expect(notificationMock.error).toHaveBeenCalledWith(remoteMessage);
+    expect(notificationMock.success).not.toHaveBeenCalled();
+    expect(notificationMock.warning).not.toHaveBeenCalled();
+
+    component.iniciarBatelada();
+    expect(serviceMock.montarComandoInicio).toHaveBeenCalledTimes(2);
   });
 
   it('prevents duplicate start commands from double click', () => {

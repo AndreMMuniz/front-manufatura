@@ -7,6 +7,7 @@ import {
   CreateStopSyncHandler,
   EndOperationSyncHandler,
   FinishStopSyncHandler,
+  StartBatchSyncHandler,
   StartOperationSyncHandler,
 } from './fma-sync.handlers';
 
@@ -77,6 +78,31 @@ describe('FMA sync handlers', () => {
       category: 'CONFLICT',
       userMessage: 'Já existe reporte neste intervalo de data e hora.',
     });
+  });
+
+  it('preserva o envelope público de rejeição ao iniciar uma batelada', async () => {
+    const post = vi.fn().mockReturnValue(throwError(() => ({
+      status: 422,
+      error: {
+        code: 'DATASUL_COMMAND_REJECTED',
+        category: 'VALIDATION',
+        userMessage: 'A ordem 372569 já está iniciada.',
+      },
+    })));
+    const handler = new StartBatchSyncHandler(
+      { post } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+
+    await expect(
+      handler.send(command('START_BATCH', {}), new AbortController().signal),
+    ).rejects.toEqual({
+      status: 422,
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'A ordem 372569 já está iniciada.',
+    });
+    expect(post).toHaveBeenCalledWith('/api/batches/start', {}, expect.any(Object));
   });
 });
 

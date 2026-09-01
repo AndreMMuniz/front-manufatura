@@ -35,6 +35,7 @@ describe('sync retry policy', () => {
 
   it.each([
     [new TypeError('Failed to fetch payload secreto'), 'NETWORK', 'TRANSIENT'],
+    [{ status: 0 }, 'NETWORK', 'TRANSIENT'],
     [new SyncTimeoutError(), 'TIMEOUT', 'TRANSIENT'],
     [{ status: 408 }, 'HTTP_408', 'TRANSIENT'],
     [{ status: 429, retryAfterSeconds: 12 }, 'HTTP_429', 'TRANSIENT'],

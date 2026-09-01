@@ -1021,14 +1021,23 @@ function commandBusinessError(
   const knownError = stopBusinessError(value, route);
   if (knownError) return knownError;
   const reason = datasulMessages(value).at(-1);
-  return reason
-    ? new FmaPublicCommandError(
-        status,
-        'DATASUL_COMMAND_REJECTED',
-        'VALIDATION',
-        reason,
-      )
-    : undefined;
+  if (reason) {
+    return new FmaPublicCommandError(
+      status,
+      'DATASUL_COMMAND_REJECTED',
+      'VALIDATION',
+      reason,
+    );
+  }
+  if (route === '/api/fma/v1/iniciarordembatelada') {
+    return new FmaPublicCommandError(
+      422,
+      'DATASUL_BATCH_START_REJECTED',
+      'VALIDATION',
+      'O Datasul rejeitou o início da batelada sem informar o motivo. Verifique as ordens antes de tentar novamente.',
+    );
+  }
+  return undefined;
 }
 
 function datasulMessages(value: unknown): string[] {
@@ -1043,7 +1052,12 @@ function datasulMessages(value: unknown): string[] {
     })
     .filter((message): message is string => typeof message === 'string')
     .map(message => message.replace(/[\u0000-\u001f\u007f]/gu, ' ').trim().slice(0, 240))
-    .filter(Boolean);
+    .filter(message => Boolean(message) && !containsSensitiveData(message));
+}
+
+function containsSensitiveData(message: string): boolean {
+  return /\b(password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha))\b/iu
+    .test(message);
 }
 
 function normalizedBusinessMessage(message: string): string {
