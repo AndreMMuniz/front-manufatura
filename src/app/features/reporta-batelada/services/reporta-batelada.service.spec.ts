@@ -213,7 +213,7 @@ describe('ReportaBateladaService', () => {
       .toThrowError('As quantidades devem ser números finitos e não negativos.');
   });
 
-  it('requires a globally positive quantity and one reason for each affected order', () => {
+  it('requires a globally positive quantity and one reason for each order with scrap', () => {
     const base = reportRequest();
     const zero = {
       ...base,
@@ -239,7 +239,40 @@ describe('ReportaBateladaService', () => {
       },
     });
     expect(() => service.validarReporteParcial(wrongScrap))
-      .toThrowError('Informe exatamente um motivo de refugo ou retrabalho para a ordem 450001.');
+      .toThrowError('Informe um motivo de refugo para a ordem 450001.');
+  });
+
+  it('allows rework without a scrap reason', () => {
+    const request = reportRequest({
+      first: {
+        quantidadeAprovada: 0,
+        quantidadeRetrabalho: 2,
+        quantidadeRefugo: 0,
+        refugoItens: [],
+      },
+    });
+    const reworkOnly = {
+      ...request,
+      items: request.items.map(item => ({
+        ...item,
+        refugoItens: [],
+      })),
+    };
+
+    expect(() => service.validarReporteParcial(reworkOnly)).not.toThrow();
+  });
+
+  it('requires the single reason quantity to equal the order scrap quantity', () => {
+    const request = reportRequest({
+      first: {
+        quantidadeRefugo: 2,
+        refugoItens: [{ motivoCode: 'R01', descricao: 'Apara', quantidade: 1 }],
+      },
+    });
+
+    expect(() => service.validarReporteParcial(request)).toThrowError(
+      'A quantidade do motivo deve ser igual à quantidade de refugo da ordem 450001.',
+    );
   });
 
   it('rejects an empty idempotency key and aggregate overflow', () => {
@@ -512,7 +545,7 @@ function reportRequest(options: {
         quantidadeAprovada: 8.25,
         quantidadeRetrabalho: 0.5,
         quantidadeRefugo: 0,
-        refugoItens: [{ motivoCode: 'R01', descricao: 'Retrabalho', quantidade: 0.5 }],
+        refugoItens: [],
       },
     ],
   };

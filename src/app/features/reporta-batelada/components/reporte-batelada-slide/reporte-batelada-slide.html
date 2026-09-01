@@ -37,57 +37,15 @@
             ></po-number>
           </div>
 
-          <po-button
-            p-label="Editar Motivo do Retrabalho/Ordem"
-            p-kind="secondary"
-            [p-disabled]="salvando"
-            (p-click)="editarRefugo(item.orderId)"
-          ></po-button>
-
-          @if (editingOrderId === item.orderId) {
-            <div class="batch-report__reason-editor">
-              <po-select
-                [name]="'motivo-' + item.orderId"
-                p-label="Motivo do Retrabalho/Refugo"
-                [p-options]="motivoOptions"
-                [p-disabled]="salvando"
-                [ngModel]="motivoCodigo"
-                (ngModelChange)="atualizarMotivo($event)"
-              ></po-select>
-              <po-number
-                [name]="'quantidade-motivo-' + item.orderId"
-                [p-label]="'Quantidade do motivo — Ordem ' + item.ordem"
-                [p-min]="0"
-                [p-disabled]="salvando"
-                [ngModel]="quantidadeMotivo"
-                (ngModelChange)="atualizarQuantidadeMotivo($event)"
-              ></po-number>
-              <po-button
-                p-label="Adicionar motivo"
-                p-kind="tertiary"
-                [p-disabled]="salvando"
-                (p-click)="adicionarMotivo()"
-              ></po-button>
-            </div>
-          }
-
-          @if (item.refugoItens.length > 0) {
-            <ul class="batch-report__reasons" [attr.aria-label]="'Motivos da Ordem ' + item.ordem">
-              @for (reason of item.refugoItens; track reason.motivoCode + $index) {
-                <li>
-                  <span>
-                    {{ reason.motivoCode }} — {{ reason.descricao }}:
-                    {{ formatQuantidade(reason.quantidade) }}
-                  </span>
-                  <po-button
-                    [p-label]="'Remover motivo ' + reason.motivoCode + ' da Ordem ' + item.ordem"
-                    p-kind="tertiary"
-                    [p-disabled]="salvando"
-                    (p-click)="removerMotivo(item.orderId, $index)"
-                  ></po-button>
-                </li>
-              }
-            </ul>
+          @if (item.quantidadeRefugo > 0) {
+            <po-select
+              [name]="'motivo-refugo-' + item.orderId"
+              p-label="Motivo Refugo"
+              [p-options]="motivoOptions"
+              [p-disabled]="salvando || carregandoMotivos"
+              [ngModel]="motivoSelecionado(item)"
+              (ngModelChange)="atualizarMotivo(item.orderId, $event)"
+            ></po-select>
           }
         </article>
       }

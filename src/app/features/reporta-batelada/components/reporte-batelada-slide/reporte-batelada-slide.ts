@@ -51,10 +51,12 @@ export class ReporteBateladaSlide implements OnDestroy {
   historico: ReadonlyArray<ReporteParcialBatelada> = [];
   salvando = false;
   validationMessage = '';
-  editingOrderId = '';
-  motivoCodigo = '';
-  quantidadeMotivo = 0;
-  motivoOptions: ReadonlyArray<{ readonly label: string; readonly value: string }> = [];
+  carregandoMotivos = false;
+  motivoOptions: ReadonlyArray<{
+    readonly label: string;
+    readonly value: string;
+    readonly descricao: string;
+  }> = [];
   private idempotencyKey: string | null = null;
   private finalizarAoSalvar = false;
   private motivosRequest = 0;
@@ -91,9 +93,7 @@ export class ReporteBateladaSlide implements OnDestroy {
       item.quantidadeAprovada !== 0 ||
       item.quantidadeRetrabalho !== 0 ||
       item.quantidadeRefugo !== 0 ||
-      item.refugoItens.length > 0) ||
-      this.motivoCodigo.trim().length > 0 ||
-      this.quantidadeMotivo !== 0;
+      item.refugoItens.length > 0);
   }
 
   get canSave(): boolean {
@@ -112,7 +112,9 @@ export class ReporteBateladaSlide implements OnDestroy {
     this.finalizarAoSalvar = finalizarAoSalvar;
     this.salvando = false;
     this.validationMessage = '';
-    this.resetReasonEditor();
+    if (this.items.some(item => arredondarQuantidadeBatelada(item.quantidadeRefugo) > 0)) {
+      this.carregarMotivos();
+    }
     this.pwaWorkState.setCaptureActive('batch-report', true);
     this.pageSlide.open();
     this.changeDetector.markForCheck();
@@ -130,94 +132,59 @@ export class ReporteBateladaSlide implements OnDestroy {
       return;
     }
 
-    this.items = this.items.map(item =>
-      item.orderId === orderId ? { ...item, [field]: quantity } : item);
-    this.draftChanged();
-  }
-
-  editarRefugo(orderId: string): void {
-    if (!this.items.some(item => item.orderId === orderId) || this.salvando) {
-      return;
-    }
-    this.editingOrderId = orderId;
-    this.motivoCodigo = '';
-    this.quantidadeMotivo = 0;
-    const request = ++this.motivosRequest;
-    this.motivoService.buscarMotivos('')
-      .pipe(takeUntil(this.destroyed$))
-      .subscribe({
-      next: motivos => {
-        if (request !== this.motivosRequest || this.editingOrderId !== orderId) {
-          return;
-        }
-        this.motivoOptions = motivos.map(motivo => ({
-          label: `${motivo.codigo} - ${motivo.descricao}`,
-          value: motivo.codigo,
-        }));
-        this.changeDetector.markForCheck();
-      },
-      error: () => {
-        if (request !== this.motivosRequest || this.editingOrderId !== orderId) {
-          return;
-        }
-        this.validationMessage = 'Não foi possível carregar os motivos de refugo.';
-        this.changeDetector.markForCheck();
-      },
-      });
-  }
-
-  atualizarMotivo(code: string): void {
-    this.motivoCodigo = code ?? '';
-    this.validationMessage = '';
-  }
-
-  atualizarQuantidadeMotivo(value: number | null | undefined): void {
-    this.quantidadeMotivo = typeof value === 'number' ? value : 0;
-    this.validationMessage = '';
-  }
-
-  adicionarMotivo(): void {
-    const option = this.motivoOptions.find(item => item.value === this.motivoCodigo);
-    if (!this.editingOrderId || !option || !Number.isFinite(this.quantidadeMotivo) || this.quantidadeMotivo <= 0) {
-      this.validationMessage = 'Selecione um motivo e informe uma quantidade maior que zero.';
-      return;
-    }
-
     this.items = this.items.map(item => {
-      if (item.orderId !== this.editingOrderId) {
+      if (item.orderId !== orderId) {
         return item;
       }
-      const current = item.refugoItens.find(reason => reason.motivoCode === option.value);
-      const reasons = current
-        ? item.refugoItens.map(reason => reason.motivoCode === option.value
-          ? {
+      if (field !== 'quantidadeRefugo') {
+        return { ...item, [field]: quantity };
+      }
+      const roundedScrap = arredondarQuantidadeBatelada(quantity);
+      return {
+        ...item,
+        quantidadeRefugo: quantity,
+        refugoItens: roundedScrap > 0
+          ? item.refugoItens.slice(0, 1).map(reason => ({
               ...reason,
-              quantidade: arredondarQuantidadeBatelada(reason.quantidade + this.quantidadeMotivo),
-            }
-          : reason)
-        : [
-            ...item.refugoItens,
-            {
-              motivoCode: option.value,
-              descricao: option.label.replace(`${option.value} - `, ''),
-              quantidade: this.quantidadeMotivo,
-            },
-          ];
-      return { ...item, refugoItens: reasons };
+              quantidade: roundedScrap,
+            }))
+          : [],
+      };
     });
-    this.motivoCodigo = '';
-    this.quantidadeMotivo = 0;
+    if (field === 'quantidadeRefugo' && arredondarQuantidadeBatelada(quantity) > 0) {
+      this.carregarMotivos();
+    }
     this.draftChanged();
   }
 
-  removerMotivo(orderId: string, reasonIndex: number): void {
-    if (this.salvando) {
+  atualizarMotivo(orderId: string, code: string | null | undefined): void {
+    const current = this.items.find(item => item.orderId === orderId);
+    if (!current || this.salvando) {
+      return;
+    }
+    const option = this.motivoOptions.find(item => item.value === (code ?? ''));
+    const refugoItens = option && arredondarQuantidadeBatelada(current.quantidadeRefugo) > 0
+      ? [{
+          motivoCode: option.value,
+          descricao: option.descricao,
+          quantidade: arredondarQuantidadeBatelada(current.quantidadeRefugo),
+        }]
+      : [];
+    if (
+      current.refugoItens.length === refugoItens.length &&
+      current.refugoItens[0]?.motivoCode === refugoItens[0]?.motivoCode &&
+      Object.is(current.refugoItens[0]?.quantidade, refugoItens[0]?.quantidade)
+    ) {
       return;
     }
     this.items = this.items.map(item => item.orderId === orderId
-      ? { ...item, refugoItens: item.refugoItens.filter((_reason, index) => index !== reasonIndex) }
+      ? { ...item, refugoItens }
       : item);
     this.draftChanged();
+  }
+
+  motivoSelecionado(item: ItemReporteBatelada): string {
+    return item.refugoItens[0]?.motivoCode ?? '';
   }
 
   salvar(): void {
@@ -250,7 +217,6 @@ export class ReporteBateladaSlide implements OnDestroy {
     this.finalizarAoSalvar = false;
     this.salvando = false;
     this.validationMessage = '';
-    this.resetReasonEditor();
     this.rascunhoAlterado.emit(this.currentDraft());
     this.changeDetector.markForCheck();
   }
@@ -280,7 +246,6 @@ export class ReporteBateladaSlide implements OnDestroy {
           refugoItens: [],
         }));
         this.idempotencyKey = null;
-        this.resetReasonEditor();
         this.rascunhoAlterado.emit(this.currentDraft());
         this.pwaWorkState.setCaptureActive('batch-report', false);
         this.pageSlide.close();
@@ -334,12 +299,19 @@ export class ReporteBateladaSlide implements OnDestroy {
       return 'Informe ao menos uma quantidade positiva para salvar o reporte.';
     }
     for (const item of this.items) {
-      const requiresReason = item.quantidadeRefugo > 0 || item.quantidadeRetrabalho > 0;
+      const requiresReason = arredondarQuantidadeBatelada(item.quantidadeRefugo) > 0;
       if (requiresReason && item.refugoItens.length !== 1) {
-        return `Informe exatamente um motivo de refugo ou retrabalho para a ordem ${item.ordem}.`;
+        return `Informe um motivo de refugo para a ordem ${item.ordem}.`;
       }
       if (!requiresReason && item.refugoItens.length !== 0) {
-        return `Remova o motivo da ordem ${item.ordem}, pois não há refugo ou retrabalho.`;
+        return `Remova o motivo da ordem ${item.ordem}, pois não há refugo.`;
+      }
+      if (
+        requiresReason &&
+        arredondarQuantidadeBatelada(item.refugoItens[0].quantidade) !==
+          arredondarQuantidadeBatelada(item.quantidadeRefugo)
+      ) {
+        return `A quantidade do motivo deve ser igual à quantidade de refugo da ordem ${item.ordem}.`;
       }
     }
     return '';
@@ -371,7 +343,12 @@ export class ReporteBateladaSlide implements OnDestroy {
             ...current,
             orderId: order.id,
             ordem: order.ordem,
-            refugoItens: current.refugoItens.map(reason => ({ ...reason })),
+            refugoItens: current.quantidadeRefugo > 0 && current.refugoItens[0]
+              ? [{
+                  ...current.refugoItens[0],
+                  quantidade: arredondarQuantidadeBatelada(current.quantidadeRefugo),
+                }]
+              : [],
           }
         : {
             orderId: order.id,
@@ -412,11 +389,36 @@ export class ReporteBateladaSlide implements OnDestroy {
     }));
   }
 
-  private resetReasonEditor(): void {
-    this.motivosRequest += 1;
-    this.editingOrderId = '';
-    this.motivoCodigo = '';
-    this.quantidadeMotivo = 0;
+  private carregarMotivos(): void {
+    if (this.carregandoMotivos || this.motivoOptions.length > 0) {
+      return;
+    }
+    this.carregandoMotivos = true;
+    const request = ++this.motivosRequest;
+    this.motivoService.buscarMotivos('')
+      .pipe(takeUntil(this.destroyed$))
+      .subscribe({
+        next: motivos => {
+          if (request !== this.motivosRequest) {
+            return;
+          }
+          this.motivoOptions = motivos.map(motivo => ({
+            label: `${motivo.codigo} - ${motivo.descricao}`,
+            value: motivo.codigo,
+            descricao: motivo.descricao,
+          }));
+          this.carregandoMotivos = false;
+          this.changeDetector.markForCheck();
+        },
+        error: () => {
+          if (request !== this.motivosRequest) {
+            return;
+          }
+          this.carregandoMotivos = false;
+          this.validationMessage = 'Não foi possível carregar os motivos de refugo.';
+          this.changeDetector.markForCheck();
+        },
+      });
   }
 
   private createIdempotencyKey(): string {

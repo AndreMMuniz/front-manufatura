@@ -39,13 +39,13 @@ describe('ReporteBateladaSlide', () => {
     expect(component.totalInformado).toBe(110);
   });
 
-  it('requires one reason for a batch report containing only rework', () => {
+  it('allows a batch report containing only rework without a scrap reason', () => {
     const { component } = createComponent();
     component.abrir(orders(), [], null);
     component.atualizarQuantidade('2', 'quantidadeRetrabalho', 2);
 
     expect(component.totalInformado).toBe(0);
-    expect(component.canSave).toBe(false);
+    expect(component.canSave).toBe(true);
   });
 
   it('renders the same quantity labels as the order report and the ordered history columns in the DOM', () => {
@@ -76,7 +76,7 @@ describe('ReporteBateladaSlide', () => {
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('th[scope="col"]')).toHaveLength(5);
   });
 
-  it('renders the rework/scrap reason label without the order number', () => {
+  it('shows Motivo Refugo only for orders with scrap and removes the legacy reason editor', () => {
     TestBed.configureTestingModule({
       imports: [ReporteBateladaSlide],
       providers: [
@@ -87,13 +87,23 @@ describe('ReporteBateladaSlide', () => {
     });
     const fixture = TestBed.createComponent(ReporteBateladaSlide);
     fixture.componentInstance.abrir(orders(), [], null);
-    fixture.componentInstance.editarRefugo('2');
+    fixture.componentInstance.atualizarQuantidade('2', 'quantidadeRetrabalho', 1);
+    fixture.componentInstance.atualizarQuantidade('1', 'quantidadeRefugo', 2);
     fixture.detectChanges();
 
-    const reasonEditor = (fixture.nativeElement as HTMLElement)
-      .querySelector('.batch-report__reason-editor');
-    expect(reasonEditor?.textContent).toContain('Motivo do Retrabalho/Refugo');
-    expect(reasonEditor?.textContent).not.toContain('Motivo — Ordem 450002');
+    const host = fixture.nativeElement as HTMLElement;
+    const reworkOrder = [...host.querySelectorAll('.batch-report__order')]
+      .find(order => order.textContent?.includes('Ordem 450002'));
+    const scrapOrder = [...host.querySelectorAll('.batch-report__order')]
+      .find(order => order.textContent?.includes('Ordem 450001'));
+    const scrapReason = scrapOrder?.querySelector('po-select');
+
+    expect(reworkOrder?.querySelector('po-select')).toBeNull();
+    expect(scrapReason).toBeTruthy();
+    expect(scrapReason?.textContent ?? '').toContain('Motivo Refugo');
+    expect(host.textContent).not.toContain('Editar Motivo');
+    expect(host.textContent).not.toContain('Quantidade do motivo');
+    expect(host.textContent).not.toContain('Adicionar motivo');
   });
 
   it('keeps every order in composition order and emits one typed multi-order draft', () => {
@@ -104,10 +114,6 @@ describe('ReporteBateladaSlide', () => {
 
     component.atualizarQuantidade('2', 'quantidadeAprovada', 4);
     component.atualizarQuantidade('1', 'quantidadeRetrabalho', 2);
-    component.editarRefugo('1');
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(2);
-    component.adicionarMotivo();
     component.salvar();
     component.salvar();
 
@@ -142,20 +148,37 @@ describe('ReporteBateladaSlide', () => {
     expect(emitted[2].idempotencyKey).not.toBe(emitted[1].idempotencyKey);
   });
 
-  it('accepts a single reason independently of its display quantity', () => {
+  it('derives the single selected reason quantity from the order scrap quantity', () => {
     const { component } = createComponent();
+    const emitted = vi.fn();
+    component.reporteSolicitado.subscribe(emitted);
     component.abrir(orders(), [], null);
     component.atualizarQuantidade('2', 'quantidadeAprovada', 1);
     component.atualizarQuantidade('2', 'quantidadeRefugo', 2);
-    component.editarRefugo('2');
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(1);
-    component.adicionarMotivo();
+    component.atualizarMotivo('2', '05');
 
     component.salvar();
 
     expect(component.validationMessage).toBe('');
+    expect(emitted.mock.calls[0][0].items[0].refugoItens).toEqual([
+      { motivoCode: '05', descricao: 'Borra', quantidade: 2 },
+    ]);
     expect(component.items[1].refugoItens).toEqual([]);
+  });
+
+  it('keeps the selected reason quantity synchronized and clears it with zero scrap', () => {
+    const { component } = createComponent();
+    component.abrir(orders(), [], null);
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 2);
+    component.atualizarMotivo('2', '05');
+
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 3.5);
+    expect(component.items[0].refugoItens).toEqual([
+      { motivoCode: '05', descricao: 'Borra', quantidade: 3.5 },
+    ]);
+
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 0);
+    expect(component.items[0].refugoItens).toEqual([]);
   });
 
   it('rejects an aggregate overflow even when each quantity is finite', () => {
@@ -203,12 +226,11 @@ describe('ReporteBateladaSlide', () => {
     }));
   });
 
-  it('treats an unfinished reason editor as unsaved work', () => {
+  it('treats a selected scrap reason as unsaved work', () => {
     const { component, dialog } = createComponent();
     component.abrir(orders(), [], null);
-    component.editarRefugo('2');
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(1);
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 1);
+    component.atualizarMotivo('2', '05');
 
     component.voltar();
 
@@ -216,39 +238,38 @@ describe('ReporteBateladaSlide', () => {
     expect(dialog.confirm).toHaveBeenCalledOnce();
   });
 
-  it('ignores an obsolete scrap-reason response after another order is selected', () => {
-    const first = new Subject<ReadonlyArray<{ codigo: string; descricao: string }>>();
-    const second = new Subject<ReadonlyArray<{ codigo: string; descricao: string }>>();
+  it('loads the shared scrap reason catalog only once for multiple orders', () => {
+    const reasons = new Subject<ReadonlyArray<{ codigo: string; descricao: string }>>();
     const motivoService = {
-      buscarMotivos: vi.fn()
-        .mockReturnValueOnce(first)
-        .mockReturnValueOnce(second),
+      buscarMotivos: vi.fn(() => reasons),
     };
     const { component } = createComponent(motivoService);
     component.abrir(orders(), [], null);
 
-    component.editarRefugo('2');
-    component.editarRefugo('1');
-    first.next([{ codigo: 'OLD', descricao: 'Obsoleto' }]);
-    second.next([{ codigo: 'NEW', descricao: 'Atual' }]);
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 1);
+    component.atualizarQuantidade('1', 'quantidadeRefugo', 1);
+    reasons.next([{ codigo: 'NEW', descricao: 'Atual' }]);
 
-    expect(component.motivoOptions).toEqual([{ label: 'NEW - Atual', value: 'NEW' }]);
+    expect(motivoService.buscarMotivos).toHaveBeenCalledOnce();
+    expect(component.motivoOptions).toEqual([
+      { label: 'NEW - Atual', value: 'NEW', descricao: 'Atual' },
+    ]);
   });
 
-  it('updates loaded history without resetting an in-progress editor', () => {
+  it('updates loaded history without resetting a selected scrap reason', () => {
     const { component, pageSlide } = createComponent();
     component.abrir(orders(), [], null);
-    component.editarRefugo('2');
-    component.atualizarMotivo('05');
-    component.atualizarQuantidadeMotivo(1);
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 1);
+    component.atualizarMotivo('2', '05');
     component.salvando = true;
 
     component.atualizarHistorico([report()]);
 
     expect(component.historico).toHaveLength(1);
     expect(component.salvando).toBe(true);
-    expect(component.editingOrderId).toBe('2');
-    expect(component.motivoCodigo).toBe('05');
+    expect(component.items[0].refugoItens).toEqual([
+      { motivoCode: '05', descricao: 'Borra', quantidade: 1 },
+    ]);
     expect(pageSlide.open).toHaveBeenCalledOnce();
   });
 });

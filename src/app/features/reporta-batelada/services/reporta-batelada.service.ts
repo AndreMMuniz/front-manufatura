@@ -305,12 +305,21 @@ export class ReportaBateladaService {
     }
 
     for (const item of request.items) {
-      const requiresReason = item.quantidadeRefugo > 0 || item.quantidadeRetrabalho > 0;
+      const requiresReason = arredondarQuantidadeBatelada(item.quantidadeRefugo) > 0;
       if (requiresReason && item.refugoItens.length !== 1) {
-        throw new Error(`Informe exatamente um motivo de refugo ou retrabalho para a ordem ${item.ordem}.`);
+        throw new Error(`Informe um motivo de refugo para a ordem ${item.ordem}.`);
       }
       if (!requiresReason && item.refugoItens.length !== 0) {
-        throw new Error(`Remova o motivo da ordem ${item.ordem}, pois não há refugo ou retrabalho.`);
+        throw new Error(`Remova o motivo da ordem ${item.ordem}, pois não há refugo.`);
+      }
+      if (
+        requiresReason &&
+        arredondarQuantidadeBatelada(item.refugoItens[0].quantidade) !==
+          arredondarQuantidadeBatelada(item.quantidadeRefugo)
+      ) {
+        throw new Error(
+          `A quantidade do motivo deve ser igual à quantidade de refugo da ordem ${item.ordem}.`,
+        );
       }
     }
   }
