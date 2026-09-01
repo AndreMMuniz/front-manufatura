@@ -80,6 +80,11 @@ describe('SynchronizationCenterPage', () => {
 
   it('combina filtros e permite limpá-los com controles acessíveis', async () => {
     const test = await setup(state({ readState: 'ready', items: [item()] }));
+    const statusOptions = Array.from(
+      test.fixture.nativeElement.querySelectorAll('#sync-status option') as NodeListOf<HTMLOptionElement>,
+      option => option.value,
+    );
+    expect(statusOptions).not.toContain('REJECTED');
     const identification = test.fixture.nativeElement.querySelector('#sync-identification');
     identification.value = 'OP 100';
     identification.dispatchEvent(new Event('input', { bubbles: true }));

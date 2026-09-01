@@ -791,9 +791,10 @@ function summarizeCursor(index: IDBIndex, owner: string): Promise<OutboxOwnerSum
 
 function matchesPageQuery(entry: OutboxEntry<JsonValue>, query: OutboxPageQuery): boolean {
   const disposition = deliveryDispositionOf(entry.deliveryDisposition);
+  if (disposition === 'REJECTED') return false;
   const statuses = query.statuses;
   const dispositionFilters = statuses?.filter(status =>
-    status === 'ABANDONED' || status === 'SUPERSEDED' || status === 'REJECTED') ?? [];
+    status === 'ABANDONED' || status === 'SUPERSEDED') ?? [];
   const syncStatusFilters = statuses?.filter(status =>
     status !== 'ABANDONED' && status !== 'SUPERSEDED' && status !== 'REJECTED') ?? [];
   return (
