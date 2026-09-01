@@ -32,6 +32,7 @@ import {
   ItemReporteBatelada,
   OrdemLiberadaBatelada,
   ReporteParcialBatelada,
+  ReporteParcialBateladaEntregue,
   ResponsavelBatelada,
   EstadoBatelada,
 } from '../models/reporta-batelada.model';
@@ -357,7 +358,7 @@ export class ReportaBateladaService {
 
   reportarBateladaParcial(
     request: ReporteParcialBateladaRequest,
-  ): Observable<ReporteParcialBatelada> {
+  ): Observable<ReporteParcialBateladaEntregue> {
     // Mock transacional da fronteira semântica. A integração Datasul futura deve
     // garantir atomicidade ou devolver resultados por ordem para reconciliação.
     const command = this.cloneReportRequest(request);
@@ -397,22 +398,31 @@ export class ReportaBateladaService {
             refugoItens: item.refugoItens.map(reason => ({ ...reason })),
           })),
         },
-      })).pipe(map(confirmation => {
-        const confirmed: ReporteParcialBatelada = {
-          reporteId: confirmation.localId,
-          batchId: validated.batchId,
-          idempotencyKey: confirmation.idempotencyKey,
-          confirmadoEm: new Date(confirmation.committedAt),
-          items: this.cloneItems(validated.items),
-        };
-        const stored = this.cloneReport(confirmed);
-        const existing = this.reportsByBatch.get(validated.batchId) ?? [];
-        this.reportsByBatch.set(validated.batchId, [
-          ...existing.filter(report => report.idempotencyKey !== stored.idempotencyKey),
-          stored,
-        ]);
-        return this.cloneReport(stored);
-      }))),
+      })).pipe(
+        switchMap(confirmation => from(this.deliverReport(confirmation.localId)).pipe(
+          map(delivery => {
+            const confirmed: ReporteParcialBatelada = {
+              reporteId: confirmation.localId,
+              batchId: validated.batchId,
+              idempotencyKey: confirmation.idempotencyKey,
+              confirmadoEm: new Date(confirmation.committedAt),
+              items: this.cloneItems(validated.items),
+            };
+            if (delivery.status !== 'ERROR') {
+              const stored = this.cloneReport(confirmed);
+              const existing = this.reportsByBatch.get(validated.batchId) ?? [];
+              this.reportsByBatch.set(validated.batchId, [
+                ...existing.filter(report => report.idempotencyKey !== stored.idempotencyKey),
+                stored,
+              ]);
+            }
+            return {
+              ...this.cloneReport(confirmed),
+              delivery: structuredClone(delivery),
+            };
+          }),
+        )),
+      )),
     );
   }
 
@@ -707,6 +717,60 @@ export class ReportaBateladaService {
       );
     }
     return this.deliveryResult(await this.outbox.getById(ownerId, localId));
+  }
+
+  private async deliverReport(localId: string): Promise<ImmediateDeliveryResult> {
+    const observed = await this.immediateDelivery.deliver(localId);
+    if (observed.status !== 'PENDING') return observed;
+    const ownerId = this.authSession?.currentUser?.id.trim();
+    if (!ownerId) {
+      return this.deliveryError(
+        'BATCH_REPORT_SESSION_REQUIRED',
+        'AUTH',
+        'A sessão precisa ser renovada antes de enviar o reporte.',
+      );
+    }
+    return this.reportDeliveryResult(await this.outbox.getById(ownerId, localId));
+  }
+
+  private reportDeliveryResult(entry: OutboxEntry | null | undefined): ImmediateDeliveryResult {
+    if (!entry) {
+      return this.deliveryError(
+        'BATCH_REPORT_OUTBOX_MISSING',
+        'CONFIGURATION',
+        'Não foi possível localizar o envio do reporte neste dispositivo.',
+      );
+    }
+    if (entry.status === 'SYNCED') {
+      return entry.receipt
+        ? { status: 'SYNCED', receipt: structuredClone(entry.receipt) }
+        : this.deliveryError(
+          'BATCH_REPORT_RECEIPT_MISSING',
+          'CONFIGURATION',
+          'O Datasul confirmou o envio, mas o comprovante do reporte não foi encontrado.',
+        );
+    }
+    if (entry.status === 'ERROR' || entry.status === 'BLOCKED_AUTH'
+      || entry.status === 'BLOCKED_DEPENDENCY') {
+      return entry.lastError
+        ? { status: 'ERROR', error: { ...entry.lastError } }
+        : this.deliveryError(
+          'BATCH_REPORT_ERROR_MISSING',
+          'CONFIGURATION',
+          'O reporte falhou sem uma mensagem operacional disponível.',
+        );
+    }
+    if (
+      entry.status === 'SYNCING'
+      || (entry.status === 'RETRY_WAIT' && entry.lastError?.category === 'TRANSIENT')
+    ) {
+      return { status: 'PENDING' };
+    }
+    return this.deliveryError(
+      'BATCH_REPORT_NOT_DELIVERED',
+      'CONFIGURATION',
+      'Não foi possível confirmar uma falha de conexão ao enviar o reporte.',
+    );
   }
 
   private isRestorableStart(entry: OutboxEntry | undefined): boolean {

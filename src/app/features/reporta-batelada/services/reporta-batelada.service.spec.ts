@@ -41,7 +41,17 @@ describe('ReportaBateladaService', () => {
   beforeEach(() => {
     session$ = new BehaviorSubject<unknown>({ user: 'operador' });
     currentUser = null;
-    deliver = vi.fn().mockResolvedValue({ status: 'PENDING' });
+    deliver = vi.fn().mockImplementation(async (localId: string) => localId.startsWith('idem-')
+      ? {
+        status: 'SYNCED',
+        receipt: {
+          serverRecordId: `datasul:batch-report:${localId}`,
+          receivedAt: '2026-07-30T12:00:01.000Z',
+          processedAt: '2026-07-30T12:00:01.000Z',
+          duplicate: false,
+        },
+      }
+      : { status: 'PENDING' });
     listLocalRecords = vi.fn().mockResolvedValue([]);
     listOutbox = vi.fn().mockResolvedValue([]);
     getOutbox = vi.fn().mockImplementation(async (_ownerId: string, localId: string) => ({
@@ -453,17 +463,78 @@ describe('ReportaBateladaService', () => {
 
   it('persists one ordered multi-order report and returns defensive history copies', async () => {
     const inicio = await startBatch();
+    currentUser = { id: 'operator-1' };
     const request = reportRequest({ batchId: inicio.batchId });
 
     const confirmed = await firstValueFrom(service.reportarBateladaParcial(request));
+    currentUser = null;
     const history = await firstValueFrom(service.listarReportesBatelada(inicio.batchId));
 
     expect(confirmed.items.map(item => item.orderId)).toEqual(['1', '2']);
-    expect(history).toEqual([confirmed]);
+    const { delivery: _delivery, ...storedReport } = confirmed;
+    expect(history).toEqual([storedReport]);
     expect(history[0]).not.toBe(confirmed);
     expect(history[0].items).not.toBe(confirmed.items);
     expect(history[0].confirmadoEm).not.toBe(confirmed.confirmadoEm);
     expect(history[0].items[0].refugoItens).not.toBe(confirmed.items[0].refugoItens);
+    expect(confirmed.delivery).toEqual(expect.objectContaining({ status: 'SYNCED' }));
+  });
+
+  it('returns the Datasul rejection instead of classifying the report as pending', async () => {
+    const inicio = await startBatch();
+    currentUser = { id: 'operator-1' };
+    const remoteError = {
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION' as const,
+      userMessage: 'A quantidade reportada excede o saldo da ordem 450001.',
+    };
+    deliver.mockResolvedValueOnce({ status: 'ERROR', error: remoteError });
+
+    const result = await firstValueFrom(service.reportarBateladaParcial(
+      reportRequest({ batchId: inicio.batchId }),
+    ));
+
+    expect(result.delivery).toEqual({ status: 'ERROR', error: remoteError });
+    currentUser = null;
+    expect(await firstValueFrom(service.listarReportesBatelada(inicio.batchId))).toEqual([]);
+  });
+
+  it('uses pending only after a transient connection failure was persisted', async () => {
+    const inicio = await startBatch();
+    currentUser = { id: 'operator-1' };
+    deliver.mockResolvedValueOnce({ status: 'PENDING' });
+    getOutbox.mockResolvedValueOnce({
+      status: 'RETRY_WAIT',
+      lastError: {
+        code: 'NETWORK',
+        category: 'TRANSIENT',
+        userMessage: 'Serviço temporariamente indisponível; uma nova tentativa será realizada.',
+      },
+    });
+
+    const result = await firstValueFrom(service.reportarBateladaParcial(
+      reportRequest({ batchId: inicio.batchId }),
+    ));
+
+    expect(result.delivery).toEqual({ status: 'PENDING' });
+  });
+
+  it('does not call an authentication block a pending report', async () => {
+    const inicio = await startBatch();
+    currentUser = { id: 'operator-1' };
+    const authError = {
+      code: 'SESSION_REQUIRED',
+      category: 'AUTH' as const,
+      userMessage: 'A sessão precisa ser renovada para enviar o reporte.',
+    };
+    deliver.mockResolvedValueOnce({ status: 'PENDING' });
+    getOutbox.mockResolvedValueOnce({ status: 'BLOCKED_AUTH', lastError: authError });
+
+    const result = await firstValueFrom(service.reportarBateladaParcial(
+      reportRequest({ batchId: inicio.batchId }),
+    ));
+
+    expect(result.delivery).toEqual({ status: 'ERROR', error: authError });
   });
 
   it('deduplicates the complete event by batch and idempotency key', async () => {

@@ -107,12 +107,16 @@ describe('OutboxRepository processing', () => {
     });
   });
 
-  it('separa filtros de status ativo das disposições históricas e normaliza legado futuro', async () => {
+  it('oculta rejeições funcionais e separa os demais filtros históricos', async () => {
     await seed(database, [
       entry('active-error', { status: 'ERROR' }),
       entry('superseded-error', {
         status: 'ERROR',
         deliveryDisposition: 'SUPERSEDED',
+      }),
+      entry('rejected-error', {
+        status: 'ERROR',
+        deliveryDisposition: 'REJECTED',
       }),
       entry('future-disposition', {
         status: 'PENDING',
@@ -120,6 +124,8 @@ describe('OutboxRepository processing', () => {
       }),
     ]);
 
+    expect((await repository.listPage({ ownerId: OWNER })).items.map(item => item.localId))
+      .not.toContain('rejected-error');
     expect((await repository.listPage({
       ownerId: OWNER,
       statuses: ['ERROR'],

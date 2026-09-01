@@ -79,6 +79,10 @@ export interface ReporteParcialBatelada {
   readonly items: ReadonlyArray<ItemReporteBatelada>;
 }
 
+export type ReporteParcialBateladaEntregue = ReporteParcialBatelada & {
+  readonly delivery: ImmediateDeliveryResult;
+};
+
 export interface TotaisOrdemBatelada {
   readonly orderId: string;
   readonly ordem: string;

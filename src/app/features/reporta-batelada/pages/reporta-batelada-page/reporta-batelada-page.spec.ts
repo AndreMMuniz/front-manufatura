@@ -88,6 +88,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
         idempotencyKey: request.idempotencyKey,
         confirmadoEm: new Date(2026, 6, 23, 9),
         items: request.items,
+        delivery: { status: 'PENDING' as const },
       })),
       encerrarBatelada: vi.fn(request => of({
         batchId: request.batchId,
@@ -632,6 +633,64 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.history).toHaveLength(1);
     expect(component.view.draft?.items.every(item => item.quantidadeAprovada === 0)).toBe(true);
+  });
+
+  it('shows the Datasul rejection in the drawer and does not mark the report as pending', () => {
+    const remoteMessage = 'A quantidade informada excede o saldo da ordem 450002.';
+    serviceMock.reportarBateladaParcial.mockImplementationOnce(request => of({
+      ...confirmedReport(request.idempotencyKey),
+      items: request.items,
+      delivery: {
+        status: 'ERROR' as const,
+        error: {
+          code: 'DATASUL_COMMAND_REJECTED',
+          category: 'VALIDATION' as const,
+          userMessage: remoteMessage,
+        },
+      },
+    }));
+    prepareForStart();
+    component.iniciarBatelada();
+    const slide = fixture.debugElement.query(By.directive(ReporteBateladaSlide))
+      .componentInstance as ReporteBateladaSlide;
+    const informarErro = vi.spyOn(slide, 'informarErro');
+    const draft = reportDraft('idem-rejected');
+
+    component.salvarReporte(draft);
+
+    expect(informarErro).toHaveBeenCalledWith(remoteMessage);
+    expect(component.view.errorMessage).toBe(remoteMessage);
+    expect(component.view.history).toEqual([]);
+    expect(component.view.draft?.idempotencyKey).toBe('idem-rejected');
+    expect(notificationMock.error).toHaveBeenCalledWith(remoteMessage);
+    expect(notificationMock.warning).not.toHaveBeenCalledWith(
+      'Salvo neste dispositivo — envio pendente.',
+    );
+  });
+
+  it('confirms a batch report only after the Datasul delivery is synchronized', () => {
+    serviceMock.reportarBateladaParcial.mockImplementationOnce(request => of({
+      ...confirmedReport(request.idempotencyKey),
+      items: request.items,
+      delivery: {
+        status: 'SYNCED' as const,
+        receipt: {
+          serverRecordId: 'datasul:batch-report:1',
+          receivedAt: '2026-07-23T12:00:01.000Z',
+          processedAt: '2026-07-23T12:00:01.000Z',
+          duplicate: false,
+        },
+      },
+    }));
+    prepareForStart();
+    component.iniciarBatelada();
+
+    component.salvarReporte(reportDraft('idem-synced'));
+
+    expect(notificationMock.success).toHaveBeenCalledWith('Reporte enviado ao Datasul.');
+    expect(notificationMock.warning).not.toHaveBeenCalledWith(
+      'Salvo neste dispositivo — envio pendente.',
+    );
   });
 
   it('preserves the draft and idempotency key after report failure for retry', () => {

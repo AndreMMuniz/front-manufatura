@@ -629,17 +629,30 @@ export class ReportaBateladaPage implements OnInit {
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: report => {
+        next: result => {
           if (!this.isCurrentBatchRequest(request, this.reportRequest, batchId)) {
             return;
           }
+          if (result.delivery.status === 'ERROR') {
+            const message = result.delivery.error.userMessage;
+            this.workflow.failReport(message);
+            this.reportSlide?.informarErro(message);
+            this.notification.error(message);
+            this.syncView();
+            return;
+          }
+          const { delivery, ...report } = result;
           this.workflow.completeReport(report);
           this.reportSlide?.confirmarReporte(report);
           if (draft.finalizarSplit) {
             this.confirmEnding();
             return;
           }
-          this.notification.success('Salvo neste dispositivo — envio pendente.');
+          if (delivery.status === 'SYNCED') {
+            this.notification.success('Reporte enviado ao Datasul.');
+          } else {
+            this.notification.warning('Datasul indisponível — reporte salvo como pendente.');
+          }
           this.syncView();
         },
         error: error => {
