@@ -23,6 +23,8 @@ import {
   PoPageSlideComponent,
   PoPageSlideModule,
   PoSelectOption,
+  PoTableColumn,
+  PoTableModule,
 } from '@po-ui/ng-components';
 
 import { LoadingIndicator } from '../../../../shared/components/loading-indicator/loading-indicator';
@@ -41,6 +43,10 @@ export interface GerenciarEquipeResultado {
   readonly contexto: EquipeContexto;
 }
 
+interface OperadorTableRow extends Operador {
+  $selected: boolean;
+}
+
 @Component({
   selector: 'app-gerenciar-equipe-slide',
   imports: [
@@ -49,6 +55,7 @@ export interface GerenciarEquipeResultado {
     PoButtonModule,
     PoFieldModule,
     PoPageSlideModule,
+    PoTableModule,
     LoadingIndicator,
   ],
   templateUrl: './gerenciar-equipe-slide.html',
@@ -88,9 +95,22 @@ export class GerenciarEquipeSlide {
   readonly feedback = signal('');
   private readonly snapshotInicial = signal('');
 
+  readonly operadoresColumns: ReadonlyArray<PoTableColumn> = [
+    { property: 'codigo', label: 'Código', width: '120px' },
+    { property: 'nome', label: 'Nome' },
+  ];
+
   readonly operadoresFiltrados = computed(() =>
     this.equipesService.filtrarOperadores(this.operadores(), this.termoPesquisa()),
   );
+
+  readonly operadoresTableRows = computed<ReadonlyArray<OperadorTableRow>>(() => {
+    const selecionados = this.codigosSelecionados();
+    return this.operadoresFiltrados().map(operador => ({
+      ...operador,
+      $selected: selecionados.has(operador.codigo),
+    }));
+  });
 
   readonly todosVisiveisSelecionados = computed(() => {
     const visible = this.operadoresFiltrados();
@@ -379,10 +399,6 @@ export class GerenciarEquipeSlide {
       return;
     }
     this.finalizeNativeClose();
-  }
-
-  isSelecionado(operador: Operador): boolean {
-    return this.codigosSelecionados().has(operador.codigo);
   }
 
   private loadCatalogs(): void {

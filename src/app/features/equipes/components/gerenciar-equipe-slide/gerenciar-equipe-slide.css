@@ -110,36 +110,8 @@
   min-width: 0;
 }
 
-.gerenciar-equipe__operator-list {
-  display: grid;
-  gap: var(--app-space-sm);
-  max-height: min(48vh, 520px);
-  min-width: 0;
-  overflow-y: auto;
-  padding-right: var(--app-space-sm);
-}
-
-.gerenciar-equipe__operator {
-  align-items: center;
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-radius);
-  display: block;
-  min-height: var(--app-touch-target);
-  min-width: 0;
-  padding: var(--app-space-sm) var(--app-space-md);
-}
-
-.gerenciar-equipe__operator po-checkbox {
-  overflow-wrap: anywhere;
-}
-
-.gerenciar-equipe__empty,
 .gerenciar-equipe__feedback {
   margin: 0;
-}
-
-.gerenciar-equipe__empty {
-  color: var(--app-color-text-muted);
 }
 
 .gerenciar-equipe__feedback {

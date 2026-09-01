@@ -124,25 +124,20 @@
           (ngModelChange)="onSelecionarTodos($event)"
         ></po-checkbox>
 
-        <div
-          class="gerenciar-equipe__operator-list"
-          role="group"
-          aria-label="Operadores disponíveis"
-        >
-          @for (operador of operadoresFiltrados(); track operador.codigo) {
-            <div class="gerenciar-equipe__operator">
-              <po-checkbox
-                [name]="'gerenciar-operador-' + operador.codigo"
-                [p-label]="operador.codigo + ' ' + operador.nome"
-                p-size="large"
-                [ngModel]="isSelecionado(operador)"
-                [p-disabled]="state() === 'saving'"
-                (ngModelChange)="onSelecionarOperador(operador, $event)"
-              ></po-checkbox>
-            </div>
-          } @empty {
-            <p class="gerenciar-equipe__empty">Nenhum operador encontrado.</p>
-          }
+        <div role="group" aria-label="Operadores disponíveis">
+          <po-table
+            [p-columns]="operadoresColumns"
+            [p-items]="operadoresTableRows()"
+            [p-height]="360"
+            [p-hide-columns-manager]="true"
+            [p-hide-select-all]="true"
+            [p-selectable]="state() !== 'saving'"
+            [p-selectable-entire-line]="false"
+            [p-striped]="true"
+            [p-virtual-scroll]="true"
+            (p-selected)="onSelecionarOperador($event, true)"
+            (p-unselected)="onSelecionarOperador($event, false)"
+          ></po-table>
         </div>
       </div>
     }

@@ -1,7 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { PoDialogService, PoNotificationService, PoPageSlideComponent } from '@po-ui/ng-components';
+import {
+  PoDialogService,
+  PoNotificationService,
+  PoPageSlideComponent,
+  PoTableComponent,
+} from '@po-ui/ng-components';
 import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -122,6 +127,33 @@ describe('GerenciarEquipeSlide', () => {
     expect(component.codigosSelecionados()).toEqual(new Set(['011', '049']));
   });
 
+  it('virtualiza catálogo grande e preserva a seleção ao filtrar operadores', () => {
+    const { component, fixture } = createComponent({ operadores: catalogoGrande() });
+    const realPageSlide = fixture.debugElement.query(By.directive(PoPageSlideComponent))
+      .componentInstance as PoPageSlideComponent;
+    (component as unknown as { pageSlide: PoPageSlideComponent }).pageSlide = realPageSlide;
+    component.abrir(contexto());
+    fixture.detectChanges();
+
+    const table = fixture.debugElement.query(By.css('po-table'))
+      ?.componentInstance as PoTableComponent | undefined;
+    expect(table).toBeDefined();
+    expect(table?.virtualScroll).toBe(true);
+    expect(table?.selectable).toBe(true);
+    expect(table?.items).toHaveLength(500);
+
+    const operador = table?.items[48] as Operador | undefined;
+    table?.selected.emit(operador);
+    expect(component.codigosSelecionados()).toEqual(new Set(['049']));
+
+    component.onPesquisarOperador('JOSE 049');
+    fixture.detectChanges();
+
+    expect(table?.items).toEqual([
+      { codigo: '049', nome: 'José 049', $selected: true },
+    ]);
+  });
+
   it('valida os campos de criação e anuncia feedback acessível', () => {
     const { component, service, fixture } = createComponent();
     const realPageSlide = fixture.debugElement.query(By.directive(PoPageSlideComponent))
@@ -143,9 +175,11 @@ describe('GerenciarEquipeSlide', () => {
     expect(
       fixture.nativeElement.querySelector('[role="group"][aria-label="Modo de gerenciamento"]'),
     ).not.toBeNull();
-    expect(
-      fixture.nativeElement.querySelector('.gerenciar-equipe__operator po-checkbox').textContent,
-    ).toContain('001 Operador 1');
+    const operadoresTable = fixture.debugElement.query(By.css('po-table'))
+      .componentInstance as PoTableComponent;
+    expect(operadoresTable.items[0]).toEqual({
+      codigo: '001', nome: 'Operador 1', $selected: false,
+    });
   });
 
   it('cria uma equipe, emite um único resultado e fecha', () => {
