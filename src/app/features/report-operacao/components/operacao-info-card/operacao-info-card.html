@@ -17,14 +17,15 @@
     ></po-select>
     <div class="operacao-info__responsavel-group">
       @if (tipoResponsavel === 'EQUIPE') {
-        <po-input
+        <po-select
           name="responsavelOperacao"
-          p-label="Código da equipe"
-          p-placeholder="Ex.: AUT00037"
-          [p-disabled]="responsavelDisabled"
+          p-label="Equipe"
+          [p-options]="responsavelOptions"
+          [p-disabled]="responsavelDisabled || loadingResponsaveis"
+          [p-loading]="loadingResponsaveis"
           [ngModel]="responsavelCodigo"
           (ngModelChange)="changeResponsavel($event)"
-        ></po-input>
+        ></po-select>
         <po-button
           data-testid="gerenciar-equipe"
           p-label="Criar equipe"

@@ -251,6 +251,21 @@ function installAdaptedRoutes(
     });
   }));
 
+  app.get('/api/teams', (req, res) => handle(req, res, dependencies, async client => {
+    const areaCode = requiredText(req.query['areaCode']).toUpperCase();
+    const upstream = await client.request('GET', '/api/fma/v1/equipes');
+    return dataset(upstream, 'Equipes').flatMap(row => {
+      const item = objectOfUpstream(row);
+      if (text(item['codAreaProduc']).trim().toUpperCase() !== areaCode) return [];
+      return [{
+        codigo: requiredUpstreamText(item['codEquipe']),
+        descricao: requiredUpstreamText(item['nomEquipe']),
+        turno: String(nonNegativeIntegerUpstream(item['numTurno'])),
+        operadores: [],
+      }];
+    });
+  }));
+
   app.get('/api/scrap-reasons', (req, res) => handle(req, res, dependencies, async client => {
     const upstream = await client.request('GET', '/api/fma/v1/motivosrefugo');
     const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
@@ -408,9 +423,7 @@ function installAdaptedRoutes(
     return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/finalizaparada', command, 'production-stop-finish');
   }));
 
-  const reads = [
-    '/api/teams', '/api/teams/:code',
-  ];
+  const reads = ['/api/teams/:code'];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
     client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));
   app.put('/api/teams/:code', (req, res) => handle(req, res, dependencies, client =>

@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 
-import { Observable, delay, from, map, of, switchMap } from 'rxjs';
+import { Observable, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
 
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
@@ -13,6 +13,7 @@ import { OperationalCommandFacade } from '../../../core/offline/services/operati
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
+import { EquipesService } from '../../equipes/services/equipes.service';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
@@ -44,6 +45,7 @@ interface RestoredActiveOperation {
 @Injectable({ providedIn: 'root' })
 export class ReportOperacaoService {
   private readonly productionCatalog = inject(ProductionContextCatalogService);
+  private readonly equipes = inject(EquipesService);
   private readonly commands = inject(OperationalCommandFacade);
   private readonly immediateDelivery = inject(ImmediateCommandDeliveryService);
   private readonly authSession = inject(AuthSessionService);
@@ -144,14 +146,23 @@ export class ReportOperacaoService {
     const center = this.normalizeCode(workCenterCode);
     if (!area || !center) return of([]);
 
-    if (tipo === 'EQUIPE') {
-      return of([]);
-    }
-
-    return this.productionCatalog.listarResponsaveis(area, center).pipe(
+    const operadores$ = this.productionCatalog.listarResponsaveis(area, center).pipe(
       map(responsaveis => responsaveis
-        .filter(responsavel => tipo !== 'OPERADOR' || responsavel.tipo === 'OPERADOR')
+        .filter(responsavel => responsavel.tipo === 'OPERADOR')
         .map(responsavel => ({ ...responsavel }))),
+    );
+    const equipes$ = this.equipes.listarEquipesElegiveis(area, center).pipe(
+      map(equipes => equipes.map(equipe => ({
+        tipo: 'EQUIPE' as const,
+        codigo: this.normalizeCode(equipe.codigo),
+        nome: equipe.descricao,
+      }))),
+    );
+
+    if (tipo === 'OPERADOR') return operadores$;
+    if (tipo === 'EQUIPE') return equipes$;
+    return forkJoin([operadores$, equipes$]).pipe(
+      map(([operadores, equipes]) => [...operadores, ...equipes]),
     );
   }
 

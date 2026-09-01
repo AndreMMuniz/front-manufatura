@@ -131,6 +131,30 @@ describe('gateway FMA', () => {
     );
   });
 
+  it('lista somente as equipes da Área de Produção da ordem', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('Equipes', [
+      { codAreaProduc: '4110', codEquipe: 'EMP-01', numTurno: 1, nomEquipe: 'Empacotadora 1' },
+      { codAreaProduc: '4120', codEquipe: 'FBAN-003', numTurno: 1, nomEquipe: 'Fábrica 3' },
+      { codAreaProduc: '', codEquipe: 'SEM-AREA', numTurno: 0, nomEquipe: 'Sem área' },
+    ]));
+    const root = await startGateway(transport);
+    const result = await fetch(
+      `${root}/api/teams?areaCode=4110&workCenterCode=EMP-01-02`,
+      { headers: { authorization: `Bearer ${await token()}` } },
+    );
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual([{
+      codigo: 'EMP-01',
+      descricao: 'Empacotadora 1',
+      turno: '1',
+      operadores: [],
+    }]);
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/equipes?companyId=1&codUsuario=mjocelio',
+    );
+  });
+
   it('traduz reporte final individual sem fechar o split e encerra o split em chamada dependente', async () => {
     const transport = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response('reporteOrdem', [{

@@ -64,7 +64,6 @@ describe('ReportOperacaoService', () => {
       if (url.startsWith('/api/production-orders/')) return throwError(() => new Error('OP não encontrada'));
       if (url === '/api/operational-responsibles') return of(query?.['areaCode'] === '4001' ? [
         { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
-        { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Montagem' },
       ] : []);
       if (url === '/api/teams') return of(query?.['areaCode'] === '4001' ? [{
         codigo: 'EQ0007', descricao: 'Equipe Sete', turno: '2', operadores: [],
@@ -381,7 +380,7 @@ describe('ReportOperacaoService', () => {
 
     expect(responsaveis).toEqual(expect.arrayContaining([
       expect.objectContaining({ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }),
-      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'MONT03' }),
+      expect.objectContaining({ tipo: 'EQUIPE', codigo: 'EQ0007' }),
     ]));
     expect(responsaveis).toHaveLength(2);
     await expect(firstValueFrom(service.listarResponsaveis('4002', 'CT-CQ-01'))).resolves.toEqual([]);
@@ -401,14 +400,18 @@ describe('ReportOperacaoService', () => {
     ]);
   });
 
-  it('não consulta catálogo de equipes inexistente no FMA quando o reporte exige equipe', async () => {
+  it('carrega como responsáveis somente as equipes elegíveis para a área da ordem', async () => {
     apiGet.mockClear();
 
     await expect(firstValueFrom(
-      service.listarResponsaveis('4110', 'EMP-01-02', 'EQUIPE'),
-    )).resolves.toEqual([]);
+      service.listarResponsaveis('4001', 'CT-EXT-01', 'EQUIPE'),
+    )).resolves.toEqual([{
+      tipo: 'EQUIPE', codigo: 'EQ0007', nome: 'Equipe Sete',
+    }]);
 
-    expect(apiGet).not.toHaveBeenCalled();
+    expect(apiGet).toHaveBeenCalledWith('/api/teams', {
+      areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    });
   });
 
   it('não esconde falha do catálogo canônico', async () => {

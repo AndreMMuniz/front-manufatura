@@ -73,14 +73,18 @@ describe('OperacaoInfoCard', () => {
     expect(selects[1].componentInstance.disabled).toBe(false);
   });
 
-  it('permite informar diretamente o código quando o responsável é uma equipe', () => {
+  it('permite selecionar a equipe elegível em um dropdown', () => {
     fixture.componentRef.setInput('tipoResponsavel', 'EQUIPE');
     fixture.componentRef.setInput('responsavelDisabled', false);
     fixture.detectChanges();
 
-    const teamInput = fixture.debugElement.query(By.css('po-input[name="responsavelOperacao"]'));
-    expect(teamInput).toBeTruthy();
-    expect(teamInput.componentInstance.label).toBe('Código da equipe');
-    expect(fixture.debugElement.queryAll(By.css('po-select'))).toHaveLength(1);
+    const selects = fixture.debugElement.queryAll(By.css('po-select'));
+    const teamSelect = fixture.debugElement.query(By.css('po-select[name="responsavelOperacao"]'));
+    expect(teamSelect).toBeTruthy();
+    expect(teamSelect.componentInstance.label).toBe('Equipe');
+    expect(teamSelect.componentInstance.options).toEqual([
+      { label: 'MONT03 - Montagem Zap', value: 'MONT03' },
+    ]);
+    expect(selects).toHaveLength(2);
   });
 });
