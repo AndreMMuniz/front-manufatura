@@ -388,7 +388,7 @@ describe('ReportOperacaoService', () => {
     await expect(firstValueFrom(service.listarResponsaveis('', 'CT-CQ-01'))).resolves.toEqual([]);
   });
 
-  it('carrega somente operadores ou equipes conforme o tipo definido pela abertura', async () => {
+  it('carrega somente operadores quando esse tipo é definido pela abertura', async () => {
     const listarPorTipo = service.listarResponsaveis.bind(service) as unknown as (
       areaCode: string,
       workCenterCode: string,
@@ -399,14 +399,16 @@ describe('ReportOperacaoService', () => {
     )).resolves.toEqual([
       { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
     ]);
+  });
+
+  it('não consulta catálogo de equipes inexistente no FMA quando o reporte exige equipe', async () => {
+    apiGet.mockClear();
+
     await expect(firstValueFrom(
-      listarPorTipo('4001', 'CT-EXT-01', 'EQUIPE'),
-    )).resolves.toEqual([
-      { tipo: 'EQUIPE', codigo: 'EQ0007', nome: 'Equipe Sete' },
-    ]);
-    expect(apiGet).toHaveBeenCalledWith('/api/teams', {
-      areaCode: '4001', workCenterCode: 'CT-EXT-01',
-    });
+      service.listarResponsaveis('4110', 'EMP-01-02', 'EQUIPE'),
+    )).resolves.toEqual([]);
+
+    expect(apiGet).not.toHaveBeenCalled();
   });
 
   it('não esconde falha do catálogo canônico', async () => {

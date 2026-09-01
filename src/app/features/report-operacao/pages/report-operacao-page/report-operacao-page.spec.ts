@@ -415,6 +415,42 @@ describe('ReportOperacaoPage', () => {
     }));
   });
 
+  it('reporta ordem já iniciada por equipe após informar diretamente seu código', () => {
+    vi.mocked(service.listarResponsaveis).mockReturnValue(of([]));
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 3,
+        dataInicio: new Date(2026, 7, 29),
+        horaInicio: '07:18',
+        operador: '',
+        equipe: '',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+
+    component.alterarResponsavel(' aut00037 ');
+    expect(component.responsaveisError).toBe('');
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'EQUIPE', codigo: 'AUT00037', nome: 'AUT00037',
+    });
+    component.salvarReporte({
+      quantidadeAprovada: 100,
+      quantidadeRetrabalho: 0,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+    });
+
+    expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      tipoResponsavel: 'EQUIPE',
+      codigoResponsavel: 'AUT00037',
+      equipe: 'AUT00037',
+    }));
+  });
+
   it('não solicita novo início quando falta o operador de uma ordem já iniciada', () => {
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
       sucesso: true,

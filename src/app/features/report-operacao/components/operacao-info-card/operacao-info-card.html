@@ -16,16 +16,15 @@
       (ngModelChange)="changeTipoResponsavel($event)"
     ></po-select>
     <div class="operacao-info__responsavel-group">
-      <po-select
-        name="responsavelOperacao"
-        [p-label]="tipoResponsavel === 'OPERADOR' ? 'Operador' : 'Equipe'"
-        [p-options]="responsavelOptions"
-        [p-disabled]="responsavelDisabled || loadingResponsaveis"
-        [p-loading]="loadingResponsaveis"
-        [ngModel]="responsavelCodigo"
-        (ngModelChange)="changeResponsavel($event)"
-      ></po-select>
       @if (tipoResponsavel === 'EQUIPE') {
+        <po-input
+          name="responsavelOperacao"
+          p-label="Código da equipe"
+          p-placeholder="Ex.: AUT00037"
+          [p-disabled]="responsavelDisabled"
+          [ngModel]="responsavelCodigo"
+          (ngModelChange)="changeResponsavel($event)"
+        ></po-input>
         <po-button
           data-testid="gerenciar-equipe"
           p-label="Criar equipe"
@@ -34,6 +33,16 @@
           [p-disabled]="gerenciarEquipeDisabled || responsavelDisabled || loadingResponsaveis"
           (p-click)="onGerenciarEquipe()"
         ></po-button>
+      } @else {
+        <po-select
+          name="responsavelOperacao"
+          p-label="Operador"
+          [p-options]="responsavelOptions"
+          [p-disabled]="responsavelDisabled || loadingResponsaveis"
+          [p-loading]="loadingResponsaveis"
+          [ngModel]="responsavelCodigo"
+          (ngModelChange)="changeResponsavel($event)"
+        ></po-select>
       }
     </div>
     <po-input name="turno" p-label="Turno" [p-readonly]="true" [ngModel]="operacao?.turno ?? ''"></po-input>

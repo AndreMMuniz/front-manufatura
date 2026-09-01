@@ -15,7 +15,6 @@ import { LocalRecordRepository } from '../../../core/offline/repositories/local-
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
-import { EquipeResponseDTO } from '../../equipes/interfaces/equipe.dto';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
   EncerrarOperacaoRequest,
@@ -146,14 +145,7 @@ export class ReportOperacaoService {
     if (!area || !center) return of([]);
 
     if (tipo === 'EQUIPE') {
-      return this.api.get<ReadonlyArray<EquipeResponseDTO>>('/api/teams', {
-        areaCode: area,
-        workCenterCode: center,
-      }).pipe(map(equipes => equipes.map(equipe => ({
-        tipo: 'EQUIPE' as const,
-        codigo: equipe.codigo,
-        nome: equipe.descricao,
-      }))));
+      return of([]);
     }
 
     return this.productionCatalog.listarResponsaveis(area, center).pipe(

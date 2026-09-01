@@ -72,4 +72,15 @@ describe('OperacaoInfoCard', () => {
     expect(selects[0].componentInstance.disabled).toBe(true);
     expect(selects[1].componentInstance.disabled).toBe(false);
   });
+
+  it('permite informar diretamente o código quando o responsável é uma equipe', () => {
+    fixture.componentRef.setInput('tipoResponsavel', 'EQUIPE');
+    fixture.componentRef.setInput('responsavelDisabled', false);
+    fixture.detectChanges();
+
+    const teamInput = fixture.debugElement.query(By.css('po-input[name="responsavelOperacao"]'));
+    expect(teamInput).toBeTruthy();
+    expect(teamInput.componentInstance.label).toBe('Código da equipe');
+    expect(fixture.debugElement.queryAll(By.css('po-select'))).toHaveLength(1);
+  });
 });

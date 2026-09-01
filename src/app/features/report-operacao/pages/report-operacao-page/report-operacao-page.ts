@@ -189,11 +189,15 @@ export class ReportOperacaoPage implements OnInit {
 
   get responsavelSelecionado(): ResponsavelOperacao | null {
     const codigo = this.normalizeCode(this.responsavelCodigo);
-    return this.responsaveis.find(
+    const catalogado = this.responsaveis.find(
       responsavel =>
         responsavel.tipo === this.tipoResponsavel
         && this.normalizeCode(responsavel.codigo) === codigo,
     ) ?? null;
+    if (catalogado || !codigo || this.tipoResponsavel !== 'EQUIPE') {
+      return catalogado;
+    }
+    return { tipo: 'EQUIPE', codigo, nome: codigo };
   }
 
   get canManageTeam(): boolean {
@@ -1285,8 +1289,8 @@ export class ReportOperacaoPage implements OnInit {
       horaInicio: operation.horaInicio,
       dataFim: operation.dataFim ?? new Date(),
       horaFim: operation.horaFim,
-      operador: operation.operador,
-      equipe: operation.equipe,
+      operador: responsavel.tipo === 'OPERADOR' ? responsavel.nome : '',
+      equipe: responsavel.tipo === 'EQUIPE' ? responsavel.nome : '',
       tipoResponsavel: responsavel.tipo,
       codigoResponsavel: responsavel.codigo,
       ct: operation.ct,
@@ -1448,7 +1452,7 @@ export class ReportOperacaoPage implements OnInit {
             this.responsavelCodigo = '';
             this.workflowState.setResponsavel(null);
           }
-          if (responsaveis.length === 0) {
+          if (responsaveis.length === 0 && tipoApi !== 'EQUIPE') {
             this.responsaveisError = frozenResponsavel
               ? 'Responsável iniciado preservado; não foi possível revalidar a elegibilidade.'
               : 'Nenhuma equipe ou operador elegível. Tente novamente.';
@@ -1517,7 +1521,7 @@ export class ReportOperacaoPage implements OnInit {
       ?? responsaveis.find(item => item.tipo === 'EQUIPE' && item.nome === operacao.equipe)
       ?? null;
 
-    this.tipoResponsavel = responsavel?.tipo ?? 'OPERADOR';
+    this.tipoResponsavel = responsavel?.tipo ?? tipoObrigatorio ?? 'OPERADOR';
     this.responsavelCodigo = responsavel?.codigo ?? '';
     this.workflowState.setResponsavel(responsavel);
   }
