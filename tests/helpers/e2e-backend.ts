@@ -42,7 +42,7 @@ const WORK_CENTERS = [
 
 const ORDERS = [
   {
-    id: '450001|PERFIL-100 / OP-10458|10|01',
+    id: '450001|OP-10458|10|01',
     ordem: '450001',
     itemOp: 'PERFIL-100 / OP-10458',
     operacao: '10',
@@ -51,7 +51,7 @@ const ORDERS = [
     workCenterCode: 'CT-EXT-01',
   },
   {
-    id: '450002|PERFIL-200 / OP-10459|20|01',
+    id: '450002|OP-10459|20|01',
     ordem: '450002',
     itemOp: 'PERFIL-200 / OP-10459',
     operacao: '20',
@@ -440,6 +440,30 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       await json(route, [{ codigo: '05', descricao: 'Borra' }]);
       return;
     }
+    if (path === '/api/batches/start' && request.method() === 'POST') {
+      const body = request.postDataJSON() as {
+        ordens?: ReadonlyArray<{ readonly id?: unknown }>;
+      };
+      const idempotencyKey = request.headers()['idempotency-key'] ?? '';
+      await json(route, commandReceipt(
+        idempotencyKey,
+        'batch-start',
+        (body.ordens ?? []).map(ordem => String(ordem.id ?? '')),
+      ));
+      return;
+    }
+    if (path === '/api/batches/report' && request.method() === 'POST') {
+      const body = request.postDataJSON() as {
+        items?: ReadonlyArray<{ readonly orderId?: unknown }>;
+      };
+      const idempotencyKey = request.headers()['idempotency-key'] ?? '';
+      await json(route, commandReceipt(
+        idempotencyKey,
+        'batch-report',
+        (body.items ?? []).map(item => String(item.orderId ?? '')),
+      ));
+      return;
+    }
     if (path === '/api/teams' && request.method() === 'GET') {
       await json(route, [...teams.values()]);
       return;
@@ -556,6 +580,25 @@ function normalize(value: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function commandReceipt(
+  idempotencyKey: string,
+  type: string,
+  orderIds: ReadonlyArray<string>,
+) {
+  const now = new Date().toISOString();
+  return {
+    serverRecordId: `e2e:${type}:${idempotencyKey}`,
+    idempotencyKey,
+    receivedAt: now,
+    processedAt: now,
+    duplicate: false,
+    orderResults: orderIds.map(orderId => ({
+      orderId,
+      success: true,
+    })),
+  };
 }
 
 function authorizationResult(nrFicha: number, codComponente: number, dentroFaixa: boolean, resultado: number) {

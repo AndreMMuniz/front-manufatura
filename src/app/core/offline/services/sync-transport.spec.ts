@@ -173,6 +173,35 @@ describe('sync transport contract', () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
+  it('rejeita receipt inválido sem deixar a entrega pendente', async () => {
+    const cancel = vi.fn();
+    const transport: SyncTransport = {
+      send: async () => ({ ...receipt(), idempotencyKey: 'other-key' }),
+    };
+    const delivery = sendCommandWithTimeout(
+      transport,
+      toSyncCommandRequest(entry()),
+      30_000,
+      { schedule: () => cancel },
+    );
+
+    const outcome = await Promise.race([
+      delivery.then(
+        () => ({ status: 'resolved' as const }),
+        error => ({ status: 'rejected' as const, error }),
+      ),
+      new Promise<{ status: 'pending' }>(resolve => {
+        globalThis.setTimeout(() => resolve({ status: 'pending' }), 0);
+      }),
+    ]);
+
+    expect(outcome).toMatchObject({
+      status: 'rejected',
+      error: { code: 'RECEIPT_IDEMPOTENCY_MISMATCH' },
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it('propaga cancelamento externo e limpa o timeout', async () => {
     const cancel = vi.fn();
     const controller = new AbortController();

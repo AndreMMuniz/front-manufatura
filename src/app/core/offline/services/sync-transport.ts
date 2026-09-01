@@ -149,7 +149,14 @@ export function sendCommandWithTimeout(
     Promise.resolve()
       .then(() => transport.send(request, controller.signal))
       .then(
-      (result) => finish(() => resolve(validateCommandResult(request, result))),
+      (result) => {
+        try {
+          const validated = validateCommandResult(request, result);
+          finish(() => resolve(validated));
+        } catch (error) {
+          finish(() => reject(error));
+        }
+      },
       (error: unknown) => finish(() => reject(error)),
       );
   });

@@ -435,10 +435,13 @@ test.describe('fluxo de Reporte Batelada', () => {
     const outbox = await readOperationalOutbox(page);
     const start = outbox.find(entry => entry.commandType === 'START_BATCH');
     const reports = outbox.filter(entry => entry.commandType === 'REPORT_BATCH');
-    expect(start).toBeDefined();
+    expect(start).toBeUndefined();
     expect(reports).toHaveLength(2);
     expect(new Set(reports.map(entry => entry.idempotencyKey)).size).toBe(2);
-    expect(reports.every(entry => entry.dependencyIds.includes(start!.localId))).toBe(true);
+    const firstReport = reports.find(entry => entry.dependencyIds.length === 0);
+    const secondReport = reports.find(entry => entry.dependencyIds.length === 1);
+    expect(firstReport).toBeDefined();
+    expect(secondReport?.dependencyIds).toEqual([firstReport!.localId]);
 
     const drawerContainer = drawer.locator('.po-page-slide-container');
     await page.setViewportSize({ width: 800, height: 800 });

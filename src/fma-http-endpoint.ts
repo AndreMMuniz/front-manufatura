@@ -780,7 +780,6 @@ function receipt(
       orderResults: orderIds.map(orderId => ({
         orderId,
         success: true,
-        serverRecordId: `datasul:order:${orderId}`,
       })),
     } : {}),
   };

@@ -444,8 +444,17 @@ describe('gateway FMA', () => {
         })),
       }),
     });
-    const reportReceipt = await report.json() as { orderResults: unknown[] };
-    expect(reportReceipt.orderResults).toHaveLength(2);
+    const reportReceipt = await report.json() as {
+      orderResults: ReadonlyArray<{
+        orderId: string;
+        success: boolean;
+        serverRecordId?: string;
+      }>;
+    };
+    expect(reportReceipt.orderResults).toEqual(ordens.map(order => ({
+      orderId: order.id,
+      success: true,
+    })));
     expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciarordembatelada');
     expect(String(transport.mock.calls[1][0])).toContain('/api/fma/v1/reporteordembatelada');
   });
