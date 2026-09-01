@@ -64,6 +64,17 @@ describe('sync retry policy', () => {
       correlationId: 'corr-1',
       retryAfterSeconds: 2,
     });
+
+    expect(normalizeCommandError({
+      status: 0,
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'A ordem já está iniciada.',
+    })).toMatchObject({
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'A ordem já está iniciada.',
+    });
   });
 
   it('sanitiza código, correlação e mensagem sem copiar segredo ou Error.message', () => {

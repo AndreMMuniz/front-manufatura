@@ -469,8 +469,13 @@ export class ReportaBateladaPage implements OnInit {
         if (inicio.delivery.status === 'ERROR') {
           const message = inicio.delivery.error.userMessage;
           this.workflow.failStart(message);
-          this.pendingStartCommand = null;
-          this.endIdempotencyKey = null;
+          if (
+            inicio.delivery.error.category === 'VALIDATION'
+            || inicio.delivery.error.category === 'CONFLICT'
+          ) {
+            this.pendingStartCommand = null;
+            this.endIdempotencyKey = null;
+          }
           this.notification.error(message);
           this.syncView();
           return;
@@ -479,7 +484,7 @@ export class ReportaBateladaPage implements OnInit {
         this.pendingStartCommand = null;
         this.endIdempotencyKey = null;
         if (inicio.delivery.status === 'SYNCED') {
-          this.notification.success('Batelada iniciada no Datasul.');
+          this.notification.success('Comando de início enviado ao Datasul.');
         } else {
           this.notification.warning('Datasul indisponível — início salvo como pendente.');
         }

@@ -504,6 +504,40 @@ describe('gateway FMA', () => {
     });
   });
 
+  it.each([408, 504])(
+    'mantém timeout HTTP %s do início da batelada como falha transitória',
+    async (status) => {
+      const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status }));
+      const root = await startGateway(transport);
+
+      const result = await postBatchStart(root, `batch-timeout-${status}`);
+
+      expect(result.status).toBe(status);
+      await expect(result.json()).resolves.toEqual({ code: 'datasul-request-failed' });
+    },
+  );
+
+  it.each([
+    'Falha com client_secret=valor-privado.',
+    'Falha com refresh_token=valor-privado.',
+    'Falha com Authorization: Bearer valor-privado.',
+    'Falha com JWT eyJhbGciOiJIUzI1NiJ9.valor.assinatura.',
+  ])('não expõe variante de credencial na mensagem pública: %s', async (message) => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      type: 'error',
+      message,
+      details: [],
+    }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+
+    const result = await postBatchStart(root, `batch-sensitive-${message.length}`);
+
+    expect(result.status).toBe(422);
+    const body = await result.json() as { userMessage: string };
+    expect(body.userMessage).not.toContain('valor-privado');
+    expect(body.userMessage).not.toContain('eyJhbGci');
+  });
+
   it('classifica parada aberta, retroativa e finalização posterior', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
     const root = await startGateway(transport);

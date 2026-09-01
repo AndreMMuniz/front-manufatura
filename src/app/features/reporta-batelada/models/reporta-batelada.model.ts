@@ -1,4 +1,4 @@
-import { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
+import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
 
 export enum EstadoBatelada {
   ContextoPendente = 'ContextoPendente',

@@ -269,7 +269,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.iniciarBatelada();
 
     expect(component.view.estado).toBe('BateladaIniciada');
-    expect(notificationMock.success).toHaveBeenCalledWith('Batelada iniciada no Datasul.');
+    expect(notificationMock.success).toHaveBeenCalledWith('Comando de início enviado ao Datasul.');
     expect(notificationMock.warning).not.toHaveBeenCalled();
   });
 
@@ -303,6 +303,34 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
     component.iniciarBatelada();
     expect(serviceMock.montarComandoInicio).toHaveBeenCalledTimes(2);
+  });
+
+  it('não chama bloqueio de autenticação de pendência e preserva a identidade para retomar', () => {
+    const authMessage = 'A sessão precisa ser renovada antes de iniciar a batelada.';
+    serviceMock.iniciarBatelada.mockReturnValueOnce(of({
+      batchId: 'batch-auth',
+      iniciadoEm: new Date(2026, 6, 23, 8, 15),
+      ordensIniciadas: ['2', '1'],
+      delivery: {
+        status: 'ERROR',
+        error: {
+          code: 'BATCH_START_AUTH_REQUIRED',
+          category: 'AUTH',
+          userMessage: authMessage,
+        },
+      },
+    }));
+    prepareForStart();
+
+    component.iniciarBatelada();
+
+    expect(component.view.estado).toBe('BateladaPreparada');
+    expect(component.view.errorMessage).toBe(authMessage);
+    expect(notificationMock.error).toHaveBeenCalledWith(authMessage);
+    expect(notificationMock.warning).not.toHaveBeenCalled();
+
+    component.iniciarBatelada();
+    expect(serviceMock.montarComandoInicio).toHaveBeenCalledOnce();
   });
 
   it('prevents duplicate start commands from double click', () => {

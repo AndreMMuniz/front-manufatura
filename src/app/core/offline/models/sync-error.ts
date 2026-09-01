@@ -114,10 +114,10 @@ export function normalizeCommandError(error: unknown): NormalizedSyncError {
   }
 
   const record = asRecord(error);
-  if (record?.['status'] === 0) {
+  const explicitCategory = apiCategory(record?.['category']);
+  if (!explicitCategory && record?.['status'] === 0) {
     return safeError('NETWORK', 'TRANSIENT');
   }
-  const explicitCategory = apiCategory(record?.['category']);
   const status = httpStatus(record?.['status']);
   const category = explicitCategory ?? categoryForStatus(status);
   const code = safeCode(record?.['code'], status, category);

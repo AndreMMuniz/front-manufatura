@@ -1018,6 +1018,10 @@ function commandBusinessError(
   route: string,
   status: number,
 ): FmaPublicCommandError | undefined {
+  if (
+    route === '/api/fma/v1/iniciarordembatelada'
+    && (status === 408 || status === 504)
+  ) return undefined;
   const knownError = stopBusinessError(value, route);
   if (knownError) return knownError;
   const reason = datasulMessages(value).at(-1);
@@ -1051,12 +1055,13 @@ function datasulMessages(value: unknown): string[] {
       return [record['message'], record['detailedMessage']];
     })
     .filter((message): message is string => typeof message === 'string')
-    .map(message => message.replace(/[\u0000-\u001f\u007f]/gu, ' ').trim().slice(0, 240))
-    .filter(message => Boolean(message) && !containsSensitiveData(message));
+    .map(message => message.replace(/[\u0000-\u001f\u007f]/gu, ' ').trim())
+    .filter(message => Boolean(message) && !containsSensitiveData(message))
+    .map(message => message.slice(0, 240));
 }
 
 function containsSensitiveData(message: string): boolean {
-  return /\b(password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|supervisor[-_ ]?(?:pin|password|senha))\b/iu
+  return /(?:\b(?:password|passwd|senha|token|cookie|authorization|credential|credencial|jwt|api[-_ ]?key|access[-_ ]?key|private[-_ ]?key|client[-_ ]?secret|(?:access|refresh)[-_ ]?token|supervisor[-_ ]?(?:pin|password|senha))\b|\bbearer\s+|\beyJ[A-Za-z0-9_-]{10,}\.)/iu
     .test(message);
 }
 

@@ -4,6 +4,8 @@ import { Observable, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
+import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
+import type { OutboxEntry } from '../../../core/offline/models/outbox-entry';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { IdempotencyService } from '../../../core/offline/services/idempotency.service';
@@ -98,9 +100,8 @@ export class ReportaBateladaService {
           return !entry || deliveryDispositionOf(entry.deliveryDisposition) === 'ACTIVE';
         });
         const starts = [...activeRecords]
-          .filter(record =>
-            record.commandType === 'START_BATCH'
-            && outboxById.get(record.localId)?.status !== 'ERROR')
+          .filter(record => record.commandType === 'START_BATCH'
+            && this.isRestorableStart(outboxById.get(record.localId)))
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
         const start = starts.find(candidate =>
           !activeRecords.some(record => record.aggregateId === candidate.aggregateId && (
@@ -252,7 +253,7 @@ export class ReportaBateladaService {
         horaInicio: request.horaInicio,
       },
     })).pipe(
-      switchMap(confirmation => from(this.immediateDelivery.deliver(confirmation.localId)).pipe(
+      switchMap(confirmation => from(this.deliverStart(confirmation.localId)).pipe(
         map(delivery => {
           const inicio: InicioBateladaEntregue = {
             batchId,
@@ -629,22 +630,98 @@ export class ReportaBateladaService {
   }
 
   private deliveryResult(
-    entry: Awaited<ReturnType<OutboxRepository['listByOwner']>>[number] | undefined,
+    entry: OutboxEntry | null | undefined,
   ): InicioBateladaEntregue['delivery'] {
-    if (entry?.status === 'SYNCED' && entry.receipt) {
-      return { status: 'SYNCED', receipt: { ...entry.receipt } };
+    if (!entry) {
+      return this.deliveryError(
+        'BATCH_START_OUTBOX_MISSING',
+        'CONFIGURATION',
+        'Não foi possível localizar o envio do início da batelada neste dispositivo.',
+      );
     }
-    return { status: 'PENDING' };
+    if (entry.status === 'SYNCED') {
+      return entry.receipt
+        ? { status: 'SYNCED', receipt: structuredClone(entry.receipt) }
+        : this.deliveryError(
+          'BATCH_START_RECEIPT_MISSING',
+          'CONFIGURATION',
+          'O Datasul confirmou o envio, mas o comprovante da batelada não foi encontrado.',
+        );
+    }
+    if (entry.status === 'ERROR') {
+      return entry.lastError
+        ? { status: 'ERROR', error: { ...entry.lastError } }
+        : this.deliveryError(
+          'BATCH_START_ERROR_MISSING',
+          'CONFIGURATION',
+          'O início da batelada falhou sem uma mensagem operacional disponível.',
+        );
+    }
+    if (
+      entry.status === 'RETRY_WAIT'
+      && entry.lastError?.category === 'TRANSIENT'
+    ) {
+      return { status: 'PENDING' };
+    }
+    if (entry.status === 'SYNCING') {
+      return { status: 'PENDING' };
+    }
+    if (entry.status === 'BLOCKED_AUTH') {
+      return entry.lastError
+        ? { status: 'ERROR', error: { ...entry.lastError } }
+        : this.deliveryError(
+          'BATCH_START_AUTH_REQUIRED',
+          'AUTH',
+          'A sessão precisa ser renovada antes de iniciar a batelada.',
+        );
+    }
+    if (entry.status === 'BLOCKED_DEPENDENCY') {
+      return entry.lastError
+        ? { status: 'ERROR', error: { ...entry.lastError } }
+        : this.deliveryError(
+          'BATCH_START_DEPENDENCY_BLOCKED',
+          'CONFIGURATION',
+          'O início da batelada está bloqueado por uma dependência operacional.',
+        );
+    }
+    return this.deliveryError(
+      'BATCH_START_NOT_DELIVERED',
+      'CONFIGURATION',
+      'Não foi possível confirmar uma tentativa de envio do início da batelada.',
+    );
   }
 
   private cloneDelivery(delivery: InicioBateladaEntregue['delivery']): InicioBateladaEntregue['delivery'] {
-    if (delivery.status === 'SYNCED') {
-      return { status: 'SYNCED', receipt: { ...delivery.receipt } };
+    return structuredClone(delivery);
+  }
+
+  private async deliverStart(localId: string): Promise<ImmediateDeliveryResult> {
+    const observed = await this.immediateDelivery.deliver(localId);
+    if (observed.status !== 'PENDING') return observed;
+    const ownerId = this.authSession?.currentUser?.id.trim();
+    if (!ownerId) {
+      return this.deliveryError(
+        'BATCH_START_SESSION_REQUIRED',
+        'AUTH',
+        'A sessão precisa ser renovada antes de iniciar a batelada.',
+      );
     }
-    if (delivery.status === 'ERROR') {
-      return { status: 'ERROR', error: { ...delivery.error } };
-    }
-    return { status: 'PENDING' };
+    return this.deliveryResult(await this.outbox.getById(ownerId, localId));
+  }
+
+  private isRestorableStart(entry: OutboxEntry | undefined): boolean {
+    if (!entry || deliveryDispositionOf(entry.deliveryDisposition) !== 'ACTIVE') return false;
+    if (entry.status === 'SYNCED') return Boolean(entry.receipt);
+    return entry.status === 'SYNCING'
+      || (entry.status === 'RETRY_WAIT' && entry.lastError?.category === 'TRANSIENT');
+  }
+
+  private deliveryError(
+    code: string,
+    category: 'AUTH' | 'CONFIGURATION',
+    userMessage: string,
+  ): ImmediateDeliveryResult {
+    return { status: 'ERROR', error: { code, category, userMessage } };
   }
 
   private cloneItems(

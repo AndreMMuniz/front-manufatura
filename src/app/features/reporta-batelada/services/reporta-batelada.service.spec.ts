@@ -30,6 +30,7 @@ describe('ReportaBateladaService', () => {
   let deliver: ReturnType<typeof vi.fn>;
   let listLocalRecords: ReturnType<typeof vi.fn>;
   let listOutbox: ReturnType<typeof vi.fn>;
+  let getOutbox: ReturnType<typeof vi.fn>;
   let catalogMock: {
     listarAreas: ReturnType<typeof vi.fn>;
     pesquisarCentros: ReturnType<typeof vi.fn>;
@@ -43,6 +44,15 @@ describe('ReportaBateladaService', () => {
     deliver = vi.fn().mockResolvedValue({ status: 'PENDING' });
     listLocalRecords = vi.fn().mockResolvedValue([]);
     listOutbox = vi.fn().mockResolvedValue([]);
+    getOutbox = vi.fn().mockImplementation(async (_ownerId: string, localId: string) => ({
+      localId,
+      status: 'RETRY_WAIT',
+      lastError: {
+        code: 'NETWORK',
+        category: 'TRANSIENT',
+        userMessage: 'Serviço temporariamente indisponível; uma nova tentativa será realizada.',
+      },
+    }));
     catalogMock = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([workCenter()])),
@@ -64,7 +74,10 @@ describe('ReportaBateladaService', () => {
         { provide: ReportOperacaoService, useValue: catalogMock },
         { provide: ProductionContextCatalogService, useValue: catalogMock },
         { provide: LocalRecordRepository, useValue: { listByOwner: listLocalRecords } },
-        { provide: OutboxRepository, useValue: { listByOwner: listOutbox } },
+        {
+          provide: OutboxRepository,
+          useValue: { listByOwner: listOutbox, getById: getOutbox },
+        },
         { provide: ImmediateCommandDeliveryService, useValue: { deliver } },
         {
           provide: OperationalCommandFacade,
@@ -169,6 +182,7 @@ describe('ReportaBateladaService', () => {
   });
 
   it('starts the complete batch atomically and returns a defensive timestamp', async () => {
+    currentUser = { id: 'operator-1' };
     const request = service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       responsavel(),
@@ -184,6 +198,7 @@ describe('ReportaBateladaService', () => {
     expect(result.iniciadoEm).toBeInstanceOf(Date);
     expect(result.delivery).toEqual({ status: 'PENDING' });
     expect(deliver).toHaveBeenCalledWith(result.startCommandId);
+    expect(getOutbox).toHaveBeenCalledWith('operator-1', result.startCommandId);
   });
 
   it.each([
@@ -205,6 +220,7 @@ describe('ReportaBateladaService', () => {
       },
     }],
   ])('anexa o resultado imediato %s ao início capturado', async (_status, delivery) => {
+    currentUser = { id: 'operator-1' };
     deliver.mockResolvedValueOnce(delivery);
     const request = service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
@@ -215,6 +231,52 @@ describe('ReportaBateladaService', () => {
     await expect(firstValueFrom(service.iniciarBatelada(request))).resolves.toEqual(
       expect.objectContaining({ delivery }),
     );
+  });
+
+  it.each([
+    ['BLOCKED_AUTH', {
+      code: 'SESSION_REQUIRED',
+      category: 'AUTH',
+      userMessage: 'A sessão precisa ser renovada para continuar a sincronização.',
+    }],
+    ['BLOCKED_DEPENDENCY', {
+      code: 'DEPENDENCY_BLOCKED',
+      category: 'CONFIGURATION',
+      userMessage: 'O início depende de outro comando.',
+    }],
+  ])('não chama %s de indisponibilidade pendente', async (status, lastError) => {
+    currentUser = { id: 'operator-1' };
+    getOutbox.mockResolvedValueOnce({ status, lastError });
+    const request = service.montarComandoInicio(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      responsavel(),
+      [order('1'), order('2')],
+    );
+
+    await expect(firstValueFrom(service.iniciarBatelada(request))).resolves.toEqual(
+      expect.objectContaining({ delivery: { status: 'ERROR', error: lastError } }),
+    );
+  });
+
+  it.each([
+    ['entrada ausente', null],
+    ['SYNCED sem receipt', { status: 'SYNCED' }],
+    ['PENDING sem tentativa transitória', { status: 'PENDING' }],
+  ])('não mascara %s como falha de conexão', async (_scenario, entry) => {
+    currentUser = { id: 'operator-1' };
+    getOutbox.mockResolvedValueOnce(entry);
+    const request = service.montarComandoInicio(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      responsavel(),
+      [order('1'), order('2')],
+    );
+
+    const result = await firstValueFrom(service.iniciarBatelada(request));
+
+    expect(result.delivery).toEqual(expect.objectContaining({ status: 'ERROR' }));
+    if (result.delivery.status === 'ERROR') {
+      expect(result.delivery.error.category).toBe('CONFIGURATION');
+    }
   });
 
   it.each([
@@ -233,6 +295,29 @@ describe('ReportaBateladaService', () => {
         userMessage: 'A ordem já está iniciada.',
       },
     }]);
+
+    await expect(firstValueFrom(service.restaurarBateladaAtiva())).resolves.toBeNull();
+  });
+
+  it.each([
+    ['sem Outbox', []],
+    ['bloqueado por autenticação', [{
+      ...persistedBatchOutbox(persistedBatchStart()),
+      status: 'BLOCKED_AUTH',
+      lastError: {
+        code: 'SESSION_REQUIRED',
+        category: 'AUTH',
+        userMessage: 'Renove a sessão.',
+      },
+    }]],
+    ['sincronizado sem receipt', [{
+      ...persistedBatchOutbox(persistedBatchStart()),
+      status: 'SYNCED',
+    }]],
+  ])('não restaura START_BATCH %s como ativo', async (_scenario, entries) => {
+    currentUser = { id: 'operator-1' };
+    listLocalRecords.mockResolvedValue([persistedBatchStart()]);
+    listOutbox.mockResolvedValue(entries);
 
     await expect(firstValueFrom(service.restaurarBateladaAtiva())).resolves.toBeNull();
   });
@@ -552,11 +637,14 @@ describe('ReportaBateladaService', () => {
   );
 
   async function startBatch() {
-    return firstValueFrom(service.iniciarBatelada(service.montarComandoInicio(
+    currentUser = { id: 'operator-1' };
+    const result = await firstValueFrom(service.iniciarBatelada(service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       responsavel(),
       [order('1'), order('2')],
     )));
+    currentUser = null;
+    return result;
   }
 });
 
