@@ -636,6 +636,18 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     }));
   });
 
+  it('clears the prepared batch before leaving so other orders can be selected later', () => {
+    prepareForStart();
+
+    component.sair();
+
+    expect(component.view.estado).toBe('ContextoPendente');
+    expect(component.view.selectedOrderIds).toEqual([]);
+    expect(component.view.composition).toEqual([]);
+    expect(component.selectedIds.size).toBe(0);
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/quality-control']);
+  });
+
   it('protects navigation while the joint start is still pending', () => {
     serviceMock.iniciarBatelada.mockReturnValueOnce(new Subject());
     prepareForStart();

@@ -805,6 +805,8 @@ export class ReportaBateladaPage implements OnInit {
   private navigateProtected(commands: ReadonlyArray<string>): void {
     if (!this.started && !this.workflow.hasUnsavedDraft()) {
       this.invalidateTeamContext();
+      this.workflow.clear();
+      this.syncView();
       void this.router.navigate([...commands]);
       return;
     }
