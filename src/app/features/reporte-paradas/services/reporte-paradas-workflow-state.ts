@@ -21,7 +21,6 @@ export interface ParadaDraft {
   readonly startTime: string;
   readonly endDate: Date | string | null;
   readonly endTime: string;
-  readonly programmed: boolean;
 }
 
 export interface ContextRequestToken {
@@ -89,7 +88,6 @@ export class ReporteParadasWorkflowState {
       startTime: '',
       endDate: null,
       endTime: '',
-      programmed: false,
     };
   }
 
@@ -537,8 +535,7 @@ export class ReporteParadasWorkflowState {
       this.materialDate(left.startDate) === this.materialDate(right.startDate) &&
       left.startTime.trim() === right.startTime.trim() &&
       this.materialDate(left.endDate) === this.materialDate(right.endDate) &&
-      left.endTime.trim() === right.endTime.trim() &&
-      left.programmed === right.programmed
+      left.endTime.trim() === right.endTime.trim()
     );
   }
 

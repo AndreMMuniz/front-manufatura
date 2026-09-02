@@ -21,7 +21,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import {
   PoButtonModule,
-  PoCheckboxModule,
   PoFieldModule,
   PoSelectOption,
   PoWidgetModule,
@@ -36,12 +35,11 @@ type ParadaFormControls = {
   startTime: FormControl<string>;
   endDate: FormControl<Date | string | null>;
   endTime: FormControl<string>;
-  programmed: FormControl<boolean>;
 };
 
 @Component({
   selector: 'app-parada-form',
-  imports: [ReactiveFormsModule, PoButtonModule, PoCheckboxModule, PoFieldModule, PoWidgetModule],
+  imports: [ReactiveFormsModule, PoButtonModule, PoFieldModule, PoWidgetModule],
   templateUrl: './parada-form.html',
   styleUrls: ['./parada-form.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -71,7 +69,6 @@ export class ParadaForm implements OnChanges {
       nonNullable: true,
       validators: [Validators.pattern(/^$|^([01]\d|2[0-3]):[0-5]\d$/)],
     }),
-    programmed: new FormControl(false, { nonNullable: true }),
   }, { validators: [this.endPairValidator] });
 
   constructor() {
@@ -127,7 +124,6 @@ export class ParadaForm implements OnChanges {
       startTime: '',
       endDate: null,
       endTime: '',
-      programmed: false,
     };
   }
 }

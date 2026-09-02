@@ -340,7 +340,6 @@ export class ReporteParadasPage implements OnInit {
         startTime: snapshot.draft.startTime,
         endDate: snapshot.draft.endDate,
         endTime: snapshot.draft.endTime,
-        programmed: snapshot.draft.programmed,
         origin: snapshot.origin,
         metadata: snapshot.metadata,
         idempotencyKey,

@@ -37,14 +37,6 @@
       formControlName="endTime"
     ></po-input>
 
-    <po-checkbox
-      class="parada-form__checkbox"
-      name="programmed"
-      p-label="Parada Programada"
-      p-size="large"
-      formControlName="programmed"
-    ></po-checkbox>
-
     @if (form.hasError('endPair') && (form.touched || form.dirty)) {
       <p class="parada-form__error" role="alert">
         Data Final e Hora Final devem ser informadas juntas ou deixadas vazias.

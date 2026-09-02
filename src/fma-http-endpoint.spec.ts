@@ -554,7 +554,7 @@ describe('gateway FMA', () => {
     const base = {
       context: { area: { code: '4104' }, workCenter: { code: 'PRE-01' } },
       reason: { code: '07' }, responsible: { tipo: 'OPERADOR', codigo: '00016570' },
-      startDate: '2026-08-14', startTime: '09:00', programmed: false,
+      startDate: '2026-08-14', startTime: '09:00',
     };
     const send = (path: string, idempotencyKey: string, body: object) => fetch(`${root}${path}`, {
       method: 'POST', headers: { authorization, 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
@@ -597,7 +597,7 @@ describe('gateway FMA', () => {
         context: { area: { code: '4113' }, workCenter: { code: 'LASER-01-01' } },
         reason: { code: '07' },
         responsible: { tipo: 'OPERADOR', codigo: '00016570' },
-        startDate: '2026-08-14', startTime: '09:04', programmed: false,
+        startDate: '2026-08-14', startTime: '09:04',
       }),
     });
 
@@ -635,7 +635,7 @@ describe('gateway FMA', () => {
         reason: { code: '05' },
         responsible: { tipo: 'OPERADOR', codigo: '00016570' },
         startDate: '2026-08-20', startTime: '09:00',
-        endDate: '2026-08-20', endTime: '11:00', programmed: false,
+        endDate: '2026-08-20', endTime: '11:00',
       }),
     });
 

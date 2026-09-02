@@ -235,7 +235,7 @@ describe('ReporteParadasService', () => {
   });
 
   it('registra parada em andamento sem inventar fim', async () => {
-    const { service } = setup();
+    const { service, commands } = setup();
 
     const parada = await firstValueFrom(
       service.registrarParada(
@@ -251,7 +251,7 @@ describe('ReporteParadasService', () => {
     expect(parada.endTime).toBeUndefined();
     expect(parada.durationMinutes).toBeUndefined();
     expect(parada.syncStatus).toBe('PENDING');
-    expect(parada.programmed).toBe(true);
+    expect(commands.capture.mock.calls[0][0].payload).not.toHaveProperty('programmed');
   });
 
   it('registra parada finalizada e deriva duração, permitindo fim igual ao início', async () => {
@@ -348,7 +348,7 @@ describe('ReporteParadasService', () => {
       firstValueFrom(
         service.registrarParada({
           ...command,
-          programmed: false,
+          startTime: '08:01',
         }),
       ),
     ).rejects.toThrow('outro conteúdo');
@@ -381,7 +381,7 @@ describe('ReporteParadasService', () => {
       firstValueFrom(
         service.registrarParada(
           request({
-            programmed: false,
+            startTime: '08:01',
           }),
         ),
       ),
@@ -610,7 +610,7 @@ describe('ReporteParadasService', () => {
         startTime: '08:00',
         endDate: null,
         endTime: null,
-        programmed: false,
+        programmed: true,
         status: 'EM_ANDAMENTO',
         durationMinutes: null,
       },
@@ -620,6 +620,7 @@ describe('ReporteParadasService', () => {
     const [open] = await firstValueFrom(
       service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
     );
+    expect(open).not.toHaveProperty('programmed');
 
     await firstValueFrom(service.finalizarParada(open.id, finishRequest()));
 
@@ -668,7 +669,6 @@ describe('ReporteParadasService', () => {
       startTime: '08:00',
       endDate: '2026-07-28',
       endTime: '09:30',
-      programmed: true,
       origin: context.origin,
       idempotencyKey: 'idem-1',
       ...overrides,

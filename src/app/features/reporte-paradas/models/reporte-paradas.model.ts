@@ -66,7 +66,6 @@ export interface StopEntry {
   readonly startTime: string;
   readonly endDate?: Date;
   readonly endTime?: string;
-  readonly programmed: boolean;
   readonly status: ParadaStatus;
   readonly durationMinutes?: number;
   readonly idempotencyKey: string;

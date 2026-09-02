@@ -16,7 +16,6 @@ export interface CreateStopRequest {
   readonly startTime: string;
   readonly endDate?: Date | string | null;
   readonly endTime?: string | null;
-  readonly programmed: boolean;
   readonly origin?: ProductionContextOrigin;
   readonly metadata?: ProductionContext['metadata'];
   readonly idempotencyKey: string;

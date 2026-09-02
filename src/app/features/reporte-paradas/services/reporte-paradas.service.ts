@@ -155,7 +155,6 @@ export class ReporteParadasService {
             startTime: command.startTime.trim(),
             ...(validated.end ? { endDate: this.dateOnly(validated.end) } : {}),
             ...(validated.end ? { endTime: command.endTime!.trim() } : {}),
-            programmed: command.programmed,
             status: validated.end ? 'FINALIZADA' : 'EM_ANDAMENTO',
             ...(derivedDuration !== undefined ? { durationMinutes: derivedDuration } : {}),
             idempotencyKey: command.idempotencyKey,
@@ -494,7 +493,6 @@ export class ReporteParadasService {
       startTime: stop.startTime,
       endDate: stop.endDate ? formatLocalDate(stop.endDate) : null,
       endTime: stop.endTime ?? null,
-      programmed: stop.programmed,
       status: stop.status,
       durationMinutes: stop.durationMinutes ?? null,
     } as const;
@@ -542,7 +540,6 @@ export class ReporteParadasService {
       startTime: String(value['startTime'] ?? ''),
       ...(endDate ? { endDate } : {}),
       ...(value['endTime'] ? { endTime: String(value['endTime']) } : {}),
-      programmed: Boolean(value['programmed']),
       status: value['status'] === 'FINALIZADA' ? 'FINALIZADA' : 'EM_ANDAMENTO',
       ...(typeof value['durationMinutes'] === 'number'
         ? { durationMinutes: value['durationMinutes'] }

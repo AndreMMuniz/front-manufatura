@@ -14,6 +14,8 @@ describe('ParadaForm', () => {
     ]);
     fixture.detectChanges();
 
+    expect('programmed' in fixture.componentInstance.form.controls).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('Parada Programada');
     expect(fixture.componentInstance.form.valid).toBe(false);
 
     fixture.componentInstance.form.patchValue({

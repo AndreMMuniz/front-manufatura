@@ -58,7 +58,6 @@ describe('FinalizarParadaForm', () => {
       responsible: { tipo: 'OPERADOR', codigo: '001', nome: 'Ana' },
       startDate: new Date(2026, 6, 28),
       startTime: '08:00',
-      programmed: false,
       status: 'EM_ANDAMENTO',
       idempotencyKey: 'start-42',
       syncStatus: 'PENDING',

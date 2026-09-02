@@ -58,7 +58,7 @@ const RECOVERY_DEFINITIONS: Readonly<Record<OperationalCommandType, RecoveryDefi
     END_BATCH: retryOnly('/batch-reporting'),
     CREATE_STOP: correctable('/stoppages', [
       'localId', 'context', 'reason', 'responsible', 'startDate', 'startTime',
-      'endDate', 'endTime', 'programmed', 'status', 'durationMinutes',
+      'endDate', 'endTime', 'status', 'durationMinutes',
     ]),
     FINISH_STOP: correctable('/stoppages', [
       'stopLocalId', 'endAt', 'endDate', 'endTime',

@@ -382,7 +382,6 @@ function installAdaptedRoutes(
 
   app.post('/api/production-stops', (req, res) => handle(req, res, dependencies, client => {
     const body = objectOf(req.body);
-    if (body['programmed'] === true) throw new QualityControlGatewayError(400, 'invalid-request');
     const context = objectOf(body['context']);
     const area = objectOf(context['area']);
     const center = objectOf(context['workCenter']);

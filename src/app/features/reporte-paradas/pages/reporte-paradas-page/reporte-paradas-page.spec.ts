@@ -70,7 +70,6 @@ describe('ReporteParadasPage', () => {
         startDate: new Date(2026, 6, 28),
         startTime: request.startTime,
         endTime: '',
-        programmed: request.programmed,
         status: 'EM_ANDAMENTO',
         idempotencyKey: request.idempotencyKey,
         syncStatus: 'PENDING',
@@ -179,7 +178,6 @@ describe('ReporteParadasPage', () => {
       startTime: '08:00',
       endDate: null,
       endTime: '',
-      programmed: false,
     });
     const before = component.view();
     expect(before.area?.code).toBe('4001');
@@ -369,7 +367,6 @@ describe('ReporteParadasPage', () => {
       startTime: '08:00',
       endDate: null,
       endTime: '',
-      programmed: false,
     });
   }
 
@@ -381,7 +378,6 @@ describe('ReporteParadasPage', () => {
       responsible,
       startDate: new Date(2026, 6, 28),
       startTime: '08:00',
-      programmed: false,
       status: 'EM_ANDAMENTO',
       idempotencyKey: `start-${id}`,
       syncStatus: 'PENDING',
