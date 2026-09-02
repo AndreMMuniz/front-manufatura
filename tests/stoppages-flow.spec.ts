@@ -206,7 +206,7 @@ test.describe('registro de Paradas', () => {
     await page.getByRole('button', { name: 'Finalizar parada' }).click();
     await expect(page.locator('.finish-stop__error[role="alert"]'))
       .toContainText('anterior ao início');
-    await fillTime(page, 'Hora Final', '08:00');
+    await fillTime(page, 'Hora Final', '08:01');
     await page.getByRole('button', { name: 'Finalizar parada' }).click();
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
       /finalização ainda não confirmada.*pendente de sincronização/i,
