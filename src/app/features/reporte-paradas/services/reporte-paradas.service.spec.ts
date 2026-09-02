@@ -17,7 +17,7 @@ import {
   StopResponse,
 } from '../interfaces/reporte-paradas.dto';
 import { ProductionContext, StopEntry, StopReason } from '../models/reporte-paradas.model';
-import { ReporteParadasService } from './reporte-paradas.service';
+import { ReporteParadasService, StartedStopsQueryError } from './reporte-paradas.service';
 
 describe('ReporteParadasService', () => {
   afterEach(() => {
@@ -676,6 +676,28 @@ describe('ReporteParadasService', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(local.id);
     expect(result[0].creationCommandId).toBe(local.creationCommandId);
+  });
+
+  it('preserva as paradas locais e sinaliza a falha quando a consulta remota falha', async () => {
+    const { service, apiGet } = setup();
+    const local = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-local-offline',
+      endDate: null,
+      endTime: null,
+    })));
+    apiGet.mockImplementation((url: string) => url === '/api/production-stops'
+      ? throwError(() => new Error('Datasul indisponível'))
+      : of(apiReasons));
+
+    const error = await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    ).catch(reason => reason);
+
+    expect(error).toBeInstanceOf(StartedStopsQueryError);
+    expect(error.localStops).toEqual([
+      expect.objectContaining({ id: local.id, creationCommandId: local.creationCommandId }),
+    ]);
+    expect(error.cause).toEqual(new Error('Datasul indisponível'));
   });
 
   it('finaliza uma parada do Datasul sem dependência de criação local', async () => {

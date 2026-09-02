@@ -43,7 +43,10 @@ import {
   ReporteParadasWorkflowSnapshot,
   ReporteParadasWorkflowState,
 } from '../../services/reporte-paradas-workflow-state';
-import { ReporteParadasService } from '../../services/reporte-paradas.service';
+import {
+  ReporteParadasService,
+  StartedStopsQueryError,
+} from '../../services/reporte-paradas.service';
 import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import { OperationalCorrectionNotice } from '../../../../core/offline/components/operational-correction-notice/operational-correction-notice';
@@ -743,7 +746,10 @@ export class ReporteParadasPage implements OnInit {
             this.syncView();
           }
         },
-        error: () => {
+        error: (error: unknown) => {
+          if (error instanceof StartedStopsQueryError) {
+            this.workflow.acceptOpenStops(token, error.localStops);
+          }
           if (
             this.workflow.acceptOpenStopsError(
               token,

@@ -1,5 +1,17 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, defer, delay, finalize, forkJoin, from, map, of, switchMap } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  defer,
+  delay,
+  finalize,
+  forkJoin,
+  from,
+  map,
+  of,
+  switchMap,
+  throwError,
+} from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
@@ -43,6 +55,19 @@ import {
 interface ObservedStopDelivery {
   readonly delivery: ImmediateDeliveryResult;
   readonly syncStatus: ParadaSyncStatus;
+}
+
+export class StartedStopsQueryError extends Error {
+  override readonly cause: unknown;
+
+  constructor(
+    readonly localStops: ReadonlyArray<StopEntry>,
+    cause: unknown,
+  ) {
+    super('Não foi possível consultar as paradas iniciadas no Datasul.');
+    this.name = 'StartedStopsQueryError';
+    this.cause = cause;
+  }
 }
 
 @Injectable({ providedIn: 'root' })
@@ -391,11 +416,8 @@ export class ReporteParadasService {
       return forkJoin({
         records: from(this.localRecords.listByOwner(ownerId)),
         outboxEntries: from(this.outbox.listByOwner(ownerId)),
-        remoteStops: this.api.get<ReadonlyArray<StartedStopApiDto>>('/api/production-stops', {
-          workCenterCode,
-        }),
       }).pipe(
-        map(({ records, outboxEntries, remoteStops }) => {
+        switchMap(({ records, outboxEntries }) => {
           this.ensureOwnerCache(ownerId);
           this.confirmedStops.splice(0);
           const outboxByLocalId = new Map(outboxEntries.map((entry) => [entry.localId, entry]));
@@ -438,16 +460,28 @@ export class ReporteParadasService {
               );
             }
           }
-          for (const remoteStop of remoteStops) {
-            const restored = this.stopFromRemote(remoteStop, area);
-            if (
-              restored
-              && !this.confirmedStops.some(stop => this.sameStopFingerprint(stop, restored))
-            ) {
-              this.confirmedStops.push(restored);
-            }
-          }
-          return this.openStopsForContext(area, workCenter);
+
+          const localStops = this.openStopsForContext(area, workCenter);
+          return this.api.get<ReadonlyArray<StartedStopApiDto>>('/api/production-stops', {
+            workCenterCode,
+          }).pipe(
+            map(remoteStops => {
+              for (const remoteStop of remoteStops) {
+                const restored = this.stopFromRemote(remoteStop, area);
+                if (
+                  restored
+                  && !this.confirmedStops.some(stop => this.sameStopFingerprint(stop, restored))
+                ) {
+                  this.confirmedStops.push(restored);
+                }
+              }
+              return this.openStopsForContext(area, workCenter);
+            }),
+            catchError(cause => throwError(() => new StartedStopsQueryError(
+              localStops.map(stop => this.cloneStop(stop)),
+              cause,
+            ))),
+          );
         }),
       );
     }).pipe(delay(150));

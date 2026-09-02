@@ -9,7 +9,10 @@ import { AuthSessionService } from '../../../../core/auth/auth-session.service';
 import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state.service';
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { ProductionContext, StopEntry } from '../../models/reporte-paradas.model';
-import { ReporteParadasService } from '../../services/reporte-paradas.service';
+import {
+  ReporteParadasService,
+  StartedStopsQueryError,
+} from '../../services/reporte-paradas.service';
 import { ReporteParadasPage } from './reporte-paradas-page';
 
 describe('ReporteParadasPage', () => {
@@ -247,6 +250,23 @@ describe('ReporteParadasPage', () => {
 
     component.retryContext();
     expect(service.listarResponsaveis).toHaveBeenCalledTimes(2);
+  });
+
+  it('mantém paradas locais visíveis junto do erro da consulta ao Datasul', () => {
+    const local = openStop();
+    service.listarParadasEmAndamento.mockReturnValue(throwError(() =>
+      new StartedStopsQueryError([local], new Error('Datasul indisponível')),
+    ));
+    fixture.detectChanges();
+
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    fixture.detectChanges();
+
+    expect(component.view().openStops).toEqual([local]);
+    expect(component.view().queryError).toContain('consultar as paradas');
+    expect(fixture.nativeElement.textContent).toContain('01 - Setup');
+    expect(fixture.nativeElement.textContent).toContain('Tentar novamente');
   });
 
   it('bloqueia duplo clique, preserva rascunho no erro e reutiliza a chave', () => {

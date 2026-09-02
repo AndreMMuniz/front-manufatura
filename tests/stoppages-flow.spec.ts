@@ -260,10 +260,10 @@ test.describe('registro de Paradas', () => {
       entry => entry.commandType === 'DELETE_STOP',
     )).toBe(false);
 
-    await page.getByRole('dialog').getByRole('button', {
+    await page.getByRole('button', {
       name: 'Eliminar parada',
       exact: true,
-    }).click();
+    }).last().click();
 
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
       /eliminação.*pendente de sincronização/i,
