@@ -5,6 +5,7 @@ import { AuthSessionService } from '../../auth/auth-session.service';
 import { SyncCommandRequest } from '../models/sync-command';
 import {
   CreateStopSyncHandler,
+  DeleteStopSyncHandler,
   EndOperationSyncHandler,
   FinishStopSyncHandler,
   StartBatchSyncHandler,
@@ -57,6 +58,23 @@ describe('FMA sync handlers', () => {
     await expect(handler.send(request, new AbortController().signal)).resolves.toEqual(receipt());
     expect(post).toHaveBeenCalledWith(
       '/api/production-stops/finish',
+      request.payload,
+      expect.any(Object),
+    );
+  });
+
+  it('uses the encoded local stop identity in the eliminate endpoint', async () => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new DeleteStopSyncHandler(
+      { post } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+    const request = command('DELETE_STOP', { stopLocalId: 'stop/01' });
+
+    await handler.send(request, new AbortController().signal);
+
+    expect(post).toHaveBeenCalledWith(
+      '/api/production-stops/stop%2F01/eliminate',
       request.payload,
       expect.any(Object),
     );

@@ -60,6 +60,7 @@ export const CLIENT_LOG_ROUTES = [
   '/api/production-stops',
   '/api/production-stops/finish',
   '/api/production-stops/:id/finish',
+  '/api/production-stops/:id/eliminate',
   '/api/quality-control/orders/:orderNumber',
   '/api/quality-control/routes',
   '/api/quality-control/results',
@@ -73,7 +74,7 @@ export const CLIENT_COMMAND_TYPES = [
   'STOP_INSPECTION_ROUTE', 'SAVE_INSPECTION', 'SAVE_QUALITY_RESULT',
   'FINALIZE_QUALITY_ROUTE', 'START_OPERATION', 'REPORT_OPERATION',
   'END_OPERATION', 'START_BATCH', 'REPORT_BATCH', 'END_BATCH',
-  'CREATE_STOP', 'FINISH_STOP',
+  'CREATE_STOP', 'FINISH_STOP', 'DELETE_STOP',
 ] as const;
 export type ClientCommandType = (typeof CLIENT_COMMAND_TYPES)[number];
 
@@ -217,6 +218,7 @@ export function normalizeClientApiRoute(
     [/^\/api\/production-orders\/[^/]+\/operations\/[^/]+$/,
       '/api/production-orders/:order/operations/:operation'],
     [/^\/api\/production-stops\/[^/]+\/finish$/, '/api/production-stops/:id/finish'],
+    [/^\/api\/production-stops\/[^/]+\/eliminate$/, '/api/production-stops/:id/eliminate'],
     [/^\/api\/quality-control\/orders\/[^/]+$/, '/api/quality-control/orders/:orderNumber'],
   ];
   return dynamicRoutes.find(([pattern]) => pattern.test(path))?.[1] ?? '/api/:unmatched';

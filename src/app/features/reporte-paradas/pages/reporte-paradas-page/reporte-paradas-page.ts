@@ -89,6 +89,7 @@ export class ReporteParadasPage implements OnInit {
   readonly statusMessage = signal('');
   readonly now = signal(new Date());
   readonly contextFinishing = signal(false);
+  readonly deleting = signal(false);
 
   @ViewChild(FinalizarParadaForm) private finishForm?: FinalizarParadaForm;
   @ViewChild(ParadasEmAndamentoList) private openStopsList?: ParadasEmAndamentoList;
@@ -315,6 +316,74 @@ export class ReporteParadasPage implements OnInit {
             )
           ) {
             this.syncView();
+          }
+        },
+      });
+  }
+
+  solicitarEliminacao(): void {
+    const snapshot = this.view();
+    if (this.commandsBlocked() || snapshot.selectedStopId === null) return;
+    this.dialog.confirm({
+      title: 'Eliminar parada?',
+      message: 'Eliminar a parada selecionada? Esta ação não poderá ser desfeita.',
+      literals: { cancel: 'Cancelar', confirm: 'Eliminar parada' },
+      confirm: () => this.eliminarParadaSelecionada(),
+    });
+  }
+
+  private eliminarParadaSelecionada(): void {
+    const snapshot = this.view();
+    if (
+      this.commandsBlocked() ||
+      !snapshot.area ||
+      !snapshot.workCenter ||
+      snapshot.selectedStopId === null
+    ) {
+      return;
+    }
+    const key = this.workflow.ensureFinishIdempotencyKey(() => this.idempotency.resolve());
+    const token = this.workflow.beginFinishCommand(
+      snapshot.selectedStopId,
+      snapshot.area.code,
+      snapshot.workCenter.code,
+    );
+    this.deleting.set(true);
+    this.statusMessage.set('');
+    this.syncView();
+
+    this.service.eliminarParada(snapshot.selectedStopId, { idempotencyKey: key })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.deleting.set(false);
+          if (result.delivery.status === 'ERROR') {
+            const message = result.delivery.error.userMessage;
+            if (this.workflow.acceptFinishError(token, message)) {
+              this.syncView();
+              this.notification.error(message);
+            }
+            return;
+          }
+          if (!this.workflow.acceptFinishSuccess(token, result.id)) return;
+          this.syncView();
+          if (result.delivery.status === 'SYNCED') {
+            this.statusMessage.set('Parada eliminada no Datasul.');
+            this.notification.success('Parada eliminada no Datasul.');
+          } else {
+            const message =
+              'Datasul indisponível — eliminação salva neste dispositivo e pendente de sincronização.';
+            this.statusMessage.set(message);
+            this.notification.warning(message);
+          }
+          Promise.resolve().then(() => this.openStopsList?.focusFirst());
+        },
+        error: () => {
+          this.deleting.set(false);
+          const message = 'Não foi possível eliminar a parada. Tente novamente.';
+          if (this.workflow.acceptFinishError(token, message)) {
+            this.syncView();
+            this.notification.error(message);
           }
         },
       });

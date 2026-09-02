@@ -62,11 +62,13 @@
             <app-finalizar-parada-form
               [stop]="stop"
               [draft]="view().finishDraft"
-              [loading]="view().finishing"
+              [loading]="view().finishing && !deleting()"
+              [eliminateLoading]="deleting()"
               [disabled]="view().saving"
               [externalError]="view().finishError"
               (draftChange)="onFinishDraftChange($event)"
               (confirm)="finalizarParada()"
+              (eliminate)="solicitarEliminacao()"
             ></app-finalizar-parada-form>
           }
         }

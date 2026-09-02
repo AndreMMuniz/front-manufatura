@@ -124,6 +124,7 @@ const COMMAND_PRESENTATIONS: Readonly<Record<OperationalCommandType, CommandPres
     END_BATCH: batch('Encerrar batelada', 'RETRY_ONLY'),
     CREATE_STOP: stoppage('Registrar parada', 'CORRECTABLE'),
     FINISH_STOP: stoppage('Finalizar parada', 'CORRECTABLE'),
+    DELETE_STOP: stoppage('Eliminar parada', 'RETRY_ONLY'),
   });
 
 const STATUS_PRESENTATIONS: Readonly<Record<SyncStatus, {

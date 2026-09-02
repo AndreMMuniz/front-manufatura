@@ -606,6 +606,72 @@ describe('gateway FMA', () => {
     });
   });
 
+  it('elimina a parada selecionada usando o contrato observado do Datasul', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const root = await startGateway(transport);
+
+    const result = await fetch(`${root}/api/production-stops/stop%2F01/eliminate`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-delete-1',
+      },
+      body: JSON.stringify({
+        stopLocalId: 'stop/01',
+        areaCode: '4104',
+        workCenterCode: 'PRE-006-02',
+        reasonCode: '05',
+        startDate: '2026-08-14',
+        startTime: '09:04',
+      }),
+    });
+
+    expect(result.status).toBe(200);
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/eliminaparada?companyId=1&codUsuario=mjocelio',
+    );
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
+      codAreaProduc: '4104',
+      codCtrab: 'PRE-006-02',
+      codParada: '05',
+      dataInicioParada: '2026-08-14',
+      horaInicioParada: '09:04',
+    });
+  });
+
+  it('propaga a mensagem devolvida pelo Datasul ao rejeitar a eliminação', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      message: 'A parada possui reportes relacionados e não pode ser eliminada.',
+      type: 'error',
+    }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+
+    const result = await fetch(`${root}/api/production-stops/stop-1/eliminate`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-delete-rejected',
+      },
+      body: JSON.stringify({
+        stopLocalId: 'stop-1',
+        areaCode: '4104',
+        workCenterCode: 'PRE-006-02',
+        reasonCode: '05',
+        startDate: '2026-08-14',
+        startTime: '09:04',
+      }),
+    });
+
+    expect(result.status).toBe(500);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'A parada possui reportes relacionados e não pode ser eliminada.',
+    });
+  });
+
   it('classifica como conflito o erro Datasul documentado para intervalo de parada duplicado', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       detailedMessage: 'Já existe reporte neste intervalo de data e hora.',

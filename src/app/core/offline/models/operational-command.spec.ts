@@ -23,6 +23,7 @@ describe('operational command contract', () => {
       'END_BATCH',
       'CREATE_STOP',
       'FINISH_STOP',
+      'DELETE_STOP',
     ]);
 
     expect(Object.keys(OPERATIONAL_COMMAND_DEFINITIONS)).toEqual(

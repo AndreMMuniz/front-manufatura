@@ -38,6 +38,7 @@ import {
 } from './core/offline/services/quality-control-sync.handlers';
 import {
   CreateStopSyncHandler,
+  DeleteStopSyncHandler,
   EndBatchSyncHandler,
   EndOperationSyncHandler,
   FinishStopSyncHandler,
@@ -106,6 +107,7 @@ export const appConfig: ApplicationConfig = {
     { provide: SYNC_COMMAND_HANDLERS, useClass: EndBatchSyncHandler, multi: true },
     { provide: SYNC_COMMAND_HANDLERS, useClass: CreateStopSyncHandler, multi: true },
     { provide: SYNC_COMMAND_HANDLERS, useClass: FinishStopSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: DeleteStopSyncHandler, multi: true },
     provideAppInitializer(() => {
       const coordinator = inject(SyncCoordinatorService);
       const pwaUpdate = inject(PwaUpdateService);

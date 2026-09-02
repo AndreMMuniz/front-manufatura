@@ -118,6 +118,7 @@ export class OfflinePersistenceHarness {
       'END_BATCH',
       'CREATE_STOP',
       'FINISH_STOP',
+      'DELETE_STOP',
     ] as const;
     const keys = types.map((_, index) =>
       `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`);
@@ -140,7 +141,9 @@ export class OfflinePersistenceHarness {
             : { sequence: index },
           payloadSchemaVersion: 1,
           idempotencyKey: keys[index],
-          ...(commandType === 'FINISH_STOP' ? { dependencyIds: [keys[11]] } : {}),
+          ...(commandType === 'FINISH_STOP' || commandType === 'DELETE_STOP'
+            ? { dependencyIds: [keys[11]] }
+            : {}),
         });
       }
       this.result.set(JSON.stringify({ operationalMatrix: types.length }));

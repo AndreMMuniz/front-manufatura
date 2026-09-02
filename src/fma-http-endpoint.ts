@@ -424,6 +424,31 @@ function installAdaptedRoutes(
     }));
   }
 
+  app.post('/api/production-stops/:id/eliminate', (req, res) =>
+    handle(req, res, dependencies, client => {
+      const body = objectOf(req.body);
+      const stopLocalId = requiredText(body['stopLocalId']);
+      if (stopLocalId !== requiredText(req.params['id'])) {
+        throw new QualityControlGatewayError(400, 'invalid-request');
+      }
+      const command = {
+        codAreaProduc: requiredText(body['areaCode']),
+        codCtrab: requiredText(body['workCenterCode']),
+        codParada: requiredText(body['reasonCode']),
+        dataInicioParada: localDate(body['startDate']),
+        horaInicioParada: validTime(body['startTime']),
+      };
+      return idempotentCommand(
+        req,
+        client,
+        dependencies,
+        commandRequests,
+        '/api/fma/v1/eliminaparada',
+        command,
+        'production-stop-delete',
+      );
+    }));
+
   const reads = ['/api/teams/:code'];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
     client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));

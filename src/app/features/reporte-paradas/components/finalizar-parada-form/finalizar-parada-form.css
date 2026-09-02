@@ -19,7 +19,7 @@
 }
 
 .finish-stop__error,
-.finish-stop__submit {
+.finish-stop__actions {
   grid-column: 1 / -1;
 }
 
@@ -28,9 +28,12 @@
   margin: 0;
 }
 
-.finish-stop__submit {
+.finish-stop__actions {
   border-top: 1px solid var(--app-color-border);
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-sm);
+  justify-content: flex-end;
   padding-top: var(--app-space-md);
 }
 

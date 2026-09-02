@@ -47,11 +47,13 @@ export class FinalizarParadaForm implements OnChanges {
   @Input({ required: true }) stop!: StopEntry;
   @Input() draft: FinalizacaoDraft = { endDate: null, endTime: '' };
   @Input() loading = false;
+  @Input() eliminateLoading = false;
   @Input() disabled = false;
   @Input() externalError = '';
 
   @Output() draftChange = new EventEmitter<FinalizacaoDraft>();
   @Output() confirm = new EventEmitter<FinalizacaoDraft>();
+  @Output() eliminate = new EventEmitter<void>();
 
   @ViewChild('endDateField', { read: ElementRef }) private endDateField?: ElementRef<HTMLElement>;
 
@@ -80,7 +82,7 @@ export class FinalizarParadaForm implements OnChanges {
     this.syncingInput = true;
     this.form.patchValue(this.draft, { emitEvent: false });
     this.syncingInput = false;
-    if (this.loading || this.disabled) {
+    if (this.loading || this.eliminateLoading || this.disabled) {
       this.form.disable({ emitEvent: false });
     } else {
       this.form.enable({ emitEvent: false });

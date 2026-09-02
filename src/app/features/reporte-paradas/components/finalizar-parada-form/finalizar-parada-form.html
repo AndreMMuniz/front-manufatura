@@ -31,13 +31,25 @@
       <p class="finish-stop__error" role="alert">{{ externalError }}</p>
     }
 
-    <po-button
-      class="finish-stop__submit"
-      p-label="Finalizar parada"
-      p-kind="primary"
-      p-type="submit"
-      [p-disabled]="form.disabled || loading"
-      [p-loading]="loading"
-    ></po-button>
+    <div class="finish-stop__actions">
+      <po-button
+        class="finish-stop__eliminate"
+        p-label="Eliminar parada"
+        p-kind="secondary"
+        p-type="button"
+        [p-danger]="true"
+        [p-disabled]="form.disabled || loading || eliminateLoading"
+        [p-loading]="eliminateLoading"
+        (p-click)="eliminate.emit()"
+      ></po-button>
+      <po-button
+        class="finish-stop__submit"
+        p-label="Finalizar parada"
+        p-kind="primary"
+        p-type="submit"
+        [p-disabled]="form.disabled || loading || eliminateLoading"
+        [p-loading]="loading"
+      ></po-button>
+    </div>
   </form>
 </po-widget>

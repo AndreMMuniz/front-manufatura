@@ -110,6 +110,8 @@ describe('client log contracts', () => {
       .toBe('/api/production-stops/:id/finish');
     expect(normalizeClientApiRoute('/api/production-stops/finish'))
       .toBe('/api/production-stops/finish');
+    expect(normalizeClientApiRoute('/api/production-stops/stop%2F01/eliminate'))
+      .toBe('/api/production-stops/:id/eliminate');
     expect(normalizeClientApiRoute('/api/users/andre')).toBe('/api/:unmatched');
     expect(normalizeClientApiRoute('https://externo.test/api/teams/andre', 'https://app.test'))
       .toBeUndefined();

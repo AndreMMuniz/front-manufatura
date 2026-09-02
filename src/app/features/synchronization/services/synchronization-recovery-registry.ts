@@ -63,6 +63,7 @@ const RECOVERY_DEFINITIONS: Readonly<Record<OperationalCommandType, RecoveryDefi
     FINISH_STOP: correctable('/stoppages', [
       'stopLocalId', 'areaCode', 'workCenterCode', 'endAt', 'endDate', 'endTime',
     ]),
+    DELETE_STOP: retryOnly('/stoppages'),
   });
 
 export type OpenCorrectionResult = 'opened' | 'unavailable' | 'stale';

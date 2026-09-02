@@ -16,6 +16,7 @@ import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
   CreateStopRequest,
+  DeleteStopRequest,
   FinishStopByContextRequest,
   FinishStopRequest,
 } from '../interfaces/reporte-paradas.dto';
@@ -25,6 +26,7 @@ import {
   ResponsavelParada,
   StopCommandResult,
   StopContextFinishResult,
+  StopDeleteResult,
   StopEntry,
   StopReason,
 } from '../models/reporte-paradas.model';
@@ -60,6 +62,7 @@ export class ReporteParadasService {
   private cacheOwnerId: string | null = null;
   private registrationInFlight = false;
   private finishInFlight = false;
+  private deleteInFlight = false;
   private activeStopContext: { readonly areaCode: string; readonly workCenterCode: string } | null =
     null;
 
@@ -332,7 +335,7 @@ export class ReporteParadasService {
   private captureStopMilestone(
     event: 'stop_command_persisted' | 'stop_command_delivery_observed',
     level: 'info' | 'warn' | 'error',
-    commandType: 'CREATE_STOP' | 'FINISH_STOP',
+    commandType: 'CREATE_STOP' | 'FINISH_STOP' | 'DELETE_STOP',
     correlationId: string,
     toStatus: 'PENDING' | 'SYNCED' | 'ERROR',
     stage: 'persist' | 'delivery',
@@ -407,11 +410,105 @@ export class ReporteParadasService {
                 this.syncStatusOf(outboxByLocalId.get(record.localId)?.status),
               );
             }
+            for (const record of records.filter(
+              (item) =>
+                item.commandType === 'DELETE_STOP' &&
+                deliveryDispositionOf(item.deliveryDisposition) === 'ACTIVE',
+            )) {
+              this.applyDurableDelete(
+                record.payload,
+                outboxByLocalId.get(record.localId)?.status,
+              );
+            }
           }
           return this.openStopsForContext(area, workCenter);
         }),
       );
     }).pipe(delay(150));
+  }
+
+  eliminarParada(
+    stopId: string | number,
+    request: DeleteStopRequest,
+  ): Observable<StopDeleteResult> {
+    return defer(() => {
+      if (this.deleteInFlight) {
+        throw new Error('Já existe uma eliminação de parada em andamento.');
+      }
+      this.deleteInFlight = true;
+      const idempotencyKey = request.idempotencyKey.trim();
+      if (!idempotencyKey) {
+        throw new Error('A chave de idempotência da eliminação é obrigatória.');
+      }
+      if (!this.authSession.currentUser?.id.trim()) {
+        throw new Error('É necessária uma sessão autenticada para eliminar a parada.');
+      }
+      const current = this.confirmedStops.find(
+        stop => stop.id === stopId || String(stop.localId ?? '') === String(stopId),
+      );
+      if (!current || current.status !== 'EM_ANDAMENTO') {
+        throw new Error('A parada não existe ou não está mais disponível.');
+      }
+      if (
+        !this.activeStopContext ||
+        !this.sameCode(current.context.area.code, this.activeStopContext.areaCode) ||
+        !this.sameCode(current.context.workCenter.code, this.activeStopContext.workCenterCode)
+      ) {
+        throw new Error('A parada não pertence ao contexto corrente.');
+      }
+      return from(this.commands.capture({
+        commandType: 'DELETE_STOP',
+        aggregateId: current.aggregateId ?? current.localId ?? current.idempotencyKey,
+        businessStatus: 'ELIMINADA',
+        idempotencyKey,
+        dependencyIds: [current.creationCommandId ?? current.idempotencyKey],
+        payload: {
+          stopLocalId: current.localId ?? current.idempotencyKey,
+          areaCode: current.context.area.code,
+          workCenterCode: current.context.workCenter.code,
+          reasonCode: current.reason.code,
+          startDate: formatLocalDate(current.startDate),
+          startTime: current.startTime,
+        },
+      })).pipe(
+        switchMap(confirmation => {
+          this.captureStopMilestone(
+            'stop_command_persisted',
+            'info',
+            'DELETE_STOP',
+            confirmation.idempotencyKey,
+            'PENDING',
+            'persist',
+          );
+          return from(this.deliverCommand(confirmation.localId)).pipe(map(observed => {
+            const delivery = observed.delivery;
+            this.captureStopMilestone(
+              'stop_command_delivery_observed',
+              delivery.status === 'ERROR'
+                ? 'error'
+                : delivery.status === 'PENDING' ? 'warn' : 'info',
+              'DELETE_STOP',
+              confirmation.idempotencyKey,
+              delivery.status,
+              'delivery',
+              delivery.status === 'ERROR' ? delivery.error : undefined,
+            );
+            if (delivery.status !== 'ERROR') {
+              const index = this.confirmedStops.findIndex(stop => stop.id === current.id);
+              if (index >= 0) this.confirmedStops.splice(index, 1);
+            }
+            return {
+              id: current.id,
+              idempotencyKey: confirmation.idempotencyKey,
+              syncStatus: observed.syncStatus,
+              delivery: structuredClone(delivery),
+            };
+          }));
+        }),
+      );
+    }).pipe(finalize(() => {
+      this.deleteInFlight = false;
+    }));
   }
 
   finalizarParada(stopId: string | number, request: FinishStopRequest): Observable<StopCommandResult> {
@@ -874,6 +971,24 @@ export class ReporteParadasService {
       interval.end,
       syncStatus,
     );
+  }
+
+  private applyDurableDelete(payload: unknown, status: string | undefined): void {
+    if (
+      status === 'ERROR' ||
+      status === 'BLOCKED_AUTH' ||
+      status === 'BLOCKED_DEPENDENCY'
+    ) {
+      return;
+    }
+    if (!payload || typeof payload !== 'object') return;
+    const value = payload as Record<string, unknown>;
+    const localId = typeof value['stopLocalId'] === 'string' ? value['stopLocalId'] : '';
+    if (!localId) return;
+    const index = this.confirmedStops.findIndex(
+      stop => String(stop.localId ?? stop.idempotencyKey) === localId,
+    );
+    if (index >= 0) this.confirmedStops.splice(index, 1);
   }
 
   private captureFinish(current: StopEntry, idempotencyKey: string, end: Date) {

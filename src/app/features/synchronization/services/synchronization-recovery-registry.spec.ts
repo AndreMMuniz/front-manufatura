@@ -34,6 +34,7 @@ describe('SynchronizationRecoveryRegistry', () => {
       ['END_BATCH', 'RETRY_ONLY', '/batch-reporting'],
       ['CREATE_STOP', 'CORRECTABLE', '/stoppages'],
       ['FINISH_STOP', 'CORRECTABLE', '/stoppages'],
+      ['DELETE_STOP', 'RETRY_ONLY', '/stoppages'],
     ]);
     expect(getRecoveryDefinition('CREATE_STOP').allowedFields).not.toContain('programmed');
     expect(getRecoveryDefinition('FINISH_STOP').allowedFields).toEqual([

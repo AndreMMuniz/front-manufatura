@@ -15,6 +15,7 @@ const ALL_OPERATIONAL_COMMAND_TYPES = [
   'END_BATCH',
   'CREATE_STOP',
   'FINISH_STOP',
+  'DELETE_STOP',
 ] as const;
 
 test('IndexedDB real captura CQ, operação, batelada e cadeia de parada na mesma Outbox', async ({
@@ -22,7 +23,7 @@ test('IndexedDB real captura CQ, operação, batelada e cadeia de parada na mesm
 }) => {
   await page.goto('/_test/offline-persistence');
   await page.getByTestId('persist-operational-matrix').click();
-  await expect(page.getByTestId('harness-result')).toContainText('"operationalMatrix":13');
+  await expect(page.getByTestId('harness-result')).toContainText('"operationalMatrix":14');
 
   const matrix = await readOperationalOutbox(page);
 
@@ -31,5 +32,7 @@ test('IndexedDB real captura CQ, operação, batelada e cadeia de parada na mesm
   expect(new Set(matrix.map(item => item.idempotencyKey)).size)
     .toBe(ALL_OPERATIONAL_COMMAND_TYPES.length);
   expect(matrix.find(item => item.commandType === 'FINISH_STOP')?.dependencyIds)
+    .toEqual(['00000000-0000-4000-8000-000000000012']);
+  expect(matrix.find(item => item.commandType === 'DELETE_STOP')?.dependencyIds)
     .toEqual(['00000000-0000-4000-8000-000000000012']);
 });

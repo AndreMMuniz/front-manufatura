@@ -16,6 +16,7 @@ export const OPERATIONAL_COMMAND_TYPES = [
   'END_BATCH',
   'CREATE_STOP',
   'FINISH_STOP',
+  'DELETE_STOP',
 ] as const;
 
 export type OperationalCommandType = (typeof OPERATIONAL_COMMAND_TYPES)[number];
@@ -49,6 +50,7 @@ export const OPERATIONAL_COMMAND_DEFINITIONS = Object.freeze({
   END_BATCH: definition('BATCH'),
   CREATE_STOP: definition('STOP'),
   FINISH_STOP: definition('STOP'),
+  DELETE_STOP: definition('STOP'),
 } satisfies Record<OperationalCommandType, OperationalCommandDefinition>);
 
 export type InitialOperationalSyncStatus = 'PENDING' | 'BLOCKED_AUTH';

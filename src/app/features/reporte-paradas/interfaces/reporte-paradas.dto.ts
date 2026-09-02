@@ -39,3 +39,7 @@ export interface FinishStopByContextRequest extends FinishStopRequest {
   readonly areaCode: string;
   readonly workCenterCode: string;
 }
+
+export interface DeleteStopRequest {
+  readonly idempotencyKey: string;
+}

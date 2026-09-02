@@ -83,6 +83,13 @@ export interface StopContextFinishResult {
   readonly delivery: ImmediateDeliveryResult;
 }
 
+export interface StopDeleteResult {
+  readonly id: StopId;
+  readonly idempotencyKey: string;
+  readonly syncStatus: ParadaSyncStatus;
+  readonly delivery: ImmediateDeliveryResult;
+}
+
 export type Parada = StopEntry;
 
 export interface StopSaveResult {

@@ -866,6 +866,91 @@ describe('ReporteParadasService', () => {
     ).rejects.toThrow('anterior');
   });
 
+  it('mantém a eliminação pendente somente após falha transitória e remove a parada aberta', async () => {
+    const { service, commands } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-eliminar',
+      endDate: null,
+      endTime: null,
+    })));
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+    const eliminarParada = (service as unknown as {
+      eliminarParada?: (
+        stopId: string | number,
+        request: { idempotencyKey: string },
+      ) => Observable<{ delivery: ImmediateDeliveryResult }>;
+    }).eliminarParada;
+
+    expect(eliminarParada).toBeTypeOf('function');
+    if (!eliminarParada) return;
+    const result = await firstValueFrom(eliminarParada.call(service, aberta.id, {
+      idempotencyKey: 'delete-1',
+    })) as { delivery: ImmediateDeliveryResult };
+
+    expect(commands.capture).toHaveBeenLastCalledWith({
+      commandType: 'DELETE_STOP',
+      aggregateId: aberta.aggregateId ?? aberta.localId ?? aberta.idempotencyKey,
+      businessStatus: 'ELIMINADA',
+      idempotencyKey: 'delete-1',
+      dependencyIds: [aberta.creationCommandId ?? aberta.idempotencyKey],
+      payload: {
+        stopLocalId: aberta.localId ?? aberta.idempotencyKey,
+        areaCode: '4001',
+        workCenterCode: 'CT-EXT-01',
+        reasonCode: '01',
+        startDate: '2026-07-28',
+        startTime: '08:00',
+      },
+    });
+    expect(result.delivery).toEqual({ status: 'PENDING' });
+    expect(await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).toEqual([]);
+  });
+
+  it('exibe a rejeição do Datasul sem remover a parada selecionada', async () => {
+    const { service, deliver, durableRecords, durableOutbox } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-eliminar-rejeitada',
+      endDate: null,
+      endTime: null,
+    })));
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+    const remoteError = {
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION' as const,
+      userMessage: 'A parada possui reportes relacionados e não pode ser eliminada.',
+    };
+    deliver.mockImplementationOnce(async (localId: string) => {
+      const record = durableRecords.find(item => item['localId'] === localId);
+      const entry = durableOutbox.find(item => item['localId'] === localId);
+      if (record) record['deliveryDisposition'] = 'REJECTED';
+      if (entry) {
+        entry['status'] = 'ERROR';
+        entry['deliveryDisposition'] = 'REJECTED';
+        entry['lastError'] = remoteError;
+      }
+      return { status: 'ERROR' as const, error: remoteError };
+    });
+    const eliminarParada = (service as unknown as {
+      eliminarParada?: (
+        stopId: string | number,
+        request: { idempotencyKey: string },
+      ) => Observable<{ delivery: ImmediateDeliveryResult }>;
+    }).eliminarParada;
+
+    expect(eliminarParada).toBeTypeOf('function');
+    if (!eliminarParada) return;
+    const result = await firstValueFrom(eliminarParada.call(service, aberta.id, {
+      idempotencyKey: 'delete-rejected',
+    })) as { delivery: ImmediateDeliveryResult };
+
+    expect(result.delivery).toEqual({ status: 'ERROR', error: remoteError });
+    expect((await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).map(stop => stop.id)).toEqual([aberta.id]);
+  });
+
   function request(overrides: Partial<CreateStopRequest> = {}): CreateStopRequest {
     return {
       areaCode: '4001',

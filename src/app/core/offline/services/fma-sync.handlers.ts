@@ -89,6 +89,16 @@ export class FinishStopSyncHandler extends FmaSyncHandler {
   }
 }
 
+@Injectable()
+export class DeleteStopSyncHandler extends FmaSyncHandler {
+  readonly commandType = 'DELETE_STOP' as const;
+  protected endpoint(request: SyncCommandRequest): string {
+    const payload = objectOf(request.payload);
+    const stopLocalId = requiredText(payload['stopLocalId']);
+    return `/api/production-stops/${encodeURIComponent(stopLocalId)}/eliminate`;
+  }
+}
+
 function objectOf(value: JsonValue): Readonly<Record<string, JsonValue>> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('invalid-fma-command-payload');
