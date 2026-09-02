@@ -218,7 +218,7 @@ test.describe('registro de Paradas', () => {
     expect(create).toBeDefined();
     expect(finish).toBeDefined();
     expect(finish?.dependencyIds).toEqual([create?.localId]);
-    await expect(page.getByRole('combobox', { name: 'Área de Produção' }))
+    await expect(page.getByRole('textbox', { name: 'Área de Produção' }))
       .toBeEnabled();
     await expectNoHorizontalOverflow(page);
   });

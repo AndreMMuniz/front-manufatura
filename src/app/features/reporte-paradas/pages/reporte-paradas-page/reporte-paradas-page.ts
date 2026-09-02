@@ -314,8 +314,9 @@ export class ReporteParadasPage implements OnInit {
         },
         error: (error: unknown) => {
           const message = error instanceof Error
-            ? error.message
-            : 'Não foi possível finalizar a parada. Os dados informados foram preservados.';
+            && error.message === 'A finalização não pode ser anterior ao início da parada.'
+              ? error.message
+              : 'Não foi possível finalizar a parada. Os dados informados foram preservados.';
 
           if (
             this.workflow.acceptFinishError(
