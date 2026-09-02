@@ -71,8 +71,14 @@ describe('ParadaForm', () => {
       HTMLButtonElement | undefined;
 
     expect(finishButton()).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain('Data Final (opcional)');
     finishButton()?.click();
+    fixture.detectChanges();
     expect(submitted).toEqual([]);
+    expect(fixture.nativeElement.textContent).not.toContain('Data Final (opcional)');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Data Final e Hora Final são obrigatórias para finalizar uma parada.',
+    );
 
     component.form.patchValue({
       reasonId: null,

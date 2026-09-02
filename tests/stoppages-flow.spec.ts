@@ -20,14 +20,13 @@ async function openStoppages(page: Page): Promise<void> {
 }
 
 async function selectContext(page: Page): Promise<void> {
-  const area = page.getByRole('combobox', { name: 'Área de Produção' });
+  const area = page.getByRole('textbox', { name: 'Área de Produção' });
   const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
   await expect(area).toBeEnabled();
   await expect(center).toBeDisabled();
 
-  await area.focus();
-  await area.press('ArrowDown');
-  await area.press('Enter');
+  await area.fill('4001');
+  await area.blur();
   await expect(center).toBeEnabled();
   await center.selectOption('CT-EXT-01');
 }
@@ -115,6 +114,37 @@ async function openBatchOrigin(page: Page): Promise<void> {
 
 test.describe('registro de Paradas', () => {
   test.use({ hasTouch: true });
+
+  test('finaliza pelo contexto com a ação ao lado de Registrar parada', async ({ page }) => {
+    await openStoppages(page);
+    await selectContext(page);
+    await selectToday(page, 'Data Final');
+    await fillTime(page, 'Hora Final', '09:40');
+    const register = page.getByRole('button', { name: 'Registrar parada' });
+    const finish = page.getByRole('button', { name: 'Finalizar parada' });
+    const registerBox = await register.boundingBox();
+    const finishBox = await finish.boundingBox();
+
+    expect(registerBox).not.toBeNull();
+    expect(finishBox).not.toBeNull();
+    expect(Math.abs(registerBox!.y - finishBox!.y)).toBeLessThan(4);
+    expect(finishBox!.x).toBeGreaterThan(registerBox!.x);
+
+    await finish.click();
+
+    await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
+      /finalização.*pendente de sincronização/i,
+    );
+    const finishCommand = (await readOperationalOutbox(page))
+      .find(entry => entry.commandType === 'FINISH_STOP');
+    expect(finishCommand?.payload).toEqual(expect.objectContaining({
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      endDate: expect.any(String),
+      endTime: '09:40',
+    }));
+    expect(finishCommand?.payload).not.toHaveProperty('stopLocalId');
+  });
 
   test('permite acesso direto, seleção por teclado e registro local pendente', async ({ page }) => {
     await page.setViewportSize({ width: 480, height: 900 });

@@ -320,6 +320,71 @@ export class ReporteParadasPage implements OnInit {
       });
   }
 
+  finalizarParadaPorContexto(draft: FinalizacaoDraft): void {
+    const snapshot = this.view();
+    if (this.commandsBlocked() || !draft.endDate || !draft.endTime.trim()) {
+      return;
+    }
+    if (!snapshot.area || !snapshot.workCenter) {
+      this.notification.warning('Informe a Área de Produção e o Centro de Trabalho.');
+      return;
+    }
+    const endDate = draft.endDate instanceof Date
+      ? draft.endDate.toISOString()
+      : draft.endDate.trim();
+    const endTime = draft.endTime.trim();
+    const fingerprint = [
+      snapshot.area.code,
+      snapshot.workCenter.code,
+      endDate,
+      endTime,
+    ].join('|');
+    if (this.contextFinishIdempotency?.fingerprint !== fingerprint) {
+      this.contextFinishIdempotency = {
+        fingerprint,
+        key: this.idempotency.resolve(),
+      };
+    }
+    this.contextFinishing.set(true);
+    this.registrationError.set('');
+    this.statusMessage.set('');
+
+    this.service.finalizarParadaPorContexto({
+      areaCode: snapshot.area.code,
+      workCenterCode: snapshot.workCenter.code,
+      endDate: draft.endDate,
+      endTime,
+      idempotencyKey: this.contextFinishIdempotency.key,
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (result) => {
+        this.contextFinishing.set(false);
+        if (result.delivery.status === 'ERROR') {
+          const message = result.delivery.error.userMessage;
+          this.registrationError.set(message);
+          this.notification.error(message);
+          return;
+        }
+        if (result.delivery.status === 'SYNCED') {
+          this.statusMessage.set('Finalização enviada ao Datasul.');
+          this.notification.success('Finalização enviada ao Datasul.');
+        } else {
+          const message =
+            'Datasul indisponível — finalização salva neste dispositivo e pendente de sincronização.';
+          this.statusMessage.set(message);
+          this.notification.warning(message);
+        }
+      },
+      error: (error: unknown) => {
+        this.contextFinishing.set(false);
+        const message = error instanceof Error
+          ? error.message
+          : 'Não foi possível finalizar a parada. Os dados informados foram preservados.';
+        this.registrationError.set(message);
+        this.notification.error(message);
+      },
+    });
+  }
+
   registrarParada(): void {
     const snapshot = this.view();
     if (snapshot.saving) {
@@ -657,7 +722,7 @@ export class ReporteParadasPage implements OnInit {
   }
 
   private commandsBlocked(): boolean {
-    return this.view().saving || this.view().finishing;
+    return this.view().saving || this.view().finishing || this.contextFinishing();
   }
 
   private clearPendingPrefill(): void {

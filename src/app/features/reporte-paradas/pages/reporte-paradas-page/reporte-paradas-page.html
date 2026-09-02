@@ -8,7 +8,7 @@
       [workCenterCode]="view().workCenter?.code ?? ''"
       [loadingAreas]="loadingAreas()"
       [loadingCenters]="loadingCenters()"
-      [disabled]="view().saving || view().finishing"
+      [disabled]="view().saving || view().finishing || contextFinishing()"
       [showAction]="false"
       [errorMessage]="pageError()"
       [recentContexts]="recentContexts()"
@@ -25,7 +25,7 @@
         [responsibleType]="view().responsibleType"
         [responsibleCode]="view().responsibleCode"
         [loading]="view().contextLoading"
-        [disabled]="view().saving || view().finishing"
+        [disabled]="view().saving || view().finishing || contextFinishing()"
         [errorMessage]="view().contextError"
         (responsibleTypeChange)="onResponsibleTypeChange($event)"
         (responsibleCodeChange)="onResponsibleCodeChange($event)"
@@ -35,11 +35,14 @@
       <app-parada-form
         [reasons]="view().reasons"
         [draft]="view().draft"
-        [disabled]="view().saving || view().finishing || view().contextLoading || !!view().contextError"
+        [disabled]="view().saving || view().finishing || contextFinishing() || view().contextLoading || !!view().contextError"
         [loading]="view().saving"
+        [finishLoading]="contextFinishing()"
+        [showFinish]="view().selectedStopId === null"
         [externalError]="registrationError()"
         (draftChange)="onDraftChange($event)"
         (confirm)="registrarParada()"
+        (finish)="finalizarParadaPorContexto($event)"
       ></app-parada-form>
 
       <app-paradas-em-andamento-list
@@ -47,7 +50,7 @@
         [selectedStopId]="view().selectedStopId"
         [now]="now()"
         [loading]="view().queryLoading"
-        [disabled]="view().saving || view().finishing"
+        [disabled]="view().saving || view().finishing || contextFinishing()"
         [errorMessage]="view().queryError"
         (selectStop)="selecionarParada($event)"
         (retry)="retryOpenStops()"
@@ -84,7 +87,7 @@
       <po-button
         p-label="Voltar"
         p-kind="secondary"
-        [p-disabled]="view().saving || view().finishing"
+        [p-disabled]="view().saving || view().finishing || contextFinishing()"
         (p-click)="voltar()"
       ></po-button>
     </div>

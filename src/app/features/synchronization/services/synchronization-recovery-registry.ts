@@ -61,7 +61,7 @@ const RECOVERY_DEFINITIONS: Readonly<Record<OperationalCommandType, RecoveryDefi
       'endDate', 'endTime', 'status', 'durationMinutes',
     ]),
     FINISH_STOP: correctable('/stoppages', [
-      'stopLocalId', 'endAt', 'endDate', 'endTime',
+      'stopLocalId', 'areaCode', 'workCenterCode', 'endAt', 'endDate', 'endTime',
     ]),
   });
 

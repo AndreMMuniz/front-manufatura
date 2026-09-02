@@ -440,6 +440,17 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       await json(route, [{ codigo: '05', descricao: 'Borra' }]);
       return;
     }
+    if (
+      request.method() === 'POST'
+      && (
+        path === '/api/production-stops'
+        || path === '/api/production-stops/finish'
+        || /^\/api\/production-stops\/[^/]+\/finish$/.test(path)
+      )
+    ) {
+      await route.abort('connectionfailed');
+      return;
+    }
     if (path === '/api/batches/start' && request.method() === 'POST') {
       const body = request.postDataJSON() as {
         ordens?: ReadonlyArray<{ readonly id?: unknown }>;

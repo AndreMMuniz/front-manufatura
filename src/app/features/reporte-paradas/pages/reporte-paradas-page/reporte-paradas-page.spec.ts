@@ -309,6 +309,20 @@ describe('ReporteParadasPage', () => {
     );
   });
 
+  it('mantém uma única ação Finalizar parada quando uma parada está selecionada', () => {
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.selecionarParada(42);
+    fixture.detectChanges();
+
+    const finishButtons = Array.from(fixture.nativeElement.querySelectorAll('button'))
+      .filter(button => (button as HTMLButtonElement).textContent?.includes('Finalizar parada'));
+
+    expect(finishButtons).toHaveLength(1);
+  });
+
   it('mostra o motivo remoto e preserva o rascunho quando o Datasul rejeita a parada', () => {
     const remoteMessage = 'Já existe reporte neste intervalo de data e hora.';
     service.registrarParada.mockImplementationOnce(request => of({

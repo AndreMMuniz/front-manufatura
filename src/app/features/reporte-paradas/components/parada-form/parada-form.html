@@ -26,14 +26,14 @@
 
     <po-datepicker
       name="dataFim"
-      p-label="Data Final (opcional)"
+      [p-label]="finishAttempted ? 'Data Final' : 'Data Final (opcional)'"
       [p-required]="finishAttempted"
       formControlName="endDate"
     ></po-datepicker>
 
     <po-input
       name="horaFim"
-      p-label="Hora Final (opcional)"
+      [p-label]="finishAttempted ? 'Hora Final' : 'Hora Final (opcional)'"
       p-placeholder="HH:mm"
       [p-required]="finishAttempted"
       formControlName="endTime"
@@ -64,15 +64,17 @@
         [p-disabled]="form.disabled || loading"
         [p-loading]="loading"
       ></po-button>
-      <po-button
-        class="parada-form__finish"
-        p-label="Finalizar parada"
-        p-kind="secondary"
-        p-type="button"
-        [p-disabled]="form.disabled || finishLoading"
-        [p-loading]="finishLoading"
-        (p-click)="submitFinish()"
-      ></po-button>
+      @if (showFinish) {
+        <po-button
+          class="parada-form__finish"
+          p-label="Finalizar parada"
+          p-kind="secondary"
+          p-type="button"
+          [p-disabled]="form.disabled || finishLoading"
+          [p-loading]="finishLoading"
+          (p-click)="submitFinish()"
+        ></po-button>
+      }
     </div>
   </form>
 </po-widget>

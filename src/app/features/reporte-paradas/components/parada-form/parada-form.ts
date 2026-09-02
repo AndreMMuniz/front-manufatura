@@ -56,6 +56,7 @@ export class ParadaForm implements OnChanges {
   @Input() disabled = false;
   @Input() loading = false;
   @Input() finishLoading = false;
+  @Input() showFinish = true;
   @Input() externalError = '';
 
   @Output() draftChange = new EventEmitter<ParadaDraft>();

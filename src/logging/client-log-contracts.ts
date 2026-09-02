@@ -58,6 +58,7 @@ export const CLIENT_LOG_ROUTES = [
   '/api/batches/report',
   '/api/batches/end',
   '/api/production-stops',
+  '/api/production-stops/finish',
   '/api/production-stops/:id/finish',
   '/api/quality-control/orders/:orderNumber',
   '/api/quality-control/routes',
