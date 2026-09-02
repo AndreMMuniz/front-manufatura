@@ -51,6 +51,23 @@ describe('client log contracts', () => {
     });
   });
 
+  it.each(['stop_command_persisted', 'stop_command_delivery_observed'] as const)(
+    'aceita o evento de parada %s para diagnóstico no navegador',
+    (event) => {
+      expect(validateClientLogEvent({
+        ...valid(),
+        category: 'synchronization',
+        event,
+        context: {
+          commandType: 'CREATE_STOP',
+          aggregateType: 'STOP',
+          toStatus: event === 'stop_command_persisted' ? 'PENDING' : 'SYNCED',
+          stage: event === 'stop_command_persisted' ? 'persist' : 'delivery',
+        },
+      })).toMatchObject({ ok: true, event: { event } });
+    },
+  );
+
   it.each([
     ['chave raiz extra', { ...valid(), body: { password: 'segredo' } }],
     ['categoria aberta', { ...valid(), category: 'security' }],

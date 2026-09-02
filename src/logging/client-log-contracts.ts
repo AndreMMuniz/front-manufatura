@@ -27,6 +27,8 @@ export const CLIENT_LOG_EVENTS = [
   'batch_report_requested',
   'batch_report_persisted',
   'batch_report_delivery_observed',
+  'stop_command_persisted',
+  'stop_command_delivery_observed',
 ] as const;
 export type ClientLogEventName = (typeof CLIENT_LOG_EVENTS)[number];
 

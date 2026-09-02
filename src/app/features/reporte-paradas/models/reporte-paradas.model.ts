@@ -4,6 +4,7 @@ import {
 } from '../../shop-floor/models/operational-responsible';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
+import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
 
 export interface StopReason {
   readonly id: number;
@@ -70,6 +71,10 @@ export interface StopEntry {
   readonly durationMinutes?: number;
   readonly idempotencyKey: string;
   readonly syncStatus: ParadaSyncStatus;
+}
+
+export interface StopCommandResult extends StopEntry {
+  readonly delivery: ImmediateDeliveryResult;
 }
 
 export type Parada = StopEntry;

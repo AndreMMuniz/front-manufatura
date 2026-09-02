@@ -269,16 +269,29 @@ export class ReporteParadasPage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (stop) => {
+          if (stop.delivery.status === 'ERROR') {
+            const message = stop.delivery.error.userMessage;
+            if (this.workflow.acceptFinishError(token, message)) {
+              this.syncView();
+              this.notification.error(message);
+            }
+            return;
+          }
           if (!this.workflow.acceptFinishSuccess(token, stop.id)) {
             return;
           }
           this.syncView();
-          this.statusMessage.set(
-            'Finalização salva neste dispositivo e pendente de sincronização.',
-          );
-          this.notification.success(
-            'Finalização salva neste dispositivo e pendente de sincronização.',
-          );
+          if (stop.delivery.status === 'SYNCED') {
+            this.statusMessage.set('Finalização enviada ao Datasul.');
+            this.notification.success('Finalização enviada ao Datasul.');
+          } else {
+            this.statusMessage.set(
+              'Datasul indisponível — finalização salva neste dispositivo e pendente de sincronização.',
+            );
+            this.notification.warning(
+              'Datasul indisponível — finalização salva neste dispositivo e pendente de sincronização.',
+            );
+          }
           const route = this.view().origin?.sourceRoute;
           if (route === '/operation-reporting' || route === '/batch-reporting') {
             void this.router.navigate([route]);
@@ -347,12 +360,29 @@ export class ReporteParadasPage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (stop) => {
+          if (stop.delivery.status === 'ERROR') {
+            this.workflow.setSaving(false);
+            this.syncView();
+            const message = stop.delivery.error.userMessage;
+            this.registrationError.set(message);
+            this.notification.error(message);
+            return;
+          }
           this.workflow.completeRegistration();
           this.syncView();
-          this.statusMessage.set(
-            `Parada ${stop.status === 'EM_ANDAMENTO' ? 'em andamento' : 'finalizada'} salva neste dispositivo e pendente de sincronização.`,
-          );
-          this.notification.success('Parada salva neste dispositivo e pendente de sincronização.');
+          if (stop.delivery.status === 'SYNCED') {
+            this.statusMessage.set(
+              `Parada ${stop.status === 'EM_ANDAMENTO' ? 'em andamento' : 'finalizada'} enviada ao Datasul.`,
+            );
+            this.notification.success('Parada enviada ao Datasul.');
+          } else {
+            this.statusMessage.set(
+              `Datasul indisponível — parada ${stop.status === 'EM_ANDAMENTO' ? 'em andamento' : 'finalizada'} salva neste dispositivo e pendente de sincronização.`,
+            );
+            this.notification.warning(
+              'Datasul indisponível — parada salva neste dispositivo e pendente de sincronização.',
+            );
+          }
           if (stop.status === 'EM_ANDAMENTO' && snapshot.area && snapshot.workCenter) {
             this.loadOpenStops(snapshot.area.code, snapshot.workCenter.code);
           }

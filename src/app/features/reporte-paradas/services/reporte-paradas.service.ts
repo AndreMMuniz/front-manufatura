@@ -3,9 +3,13 @@ import { Observable, defer, delay, finalize, forkJoin, from, map, of, switchMap 
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { ClientLogService } from '../../../core/logging/client-log.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
+import { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
+import { OutboxEntry, PersistedSyncError } from '../../../core/offline/models/outbox-entry';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
+import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
@@ -15,6 +19,7 @@ import {
   ProductionContext,
   ParadaSyncStatus,
   ResponsavelParada,
+  StopCommandResult,
   StopEntry,
   StopReason,
 } from '../models/reporte-paradas.model';
@@ -27,14 +32,21 @@ import {
   validateStopInterval,
 } from '../models/reporte-paradas-time';
 
+interface ObservedStopDelivery {
+  readonly delivery: ImmediateDeliveryResult;
+  readonly syncStatus: ParadaSyncStatus;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReporteParadasService {
   private readonly catalog = inject(ProductionContextCatalogService);
   private readonly commands = inject(OperationalCommandFacade);
+  private readonly immediateDelivery = inject(ImmediateCommandDeliveryService);
   private readonly localRecords = inject(LocalRecordRepository);
   private readonly outbox = inject(OutboxRepository);
   private readonly authSession = inject(AuthSessionService);
   private readonly api = inject(AuthenticatedApiService);
+  private readonly clientLogs = inject(ClientLogService);
   private prefillContext: {
     readonly ownerId: string;
     readonly context: ProductionContext;
@@ -90,7 +102,7 @@ export class ReporteParadasService {
     this.prefillContext = null;
   }
 
-  registrarParada(request: CreateStopRequest): Observable<StopEntry> {
+  registrarParada(request: CreateStopRequest): Observable<StopCommandResult> {
     return defer(() => {
       if (this.registrationInFlight) {
         throw new Error('Já existe um registro de parada em andamento.');
@@ -173,7 +185,28 @@ export class ReporteParadasService {
               payload: this.stopPayload(stop),
             }),
           ).pipe(
-            map((confirmation) => {
+            switchMap((confirmation) => {
+              this.captureStopMilestone(
+                'stop_command_persisted',
+                'info',
+                'CREATE_STOP',
+                confirmation.idempotencyKey,
+                'PENDING',
+                'persist',
+              );
+              return from(this.deliverCommand(confirmation.localId)).pipe(map((observed) => {
+                const delivery = observed.delivery;
+                this.captureStopMilestone(
+                  'stop_command_delivery_observed',
+                  delivery.status === 'ERROR'
+                    ? 'error'
+                    : delivery.status === 'PENDING' ? 'warn' : 'info',
+                  'CREATE_STOP',
+                  confirmation.idempotencyKey,
+                  delivery.status,
+                  'delivery',
+                  delivery.status === 'ERROR' ? delivery.error : undefined,
+                );
               this.ensureOwnerCache(ownerId);
               const stored = this.cloneStop(stop);
               const confirmedStop: StopEntry = {
@@ -183,17 +216,23 @@ export class ReporteParadasService {
                 aggregateId: confirmation.aggregateId,
                 creationCommandId: confirmation.localId,
                 idempotencyKey: confirmation.idempotencyKey,
-                syncStatus: confirmation.syncStatus,
+                syncStatus: observed.syncStatus,
               };
-              const existingIndex = this.confirmedStops.findIndex(
-                (item) => item.localId === localId,
-              );
-              if (existingIndex >= 0) {
-                this.confirmedStops[existingIndex] = confirmedStop;
-              } else {
-                this.confirmedStops.push(confirmedStop);
+              if (delivery.status !== 'ERROR') {
+                const existingIndex = this.confirmedStops.findIndex(
+                  (item) => item.localId === localId,
+                );
+                if (existingIndex >= 0) {
+                  this.confirmedStops[existingIndex] = confirmedStop;
+                } else {
+                  this.confirmedStops.push(confirmedStop);
+                }
               }
-              return this.cloneStop(confirmedStop);
+              return {
+                ...this.cloneStop(confirmedStop),
+                delivery: structuredClone(delivery),
+              };
+              }));
             }),
           );
         }),
@@ -203,6 +242,115 @@ export class ReporteParadasService {
         this.registrationInFlight = false;
       }),
     );
+  }
+
+  private async deliverCommand(localId: string): Promise<ObservedStopDelivery> {
+    const observed = await this.immediateDelivery.deliver(localId);
+    if (observed.status !== 'PENDING') {
+      return {
+        delivery: structuredClone(observed),
+        syncStatus: observed.status === 'SYNCED' ? 'SYNCED' : 'ERROR',
+      };
+    }
+    const ownerId = this.authSession.currentUser?.id.trim();
+    if (!ownerId) {
+      return {
+        delivery: this.deliveryError(
+        'STOP_COMMAND_SESSION_REQUIRED',
+        'AUTH',
+        'A sessão precisa ser renovada antes de enviar a parada.',
+        ),
+        syncStatus: 'ERROR',
+      };
+    }
+    const entry = await this.outbox.getById(ownerId, localId);
+    const delivery = this.deliveryResult(entry);
+    return {
+      delivery,
+      syncStatus: delivery.status === 'SYNCED'
+        ? 'SYNCED'
+        : delivery.status === 'ERROR' ? 'ERROR' : this.syncStatusOf(entry?.status),
+    };
+  }
+
+  private deliveryResult(entry: OutboxEntry | null | undefined): ImmediateDeliveryResult {
+    if (!entry) {
+      return this.deliveryError(
+        'STOP_COMMAND_OUTBOX_MISSING',
+        'CONFIGURATION',
+        'Não foi possível localizar o envio da parada neste dispositivo.',
+      );
+    }
+    if (entry.status === 'SYNCED') {
+      return entry.receipt
+        ? { status: 'SYNCED', receipt: structuredClone(entry.receipt) }
+        : this.deliveryError(
+          'STOP_COMMAND_RECEIPT_MISSING',
+          'CONFIGURATION',
+          'O Datasul confirmou o envio, mas o comprovante da parada não foi encontrado.',
+        );
+    }
+    if (
+      entry.status === 'ERROR'
+      || entry.status === 'BLOCKED_AUTH'
+      || entry.status === 'BLOCKED_DEPENDENCY'
+    ) {
+      return entry.lastError
+        ? { status: 'ERROR', error: { ...entry.lastError } }
+        : this.deliveryError(
+          'STOP_COMMAND_ERROR_MISSING',
+          'CONFIGURATION',
+          'O envio da parada falhou sem uma mensagem operacional disponível.',
+        );
+    }
+    if (
+      entry.status === 'SYNCING'
+      || (entry.status === 'RETRY_WAIT' && entry.lastError?.category === 'TRANSIENT')
+    ) {
+      return { status: 'PENDING' };
+    }
+    return this.deliveryError(
+      'STOP_COMMAND_NOT_DELIVERED',
+      'CONFIGURATION',
+      'Não foi possível confirmar uma falha de conexão ao enviar a parada.',
+    );
+  }
+
+  private deliveryError(
+    code: string,
+    category: PersistedSyncError['category'],
+    userMessage: string,
+  ): ImmediateDeliveryResult {
+    return { status: 'ERROR', error: { code, category, userMessage } };
+  }
+
+  private captureStopMilestone(
+    event: 'stop_command_persisted' | 'stop_command_delivery_observed',
+    level: 'info' | 'warn' | 'error',
+    commandType: 'CREATE_STOP' | 'FINISH_STOP',
+    correlationId: string,
+    toStatus: 'PENDING' | 'SYNCED' | 'ERROR',
+    stage: 'persist' | 'delivery',
+    error?: PersistedSyncError,
+  ): void {
+    try {
+      this.clientLogs.capture({
+        level,
+        category: 'synchronization',
+        event,
+        correlationId,
+        context: {
+          commandType,
+          aggregateType: 'STOP',
+          ...(stage === 'delivery' ? { fromStatus: 'PENDING' as const } : {}),
+          toStatus,
+          stage,
+          ...(error ? { code: error.code, failureCategory: error.category } : {}),
+        },
+      });
+    } catch {
+      // O registro da parada não pode depender do diagnóstico.
+    }
   }
 
   listarParadasEmAndamento(
@@ -261,7 +409,7 @@ export class ReporteParadasService {
     }).pipe(delay(150));
   }
 
-  finalizarParada(stopId: string | number, request: FinishStopRequest): Observable<StopEntry> {
+  finalizarParada(stopId: string | number, request: FinishStopRequest): Observable<StopCommandResult> {
     return defer(() => {
       if (this.finishInFlight) {
         throw new Error('Já existe uma finalização de parada em andamento.');
@@ -280,7 +428,13 @@ export class ReporteParadasService {
         throw new Error('É necessária uma sessão autenticada para finalizar a parada.');
       }
       return from(this.restoreFinishByIdempotency(ownerId, stopId, command, end)).pipe(
-        switchMap((prior) => (prior ? of(prior) : this.finalizeNewStop(stopId, command, end))),
+        switchMap((prior) => prior
+          ? this.observeFinishedStop(
+            prior,
+            prior.finishCommandId ?? command.idempotencyKey,
+            command.idempotencyKey,
+          )
+          : this.finalizeNewStop(stopId, command, end)),
       );
     }).pipe(
       finalize(() => {
@@ -293,7 +447,7 @@ export class ReporteParadasService {
     stopId: string | number,
     command: FinishStopRequest,
     end: Date,
-  ): Observable<StopEntry> {
+  ): Observable<StopCommandResult> {
       const index = this.confirmedStops.findIndex((stop) => stop.id === stopId);
       const current = index >= 0 ? this.confirmedStops[index] : undefined;
       if (!current) {
@@ -320,18 +474,60 @@ export class ReporteParadasService {
       }
 
       return from(this.captureFinish(current, command.idempotencyKey, end)).pipe(
-        map((confirmation) => {
+        switchMap((confirmation) => {
           const finished = this.finishedStop(
             current,
-            command.idempotencyKey,
+            confirmation.localId,
             interval.end,
             confirmation.syncStatus,
           );
-          const stored = this.cloneStop(finished);
-          this.confirmedStops[index] = stored;
-          return this.cloneStop(stored);
+          return this.observeFinishedStop(
+            finished,
+            confirmation.localId,
+            confirmation.idempotencyKey,
+          );
         }),
       );
+  }
+
+  private observeFinishedStop(
+    finished: StopEntry,
+    localId: string,
+    correlationId: string,
+  ): Observable<StopCommandResult> {
+    this.captureStopMilestone(
+      'stop_command_persisted',
+      'info',
+      'FINISH_STOP',
+      correlationId,
+      'PENDING',
+      'persist',
+    );
+    return from(this.deliverCommand(localId)).pipe(map((deliveryObservation) => {
+      const delivery = deliveryObservation.delivery;
+      this.captureStopMilestone(
+        'stop_command_delivery_observed',
+        delivery.status === 'ERROR'
+          ? 'error'
+          : delivery.status === 'PENDING' ? 'warn' : 'info',
+        'FINISH_STOP',
+        correlationId,
+        delivery.status,
+        'delivery',
+        delivery.status === 'ERROR' ? delivery.error : undefined,
+      );
+      const observed: StopEntry = {
+        ...this.cloneStop(finished),
+        syncStatus: deliveryObservation.syncStatus,
+      };
+      if (delivery.status !== 'ERROR') {
+        const index = this.confirmedStops.findIndex(stop => stop.id === finished.id);
+        if (index >= 0) {
+          this.confirmedStops[index] = this.cloneStop(observed);
+        }
+      }
+      return { ...this.cloneStop(observed), delivery: structuredClone(delivery) };
+    }));
   }
 
   private cloneContext(context: ProductionContext): ProductionContext {
@@ -665,7 +861,7 @@ export class ReporteParadasService {
     const finishOutbox = await this.outbox.getById(ownerId, prior.localId);
     return this.finishedStop(
       current,
-      command.idempotencyKey,
+      prior.localId,
       end,
       this.syncStatusOf(finishOutbox?.status),
     );

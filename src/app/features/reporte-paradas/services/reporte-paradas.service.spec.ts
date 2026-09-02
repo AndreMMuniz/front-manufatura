@@ -5,15 +5,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { ClientLogService } from '../../../core/logging/client-log.service';
+import { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
+import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
 import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import {
   CreateStopRequest,
   FinishStopRequest,
   StopResponse,
 } from '../interfaces/reporte-paradas.dto';
-import { ProductionContext, StopReason } from '../models/reporte-paradas.model';
+import { ProductionContext, StopEntry, StopReason } from '../models/reporte-paradas.model';
 import { ReporteParadasService } from './reporte-paradas.service';
 
 describe('ReporteParadasService', () => {
@@ -116,6 +119,19 @@ describe('ReporteParadasService', () => {
         return result;
       }),
     };
+    const deliver = vi.fn<(localId: string) => Promise<ImmediateDeliveryResult>>(async (localId) => {
+      const entry = durableOutbox.find(item => item['localId'] === localId);
+      if (entry) {
+        entry['status'] = 'RETRY_WAIT';
+        entry['lastError'] = {
+          code: 'NETWORK',
+          category: 'TRANSIENT',
+          userMessage: 'Falha de comunicação; uma nova tentativa será realizada.',
+        };
+      }
+      return { status: 'PENDING' as const };
+    });
+    const clientLogCapture = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         ReporteParadasService,
@@ -137,6 +153,14 @@ describe('ReporteParadasService', () => {
           useValue: commands,
         },
         {
+          provide: ImmediateCommandDeliveryService,
+          useValue: { deliver },
+        },
+        {
+          provide: ClientLogService,
+          useValue: { capture: clientLogCapture },
+        },
+        {
           provide: AuthenticatedApiService,
           useValue: { get: vi.fn(() => of(apiReasons)) },
         },
@@ -151,6 +175,8 @@ describe('ReporteParadasService', () => {
       authSession,
       durableRecords,
       durableOutbox,
+      deliver,
+      clientLogCapture,
     };
   }
 
@@ -250,8 +276,108 @@ describe('ReporteParadasService', () => {
     expect(parada.endDate).toBeUndefined();
     expect(parada.endTime).toBeUndefined();
     expect(parada.durationMinutes).toBeUndefined();
-    expect(parada.syncStatus).toBe('PENDING');
+    expect(parada.syncStatus).toBe('RETRY_WAIT');
     expect(commands.capture.mock.calls[0][0].payload).not.toHaveProperty('programmed');
+  });
+
+  it('devolve a rejeição do Datasul em vez de classificar a parada como pendente', async () => {
+    const { service, deliver, durableRecords, durableOutbox } = setup();
+    const remoteError = {
+      code: 'DATASUL_STOP_INTERVAL_CONFLICT',
+      category: 'CONFLICT' as const,
+      userMessage: 'Já existe reporte neste intervalo de data e hora.',
+    };
+    deliver.mockImplementationOnce(async (localId: string) => {
+      const record = durableRecords.find(item => item['localId'] === localId);
+      const entry = durableOutbox.find(item => item['localId'] === localId);
+      if (record) record['deliveryDisposition'] = 'REJECTED';
+      if (entry) {
+        entry['status'] = 'ERROR';
+        entry['deliveryDisposition'] = 'REJECTED';
+        entry['lastError'] = remoteError;
+      }
+      return { status: 'ERROR' as const, error: remoteError };
+    });
+
+    const result = await firstValueFrom(service.registrarParada(request({
+      endDate: null,
+      endTime: null,
+    }))) as StopEntry & { delivery: ImmediateDeliveryResult };
+
+    expect(result.delivery).toEqual({ status: 'ERROR', error: remoteError });
+    expect(await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).toEqual([]);
+  });
+
+  it('usa pendente somente quando a Outbox registra falha transitória de comunicação', async () => {
+    const { service } = setup();
+
+    const result = await firstValueFrom(service.registrarParada(request())) as
+      StopEntry & { delivery: ImmediateDeliveryResult };
+
+    expect(result.delivery).toEqual({ status: 'PENDING' });
+  });
+
+  it('não chama estado local sem tentativa confirmada de envio de pendente', async () => {
+    const { service, deliver } = setup();
+    deliver.mockResolvedValueOnce({ status: 'PENDING' });
+
+    const result = await firstValueFrom(service.registrarParada(request())) as
+      StopEntry & { delivery: ImmediateDeliveryResult };
+
+    expect(result.delivery).toEqual({
+      status: 'ERROR',
+      error: {
+        code: 'STOP_COMMAND_NOT_DELIVERED',
+        category: 'CONFIGURATION',
+        userMessage: 'Não foi possível confirmar uma falha de conexão ao enviar a parada.',
+      },
+    });
+  });
+
+  it('registra no console os marcos sanitizados de persistência e entrega da parada', async () => {
+    const { service, deliver, clientLogCapture } = setup();
+    deliver.mockResolvedValueOnce({
+      status: 'SYNCED',
+      receipt: {
+        serverRecordId: 'remote-stop-1',
+        receivedAt: '2026-07-30T12:00:01.000Z',
+        processedAt: '2026-07-30T12:00:02.000Z',
+        duplicate: false,
+      },
+    });
+
+    await firstValueFrom(service.registrarParada(request()));
+
+    expect(clientLogCapture).toHaveBeenCalledWith({
+      level: 'info',
+      category: 'synchronization',
+      event: 'stop_command_persisted',
+      correlationId: 'idem-1',
+      context: {
+        commandType: 'CREATE_STOP',
+        aggregateType: 'STOP',
+        toStatus: 'PENDING',
+        stage: 'persist',
+      },
+    });
+    expect(clientLogCapture).toHaveBeenCalledWith({
+      level: 'info',
+      category: 'synchronization',
+      event: 'stop_command_delivery_observed',
+      correlationId: 'idem-1',
+      context: {
+        commandType: 'CREATE_STOP',
+        aggregateType: 'STOP',
+        fromStatus: 'PENDING',
+        toStatus: 'SYNCED',
+        stage: 'delivery',
+      },
+    });
+    expect(JSON.stringify(clientLogCapture.mock.calls)).not.toMatch(
+      /responsible|reason|payload|operator-1/,
+    );
   });
 
   it('registra parada finalizada e deriva duração, permitindo fim igual ao início', async () => {
@@ -475,7 +601,8 @@ describe('ReporteParadasService', () => {
     const first = await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
     const second = await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
 
-    expect(first).toEqual([aberta]);
+    const { delivery: _delivery, ...savedOpenStop } = aberta;
+    expect(first).toEqual([{ ...savedOpenStop, syncStatus: 'RETRY_WAIT' }]);
     expect(first[0]).not.toBe(aberta);
     expect(second[0]).not.toBe(first[0]);
     expect(await firstValueFrom(service.listarParadasEmAndamento('4002', 'CT-EXT-01'))).toEqual([]);
@@ -551,11 +678,46 @@ describe('ReporteParadasService', () => {
         endDate: new Date(2026, 6, 28),
         endTime: '09:30',
         durationMinutes: 90,
-        syncStatus: 'PENDING',
+        syncStatus: 'RETRY_WAIT',
       }),
     );
     expect(finalizada).not.toBe(aberta);
     expect(await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'))).toEqual([]);
+  });
+
+  it('devolve o motivo remoto e mantém a parada aberta quando a finalização é rejeitada', async () => {
+    const { service, deliver, durableRecords, durableOutbox } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-aberta',
+      endDate: null,
+      endTime: null,
+    })));
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+    const remoteError = {
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION' as const,
+      userMessage: 'A parada já foi finalizada no Datasul.',
+    };
+    deliver.mockImplementationOnce(async (localId: string) => {
+      const record = durableRecords.find(item => item['localId'] === localId);
+      const entry = durableOutbox.find(item => item['localId'] === localId);
+      if (record) record['deliveryDisposition'] = 'REJECTED';
+      if (entry) {
+        entry['status'] = 'ERROR';
+        entry['deliveryDisposition'] = 'REJECTED';
+        entry['lastError'] = remoteError;
+      }
+      return { status: 'ERROR' as const, error: remoteError };
+    });
+
+    const result = await firstValueFrom(
+      service.finalizarParada(aberta.id, finishRequest()),
+    ) as StopEntry & { delivery: ImmediateDeliveryResult };
+
+    expect(result.delivery).toEqual({ status: 'ERROR', error: remoteError });
+    expect((await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    )).map(stop => stop.id)).toEqual([aberta.id]);
   });
 
   it('consulta idempotência do fim antes do status e detecta conflito de conteúdo', async () => {

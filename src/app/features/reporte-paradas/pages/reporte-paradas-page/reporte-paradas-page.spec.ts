@@ -73,6 +73,7 @@ describe('ReporteParadasPage', () => {
         status: 'EM_ANDAMENTO',
         idempotencyKey: request.idempotencyKey,
         syncStatus: 'PENDING',
+        delivery: { status: 'PENDING' },
       })),
       listarParadasEmAndamento: vi.fn(() => of([])),
       finalizarParada: vi.fn((_stopId, request) => of({
@@ -81,6 +82,7 @@ describe('ReporteParadasPage', () => {
         endDate: new Date(2026, 6, 28),
         endTime: request.endTime,
         durationMinutes: 90,
+        delivery: { status: 'PENDING' },
       })),
       getPrefillContext: vi.fn(() => null),
       clearPrefillContext: vi.fn(),
@@ -251,19 +253,53 @@ describe('ReporteParadasPage', () => {
       .toBe(firstRequest.idempotencyKey);
   });
 
-  it('informa sucesso apenas local/pendente e preserva o contexto para novo registro', () => {
+  it('informa pendência somente como falha de comunicação e preserva o contexto', () => {
     fixture.detectChanges();
     prepareValidDraft();
 
     component.registrarParada();
 
-    expect(notification.success).toHaveBeenCalledWith(
-      expect.stringMatching(/salva neste dispositivo.*pendente/i),
+    expect(notification.warning).toHaveBeenCalledWith(
+      expect.stringMatching(/datasul indisponível.*pendente/i),
     );
+    expect(notification.success).not.toHaveBeenCalled();
     expect(component.view().area).toEqual(area);
     expect(component.view().workCenter).toEqual(center);
     expect(component.view().draft.reasonId).toBeNull();
     expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  it('mostra o motivo remoto e preserva o rascunho quando o Datasul rejeita a parada', () => {
+    const remoteMessage = 'Já existe reporte neste intervalo de data e hora.';
+    service.registrarParada.mockImplementationOnce(request => of({
+      id: request.idempotencyKey,
+      context: prefill,
+      reason: { id: 1, code: '01', description: 'Setup' },
+      responsible,
+      startDate: new Date(2026, 6, 28),
+      startTime: request.startTime,
+      status: 'EM_ANDAMENTO',
+      idempotencyKey: request.idempotencyKey,
+      syncStatus: 'ERROR',
+      delivery: {
+        status: 'ERROR',
+        error: {
+          code: 'DATASUL_STOP_INTERVAL_CONFLICT',
+          category: 'CONFLICT',
+          userMessage: remoteMessage,
+        },
+      },
+    }));
+    fixture.detectChanges();
+    prepareValidDraft();
+
+    component.registrarParada();
+
+    expect(component.registrationError()).toBe(remoteMessage);
+    expect(component.view().draft.reasonId).toBe(1);
+    expect(notification.error).toHaveBeenCalledWith(remoteMessage);
+    expect(notification.success).not.toHaveBeenCalled();
+    expect(notification.warning).not.toHaveBeenCalled();
   });
 
   it('volta para origem válida ou menu no acesso direto', () => {
@@ -318,6 +354,38 @@ describe('ReporteParadasPage', () => {
 
     component.finalizarParada();
     expect(service.finalizarParada.mock.calls[1][1].idempotencyKey).toBe(first.idempotencyKey);
+  });
+
+  it('mostra o motivo remoto e preserva a finalização quando o Datasul a rejeita', () => {
+    const remoteMessage = 'A parada já foi finalizada no Datasul.';
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
+    service.finalizarParada.mockImplementationOnce((_stopId, request) => of({
+      ...openStop(),
+      status: 'FINALIZADA',
+      endDate: new Date(2026, 6, 28),
+      endTime: request.endTime,
+      durationMinutes: 90,
+      syncStatus: 'ERROR',
+      delivery: {
+        status: 'ERROR',
+        error: {
+          code: 'DATASUL_COMMAND_REJECTED',
+          category: 'VALIDATION',
+          userMessage: remoteMessage,
+        },
+      },
+    }));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.selecionarParada(42);
+
+    component.finalizarParada();
+
+    expect(component.view().selectedStopId).toBe(42);
+    expect(component.view().finishError).toBe(remoteMessage);
+    expect(notification.error).toHaveBeenCalledWith(remoteMessage);
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 
   it('protege rascunho de finalização no descarte e no estado PWA', () => {
