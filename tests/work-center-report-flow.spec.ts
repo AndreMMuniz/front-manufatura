@@ -350,6 +350,25 @@ test.describe('fluxo de Reporte Ordem', () => {
 test.describe('fluxo de Reporte Batelada', () => {
   test.use({ hasTouch: true });
 
+  test('alinha a ação de equipe ao dropdown de responsável', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Batelada' }).click();
+    await selectProductionContext(page);
+    await selectOrderWithKeyboard(page, '450001');
+    await page.getByRole('button', { name: 'Abrir batelada' }).click();
+
+    const responsibleBox = await page.getByRole('combobox', { name: 'Responsável' }).boundingBox();
+    const actionBox = await page.getByRole(
+      'button',
+      { name: 'Criar ou gerenciar equipe' },
+    ).boundingBox();
+
+    expect(responsibleBox).not.toBeNull();
+    expect(actionBox).not.toBeNull();
+    expect(Math.abs(responsibleBox!.y - actionBox!.y)).toBeLessThanOrEqual(5);
+  });
+
   test('consulta, compõe e inicia múltiplas ordens com uma única ação', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await login(page);
