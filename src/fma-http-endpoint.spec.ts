@@ -29,16 +29,23 @@ afterEach(async () => {
   })));
 });
 
-async function token(permissions: readonly string[] = [APP_PERMISSIONS.operationReporting]): Promise<string> {
+async function token(
+  permissions: readonly string[] = [APP_PERMISSIONS.operationReporting],
+  now = new Date(),
+): Promise<string> {
   return (await createAppSessionToken({
     subject: 'mjocelio', permissions, secret: ENV.APP_AUTH_TOKEN_SECRET,
-    ttlMs: 60_000, now: new Date(),
+    ttlMs: 60_000, now,
   })).token;
 }
 
-async function startGateway(transport: typeof fetch, logger?: ApplicationLogger): Promise<string> {
+async function startGateway(
+  transport: typeof fetch,
+  logger?: ApplicationLogger,
+  now?: () => Date,
+): Promise<string> {
   const app = express();
-  installFmaEndpoints(app, { env: ENV, transport, logger });
+  installFmaEndpoints(app, { env: ENV, transport, logger, now });
   let server!: RunningServer;
   await new Promise<void>((resolve, reject) => {
     server = app.listen(0, '127.0.0.1', error => error ? reject(error) : resolve());
@@ -584,6 +591,43 @@ describe('gateway FMA', () => {
       expect.stringContaining('/api/fma/v1/incluiparada'),
       expect.stringContaining('/api/fma/v1/finalizaparada'),
     ]);
+  });
+
+  it('envia parada com início futuro e intervalo completo para iniciaparada', async () => {
+    const processingDate = new Date('2026-09-02T12:00:00-03:00');
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const root = await startGateway(transport, undefined, () => processingDate);
+
+    const result = await fetch(`${root}/api/production-stops`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages], processingDate)}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-programada-futura',
+      },
+      body: JSON.stringify({
+        context: { area: { code: '4113' }, workCenter: { code: 'LASER-01-01' } },
+        reason: { code: '05' },
+        responsible: { tipo: 'OPERADOR', codigo: '00016570' },
+        startDate: '2026-09-03', startTime: '11:00',
+        endDate: '2026-09-03', endTime: '12:00',
+      }),
+    });
+
+    expect(result.status).toBe(200);
+    expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciaparada');
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
+      codAreaProduc: '4113',
+      codCtrab: 'LASER-01-01',
+      codParada: '05',
+      dataInicioParada: '2026-09-03',
+      horaInicioParada: '11:00',
+      codOperador: '00016570',
+      codEquipe: '',
+      numOmProgda: 0,
+      dataFimParada: '2026-09-03',
+      horaFimParada: '12:00',
+    });
   });
 
   it('consulta e adapta as paradas iniciadas do Centro de Trabalho', async () => {

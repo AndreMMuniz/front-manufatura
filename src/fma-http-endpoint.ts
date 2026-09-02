@@ -468,7 +468,10 @@ function installAdaptedRoutes(
       base.dataInicioParada, base.horaInicioParada, end.dataFimParada, end.horaFimParada,
     );
     const command = end ? { ...base, ...end } : base;
-    const endpoint = endDate ? '/api/fma/v1/incluiparada' : '/api/fma/v1/iniciaparada';
+    const processingDate = localCalendarDate(dependencies.now?.() ?? new Date());
+    const endpoint = endDate && base.dataInicioParada <= processingDate
+      ? '/api/fma/v1/incluiparada'
+      : '/api/fma/v1/iniciaparada';
     return idempotentCommand(req, client, dependencies, commandRequests, endpoint, command, 'production-stop');
   }));
 
@@ -1033,6 +1036,12 @@ function localDate(value: unknown): string {
     return raw;
   }
   return isoDate(raw);
+}
+function localCalendarDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 function assertCalendarDate(raw: string): void {
   const [year, month, day] = raw.split('-').map(Number);
