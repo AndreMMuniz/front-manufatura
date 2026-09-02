@@ -5,6 +5,7 @@ import {
   ParadaSyncStatus,
   ResponsavelParada,
   StopId,
+  StopReason,
 } from '../models/reporte-paradas.model';
 
 export interface CreateStopRequest {
@@ -42,4 +43,17 @@ export interface FinishStopByContextRequest extends FinishStopRequest {
 
 export interface DeleteStopRequest {
   readonly idempotencyKey: string;
+}
+
+export interface StartedStopApiDto {
+  readonly id: string;
+  readonly programNumber: number;
+  readonly workCenterCode: string;
+  readonly reason: StopReason;
+  readonly responsible: ResponsavelParada;
+  readonly startDate: string;
+  readonly startTime: string;
+  readonly reportDate: string;
+  readonly reportTime: string;
+  readonly reportedBy: string;
 }

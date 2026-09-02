@@ -19,6 +19,7 @@ import {
   DeleteStopRequest,
   FinishStopByContextRequest,
   FinishStopRequest,
+  StartedStopApiDto,
 } from '../interfaces/reporte-paradas.dto';
 import {
   ProductionContext,
@@ -272,7 +273,7 @@ export class ReporteParadasService {
       };
     }
     const entry = await this.outbox.getById(ownerId, localId);
-    const delivery = this.deliveryResult(entry);
+    const delivery = await this.deliveryResult(ownerId, entry);
     return {
       delivery,
       syncStatus: delivery.status === 'SYNCED'
@@ -281,7 +282,10 @@ export class ReporteParadasService {
     };
   }
 
-  private deliveryResult(entry: OutboxEntry | null | undefined): ImmediateDeliveryResult {
+  private async deliveryResult(
+    ownerId: string,
+    entry: OutboxEntry | null | undefined,
+  ): Promise<ImmediateDeliveryResult> {
     if (!entry) {
       return this.deliveryError(
         'STOP_COMMAND_OUTBOX_MISSING',
@@ -316,6 +320,16 @@ export class ReporteParadasService {
       || (entry.status === 'RETRY_WAIT' && entry.lastError?.category === 'TRANSIENT')
     ) {
       return { status: 'PENDING' };
+    }
+    if (entry.status === 'PENDING' && entry.dependencyIds.length > 0) {
+      const dependencies = await Promise.all(
+        entry.dependencyIds.map(dependencyId => this.outbox.getById(ownerId, dependencyId)),
+      );
+      if (dependencies.some(dependency =>
+        dependency?.status === 'RETRY_WAIT' &&
+        dependency.lastError?.category === 'TRANSIENT')) {
+        return { status: 'PENDING' };
+      }
     }
     return this.deliveryError(
       'STOP_COMMAND_NOT_DELIVERED',
@@ -377,8 +391,11 @@ export class ReporteParadasService {
       return forkJoin({
         records: from(this.localRecords.listByOwner(ownerId)),
         outboxEntries: from(this.outbox.listByOwner(ownerId)),
+        remoteStops: this.api.get<ReadonlyArray<StartedStopApiDto>>('/api/production-stops', {
+          workCenterCode,
+        }),
       }).pipe(
-        map(({ records, outboxEntries }) => {
+        map(({ records, outboxEntries, remoteStops }) => {
           this.ensureOwnerCache(ownerId);
           this.confirmedStops.splice(0);
           const outboxByLocalId = new Map(outboxEntries.map((entry) => [entry.localId, entry]));
@@ -419,6 +436,15 @@ export class ReporteParadasService {
                 record.payload,
                 outboxByLocalId.get(record.localId)?.status,
               );
+            }
+          }
+          for (const remoteStop of remoteStops) {
+            const restored = this.stopFromRemote(remoteStop, area);
+            if (
+              restored
+              && !this.confirmedStops.some(stop => this.sameStopFingerprint(stop, restored))
+            ) {
+              this.confirmedStops.push(restored);
             }
           }
           return this.openStopsForContext(area, workCenter);
@@ -997,7 +1023,7 @@ export class ReporteParadasService {
       aggregateId: current.aggregateId ?? current.localId ?? current.idempotencyKey,
       businessStatus: 'FINALIZADA',
       idempotencyKey,
-      dependencyIds: [current.creationCommandId ?? current.idempotencyKey],
+      ...(current.creationCommandId ? { dependencyIds: [current.creationCommandId] } : {}),
       occurredAt: end.toISOString(),
       payload: {
         stopLocalId: current.localId ?? current.idempotencyKey,
@@ -1008,6 +1034,55 @@ export class ReporteParadasService {
         endTime: formatLocalTime(end),
       },
     });
+  }
+
+  private stopFromRemote(remote: StartedStopApiDto, areaCode: string): StopEntry | null {
+    const startDate = parseLocalDate(remote.startDate);
+    const workCenterCode = this.normalizeCode(remote.workCenterCode);
+    if (
+      !remote.id.trim()
+      || !startDate
+      || !this.isValidTime(remote.startTime)
+      || !workCenterCode
+      || !Number.isSafeInteger(remote.reason.id)
+      || remote.reason.id <= 0
+      || !remote.reason.code.trim()
+      || !remote.reason.description.trim()
+      || !remote.responsible.codigo.trim()
+      || !remote.responsible.nome.trim()
+    ) {
+      return null;
+    }
+    return {
+      id: remote.id,
+      aggregateId: remote.id,
+      context: {
+        area: { code: areaCode, description: `Área ${areaCode}` },
+        workCenter: {
+          code: workCenterCode,
+          description: workCenterCode,
+          areaCode,
+          area: `Área ${areaCode}`,
+          machineGroup: '',
+          establishment: '',
+          active: true,
+        },
+      },
+      reason: { ...remote.reason },
+      responsible: { ...remote.responsible },
+      startDate,
+      startTime: remote.startTime.trim(),
+      status: 'EM_ANDAMENTO',
+      idempotencyKey: remote.id,
+      syncStatus: 'SYNCED',
+    };
+  }
+
+  private sameStopFingerprint(left: StopEntry, right: StopEntry): boolean {
+    return this.sameCode(left.context.workCenter.code, right.context.workCenter.code)
+      && this.sameCode(left.reason.code, right.reason.code)
+      && formatLocalDate(left.startDate) === formatLocalDate(right.startDate)
+      && left.startTime.trim() === right.startTime.trim();
   }
 
   private async restoreFinishByIdempotency(

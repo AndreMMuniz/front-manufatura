@@ -56,12 +56,16 @@ export class ParadaForm implements OnChanges {
   @Input() disabled = false;
   @Input() loading = false;
   @Input() finishLoading = false;
+  @Input() eliminateLoading = false;
+  @Input() finishDisabled = false;
   @Input() showFinish = true;
+  @Input() showEliminate = false;
   @Input() externalError = '';
 
   @Output() draftChange = new EventEmitter<ParadaDraft>();
   @Output() confirm = new EventEmitter<ParadaDraft>();
   @Output() finish = new EventEmitter<FinalizacaoDraft>();
+  @Output() eliminate = new EventEmitter<void>();
 
   finishAttempted = false;
 
@@ -118,6 +122,9 @@ export class ParadaForm implements OnChanges {
   }
 
   submitFinish(): void {
+    if (this.finishDisabled) {
+      return;
+    }
     this.finishAttempted = true;
     const endDate = this.form.controls.endDate;
     const endTime = this.form.controls.endTime;

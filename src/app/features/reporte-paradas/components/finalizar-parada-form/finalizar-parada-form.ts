@@ -49,6 +49,8 @@ export class FinalizarParadaForm implements OnChanges {
   @Input() loading = false;
   @Input() eliminateLoading = false;
   @Input() disabled = false;
+  @Input() showFinishControls = true;
+  @Input() showEliminate = true;
   @Input() externalError = '';
 
   @Output() draftChange = new EventEmitter<FinalizacaoDraft>();

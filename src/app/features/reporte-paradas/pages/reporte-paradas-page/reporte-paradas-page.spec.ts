@@ -291,10 +291,12 @@ describe('ReporteParadasPage', () => {
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
-  it('finaliza pelo botão ao lado do registro usando contexto, Data Final e Hora Final', () => {
+  it('finaliza a parada selecionada pelo botão ao lado do registro', () => {
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
     fixture.detectChanges();
     component.onAreaChange('4001');
     component.onWorkCenterChange('CT-EXT-01');
+    component.selecionarParada(42);
     component.onDraftChange({
       reasonId: null,
       startDate: null,
@@ -310,25 +312,33 @@ describe('ReporteParadasPage', () => {
 
     finishButton.click();
 
-    expect(service.finalizarParadaPorContexto).toHaveBeenCalledWith({
-      areaCode: '4001',
-      workCenterCode: 'CT-EXT-01',
+    expect(service.finalizarParada).toHaveBeenCalledWith(42, {
       endDate: '2026-08-14',
       endTime: '09:40',
       idempotencyKey: expect.stringMatching(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       ),
     });
+    expect(service.finalizarParadaPorContexto).not.toHaveBeenCalled();
     expect(notification.warning).toHaveBeenCalledWith(
       expect.stringMatching(/datasul indisponível.*pendente/i),
     );
   });
 
-  it('mantém uma única ação Finalizar parada quando uma parada está selecionada', () => {
+  it('habilita a única ação Finalizar parada somente após selecionar uma parada', () => {
     service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
     fixture.detectChanges();
     component.onAreaChange('4001');
     component.onWorkCenterChange('CT-EXT-01');
+    fixture.detectChanges();
+    const mainFinishButton = () => Array.from(
+      fixture.nativeElement.querySelectorAll('.parada-form__actions button'),
+    ).find(button => (button as HTMLButtonElement).textContent?.includes('Finalizar parada')) as
+      HTMLButtonElement | undefined;
+
+    expect(mainFinishButton()).toBeTruthy();
+    expect(mainFinishButton()?.disabled).toBe(true);
+
     component.selecionarParada(42);
     fixture.detectChanges();
 
@@ -336,6 +346,7 @@ describe('ReporteParadasPage', () => {
       .filter(button => (button as HTMLButtonElement).textContent?.includes('Finalizar parada'));
 
     expect(finishButtons).toHaveLength(1);
+    expect(mainFinishButton()?.disabled).toBe(false);
   });
 
   it('confirma antes de eliminar e remove somente após confirmação e sucesso', () => {
@@ -362,7 +373,7 @@ describe('ReporteParadasPage', () => {
 
     expect(service.eliminarParada).toHaveBeenCalledWith(42, {
       idempotencyKey: expect.stringMatching(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/,
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       ),
     });
     expect(component.view().openStops.map(stop => stop.id)).toEqual([43]);
@@ -398,6 +409,30 @@ describe('ReporteParadasPage', () => {
     expect(component.view().finishError).toBe(remoteMessage);
     expect(notification.error).toHaveBeenCalledWith(remoteMessage);
     expect(notification.warning).not.toHaveBeenCalled();
+  });
+
+  it('trata como pendente somente a eliminação com falha transitória confirmada', () => {
+    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
+    service.eliminarParada.mockImplementationOnce((_stopId, request) => of({
+      id: _stopId,
+      idempotencyKey: request.idempotencyKey,
+      syncStatus: 'RETRY_WAIT',
+      delivery: { status: 'PENDING' },
+    }));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.selecionarParada(42);
+    fixture.detectChanges();
+
+    component.solicitarEliminacao();
+    dialog.confirm.mock.calls[0][0].confirm();
+
+    expect(component.view().selectedStopId).toBeNull();
+    expect(notification.warning).toHaveBeenCalledWith(
+      expect.stringMatching(/datasul indisponível.*eliminação.*pendente/i),
+    );
+    expect(notification.error).not.toHaveBeenCalled();
   });
 
   it('mostra o motivo remoto e preserva o rascunho quando o Datasul rejeita a parada', () => {

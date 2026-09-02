@@ -577,6 +577,50 @@ describe('gateway FMA', () => {
     ]);
   });
 
+  it('consulta e adapta as paradas iniciadas do Centro de Trabalho', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      total: 1,
+      hasNext: false,
+      items: [{
+        paradasIniciadas: [{
+          numOmProgda: 0,
+          desParada: 'MANUTENCAO PREVENTIVA',
+          dataReporte: '2026-09-02',
+          codUsuarReporte: 'mjocelio',
+          horaInicioParada: '14:03',
+          horaReporte: '',
+          codCtrab: 'LASER-01-01',
+          dataInicioParada: '2026-09-02',
+          codEquipe: '00016570',
+          codParada: '05',
+        }],
+      }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+
+    const result = await fetch(
+      `${root}/api/production-stops?workCenterCode=LASER-01-01`,
+      { headers: { authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}` } },
+    );
+
+    expect(result.status).toBe(200);
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/paradasiniciadas?companyId=1&codUsuario=mjocelio&codCtrab=LASER-01-01',
+    );
+    await expect(result.json()).resolves.toEqual([{
+      id: 'datasul:LASER-01-01:2026-09-02:14:03:05:00016570:mjocelio',
+      programNumber: 0,
+      workCenterCode: 'LASER-01-01',
+      reason: { id: 5, code: '05', description: 'MANUTENCAO PREVENTIVA' },
+      responsible: { tipo: 'EQUIPE', codigo: '00016570', nome: '00016570' },
+      startDate: '2026-09-02',
+      startTime: '14:03',
+      reportDate: '2026-09-02',
+      reportTime: '',
+      reportedBy: 'mjocelio',
+    }]);
+  });
+
   it('finaliza a parada do contexto sem exigir um identificador local', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
     const root = await startGateway(transport);
@@ -669,6 +713,35 @@ describe('gateway FMA', () => {
       code: 'DATASUL_COMMAND_REJECTED',
       category: 'VALIDATION',
       userMessage: 'A parada possui reportes relacionados e não pode ser eliminada.',
+    });
+  });
+
+  it('não transforma em pendência uma rejeição sem mensagem do Datasul', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 503 }));
+    const root = await startGateway(transport);
+
+    const result = await fetch(`${root}/api/production-stops/stop-1/eliminate`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-delete-rejected-without-message',
+      },
+      body: JSON.stringify({
+        stopLocalId: 'stop-1',
+        areaCode: '4104',
+        workCenterCode: 'PRE-006-02',
+        reasonCode: '05',
+        startDate: '2026-08-14',
+        startTime: '09:04',
+      }),
+    });
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_STOP_DELETE_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'O Datasul rejeitou a eliminação da parada sem informar o motivo.',
     });
   });
 

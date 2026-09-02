@@ -291,6 +291,51 @@ function installAdaptedRoutes(
     });
   }));
 
+  app.get('/api/production-stops', (req, res) => handle(req, res, dependencies, async client => {
+    const workCenterCode = requiredText(req.query['workCenterCode']);
+    const upstream = await client.request(
+      'GET',
+      '/api/fma/v1/paradasiniciadas',
+      undefined,
+      { codCtrab: workCenterCode },
+    );
+    return dataset(upstream, 'paradasIniciadas').map(row => {
+      const item = objectOfUpstream(row);
+      const reasonCode = requiredUpstreamText(item['codParada']);
+      const reasonId = Number(reasonCode);
+      const startDate = upstreamDate(item['dataInicioParada']) ?? invalidUpstream();
+      const startTime = upstreamTime(item['horaInicioParada']) ?? invalidUpstream();
+      const reportDate = upstreamDate(item['dataReporte']) ?? invalidUpstream();
+      const rawReportTime = text(item['horaReporte']);
+      const reportTime = rawReportTime ? upstreamTime(rawReportTime) ?? invalidUpstream() : '';
+      const reportedBy = requiredUpstreamText(item['codUsuarReporte']);
+      const teamCode = text(item['codEquipe']);
+      if (!Number.isSafeInteger(reasonId) || reasonId <= 0) return invalidUpstream();
+      const responsible = teamCode
+        ? { tipo: 'EQUIPE', codigo: teamCode, nome: teamCode }
+        : { tipo: 'OPERADOR', codigo: reportedBy, nome: reportedBy };
+      return {
+        id: [
+          'datasul', workCenterCode, startDate, startTime, reasonCode,
+          responsible.codigo, reportedBy,
+        ].join(':'),
+        programNumber: nonNegativeIntegerUpstream(item['numOmProgda']),
+        workCenterCode: requiredUpstreamText(item['codCtrab']),
+        reason: {
+          id: reasonId,
+          code: reasonCode,
+          description: requiredUpstreamText(item['desParada']),
+        },
+        responsible,
+        startDate,
+        startTime,
+        reportDate,
+        reportTime,
+        reportedBy,
+      };
+    });
+  }));
+
   app.post('/api/teams', (req, res) => handle(req, res, dependencies, async client => {
     const body = objectOf(req.body);
     const operators = uniqueRequiredTexts(body['operadores']);
@@ -1056,6 +1101,14 @@ function commandBusinessError(
       'DATASUL_COMMAND_REJECTED',
       'VALIDATION',
       reason,
+    );
+  }
+  if (route === '/api/fma/v1/eliminaparada') {
+    return new FmaPublicCommandError(
+      422,
+      'DATASUL_STOP_DELETE_REJECTED',
+      'VALIDATION',
+      'O Datasul rejeitou a eliminação da parada sem informar o motivo.',
     );
   }
   if (route === '/api/fma/v1/iniciarordembatelada') {

@@ -115,13 +115,34 @@ async function openBatchOrigin(page: Page): Promise<void> {
 test.describe('registro de Paradas', () => {
   test.use({ hasTouch: true });
 
-  test('finaliza pelo contexto com a ação ao lado de Registrar parada', async ({ page }) => {
+  test('consulta, seleciona e finaliza uma parada iniciada pelo Centro de Trabalho', async ({ page }) => {
+    await page.route('**/api/production-stops?**', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{
+        id: 'datasul:CT-EXT-01:2026-09-02:14:03:05:00016570:operador-e2e',
+        programNumber: 0,
+        workCenterCode: 'CT-EXT-01',
+        reason: { id: 5, code: '05', description: 'MANUTENCAO PREVENTIVA' },
+        responsible: { tipo: 'EQUIPE', codigo: '00016570', nome: '00016570' },
+        startDate: '2026-09-02',
+        startTime: '14:03',
+        reportDate: '2026-09-02',
+        reportTime: '',
+        reportedBy: 'operador-e2e',
+      }]),
+    }));
     await openStoppages(page);
     await selectContext(page);
-    await selectToday(page, 'Data Final');
-    await fillTime(page, 'Hora Final', '09:40');
     const register = page.getByRole('button', { name: 'Registrar parada' });
     const finish = page.getByRole('button', { name: 'Finalizar parada' });
+    const startedStop = page.getByRole('list', {
+      name: 'Paradas elegíveis para finalização',
+    }).getByRole('button', { name: /MANUTENCAO PREVENTIVA/i });
+
+    await expect(startedStop).toContainText('05 - MANUTENCAO PREVENTIVA');
+    await expect(startedStop).toContainText('Início: 02/09/2026 14:03');
+    await expect(finish).toBeDisabled();
     const registerBox = await register.boundingBox();
     const finishBox = await finish.boundingBox();
 
@@ -130,6 +151,10 @@ test.describe('registro de Paradas', () => {
     expect(Math.abs(registerBox!.y - finishBox!.y)).toBeLessThan(4);
     expect(finishBox!.x).toBeGreaterThan(registerBox!.x);
 
+    await startedStop.click();
+    await expect(finish).toBeEnabled();
+    await selectToday(page, 'Data Final');
+    await fillTime(page, 'Hora Final', '15:00');
     await finish.click();
 
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
@@ -141,9 +166,10 @@ test.describe('registro de Paradas', () => {
       areaCode: '4001',
       workCenterCode: 'CT-EXT-01',
       endDate: expect.any(String),
-      endTime: '09:40',
+      endTime: '15:00',
+      stopLocalId: expect.stringMatching(/^datasul:/),
     }));
-    expect(finishCommand?.payload).not.toHaveProperty('stopLocalId');
+    expect(finishCommand?.dependencyIds).toEqual([]);
   });
 
   test('permite acesso direto, seleção por teclado e registro local pendente', async ({ page }) => {
@@ -205,6 +231,47 @@ test.describe('registro de Paradas', () => {
 
     await expect(page.getByText('Finalizar Parada', { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Data da Finalização' })).toBeFocused();
+  });
+
+  test('confirma a eliminação ao lado da finalização e preserva a pendência de conexão', async ({
+    page,
+  }) => {
+    await openStoppages(page);
+    await selectContext(page);
+    const openStop = await registerOpenStop(page);
+    await openStop.tap();
+    const selectedStopActions = page.locator('.parada-form__actions');
+    const eliminate = selectedStopActions.getByRole('button', { name: 'Eliminar parada' });
+    const finish = selectedStopActions.getByRole('button', {
+      name: 'Finalizar parada',
+      exact: true,
+    });
+    const eliminateBox = await eliminate.boundingBox();
+    const finishBox = await finish.boundingBox();
+
+    expect(eliminateBox).not.toBeNull();
+    expect(finishBox).not.toBeNull();
+    expect(Math.abs(eliminateBox!.y - finishBox!.y)).toBeLessThan(4);
+    await eliminate.click();
+    await expect(page.getByText(
+      'Eliminar a parada selecionada? Esta ação não poderá ser desfeita.',
+    )).toBeVisible();
+    expect((await readOperationalOutbox(page)).some(
+      entry => entry.commandType === 'DELETE_STOP',
+    )).toBe(false);
+
+    await page.getByRole('dialog').getByRole('button', {
+      name: 'Eliminar parada',
+      exact: true,
+    }).click();
+
+    await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
+      /eliminação.*pendente de sincronização/i,
+    );
+    const outbox = await readOperationalOutbox(page);
+    const create = outbox.find(entry => entry.commandType === 'CREATE_STOP');
+    const deletion = outbox.find(entry => entry.commandType === 'DELETE_STOP');
+    expect(deletion?.dependencyIds).toEqual([create?.localId]);
   });
 
   test('distingue erro de consulta e permite retry até o estado vazio', async ({ page }) => {

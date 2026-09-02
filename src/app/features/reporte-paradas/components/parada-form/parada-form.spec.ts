@@ -107,4 +107,27 @@ describe('ParadaForm', () => {
     expect(fixture.componentInstance.form.disabled).toBe(true);
     expect(fixture.nativeElement.querySelector('button[type="submit"]')?.disabled).toBe(true);
   }, 10_000);
+
+  it('não emite finalização enquanto nenhuma parada estiver selecionada', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ParadaForm],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ParadaForm);
+    fixture.componentRef.setInput('finishDisabled', true);
+    fixture.detectChanges();
+    const submitted: unknown[] = [];
+    fixture.componentInstance.finish.subscribe(value => submitted.push(value));
+    fixture.componentInstance.form.patchValue({
+      endDate: '2026-09-02',
+      endTime: '15:00',
+    });
+
+    fixture.componentInstance.submitFinish();
+
+    expect(submitted).toEqual([]);
+    const finishButton = Array.from(fixture.nativeElement.querySelectorAll('button'))
+      .find(button => (button as HTMLButtonElement).textContent?.includes('Finalizar parada')) as
+      HTMLButtonElement;
+    expect(finishButton.disabled).toBe(true);
+  }, 10_000);
 });

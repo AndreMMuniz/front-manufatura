@@ -247,7 +247,9 @@ export class ReporteParadasPage implements OnInit {
     this.finishForm?.focusFirstField();
   }
 
-  finalizarParada(): void {
+  finalizarParada(draft: FinalizacaoDraft = this.view().finishDraft): void {
+    this.workflow.updateFinishDraft(draft);
+    this.syncView();
     const snapshot = this.view();
     if (
       snapshot.finishing ||

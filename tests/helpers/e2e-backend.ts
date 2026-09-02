@@ -436,6 +436,10 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       ]);
       return;
     }
+    if (path === '/api/production-stops' && request.method() === 'GET') {
+      await json(route, []);
+      return;
+    }
     if (path === '/api/scrap-reasons' && request.method() === 'GET') {
       await json(route, [{ codigo: '05', descricao: 'Borra' }]);
       return;
@@ -446,6 +450,7 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
         path === '/api/production-stops'
         || path === '/api/production-stops/finish'
         || /^\/api\/production-stops\/[^/]+\/finish$/.test(path)
+        || /^\/api\/production-stops\/[^/]+\/eliminate$/.test(path)
       )
     ) {
       await route.abort('connectionfailed');

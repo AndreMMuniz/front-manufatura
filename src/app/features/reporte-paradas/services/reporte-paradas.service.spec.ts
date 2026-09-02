@@ -132,6 +132,9 @@ describe('ReporteParadasService', () => {
       return { status: 'PENDING' as const };
     });
     const clientLogCapture = vi.fn();
+    const apiGet = vi.fn((url: string): Observable<unknown> => of(
+      url === '/api/stop-reasons' ? apiReasons : [],
+    ));
     TestBed.configureTestingModule({
       providers: [
         ReporteParadasService,
@@ -162,7 +165,7 @@ describe('ReporteParadasService', () => {
         },
         {
           provide: AuthenticatedApiService,
-          useValue: { get: vi.fn(() => of(apiReasons)) },
+          useValue: { get: apiGet },
         },
       ],
     });
@@ -177,6 +180,7 @@ describe('ReporteParadasService', () => {
       durableOutbox,
       deliver,
       clientLogCapture,
+      apiGet,
     };
   }
 
@@ -608,6 +612,113 @@ describe('ReporteParadasService', () => {
     expect(await firstValueFrom(service.listarParadasEmAndamento('4002', 'CT-EXT-01'))).toEqual([]);
   });
 
+  it('consulta as paradas iniciadas no gateway e as adapta ao contexto selecionado', async () => {
+    const { service, apiGet } = setup();
+    apiGet.mockImplementation((url: string) => of(url === '/api/production-stops' ? [{
+      id: 'datasul:LASER-01-01:2026-09-02:14:03:05:00016570:mjocelio',
+      programNumber: 0,
+      workCenterCode: 'LASER-01-01',
+      reason: { id: 5, code: '05', description: 'MANUTENCAO PREVENTIVA' },
+      responsible: { tipo: 'EQUIPE', codigo: '00016570', nome: '00016570' },
+      startDate: '2026-09-02',
+      startTime: '14:03',
+      reportDate: '2026-09-02',
+      reportTime: '',
+      reportedBy: 'mjocelio',
+    }] : apiReasons));
+
+    const result = await firstValueFrom(
+      service.listarParadasEmAndamento('4113', 'LASER-01-01'),
+    );
+
+    expect(apiGet).toHaveBeenCalledWith('/api/production-stops', {
+      workCenterCode: 'LASER-01-01',
+    });
+    expect(result).toEqual([expect.objectContaining({
+      id: 'datasul:LASER-01-01:2026-09-02:14:03:05:00016570:mjocelio',
+      context: expect.objectContaining({
+        area: { code: '4113', description: 'Área 4113' },
+        workCenter: expect.objectContaining({ code: 'LASER-01-01', areaCode: '4113' }),
+      }),
+      reason: { id: 5, code: '05', description: 'MANUTENCAO PREVENTIVA' },
+      responsible: { tipo: 'EQUIPE', codigo: '00016570', nome: '00016570' },
+      startDate: new Date(2026, 8, 2),
+      startTime: '14:03',
+      status: 'EM_ANDAMENTO',
+      syncStatus: 'SYNCED',
+    })]);
+  });
+
+  it('mantém a entrada local quando o Datasul devolve a mesma parada iniciada', async () => {
+    const { service, apiGet } = setup();
+    const local = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-local-duplicado',
+      endDate: null,
+      endTime: null,
+    })));
+    apiGet.mockImplementation((url: string) => of(url === '/api/production-stops' ? [{
+      id: 'datasul:CT-EXT-01:2026-07-28:08:00:01:OP-001:operator-1',
+      programNumber: 0,
+      workCenterCode: 'CT-EXT-01',
+      reason: { id: 1, code: '01', description: 'Setup' },
+      responsible: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+      startDate: '2026-07-28',
+      startTime: '08:00',
+      reportDate: '2026-07-28',
+      reportTime: '',
+      reportedBy: 'operator-1',
+    }] : apiReasons));
+
+    const result = await firstValueFrom(
+      service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(local.id);
+    expect(result[0].creationCommandId).toBe(local.creationCommandId);
+  });
+
+  it('finaliza uma parada do Datasul sem dependência de criação local', async () => {
+    const { service, apiGet, commands } = setup();
+    apiGet.mockImplementation((url: string) => of(url === '/api/production-stops' ? [{
+      id: 'datasul:LASER-01-01:2026-09-02:14:03:05:00016570:mjocelio',
+      programNumber: 0,
+      workCenterCode: 'LASER-01-01',
+      reason: { id: 5, code: '05', description: 'MANUTENCAO PREVENTIVA' },
+      responsible: { tipo: 'EQUIPE', codigo: '00016570', nome: '00016570' },
+      startDate: '2026-09-02',
+      startTime: '14:03',
+      reportDate: '2026-09-02',
+      reportTime: '',
+      reportedBy: 'mjocelio',
+    }] : apiReasons));
+    const [remote] = await firstValueFrom(
+      service.listarParadasEmAndamento('4113', 'LASER-01-01'),
+    );
+
+    await firstValueFrom(service.finalizarParada(remote.id, {
+      endDate: '2026-09-02',
+      endTime: '15:00',
+      idempotencyKey: 'fim-remoto-1',
+    }));
+
+    expect(commands.capture).toHaveBeenLastCalledWith({
+      commandType: 'FINISH_STOP',
+      aggregateId: remote.id,
+      businessStatus: 'FINALIZADA',
+      idempotencyKey: 'fim-remoto-1',
+      occurredAt: new Date(2026, 8, 2, 15).toISOString(),
+      payload: {
+        stopLocalId: remote.id,
+        areaCode: '4113',
+        workCenterCode: 'LASER-01-01',
+        endAt: new Date(2026, 8, 2, 15).toISOString(),
+        endDate: '2026-09-02',
+        endTime: '15:00',
+      },
+    });
+  });
+
   it('remove cache vazio e ignora comandos abandonados ou supersedidos na reconstrução', async () => {
     const { service, durableRecords, durableOutbox } = setup();
     await firstValueFrom(service.registrarParada(request({ endDate: null, endTime: null })));
@@ -949,6 +1060,24 @@ describe('ReporteParadasService', () => {
     expect((await firstValueFrom(
       service.listarParadasEmAndamento('4001', 'CT-EXT-01'),
     )).map(stop => stop.id)).toEqual([aberta.id]);
+  });
+
+  it('herda a pendência de conexão da criação que ainda bloqueia a eliminação', async () => {
+    const { service, deliver } = setup();
+    const aberta = await firstValueFrom(service.registrarParada(request({
+      idempotencyKey: 'inicio-offline-para-eliminar',
+      endDate: null,
+      endTime: null,
+    })));
+    await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'));
+    deliver.mockResolvedValueOnce({ status: 'PENDING' });
+
+    const result = await firstValueFrom(service.eliminarParada(aberta.id, {
+      idempotencyKey: 'delete-dependente-offline',
+    }));
+
+    expect(result.delivery).toEqual({ status: 'PENDING' });
+    expect(result.syncStatus).toBe('PENDING');
   });
 
   function request(overrides: Partial<CreateStopRequest> = {}): CreateStopRequest {

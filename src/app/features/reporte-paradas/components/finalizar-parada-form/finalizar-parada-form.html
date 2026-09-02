@@ -1,4 +1,4 @@
-<po-widget p-title="Finalizar Parada">
+<po-widget [p-title]="showFinishControls ? 'Finalizar Parada' : 'Parada selecionada'">
   <section class="finish-stop__summary" aria-label="Resumo da parada selecionada">
     <p><strong>Motivo:</strong> {{ stop.reason.code }} - {{ stop.reason.description }}</p>
     <p><strong>Início:</strong> {{ stop.startDate | date:'dd/MM/yyyy' }} {{ stop.startTime }}</p>
@@ -6,50 +6,56 @@
   </section>
 
   <form class="finish-stop__form" [formGroup]="form" (ngSubmit)="submit()">
-    <po-datepicker
-      #endDateField
-      name="dataFinalizacao"
-      p-label="Data da Finalização"
-      [p-required]="true"
-      formControlName="endDate"
-    ></po-datepicker>
+    @if (showFinishControls) {
+      <po-datepicker
+        #endDateField
+        name="dataFinalizacao"
+        p-label="Data da Finalização"
+        [p-required]="true"
+        formControlName="endDate"
+      ></po-datepicker>
 
-    <po-input
-      name="horaFinalizacao"
-      p-label="Hora da Finalização"
-      p-placeholder="HH:mm"
-      [p-required]="true"
-      formControlName="endTime"
-    ></po-input>
+      <po-input
+        name="horaFinalizacao"
+        p-label="Hora da Finalização"
+        p-placeholder="HH:mm"
+        [p-required]="true"
+        formControlName="endTime"
+      ></po-input>
 
-    @if (form.hasError('interval') && (form.touched || form.dirty)) {
-      <p class="finish-stop__error" role="alert">
-        A finalização não pode ser anterior ao início da parada.
-      </p>
+      @if (form.hasError('interval') && (form.touched || form.dirty)) {
+        <p class="finish-stop__error" role="alert">
+          A finalização não pode ser anterior ao início da parada.
+        </p>
+      }
     }
     @if (externalError) {
       <p class="finish-stop__error" role="alert">{{ externalError }}</p>
     }
 
     <div class="finish-stop__actions">
-      <po-button
-        class="finish-stop__eliminate"
-        p-label="Eliminar parada"
-        p-kind="secondary"
-        p-type="button"
-        [p-danger]="true"
-        [p-disabled]="form.disabled || loading || eliminateLoading"
-        [p-loading]="eliminateLoading"
-        (p-click)="eliminate.emit()"
-      ></po-button>
-      <po-button
-        class="finish-stop__submit"
-        p-label="Finalizar parada"
-        p-kind="primary"
-        p-type="submit"
-        [p-disabled]="form.disabled || loading || eliminateLoading"
-        [p-loading]="loading"
-      ></po-button>
+      @if (showEliminate) {
+        <po-button
+          class="finish-stop__eliminate"
+          p-label="Eliminar parada"
+          p-kind="secondary"
+          p-type="button"
+          [p-danger]="true"
+          [p-disabled]="form.disabled || loading || eliminateLoading"
+          [p-loading]="eliminateLoading"
+          (p-click)="eliminate.emit()"
+        ></po-button>
+      }
+      @if (showFinishControls) {
+        <po-button
+          class="finish-stop__submit"
+          p-label="Finalizar parada"
+          p-kind="primary"
+          p-type="submit"
+          [p-disabled]="form.disabled || loading || eliminateLoading"
+          [p-loading]="loading"
+        ></po-button>
+      }
     </div>
   </form>
 </po-widget>
