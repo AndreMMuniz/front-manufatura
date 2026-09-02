@@ -85,8 +85,12 @@ async function finalizeOpenStop(page: Page, openStop: Locator): Promise<void> {
 async function openOperationOrigin(page: Page): Promise<void> {
   await login(page);
   await page.getByRole('link', { name: 'Reporte Ordem' }).click();
-  await page.getByRole('combobox', { name: 'Área de Produção' }).selectOption('4001');
-  await page.getByRole('combobox', { name: 'Centro de Trabalho' }).selectOption('CT-EXT-01');
+  const area = page.getByRole('textbox', { name: 'Área de Produção' });
+  const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
+  await area.fill('4001');
+  await area.blur();
+  await expect(center).toBeEnabled();
+  await center.selectOption('CT-EXT-01');
   await page.getByRole('button', { name: 'Consultar ordens' }).click();
   const order = page.getByRole('row').filter({ hasText: '450001' }).getByRole('checkbox');
   await order.check();
@@ -100,8 +104,12 @@ async function openOperationOrigin(page: Page): Promise<void> {
 async function openBatchOrigin(page: Page): Promise<void> {
   await login(page);
   await page.getByRole('link', { name: 'Reporte Batelada' }).click();
-  await page.getByRole('combobox', { name: 'Área de Produção' }).selectOption('4001');
-  await page.getByRole('combobox', { name: 'Centro de Trabalho' }).selectOption('CT-EXT-01');
+  const area = page.getByRole('textbox', { name: 'Área de Produção' });
+  const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
+  await area.fill('4001');
+  await area.blur();
+  await expect(center).toBeEnabled();
+  await center.selectOption('CT-EXT-01');
   await page.getByRole('button', { name: 'Consultar ordens' }).click();
   await page.getByRole('row').filter({ hasText: '450001' }).getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Abrir batelada' }).click();
@@ -279,7 +287,7 @@ test.describe('registro de Paradas', () => {
 
   test('finaliza e restaura o snapshot de Reporte Ordem', async ({ page }) => {
     await openOperationOrigin(page);
-    await expect(page.getByRole('combobox', { name: 'Área de Produção' })).toHaveValue(/4001/);
+    await expect(page.getByRole('textbox', { name: 'Área de Produção' })).toHaveValue(/4001/);
     const openStop = await registerOpenStop(page);
 
     await finalizeOpenStop(page, openStop);
