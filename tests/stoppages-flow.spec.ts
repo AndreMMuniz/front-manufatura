@@ -77,8 +77,8 @@ async function registerOpenStop(page: Page, startTime = '08:00') {
 
 async function finalizeOpenStop(page: Page, openStop: Locator): Promise<void> {
   await openStop.click();
-  await selectToday(page, 'Data da Finalização');
-  await fillTime(page, 'Hora da Finalização', '09:00');
+  await selectToday(page, 'Data Final');
+  await fillTime(page, 'Hora Final', '09:00');
   await page.getByRole('button', { name: 'Finalizar parada' }).click();
 }
 
