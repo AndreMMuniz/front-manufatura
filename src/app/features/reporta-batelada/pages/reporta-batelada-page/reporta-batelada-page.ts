@@ -19,6 +19,7 @@ import {
 } from '@po-ui/ng-components';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { ClientLogService } from '../../../../core/logging/client-log.service';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 import {
   OperationalCorrectionNotice,
@@ -87,6 +88,7 @@ export class ReportaBateladaPage implements OnInit {
   private readonly notification = inject(PoNotificationService);
   private readonly dialog = inject(PoDialogService);
   private readonly authSession = inject(AuthSessionService);
+  private readonly clientLogs = inject(ClientLogService);
   private readonly idempotency = inject(IdempotencyService);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -592,6 +594,8 @@ export class ReportaBateladaPage implements OnInit {
       return;
     }
 
+    this.captureReportRequested(draft.idempotencyKey);
+
     this.workflow.setDraft(draft);
     if (!this.workflow.beginReport()) {
       return;
@@ -668,6 +672,24 @@ export class ReportaBateladaPage implements OnInit {
           this.syncView();
         },
       });
+  }
+
+  private captureReportRequested(correlationId: string): void {
+    try {
+      this.clientLogs.capture({
+        level: 'info',
+        category: 'synchronization',
+        event: 'batch_report_requested',
+        correlationId,
+        context: {
+          commandType: 'REPORT_BATCH',
+          aggregateType: 'BATCH',
+          stage: 'trigger',
+        },
+      });
+    } catch {
+      // O reporte não pode depender do diagnóstico.
+    }
   }
 
   encerrarBatelada(): void {

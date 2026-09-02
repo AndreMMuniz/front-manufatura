@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PoDialogService, PoNotificationService } from '@po-ui/ng-components';
 
 import { AuthSessionService } from '../../../../core/auth/auth-session.service';
+import { ClientLogService } from '../../../../core/logging/client-log.service';
 import {
   GerenciarEquipeResultado,
   GerenciarEquipeSlide,
@@ -51,6 +52,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     retomarFluxoParada: ReturnType<typeof vi.fn>;
     descartarFluxoParada: ReturnType<typeof vi.fn>;
   };
+  let clientLogCapture: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     currentContext = context();
@@ -62,6 +64,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       error: vi.fn(),
       information: vi.fn(),
     };
+    clientLogCapture = vi.fn();
     session$.next({ user: 'operador' });
     serviceMock = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
@@ -117,6 +120,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
         { provide: Router, useValue: routerMock },
         { provide: PoDialogService, useValue: dialogMock },
         { provide: PoNotificationService, useValue: notificationMock },
+        { provide: ClientLogService, useValue: { capture: clientLogCapture } },
       ],
     })
       .overrideProvider(PoDialogService, { useValue: dialogMock })
@@ -640,6 +644,19 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.history).toHaveLength(1);
     expect(component.view.draft?.items.every(item => item.quantidadeAprovada === 0)).toBe(true);
+  });
+
+  it('registra o clique de salvar antes de persistir ou enviar o reporte', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+
+    component.salvarReporte(reportDraft('idem-trace'));
+
+    expect(clientLogCapture).toHaveBeenCalledWith({
+      level: 'info', category: 'synchronization', event: 'batch_report_requested',
+      correlationId: 'idem-trace',
+      context: { commandType: 'REPORT_BATCH', aggregateType: 'BATCH', stage: 'trigger' },
+    });
   });
 
   it('shows the Datasul rejection in the drawer and does not mark the report as pending', () => {

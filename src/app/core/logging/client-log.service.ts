@@ -22,6 +22,7 @@ export const CLIENT_LOG_CLOCK = new InjectionToken<ClientLogClock>('CLIENT_LOG_C
 const GLOBAL_DEDUPE_WINDOW_MS = 1_000;
 const MAX_GLOBAL_SIGNATURES = 100;
 const SEND_TIMEOUT_MS = 5_000;
+const CONSOLE_PREFIX = '[plano-de-controle]';
 
 @Injectable({ providedIn: 'root' })
 export class ClientLogService {
@@ -47,9 +48,14 @@ export class ClientLogService {
         ...input,
         timestamp: input.timestamp ?? new Date(now).toISOString(),
       });
-      if (!validation.ok) return;
+      if (!validation.ok) {
+        this.writeConsole('warn', { event: 'client_log_rejected' });
+        return;
+      }
       const event = validation.event;
       if (event.event === 'angular_error' && this.isDuplicateAngularError(event, now)) return;
+
+      this.writeConsole(event.level, event);
 
       const headers = event.correlationId
         ? new HttpHeaders({ 'X-Correlation-Id': event.correlationId })
@@ -61,10 +67,32 @@ export class ClientLogService {
         responseType: 'text',
       }).pipe(
         timeout(SEND_TIMEOUT_MS),
-        catchError(() => EMPTY),
+        catchError(() => {
+          this.writeConsole('warn', {
+            event: 'client_log_delivery_failed',
+            sourceEvent: event.event,
+            ...(event.correlationId ? { correlationId: event.correlationId } : {}),
+          });
+          return EMPTY;
+        }),
       ).subscribe({ error: () => undefined });
     } catch {
       // Diagnostics are strictly best-effort and cannot affect application behavior.
+    }
+  }
+
+  private writeConsole(level: ClientLogEvent['level'], event: object): void {
+    try {
+      const writer = level === 'error'
+        ? console.error
+        : level === 'warn'
+          ? console.warn
+          : level === 'debug'
+            ? console.debug
+            : console.info;
+      writer.call(console, CONSOLE_PREFIX, event);
+    } catch {
+      // O envio ao servidor continua mesmo quando o Console não está disponível.
     }
   }
 

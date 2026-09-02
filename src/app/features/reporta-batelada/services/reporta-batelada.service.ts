@@ -5,6 +5,7 @@ import { Observable, catchError, defer, delay, forkJoin, from, map, of, switchMa
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { ClientLogService } from '../../../core/logging/client-log.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
 import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
 import type {
@@ -67,6 +68,7 @@ export class ReportaBateladaService {
   private readonly productionCatalog = inject(ProductionContextCatalogService);
   private readonly api = inject(AuthenticatedApiService);
   private readonly authSession = inject(AuthSessionService, { optional: true });
+  private readonly clientLogs = inject(ClientLogService);
   private readonly idempotency = inject(IdempotencyService);
   private readonly commands = inject(OperationalCommandFacade);
   private readonly immediateDelivery = inject(ImmediateCommandDeliveryService);
@@ -414,8 +416,21 @@ export class ReportaBateladaService {
           })),
         },
       })).pipe(
-        switchMap(confirmation => from(this.deliverReport(confirmation.localId)).pipe(
+        switchMap(confirmation => {
+          this.captureReportMilestone(
+            'batch_report_persisted', 'info', confirmation.idempotencyKey, 'PENDING',
+            'persist',
+          );
+          return from(this.deliverReport(confirmation.localId)).pipe(
           map(delivery => {
+            this.captureReportMilestone(
+              'batch_report_delivery_observed',
+              delivery.status === 'ERROR' ? 'error' : delivery.status === 'PENDING' ? 'warn' : 'info',
+              confirmation.idempotencyKey,
+              delivery.status,
+              'delivery',
+              delivery.status === 'ERROR' ? delivery.error : undefined,
+            );
             const confirmed: ReporteParcialBatelada = {
               reporteId: confirmation.localId,
               batchId: validated.batchId,
@@ -436,9 +451,38 @@ export class ReportaBateladaService {
               delivery: structuredClone(delivery),
             };
           }),
-        )),
+          );
+        }),
       )),
     );
+  }
+
+  private captureReportMilestone(
+    event: 'batch_report_persisted' | 'batch_report_delivery_observed',
+    level: 'info' | 'warn' | 'error',
+    correlationId: string,
+    toStatus: 'PENDING' | 'SYNCED' | 'ERROR',
+    stage: 'persist' | 'delivery',
+    error?: PersistedSyncError,
+  ): void {
+    try {
+      this.clientLogs.capture({
+        level,
+        category: 'synchronization',
+        event,
+        correlationId,
+        context: {
+          commandType: 'REPORT_BATCH',
+          aggregateType: 'BATCH',
+          ...(stage === 'delivery' ? { fromStatus: 'PENDING' as const } : {}),
+          toStatus,
+          stage,
+          ...(error ? { code: error.code, failureCategory: error.category } : {}),
+        },
+      });
+    } catch {
+      // O reporte não pode depender do diagnóstico.
+    }
   }
 
   validarRespostaReporte(

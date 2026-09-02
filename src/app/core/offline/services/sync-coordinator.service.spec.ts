@@ -50,6 +50,19 @@ describe('SyncCoordinatorService', () => {
     }) };
   });
 
+  it('diagnostica quando uma sincronização é solicitada antes do coordenador iniciar', async () => {
+    const coordinator = createCoordinator(successTransport([]));
+
+    await coordinator.requestSync();
+
+    expect(clientLogs.capture).toHaveBeenCalledWith({
+      level: 'warn',
+      category: 'synchronization',
+      event: 'sync_request_skipped',
+      context: { stage: 'trigger', code: 'COORDINATOR_NOT_STARTED' },
+    });
+  });
+
   it('executa retenção depois de drenar o owner', async () => {
     await seed(database, [entry('command')]);
     const statusesAtCleanup: OutboxEntry['status'][] = [];
@@ -105,6 +118,12 @@ describe('SyncCoordinatorService', () => {
     await coordinator.requestSync();
 
     expect(retention.cleanupOwner).toHaveBeenCalledWith(OWNER);
+    expect(clientLogs.capture).toHaveBeenCalledWith({
+      level: 'info',
+      category: 'synchronization',
+      event: 'sync_no_candidates',
+      context: { stage: 'list', code: 'NO_ELIGIBLE_CANDIDATES' },
+    });
   });
 
   it('não rejeita o ciclo nem altera SYNCED quando o cleanup falha', async () => {

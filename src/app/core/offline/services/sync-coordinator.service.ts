@@ -104,7 +104,16 @@ export class SyncCoordinatorService implements OnDestroy {
   }
 
   requestSync(): Promise<void> {
-    if (!this.started || !this.activeOwner || !this.remoteCredentialAvailable) {
+    if (!this.started) {
+      this.captureSkippedRequest('COORDINATOR_NOT_STARTED');
+      return Promise.resolve();
+    }
+    if (!this.activeOwner) {
+      this.captureSkippedRequest('SYNC_OWNER_UNAVAILABLE');
+      return Promise.resolve();
+    }
+    if (!this.remoteCredentialAvailable) {
+      this.captureSkippedRequest('REMOTE_CREDENTIAL_UNAVAILABLE');
       return Promise.resolve();
     }
     this.requested = true;
@@ -182,7 +191,11 @@ export class SyncCoordinatorService implements OnDestroy {
           this.captureFailure('sync_storage_failed', 'list', 'STORAGE_FAILURE');
           throw error;
         }
-        if (candidates.length === 0 || !this.isCurrent(owner, epoch)) {
+        if (candidates.length === 0) {
+          if (this.isCurrent(owner, epoch)) this.captureEmptyCycle();
+          return;
+        }
+        if (!this.isCurrent(owner, epoch)) {
           return;
         }
         const claimedCount = await this.runWithConcurrency(
@@ -468,6 +481,32 @@ export class SyncCoordinatorService implements OnDestroy {
             attemptCount: Math.min(1_000_000, Math.max(0, Math.trunc(entry.attemptCount))),
           } : {}),
         },
+      });
+    } catch {
+      // Synchronization behavior cannot depend on diagnostics.
+    }
+  }
+
+  private captureSkippedRequest(code: string): void {
+    try {
+      this.clientLogs.capture({
+        level: 'warn',
+        category: 'synchronization',
+        event: 'sync_request_skipped',
+        context: { stage: 'trigger', code },
+      });
+    } catch {
+      // Synchronization behavior cannot depend on diagnostics.
+    }
+  }
+
+  private captureEmptyCycle(): void {
+    try {
+      this.clientLogs.capture({
+        level: 'info',
+        category: 'synchronization',
+        event: 'sync_no_candidates',
+        context: { stage: 'list', code: 'NO_ELIGIBLE_CANDIDATES' },
       });
     } catch {
       // Synchronization behavior cannot depend on diagnostics.

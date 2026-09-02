@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { ClientLogService } from '../../../core/logging/client-log.service';
 import { LocalRecordRepository } from '../../../core/offline/repositories/local-record.repository';
 import { OutboxRepository } from '../../../core/offline/repositories/outbox.repository';
 import { ImmediateCommandDeliveryService } from '../../../core/offline/services/immediate-command-delivery.service';
@@ -35,6 +36,7 @@ describe('ReportaBateladaService', () => {
   let listLocalRecords: ReturnType<typeof vi.fn>;
   let listOutbox: ReturnType<typeof vi.fn>;
   let getOutbox: ReturnType<typeof vi.fn>;
+  let clientLogCapture: ReturnType<typeof vi.fn>;
   let catalogMock: {
     listarAreas: ReturnType<typeof vi.fn>;
     pesquisarCentros: ReturnType<typeof vi.fn>;
@@ -83,6 +85,7 @@ describe('ReportaBateladaService', () => {
         userMessage: 'Serviço temporariamente indisponível; uma nova tentativa será realizada.',
       },
     }));
+    clientLogCapture = vi.fn();
     catalogMock = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([workCenter()])),
@@ -127,6 +130,7 @@ describe('ReportaBateladaService', () => {
           useValue: { listByOwner: listOutbox, getById: getOutbox },
         },
         { provide: ImmediateCommandDeliveryService, useValue: { deliver } },
+        { provide: ClientLogService, useValue: { capture: clientLogCapture } },
         {
           provide: OperationalCommandFacade,
           useValue: { capture },
@@ -474,6 +478,35 @@ describe('ReportaBateladaService', () => {
     expect(history[0].confirmadoEm).not.toBe(confirmed.confirmadoEm);
     expect(history[0].items[0].refugoItens).not.toBe(confirmed.items[0].refugoItens);
     expect(confirmed.delivery).toEqual(expect.objectContaining({ status: 'SYNCED' }));
+  });
+
+  it('registra persistência e entrega do reporte com a mesma correlação, sem payload', async () => {
+    const inicio = await startBatch();
+    currentUser = { id: 'operator-1' };
+
+    await firstValueFrom(service.reportarBateladaParcial(
+      reportRequest({ batchId: inicio.batchId }),
+    ));
+
+    expect(clientLogCapture).toHaveBeenCalledWith({
+      level: 'info', category: 'synchronization', event: 'batch_report_persisted',
+      correlationId: 'idem-1',
+      context: {
+        commandType: 'REPORT_BATCH', aggregateType: 'BATCH',
+        toStatus: 'PENDING', stage: 'persist',
+      },
+    });
+    expect(clientLogCapture).toHaveBeenCalledWith({
+      level: 'info', category: 'synchronization', event: 'batch_report_delivery_observed',
+      correlationId: 'idem-1',
+      context: {
+        commandType: 'REPORT_BATCH', aggregateType: 'BATCH',
+        fromStatus: 'PENDING', toStatus: 'SYNCED', stage: 'delivery',
+      },
+    });
+    expect(JSON.stringify(clientLogCapture.mock.calls)).not.toMatch(
+      /quantidade|refugo|responsavel|operator-1|payload/,
+    );
   });
 
   it('returns the Datasul rejection instead of classifying the report as pending', async () => {

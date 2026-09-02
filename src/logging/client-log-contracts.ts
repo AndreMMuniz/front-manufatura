@@ -22,6 +22,11 @@ export const CLIENT_LOG_EVENTS = [
   'sync_failed',
   'sync_cycle_failed',
   'sync_storage_failed',
+  'sync_request_skipped',
+  'sync_no_candidates',
+  'batch_report_requested',
+  'batch_report_persisted',
+  'batch_report_delivery_observed',
 ] as const;
 export type ClientLogEventName = (typeof CLIENT_LOG_EVENTS)[number];
 
@@ -89,6 +94,7 @@ export type ClientFailureCategory = (typeof CLIENT_FAILURE_CATEGORIES)[number];
 export const CLIENT_SYNC_STAGES = [
   'trigger', 'cycle', 'resume', 'manual_retry', 'list', 'claim',
   'release', 'reconcile_success', 'reconcile_failure', 'retention',
+  'persist', 'delivery',
 ] as const;
 export type ClientSyncStage = (typeof CLIENT_SYNC_STAGES)[number];
 

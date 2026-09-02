@@ -58,13 +58,34 @@ describe('ClientLogService', () => {
     request.flush(null, { status: 204, statusText: 'No Content' });
   });
 
+  it('espelha no Console o mesmo evento sanitizado enviado ao servidor', () => {
+    const consoleInfo = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const service = configure();
+
+    service.capture({
+      level: 'info', category: 'synchronization', event: 'batch_report_requested',
+      message: 'Bearer segredo', correlationId: 'corr-1',
+      context: { commandType: 'REPORT_BATCH', aggregateType: 'BATCH', stage: 'trigger' },
+    });
+
+    expect(consoleInfo).toHaveBeenCalledWith('[plano-de-controle]', expect.objectContaining({
+      event: 'batch_report_requested', message: '[REDACTED]', correlationId: 'corr-1',
+    }));
+    http.expectOne('/api/client-logs').flush(null, { status: 204, statusText: 'No Content' });
+    consoleInfo.mockRestore();
+  });
+
   it('omite correlação inválida e absorve erro/rejeição do endpoint', () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const service = configure();
     expect(() => service.capture({
       level: 'warn', category: 'capability', event: 'identity_capability_unavailable',
       correlationId: 'inválida com espaço', context: { randomUuidAvailable: false },
     } as never)).not.toThrow();
     http.expectNone('/api/client-logs');
+    expect(consoleWarn).toHaveBeenCalledWith('[plano-de-controle]', {
+      event: 'client_log_rejected',
+    });
 
     service.capture({
       level: 'warn', category: 'capability', event: 'identity_capability_unavailable',
@@ -73,6 +94,11 @@ describe('ClientLogService', () => {
     const request = http.expectOne('/api/client-logs');
     expect(request.request.headers.has('x-correlation-id')).toBe(false);
     expect(() => request.error(new ProgressEvent('network'))).not.toThrow();
+    expect(consoleWarn).toHaveBeenCalledWith('[plano-de-controle]', {
+      event: 'client_log_delivery_failed',
+      sourceEvent: 'identity_capability_unavailable',
+    });
+    consoleWarn.mockRestore();
   });
 
   it('é noop no SSR sem consultar relógio nem enviar request', () => {
