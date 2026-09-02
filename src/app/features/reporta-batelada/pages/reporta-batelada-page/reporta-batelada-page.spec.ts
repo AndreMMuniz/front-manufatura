@@ -299,6 +299,28 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.canReport).toBe(true);
   });
 
+  it('locks the composition while the existing start is being confirmed', () => {
+    const adoption = new Subject<{
+      readonly batchId: string;
+      readonly iniciadoEm: Date;
+      readonly ordensIniciadas: ReadonlyArray<string>;
+    }>();
+    serviceMock.listarOrdensLiberadas.mockReturnValueOnce(of(
+      orders().map(order => ({ ...order, indEstadoSplit: 4 })),
+    ));
+    serviceMock.listarResponsaveisElegiveis.mockReturnValueOnce(of([
+      { tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' },
+    ]));
+    serviceMock.adotarOrdensIniciadas.mockReturnValueOnce(adoption);
+    component.consultarOrdens();
+    component.atualizarSelecao(new Set(['1', '2']));
+
+    component.prepararBatelada();
+
+    expect(component.view.estado).toBe('ReconhecendoInicio');
+    expect(component.contextLocked).toBe(true);
+  });
+
   it('sends exactly one ordered command for every order in the composition', () => {
     prepareForStart();
 

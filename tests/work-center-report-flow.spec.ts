@@ -350,6 +350,74 @@ test.describe('fluxo de Reporte Ordem', () => {
 test.describe('fluxo de Reporte Batelada', () => {
   test.use({ hasTouch: true });
 
+  test('reconhece ordens já iniciadas e libera somente o reporte', async ({ page }) => {
+    await page.route('**/api/production-orders**', async route => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/production-orders') {
+        await route.fulfill({
+          json: [
+            {
+              id: '450001|OP-10458|10|01', ordem: '450001',
+              itemOp: 'PERFIL-100 / OP-10458', operacao: '10', split: '01',
+              indEstadoSplit: 4, areaCode: '4001', workCenterCode: 'CT-EXT-01',
+            },
+            {
+              id: '450002|OP-10459|20|01', ordem: '450002',
+              itemOp: 'PERFIL-200 / OP-10459', operacao: '20', split: '01',
+              indEstadoSplit: 4, areaCode: '4001', workCenterCode: 'CT-EXT-01',
+            },
+          ],
+        });
+        return;
+      }
+
+      const order = url.pathname.includes('/450002/') ? '450002' : '450001';
+      await route.fulfill({
+        json: {
+          ordem: order,
+          op: order === '450002' ? '20' : '10',
+          split: '01',
+          item: order === '450002' ? 'PERFIL-200' : 'PERFIL-100',
+          descricao: `Perfil ${order === '450002' ? '200' : '100'}`,
+          unidade: 'PC',
+          roteiro: order === '450002' ? '20 - Acabamento' : '10 - Extrusão',
+          quantidadeOrdem: order === '450002' ? 400 : 500,
+          quantidadeSaldo: order === '450002' ? 250 : 320,
+          linha: 'Extrusão',
+          ct: 'CT-EXT-01',
+          grupoMaquina: 'Extrusoras',
+          dataInicio: '2026-09-02',
+          horaInicio: order === '450002' ? '08:05' : '08:00',
+          operador: '', equipe: '', turno: '1º Turno',
+        },
+      });
+    });
+
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Batelada' }).click();
+    await selectProductionContext(page);
+    await selectOrderWithKeyboard(page, '450001');
+    await selectOrderWithPointer(page, '450002');
+    await page.getByRole('button', { name: 'Abrir batelada' }).click();
+
+    const start = page.getByRole('button', { name: 'Iniciar', exact: true });
+    const report = page.getByRole('button', { name: 'Reporte', exact: true });
+    await expect(start).toBeDisabled();
+    await expect(report).toBeDisabled();
+
+    await page.getByRole('combobox', { name: 'Responsável' })
+      .selectOption({ label: 'Operador — OP-001 - Ana Silva' });
+
+    await expect(page.locator('app-reporta-batelada-page p[role="status"]').filter({
+      hasText: 'As ordens selecionadas já estão iniciadas. Utilize Reporte.',
+    })).toBeVisible();
+    await expect(start).toBeDisabled();
+    await expect(report).toBeEnabled();
+    await report.click();
+    await expect(page.locator('app-reporte-batelada-slide'))
+      .toContainText('Reporte da Batelada');
+  });
+
   test('alinha a ação de equipe ao dropdown de responsável', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await login(page);

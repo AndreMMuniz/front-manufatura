@@ -158,6 +158,7 @@ export class ReportaBateladaPage implements OnInit {
   get contextLocked(): boolean {
     return [
       EstadoBatelada.Iniciando,
+      EstadoBatelada.ReconhecendoInicio,
       EstadoBatelada.BateladaIniciada,
       EstadoBatelada.ReportandoParcial,
       EstadoBatelada.EmParada,
