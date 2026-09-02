@@ -156,7 +156,7 @@ describe('ParadaForm', () => {
     expect(finishButton.disabled).toBe(true);
   }, 10_000);
 
-  it('alterna os campos de início e fim conforme a seleção da parada', async () => {
+  it('mantém os campos finais habilitados sem parada selecionada e bloqueia o início ao selecionar', async () => {
     await TestBed.configureTestingModule({
       imports: [ParadaForm],
     }).compileComponents();
@@ -169,8 +169,8 @@ describe('ParadaForm', () => {
 
     expect(field('dataInicio').disabled).toBe(false);
     expect(field('horaInicio').disabled).toBe(false);
-    expect(field('dataFim').disabled).toBe(true);
-    expect(field('horaFim').disabled).toBe(true);
+    expect(field('dataFim').disabled).toBe(false);
+    expect(field('horaFim').disabled).toBe(false);
     expect(fixture.nativeElement.textContent).not.toContain('(opcional)');
 
     fixture.componentRef.setInput('finishDisabled', false);
