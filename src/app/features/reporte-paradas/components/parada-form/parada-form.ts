@@ -58,16 +58,13 @@ export class ParadaForm implements OnChanges {
   @Input() disabled = false;
   @Input() loading = false;
   @Input() finishLoading = false;
-  @Input() eliminateLoading = false;
   @Input() finishDisabled = false;
   @Input() showFinish = true;
-  @Input() showEliminate = false;
   @Input() externalError = '';
 
   @Output() draftChange = new EventEmitter<ParadaDraft>();
   @Output() confirm = new EventEmitter<ParadaDraft>();
   @Output() finish = new EventEmitter<FinalizacaoDraft>();
-  @Output() eliminate = new EventEmitter<void>();
 
   @ViewChild('endDateField', { read: ElementRef }) private endDateField?: ElementRef<HTMLElement>;
 

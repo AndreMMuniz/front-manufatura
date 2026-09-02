@@ -131,9 +131,10 @@ describe('gateway FMA', () => {
     });
   });
 
-  it('compõe responsáveis operacionais a partir do endpoint FMA de operadores', async () => {
+  it('lista somente operadores da Área de Produção do Centro de Trabalho selecionado', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(response('operadores', [
       { codAreaProduc: '4104', codOperador: '00016570', nomOperador: 'Ana', numTurno: 1 },
+      { codAreaProduc: '4110', codOperador: '00016575', nomOperador: 'Carla', numTurno: 1 },
       { codAreaProduc: '', codOperador: '00016580', nomOperador: 'Bruno', numTurno: 2 },
     ]));
     const root = await startGateway(transport);
@@ -145,7 +146,6 @@ describe('gateway FMA', () => {
     expect(result.status).toBe(200);
     await expect(result.json()).resolves.toEqual([
       { tipo: 'OPERADOR', codigo: '00016570', nome: 'Ana' },
-      { tipo: 'OPERADOR', codigo: '00016580', nome: 'Bruno' },
     ]);
     expect(String(transport.mock.calls[0][0])).toBe(
       'https://datasul.example.test/api/fma/v1/operadores?companyId=1&codUsuario=mjocelio',

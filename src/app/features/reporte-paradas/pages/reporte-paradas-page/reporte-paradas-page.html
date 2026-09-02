@@ -37,15 +37,12 @@
         [draft]="view().draft"
         [disabled]="view().saving || view().finishing || contextFinishing() || view().contextLoading || !!view().contextError"
         [loading]="view().saving"
-        [finishLoading]="view().finishing && !deleting()"
-        [eliminateLoading]="deleting()"
+        [finishLoading]="view().finishing"
         [finishDisabled]="view().selectedStopId === null"
-        [showEliminate]="view().selectedStopId !== null"
         [externalError]="registrationError()"
         (draftChange)="onDraftChange($event)"
         (confirm)="registrarParada()"
         (finish)="finalizarParada($event)"
-        (eliminate)="solicitarEliminacao()"
       ></app-parada-form>
 
       <app-paradas-em-andamento-list
@@ -65,11 +62,9 @@
             <app-finalizar-parada-form
               [stop]="stop"
               [draft]="view().finishDraft"
-              [loading]="view().finishing && !deleting()"
-              [eliminateLoading]="deleting()"
+              [loading]="view().finishing"
               [disabled]="view().saving"
               [showFinishControls]="false"
-              [showEliminate]="false"
               [externalError]="view().finishError"
               (draftChange)="onFinishDraftChange($event)"
               (confirm)="finalizarParada()"

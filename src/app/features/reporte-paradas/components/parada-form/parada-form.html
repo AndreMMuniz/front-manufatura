@@ -80,18 +80,6 @@
           (p-click)="submitFinish()"
         ></po-button>
       }
-      @if (showEliminate) {
-        <po-button
-          class="parada-form__eliminate"
-          p-label="Eliminar parada"
-          p-kind="secondary"
-          p-type="button"
-          [p-danger]="true"
-          [p-disabled]="form.disabled || eliminateLoading"
-          [p-loading]="eliminateLoading"
-          (p-click)="eliminate.emit()"
-        ></po-button>
-      }
     </div>
   </form>
 </po-widget>

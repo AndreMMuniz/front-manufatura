@@ -41,10 +41,6 @@ export interface FinishStopByContextRequest extends FinishStopRequest {
   readonly workCenterCode: string;
 }
 
-export interface DeleteStopRequest {
-  readonly idempotencyKey: string;
-}
-
 export interface StartedStopApiDto {
   readonly id: string;
   readonly programNumber: number;

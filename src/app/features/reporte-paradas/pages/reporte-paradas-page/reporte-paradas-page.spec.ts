@@ -27,7 +27,6 @@ describe('ReporteParadasPage', () => {
     listarParadasEmAndamento: ReturnType<typeof vi.fn>;
     finalizarParada: ReturnType<typeof vi.fn>;
     finalizarParadaPorContexto: ReturnType<typeof vi.fn>;
-    eliminarParada: ReturnType<typeof vi.fn>;
     getPrefillContext: ReturnType<typeof vi.fn>;
     clearPrefillContext: ReturnType<typeof vi.fn>;
   };
@@ -93,20 +92,6 @@ describe('ReporteParadasPage', () => {
         idempotencyKey: request.idempotencyKey,
         syncStatus: 'PENDING',
         delivery: { status: 'PENDING' },
-      })),
-      eliminarParada: vi.fn((_stopId, request) => of({
-        id: _stopId,
-        idempotencyKey: request.idempotencyKey,
-        syncStatus: 'SYNCED',
-        delivery: {
-          status: 'SYNCED',
-          receipt: {
-            serverRecordId: 'datasul:stop-delete:1',
-            receivedAt: '2026-08-14T12:00:00.000Z',
-            processedAt: '2026-08-14T12:00:00.000Z',
-            duplicate: false,
-          },
-        },
       })),
       getPrefillContext: vi.fn(() => null),
       clearPrefillContext: vi.fn(),
@@ -367,92 +352,7 @@ describe('ReporteParadasPage', () => {
 
     expect(finishButtons).toHaveLength(1);
     expect(mainFinishButton()?.disabled).toBe(false);
-  });
-
-  it('confirma antes de eliminar e remove somente após confirmação e sucesso', () => {
-    service.listarParadasEmAndamento.mockReturnValue(of([openStop(), openStop(43)]));
-    fixture.detectChanges();
-    component.onAreaChange('4001');
-    component.onWorkCenterChange('CT-EXT-01');
-    component.selecionarParada(42);
-    fixture.detectChanges();
-    const deleteButton = Array.from(fixture.nativeElement.querySelectorAll('button'))
-      .find(button => (button as HTMLButtonElement).textContent?.includes('Eliminar parada')) as
-      HTMLButtonElement | undefined;
-
-    expect(deleteButton).toBeTruthy();
-    deleteButton?.click();
-    expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Eliminar parada?',
-      message: 'Eliminar a parada selecionada? Esta ação não poderá ser desfeita.',
-      literals: { cancel: 'Cancelar', confirm: 'Eliminar parada' },
-    }));
-    expect(service.eliminarParada).not.toHaveBeenCalled();
-
-    dialog.confirm.mock.calls[0][0].confirm();
-
-    expect(service.eliminarParada).toHaveBeenCalledWith(42, {
-      idempotencyKey: expect.stringMatching(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-      ),
-    });
-    expect(component.view().openStops.map(stop => stop.id)).toEqual([43]);
-    expect(notification.success).toHaveBeenCalledWith('Parada eliminada no Datasul.');
-  });
-
-  it('mostra a rejeição do Datasul e mantém a parada selecionada', () => {
-    const remoteMessage = 'A parada possui reportes relacionados e não pode ser eliminada.';
-    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
-    service.eliminarParada.mockImplementationOnce((_stopId, request) => of({
-      id: _stopId,
-      idempotencyKey: request.idempotencyKey,
-      syncStatus: 'ERROR',
-      delivery: {
-        status: 'ERROR',
-        error: {
-          code: 'DATASUL_COMMAND_REJECTED',
-          category: 'VALIDATION',
-          userMessage: remoteMessage,
-        },
-      },
-    }));
-    fixture.detectChanges();
-    component.onAreaChange('4001');
-    component.onWorkCenterChange('CT-EXT-01');
-    component.selecionarParada(42);
-    fixture.detectChanges();
-
-    (component as unknown as { solicitarEliminacao: () => void }).solicitarEliminacao();
-    dialog.confirm.mock.calls[0][0].confirm();
-
-    expect(component.view().selectedStopId).toBe(42);
-    expect(component.view().finishError).toBe(remoteMessage);
-    expect(notification.error).toHaveBeenCalledWith(remoteMessage);
-    expect(notification.warning).not.toHaveBeenCalled();
-  });
-
-  it('trata como pendente somente a eliminação com falha transitória confirmada', () => {
-    service.listarParadasEmAndamento.mockReturnValue(of([openStop()]));
-    service.eliminarParada.mockImplementationOnce((_stopId, request) => of({
-      id: _stopId,
-      idempotencyKey: request.idempotencyKey,
-      syncStatus: 'RETRY_WAIT',
-      delivery: { status: 'PENDING' },
-    }));
-    fixture.detectChanges();
-    component.onAreaChange('4001');
-    component.onWorkCenterChange('CT-EXT-01');
-    component.selecionarParada(42);
-    fixture.detectChanges();
-
-    component.solicitarEliminacao();
-    dialog.confirm.mock.calls[0][0].confirm();
-
-    expect(component.view().selectedStopId).toBeNull();
-    expect(notification.warning).toHaveBeenCalledWith(
-      expect.stringMatching(/datasul indisponível.*eliminação.*pendente/i),
-    );
-    expect(notification.error).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Eliminar parada');
   });
 
   it('mostra o motivo remoto e preserva o rascunho quando o Datasul rejeita a parada', () => {

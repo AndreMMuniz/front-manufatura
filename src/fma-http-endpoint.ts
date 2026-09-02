@@ -240,14 +240,17 @@ function installAdaptedRoutes(
   }));
 
   app.get('/api/operational-responsibles', (req, res) => handle(req, res, dependencies, async client => {
+    const areaCode = requiredText(req.query['areaCode']).toUpperCase();
+    requiredText(req.query['workCenterCode']);
     const upstream = await client.request('GET', '/api/fma/v1/operadores');
-    return dataset(upstream, 'operadores').map(row => {
+    return dataset(upstream, 'operadores').flatMap(row => {
       const item = objectOfUpstream(row);
-      return {
+      if (text(item['codAreaProduc']).trim().toUpperCase() !== areaCode) return [];
+      return [{
         tipo: 'OPERADOR',
         codigo: requiredUpstreamText(item['codOperador']),
         nome: requiredUpstreamText(item['nomOperador']),
-      };
+      }];
     });
   }));
 

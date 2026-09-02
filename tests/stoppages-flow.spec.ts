@@ -234,45 +234,22 @@ test.describe('registro de Paradas', () => {
     await expect(page.getByRole('textbox', { name: 'Data Final', exact: true })).toBeFocused();
   });
 
-  test('confirma a eliminação ao lado da finalização e preserva a pendência de conexão', async ({
-    page,
-  }) => {
+  test('não oferece eliminação de parada na interface', async ({ page }) => {
     await openStoppages(page);
     await selectContext(page);
     const openStop = await registerOpenStop(page);
     await openStop.tap();
     const selectedStopActions = page.locator('.parada-form__actions');
-    const eliminate = selectedStopActions.getByRole('button', { name: 'Eliminar parada' });
     const finish = selectedStopActions.getByRole('button', {
       name: 'Finalizar parada',
       exact: true,
     });
-    const eliminateBox = await eliminate.boundingBox();
-    const finishBox = await finish.boundingBox();
 
-    expect(eliminateBox).not.toBeNull();
-    expect(finishBox).not.toBeNull();
-    expect(Math.abs(eliminateBox!.y - finishBox!.y)).toBeLessThan(4);
-    await eliminate.click();
-    await expect(page.getByText(
-      'Eliminar a parada selecionada? Esta ação não poderá ser desfeita.',
-    )).toBeVisible();
+    await expect(finish).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Eliminar parada' })).toHaveCount(0);
     expect((await readOperationalOutbox(page)).some(
       entry => entry.commandType === 'DELETE_STOP',
     )).toBe(false);
-
-    await page.getByRole('button', {
-      name: 'Eliminar parada',
-      exact: true,
-    }).last().click();
-
-    await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
-      /eliminação.*pendente de sincronização/i,
-    );
-    const outbox = await readOperationalOutbox(page);
-    const create = outbox.find(entry => entry.commandType === 'CREATE_STOP');
-    const deletion = outbox.find(entry => entry.commandType === 'DELETE_STOP');
-    expect(deletion?.dependencyIds).toEqual([create?.localId]);
   });
 
   test('distingue erro de consulta e permite retry até o estado vazio', async ({ page }) => {
