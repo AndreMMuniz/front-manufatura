@@ -96,11 +96,11 @@ describe('ParadaForm', () => {
       HTMLButtonElement | undefined;
 
     expect(finishButton()).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('Data Final (opcional)');
+    expect(fixture.nativeElement.textContent).not.toContain('(opcional)');
     finishButton()?.click();
     fixture.detectChanges();
     expect(submitted).toEqual([]);
-    expect(fixture.nativeElement.textContent).not.toContain('Data Final (opcional)');
+    expect(fixture.nativeElement.textContent).not.toContain('(opcional)');
     expect(fixture.nativeElement.textContent).toContain(
       'Data Final e Hora Final são obrigatórias para finalizar uma parada.',
     );
@@ -156,19 +156,29 @@ describe('ParadaForm', () => {
     expect(finishButton.disabled).toBe(true);
   }, 10_000);
 
-  it('apresenta Data e Hora Final como obrigatórias após selecionar uma parada', async () => {
+  it('alterna os campos de início e fim conforme a seleção da parada', async () => {
     await TestBed.configureTestingModule({
       imports: [ParadaForm],
     }).compileComponents();
     const fixture = TestBed.createComponent(ParadaForm);
     fixture.componentRef.setInput('finishDisabled', true);
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Data Final (opcional)');
+    const field = (name: string) => fixture.nativeElement.querySelector(
+      `input[name="${name}"]`,
+    ) as HTMLInputElement;
+
+    expect(field('dataInicio').disabled).toBe(false);
+    expect(field('horaInicio').disabled).toBe(false);
+    expect(field('dataFim').disabled).toBe(true);
+    expect(field('horaFim').disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).not.toContain('(opcional)');
 
     fixture.componentRef.setInput('finishDisabled', false);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).not.toContain('Data Final (opcional)');
-    expect(fixture.nativeElement.textContent).not.toContain('Hora Final (opcional)');
+    expect(field('dataInicio').disabled).toBe(true);
+    expect(field('horaInicio').disabled).toBe(true);
+    expect(field('dataFim').disabled).toBe(false);
+    expect(field('horaFim').disabled).toBe(false);
   }, 10_000);
 });

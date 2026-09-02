@@ -156,13 +156,61 @@ const TERMINAL_BUSINESS_REJECTIONS_MIGRATION: DatabaseMigration = {
   },
 };
 
+const REMOTE_STOP_DELETE_DEPENDENCY_MIGRATION: DatabaseMigration = {
+  toVersion: 6,
+  migrate: ({ transaction }) => {
+    repairRemoteStopDeletes(transaction.objectStore(LOCAL_RECORDS_STORE), false);
+    repairRemoteStopDeletes(transaction.objectStore(OUTBOX_STORE), true);
+  },
+};
+
 export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = Object.freeze([
   INITIAL_SCHEMA_MIGRATION,
   SCHEDULER_SCHEMA_MIGRATION,
   SYNCHRONIZATION_CENTER_MIGRATION,
   SYNC_RECEIPTS_MIGRATION,
   TERMINAL_BUSINESS_REJECTIONS_MIGRATION,
+  REMOTE_STOP_DELETE_DEPENDENCY_MIGRATION,
 ]);
+
+function repairRemoteStopDeletes(store: IDBObjectStore, resumeBlocked: boolean): void {
+  const request = store.openCursor();
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    const entry = cursor.value as Readonly<Record<string, unknown>>;
+    if (hasPhantomRemoteStopDependency(entry)) {
+      const lastError = entry['lastError'];
+      const missingDependency = lastError && typeof lastError === 'object'
+        && (lastError as Readonly<Record<string, unknown>>)['code'] === 'DEPENDENCY_MISSING';
+      if (resumeBlocked && entry['status'] === 'BLOCKED_DEPENDENCY' && missingDependency) {
+        const { lastError: _lastError, ...stable } = entry;
+        cursor.update({ ...stable, status: 'PENDING', dependencyIds: [] });
+      } else {
+        cursor.update({ ...entry, dependencyIds: [] });
+      }
+    }
+    cursor.continue();
+  };
+}
+
+function hasPhantomRemoteStopDependency(entry: Readonly<Record<string, unknown>>): boolean {
+  const payload = entry['payload'];
+  const dependencyIds = entry['dependencyIds'];
+  if (
+    entry['commandType'] !== 'DELETE_STOP'
+    || !payload
+    || typeof payload !== 'object'
+    || !Array.isArray(dependencyIds)
+    || dependencyIds.length !== 1
+  ) {
+    return false;
+  }
+  const stopLocalId = (payload as Readonly<Record<string, unknown>>)['stopLocalId'];
+  return typeof stopLocalId === 'string'
+    && stopLocalId.startsWith('datasul:')
+    && dependencyIds[0] === stopLocalId;
+}
 
 export function runDatabaseMigrations(request: RunMigrationsRequest): void {
   if (request.oldVersion > request.targetVersion) {

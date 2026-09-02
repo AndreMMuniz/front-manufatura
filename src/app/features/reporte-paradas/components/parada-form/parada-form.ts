@@ -105,7 +105,7 @@ export class ParadaForm implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['draft']) {
+    if (changes['draft'] && !this.sameDraft(this.form.getRawValue(), this.draft)) {
       this.syncingInput = true;
       this.form.patchValue(this.draft, { emitEvent: false });
       this.syncingInput = false;
@@ -114,6 +114,10 @@ export class ParadaForm implements OnChanges {
       this.form.disable({ emitEvent: false });
     } else {
       this.form.enable({ emitEvent: false });
+      const controlsToDisable = this.finishDisabled
+        ? [this.form.controls.endDate, this.form.controls.endTime]
+        : [this.form.controls.startDate, this.form.controls.startTime];
+      controlsToDisable.forEach(control => control.disable({ emitEvent: false }));
     }
     if (changes['finishDisabled']) {
       this.finishAttempted = !this.finishDisabled;
@@ -164,6 +168,18 @@ export class ParadaForm implements OnChanges {
     const hasEndDate = endDate instanceof Date
       || (typeof endDate === 'string' && endDate.trim().length > 0);
     return hasEndDate === Boolean(endTime) ? null : { endPair: true };
+  }
+
+  private sameDraft(left: ParadaDraft, right: ParadaDraft): boolean {
+    return left.reasonId === right.reasonId
+      && this.materialDate(left.startDate) === this.materialDate(right.startDate)
+      && left.startTime === right.startTime
+      && this.materialDate(left.endDate) === this.materialDate(right.endDate)
+      && left.endTime === right.endTime;
+  }
+
+  private materialDate(value: Date | string | null): string {
+    return value instanceof Date ? value.toISOString() : String(value ?? '');
   }
 
   private emptyDraft(): ParadaDraft {

@@ -521,7 +521,9 @@ export class ReporteParadasService {
         aggregateId: current.aggregateId ?? current.localId ?? current.idempotencyKey,
         businessStatus: 'ELIMINADA',
         idempotencyKey,
-        dependencyIds: [current.creationCommandId ?? current.idempotencyKey],
+        ...(current.creationCommandId
+          ? { dependencyIds: [current.creationCommandId] }
+          : {}),
         payload: {
           stopLocalId: current.localId ?? current.idempotencyKey,
           areaCode: current.context.area.code,

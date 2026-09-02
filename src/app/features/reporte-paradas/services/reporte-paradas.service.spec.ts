@@ -741,6 +741,32 @@ describe('ReporteParadasService', () => {
     });
   });
 
+  it('elimina uma parada do Datasul sem dependência de criação local', async () => {
+    const { service, apiGet, durableOutbox } = setup();
+    apiGet.mockImplementation((url: string) => of(url === '/api/production-stops' ? [{
+      id: 'datasul:LASER-01-01:2026-09-02:15:45:07:00016570:mjocelio',
+      programNumber: 0,
+      workCenterCode: 'LASER-01-01',
+      reason: { id: 7, code: '07', description: 'PROBLEMA PROCESSO' },
+      responsible: { tipo: 'EQUIPE', codigo: '00016570', nome: '00016570' },
+      startDate: '2026-09-02',
+      startTime: '15:45',
+      reportDate: '2026-09-02',
+      reportTime: '',
+      reportedBy: 'mjocelio',
+    }] : apiReasons));
+    const [remote] = await firstValueFrom(
+      service.listarParadasEmAndamento('4113', 'LASER-01-01'),
+    );
+
+    await firstValueFrom(service.eliminarParada(remote.id, {
+      idempotencyKey: 'eliminar-remota-1',
+    }));
+
+    const deletion = durableOutbox.find(entry => entry['commandType'] === 'DELETE_STOP');
+    expect(deletion?.['dependencyIds']).toEqual([]);
+  });
+
   it('remove cache vazio e ignora comandos abandonados ou supersedidos na reconstrução', async () => {
     const { service, durableRecords, durableOutbox } = setup();
     await firstValueFrom(service.registrarParada(request({ endDate: null, endTime: null })));

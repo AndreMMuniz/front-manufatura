@@ -10,6 +10,7 @@ import {
 import {
   DATABASE_NAME,
   DATABASE_VERSION,
+  LOCAL_RECORDS_STORE,
   OFFLINE_DATABASE_SCHEMA,
   OUTBOX_STORE,
   SYNC_RECEIPTS_STORE,
@@ -20,7 +21,7 @@ describe('database migrations', () => {
     const database = await openDatabase(new IDBFactory(), DATABASE_VERSION, DATABASE_MIGRATIONS);
     const store = database.transaction(SYNC_RECEIPTS_STORE).objectStore(SYNC_RECEIPTS_STORE);
 
-    expect(DATABASE_VERSION).toBe(5);
+    expect(DATABASE_VERSION).toBe(6);
     expect([...database.objectStoreNames]).toEqual(['localRecords', 'outbox', 'syncReceipts']);
     expect([...store.indexNames]).toEqual([
       'ownerAggregate',
@@ -88,6 +89,49 @@ describe('database migrations', () => {
     });
     expect(entries.find(entry => entry.localId === transient.localId))
       .not.toHaveProperty('deliveryDisposition');
+    upgraded.close();
+  });
+
+  it('remove a dependência fantasma de eliminações de paradas vindas do Datasul', async () => {
+    const factory = new IDBFactory();
+    const versionFive = await openDatabase(factory, 5, DATABASE_MIGRATIONS.slice(0, 5));
+    const remoteStopId =
+      'datasul:LASER-01-01:2026-09-02:15:45:07:00016570:mjocelio';
+    const blockedDeletion = {
+      ...pendingFixture('BLOCKED_DEPENDENCY'),
+      aggregateType: 'STOP',
+      aggregateId: remoteStopId,
+      commandType: 'DELETE_STOP',
+      payload: { stopLocalId: remoteStopId },
+      dependencyIds: [remoteStopId],
+      lastError: {
+        code: 'DEPENDENCY_MISSING',
+        category: 'CONFIGURATION' as const,
+        userMessage: 'Uma dependência exige intervenção antes da sincronização.',
+      },
+    };
+    await addAndComplete(versionFive, LOCAL_RECORDS_STORE, {
+      ...blockedDeletion,
+      databaseVersion: 5,
+    });
+    await addAndComplete(versionFive, OUTBOX_STORE, blockedDeletion);
+    versionFive.close();
+
+    const upgraded = await openDatabase(factory, DATABASE_VERSION, DATABASE_MIGRATIONS);
+    const localRecord = await requestResult<Record<string, unknown>>(
+      upgraded.transaction(LOCAL_RECORDS_STORE).objectStore(LOCAL_RECORDS_STORE)
+        .get(blockedDeletion.localId),
+    );
+    const outboxEntry = await requestResult<Record<string, unknown>>(
+      upgraded.transaction(OUTBOX_STORE).objectStore(OUTBOX_STORE).get(blockedDeletion.localId),
+    );
+
+    expect(localRecord['dependencyIds']).toEqual([]);
+    expect(outboxEntry).toMatchObject({
+      status: 'PENDING',
+      dependencyIds: [],
+    });
+    expect(outboxEntry).not.toHaveProperty('lastError');
     upgraded.close();
   });
 

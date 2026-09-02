@@ -29,14 +29,14 @@
     <po-datepicker
       #endDateField
       name="dataFim"
-      [p-label]="finishAttempted ? 'Data Final' : 'Data Final (opcional)'"
+      p-label="Data Final"
       [p-required]="finishAttempted"
       formControlName="endDate"
     ></po-datepicker>
 
     <po-input
       name="horaFim"
-      [p-label]="finishAttempted ? 'Hora Final' : 'Hora Final (opcional)'"
+      p-label="Hora Final"
       p-mask="99:99"
       p-placeholder="HH:mm"
       [p-mask-format-model]="true"
