@@ -14,12 +14,17 @@ import { OperationalCommandFacade } from '../../../core/offline/services/operati
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
-import { CreateStopRequest, FinishStopRequest } from '../interfaces/reporte-paradas.dto';
+import {
+  CreateStopRequest,
+  FinishStopByContextRequest,
+  FinishStopRequest,
+} from '../interfaces/reporte-paradas.dto';
 import {
   ProductionContext,
   ParadaSyncStatus,
   ResponsavelParada,
   StopCommandResult,
+  StopContextFinishResult,
   StopEntry,
   StopReason,
 } from '../models/reporte-paradas.model';
@@ -435,6 +440,83 @@ export class ReporteParadasService {
             command.idempotencyKey,
           )
           : this.finalizeNewStop(stopId, command, end)),
+      );
+    }).pipe(
+      finalize(() => {
+        this.finishInFlight = false;
+      }),
+    );
+  }
+
+  finalizarParadaPorContexto(
+    request: FinishStopByContextRequest,
+  ): Observable<StopContextFinishResult> {
+    return defer(() => {
+      if (this.finishInFlight) {
+        throw new Error('Já existe uma finalização de parada em andamento.');
+      }
+      this.finishInFlight = true;
+      const areaCode = this.normalizeCode(request.areaCode);
+      const workCenterCode = this.normalizeCode(request.workCenterCode);
+      const idempotencyKey = request.idempotencyKey.trim();
+      const end = combineLocalDateTime(request.endDate, request.endTime);
+      if (!areaCode || !workCenterCode) {
+        throw new Error('Informe uma Área de Produção e um Centro de Trabalho válidos.');
+      }
+      if (!idempotencyKey) {
+        throw new Error('A chave de idempotência da finalização é obrigatória.');
+      }
+      if (!end) {
+        throw new Error('Informe Data Final e Hora Final válidas.');
+      }
+      if (!this.authSession.currentUser?.id.trim()) {
+        throw new Error('É necessária uma sessão autenticada para finalizar a parada.');
+      }
+      const endDate = formatLocalDate(end);
+      const endTime = formatLocalTime(end);
+      return from(this.commands.capture({
+        commandType: 'FINISH_STOP',
+        aggregateId: `${areaCode}:${workCenterCode}`,
+        businessStatus: 'FINALIZADA',
+        idempotencyKey,
+        occurredAt: end.toISOString(),
+        payload: {
+          areaCode,
+          workCenterCode,
+          endAt: end.toISOString(),
+          endDate,
+          endTime,
+        },
+      })).pipe(
+        switchMap((confirmation) => {
+          this.captureStopMilestone(
+            'stop_command_persisted',
+            'info',
+            'FINISH_STOP',
+            confirmation.idempotencyKey,
+            'PENDING',
+            'persist',
+          );
+          return from(this.deliverCommand(confirmation.localId)).pipe(map((observed) => {
+            const delivery = observed.delivery;
+            this.captureStopMilestone(
+              'stop_command_delivery_observed',
+              delivery.status === 'ERROR'
+                ? 'error'
+                : delivery.status === 'PENDING' ? 'warn' : 'info',
+              'FINISH_STOP',
+              confirmation.idempotencyKey,
+              delivery.status,
+              'delivery',
+              delivery.status === 'ERROR' ? delivery.error : undefined,
+            );
+            return {
+              idempotencyKey: confirmation.idempotencyKey,
+              syncStatus: observed.syncStatus,
+              delivery: structuredClone(delivery),
+            };
+          }));
+        }),
       );
     }).pipe(
       finalize(() => {

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of, Subject, throwError } from 'rxjs';
+import { firstValueFrom, Observable, of, Subject, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
@@ -683,6 +683,51 @@ describe('ReporteParadasService', () => {
     );
     expect(finalizada).not.toBe(aberta);
     expect(await firstValueFrom(service.listarParadasEmAndamento('4001', 'CT-EXT-01'))).toEqual([]);
+  });
+
+  it('finaliza diretamente pelo contexto quando ainda não existe seleção remota', async () => {
+    const { service, commands, deliver } = setup();
+    const finalizarPorContexto = (service as unknown as {
+      finalizarParadaPorContexto?: (request: {
+        areaCode: string;
+        workCenterCode: string;
+        endDate: string;
+        endTime: string;
+        idempotencyKey: string;
+      }) => Observable<unknown>;
+    }).finalizarParadaPorContexto;
+
+    expect(finalizarPorContexto).toBeTypeOf('function');
+    if (!finalizarPorContexto) return;
+
+    const result = await firstValueFrom(finalizarPorContexto.call(service, {
+      areaCode: '4113',
+      workCenterCode: 'LASER-01-01',
+      endDate: '2026-08-14',
+      endTime: '09:40',
+      idempotencyKey: 'finish-context-1',
+    }));
+
+    expect(commands.capture).toHaveBeenCalledWith({
+      commandType: 'FINISH_STOP',
+      aggregateId: '4113:LASER-01-01',
+      businessStatus: 'FINALIZADA',
+      idempotencyKey: 'finish-context-1',
+      occurredAt: new Date(2026, 7, 14, 9, 40).toISOString(),
+      payload: {
+        areaCode: '4113',
+        workCenterCode: 'LASER-01-01',
+        endAt: new Date(2026, 7, 14, 9, 40).toISOString(),
+        endDate: '2026-08-14',
+        endTime: '09:40',
+      },
+    });
+    expect(deliver).toHaveBeenCalledWith('finish-context-1');
+    expect(result).toEqual({
+      idempotencyKey: 'finish-context-1',
+      syncStatus: 'RETRY_WAIT',
+      delivery: { status: 'PENDING' },
+    });
   });
 
   it('devolve o motivo remoto e mantém a parada aberta quando a finalização é rejeitada', async () => {

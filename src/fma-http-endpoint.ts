@@ -411,16 +411,18 @@ function installAdaptedRoutes(
     return idempotentCommand(req, client, dependencies, commandRequests, endpoint, command, 'production-stop');
   }));
 
-  app.post('/api/production-stops/:id/finish', (req, res) => handle(req, res, dependencies, client => {
-    const body = objectOf(req.body);
-    const command = {
-      codAreaProduc: requiredText(body['areaCode']),
-      codCtrab: requiredText(body['workCenterCode']),
-      dataFimParada: localDate(body['endDate']),
-      horaFimParada: validTime(body['endTime']),
-    };
-    return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/finalizaparada', command, 'production-stop-finish');
-  }));
+  for (const path of ['/api/production-stops/finish', '/api/production-stops/:id/finish']) {
+    app.post(path, (req, res) => handle(req, res, dependencies, client => {
+      const body = objectOf(req.body);
+      const command = {
+        codAreaProduc: requiredText(body['areaCode']),
+        codCtrab: requiredText(body['workCenterCode']),
+        dataFimParada: localDate(body['endDate']),
+        horaFimParada: validTime(body['endTime']),
+      };
+      return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/finalizaparada', command, 'production-stop-finish');
+    }));
+  }
 
   const reads = ['/api/teams/:code'];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>

@@ -34,3 +34,8 @@ export interface FinishStopRequest {
   readonly endTime: string;
   readonly idempotencyKey: string;
 }
+
+export interface FinishStopByContextRequest extends FinishStopRequest {
+  readonly areaCode: string;
+  readonly workCenterCode: string;
+}

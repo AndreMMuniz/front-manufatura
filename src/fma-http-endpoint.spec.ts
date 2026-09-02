@@ -577,6 +577,35 @@ describe('gateway FMA', () => {
     ]);
   });
 
+  it('finaliza a parada do contexto sem exigir um identificador local', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const root = await startGateway(transport);
+
+    const result = await fetch(`${root}/api/production-stops/finish`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-finish-context',
+      },
+      body: JSON.stringify({
+        areaCode: '4113',
+        workCenterCode: 'LASER-01-01',
+        endDate: '2026-08-14',
+        endTime: '09:40',
+      }),
+    });
+
+    expect(result.status).toBe(200);
+    expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/finalizaparada');
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
+      codAreaProduc: '4113',
+      codCtrab: 'LASER-01-01',
+      dataFimParada: '2026-08-14',
+      horaFimParada: '09:40',
+    });
+  });
+
   it('classifica como conflito o erro Datasul documentado para intervalo de parada duplicado', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       detailedMessage: 'Já existe reporte neste intervalo de data e hora.',

@@ -77,6 +77,12 @@ export interface StopCommandResult extends StopEntry {
   readonly delivery: ImmediateDeliveryResult;
 }
 
+export interface StopContextFinishResult {
+  readonly idempotencyKey: string;
+  readonly syncStatus: ParadaSyncStatus;
+  readonly delivery: ImmediateDeliveryResult;
+}
+
 export type Parada = StopEntry;
 
 export interface StopSaveResult {

@@ -23,6 +23,7 @@ describe('ReporteParadasPage', () => {
     registrarParada: ReturnType<typeof vi.fn>;
     listarParadasEmAndamento: ReturnType<typeof vi.fn>;
     finalizarParada: ReturnType<typeof vi.fn>;
+    finalizarParadaPorContexto: ReturnType<typeof vi.fn>;
     getPrefillContext: ReturnType<typeof vi.fn>;
     clearPrefillContext: ReturnType<typeof vi.fn>;
   };
@@ -82,6 +83,11 @@ describe('ReporteParadasPage', () => {
         endDate: new Date(2026, 6, 28),
         endTime: request.endTime,
         durationMinutes: 90,
+        delivery: { status: 'PENDING' },
+      })),
+      finalizarParadaPorContexto: vi.fn(request => of({
+        idempotencyKey: request.idempotencyKey,
+        syncStatus: 'PENDING',
         delivery: { status: 'PENDING' },
       })),
       getPrefillContext: vi.fn(() => null),
@@ -268,6 +274,39 @@ describe('ReporteParadasPage', () => {
     expect(component.view().workCenter).toEqual(center);
     expect(component.view().draft.reasonId).toBeNull();
     expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  it('finaliza pelo botão ao lado do registro usando contexto, Data Final e Hora Final', () => {
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.onDraftChange({
+      reasonId: null,
+      startDate: null,
+      startTime: '',
+      endDate: '2026-08-14',
+      endTime: '09:40',
+    });
+    fixture.detectChanges();
+    const finishButton = Array.from(
+      fixture.nativeElement.querySelectorAll('.parada-form__actions button'),
+    ).find(button => (button as HTMLButtonElement).textContent?.includes('Finalizar parada')) as
+      HTMLButtonElement;
+
+    finishButton.click();
+
+    expect(service.finalizarParadaPorContexto).toHaveBeenCalledWith({
+      areaCode: '4001',
+      workCenterCode: 'CT-EXT-01',
+      endDate: '2026-08-14',
+      endTime: '09:40',
+      idempotencyKey: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      ),
+    });
+    expect(notification.warning).toHaveBeenCalledWith(
+      expect.stringMatching(/datasul indisponível.*pendente/i),
+    );
   });
 
   it('mostra o motivo remoto e preserva o rascunho quando o Datasul rejeita a parada', () => {
