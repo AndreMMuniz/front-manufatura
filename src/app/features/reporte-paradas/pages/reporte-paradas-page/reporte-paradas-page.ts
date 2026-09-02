@@ -94,7 +94,7 @@ export class ReporteParadasPage implements OnInit {
   readonly contextFinishing = signal(false);
   readonly deleting = signal(false);
 
-  @ViewChild(FinalizarParadaForm) private finishForm?: FinalizarParadaForm;
+  @ViewChild(ParadaForm) private paradaForm?: ParadaForm;
   @ViewChild(ParadasEmAndamentoList) private openStopsList?: ParadasEmAndamentoList;
 
   private areasRequest = 0;
@@ -247,7 +247,7 @@ export class ReporteParadasPage implements OnInit {
     }
     this.syncView();
     this.changeDetector.detectChanges();
-    this.finishForm?.focusFirstField();
+    this.paradaForm?.focusFinishField();
   }
 
   finalizarParada(draft: FinalizacaoDraft = this.view().finishDraft): void {
@@ -300,10 +300,10 @@ export class ReporteParadasPage implements OnInit {
             this.notification.success('Finalização enviada ao Datasul.');
           } else {
             this.statusMessage.set(
-              'Datasul indisponível — finalização salva neste dispositivo e pendente de sincronização.',
+              'Finalização ainda não confirmada pelo Datasul — salva neste dispositivo e pendente de sincronização.',
             );
             this.notification.warning(
-              'Datasul indisponível — finalização salva neste dispositivo e pendente de sincronização.',
+              'Finalização ainda não confirmada pelo Datasul — salva neste dispositivo e pendente de sincronização.',
             );
           }
           const route = this.view().origin?.sourceRoute;
@@ -443,7 +443,7 @@ export class ReporteParadasPage implements OnInit {
           this.notification.success('Finalização enviada ao Datasul.');
         } else {
           const message =
-            'Datasul indisponível — finalização salva neste dispositivo e pendente de sincronização.';
+            'Finalização ainda não confirmada pelo Datasul — salva neste dispositivo e pendente de sincronização.';
           this.statusMessage.set(message);
           this.notification.warning(message);
         }

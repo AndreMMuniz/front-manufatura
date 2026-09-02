@@ -30,8 +30,8 @@ export interface SyncSchedulerConfig {
 export const DEFAULT_SYNC_SCHEDULER_CONFIG: SyncSchedulerConfig = Object.freeze({
   baseDelayMs: 1_000,
   maxDelayMs: 300_000,
-  requestTimeoutMs: 30_000,
-  leaseDurationMs: 60_000,
+  requestTimeoutMs: 60_000,
+  leaseDurationMs: 90_000,
   intervalMs: 30_000,
   batchSize: 20,
   concurrency: 3,

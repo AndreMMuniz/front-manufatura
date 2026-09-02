@@ -26,6 +26,7 @@ consolidados em [Grupos de usuários e acessos Datasul para o frontend](../acess
 | Eliminação de parada programada | `POST` | `/api/fma/v1/eliminaparadaprogramada` | [eliminar-parada-programada.md](./eliminar-parada-programada.md) |
 | Motivos de refugo | `GET` | `/api/fma/v1/motivosrefugo` | [motivos-refugo.md](./motivos-refugo.md) |
 | Motivos de parada | `GET` | `/api/fma/v1/motivosparada` | [motivos-parada.md](./motivos-parada.md) |
+| Paradas iniciadas | `GET` | `/api/fma/v1/paradasiniciadas` | [paradas-iniciadas.md](./paradas-iniciadas.md) |
 | Operadores | `GET` | `/api/fma/v1/operadores` | [operadores.md](./operadores.md) |
 
 ## Autenticação

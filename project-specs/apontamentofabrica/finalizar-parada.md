@@ -1,6 +1,7 @@
 # FinalizaParada
 
-Finaliza uma parada de um centro de trabalho informando sua data e hora de término.
+Finaliza uma parada de um centro de trabalho informando sua referência de
+validação e sua data e hora de término.
 
 ## Requisição
 
@@ -29,8 +30,9 @@ Exemplo integral: [`examples/finalizar-parada-company-1-area-4113-ctrab-laser-01
 {
   "codAreaProduc": "4113",
   "codCtrab": "LASER-01-01",
-  "dataFimParada": "2026-08-14",
-  "horaFimParada": "09:40"
+  "valReferInicParada": 20260902.50611,
+  "dataFimParada": "",
+  "horaFimParada": ""
 }
 ```
 
@@ -38,6 +40,7 @@ Exemplo integral: [`examples/finalizar-parada-company-1-area-4113-ctrab-laser-01
 | --- | --- | --- | --- |
 | `codAreaProduc` | string | Não confirmado | Código da área de produção. |
 | `codCtrab` | string | Não confirmado | Código do centro de trabalho. |
+| `valReferInicParada` | number | Sim | Referência de validação da parada. Deve receber exatamente o valor associado à parada pelo GET `/api/fma/v1/paradasiniciadas`, sem arredondamento, cálculo ou formatação regional. |
 | `dataFimParada` | string | Não confirmado | Data de fim da parada, no formato observado `YYYY-MM-DD`. |
 | `horaFimParada` | string | Não confirmado | Hora de fim da parada, no formato observado `HH:mm`. |
 
@@ -77,8 +80,11 @@ Exemplo integral: [`examples/finalizar-parada-company-1-area-4113-ctrab-laser-01
 - Esta documentação descreve uma requisição e uma resposta fornecidas e não substitui um contrato OpenAPI oficial.
 - O casing dos parâmetros e campos foi preservado conforme a chamada recebida.
 - O parâmetro `pageSize` foi exibido pela interface com o valor `40`, mas estava desmarcado e não fez parte da URL executada.
+- `valReferInicParada` passou a compor o body para validar inequivocamente qual parada iniciada deve ser finalizada.
+- O valor deve ser obtido do registro selecionado em `GET /api/fma/v1/paradasiniciadas`; não deve ser reconstruído a partir de data, hora, área ou centro de trabalho.
+- A captura mais recente mostrou `dataFimParada` e `horaFimParada` como strings vazias. Isso não confirma que sejam opcionais; valores preenchidos continuam sendo necessários para uma finalização válida até evidência contrária.
 - A resposta usa códigos de negócio `"1"` e `"2"` no corpo, embora o status HTTP observado tenha sido `500`.
-- A evidência confirma a rejeição desta finalização específica, mas não informa qual parada aberta seria selecionada pela combinação de área e centro de trabalho.
+- A resposta de erro detalhada preservada foi observada em uma chamada anterior; a captura do contrato atualizado confirma o status `500`, mas não exibe seu body.
 - A relação exata entre a operação inválida e o reporte já cadastrado não foi informada; não é possível determinar pela resposta qual validação ocorreu primeiro.
 - O contrato de sucesso e o comportamento em repetição não foram informados.
 - Como esta operação altera o estado de parada, chamadas de teste devem usar um ambiente controlado.

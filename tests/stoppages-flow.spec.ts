@@ -200,15 +200,16 @@ test.describe('registro de Paradas', () => {
     await expect(openStop).toBeVisible();
     await openStop.focus();
     await openStop.press('Enter');
-    await expect(page.getByRole('textbox', { name: 'Data da Finalização' })).toBeFocused();
-    await selectToday(page, 'Data da Finalização');
-    await fillTime(page, 'Hora da Finalização', '07:59');
+    await expect(page.getByRole('textbox', { name: 'Data Final', exact: true })).toBeFocused();
+    await selectToday(page, 'Data Final');
+    await fillTime(page, 'Hora Final', '07:59');
+    await page.getByRole('button', { name: 'Finalizar parada' }).click();
     await expect(page.locator('.finish-stop__error[role="alert"]'))
       .toContainText('anterior ao início');
-    await fillTime(page, 'Hora da Finalização', '08:00');
+    await fillTime(page, 'Hora Final', '08:00');
     await page.getByRole('button', { name: 'Finalizar parada' }).click();
     await expect(page.locator('.reporte-paradas__success[role="status"]')).toContainText(
-      /finalização salva neste dispositivo e pendente de sincronização/i,
+      /finalização ainda não confirmada.*pendente de sincronização/i,
     );
 
     const outbox = await readOperationalOutbox(page);
@@ -229,8 +230,8 @@ test.describe('registro de Paradas', () => {
 
     await openStop.tap();
 
-    await expect(page.getByText('Finalizar Parada', { exact: true })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Data da Finalização' })).toBeFocused();
+    await expect(page.getByText('Parada selecionada', { exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Data Final', exact: true })).toBeFocused();
   });
 
   test('confirma a eliminação ao lado da finalização e preserva a pendência de conexão', async ({

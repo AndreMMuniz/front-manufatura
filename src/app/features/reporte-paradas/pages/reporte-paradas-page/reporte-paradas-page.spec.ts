@@ -341,7 +341,7 @@ describe('ReporteParadasPage', () => {
     });
     expect(service.finalizarParadaPorContexto).not.toHaveBeenCalled();
     expect(notification.warning).toHaveBeenCalledWith(
-      expect.stringMatching(/datasul indisponível.*pendente/i),
+      expect.stringMatching(/finalização ainda não confirmada.*pendente/i),
     );
   });
 

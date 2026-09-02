@@ -121,8 +121,8 @@ describe('sync retry policy', () => {
     expect(DEFAULT_SYNC_SCHEDULER_CONFIG).toMatchObject({
       baseDelayMs: 1_000,
       maxDelayMs: 300_000,
-      requestTimeoutMs: 30_000,
-      leaseDurationMs: 60_000,
+      requestTimeoutMs: 60_000,
+      leaseDurationMs: 90_000,
     });
     expect(Object.isFrozen(DEFAULT_SYNC_SCHEDULER_CONFIG)).toBe(true);
   });

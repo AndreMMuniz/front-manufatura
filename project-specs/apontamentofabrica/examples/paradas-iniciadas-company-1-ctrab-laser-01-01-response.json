@@ -1,0 +1,23 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "paradasIniciadas": [
+        {
+          "numOmProgda": 0,
+          "desParada": "PROBLEMA PROCESSO",
+          "dataReporte": "2026-09-02",
+          "valReferInicParada": 2.0260902555E12,
+          "codUsuarReporte": "mjocelio",
+          "horaInicioParada": "15:25",
+          "horaReporte": "",
+          "codCtrab": "LASER-01-01",
+          "dataInicioParada": "2026-09-02",
+          "codEquipe": "00016570",
+          "codParada": "07"
+        }
+      ]
+    }
+  ]
+}

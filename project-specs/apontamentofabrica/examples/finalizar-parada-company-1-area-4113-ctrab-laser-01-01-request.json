@@ -1,6 +1,7 @@
 {
   "codAreaProduc": "4113",
   "codCtrab": "LASER-01-01",
-  "dataFimParada": "2026-08-14",
-  "horaFimParada": "09:40"
+  "valReferInicParada": 20260902.50611,
+  "dataFimParada": "",
+  "horaFimParada": ""
 }

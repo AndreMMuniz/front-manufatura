@@ -2,11 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   EventEmitter,
   Input,
   OnChanges,
   Output,
   SimpleChanges,
+  ViewChild,
   inject,
 } from '@angular/core';
 import {
@@ -67,6 +69,8 @@ export class ParadaForm implements OnChanges {
   @Output() finish = new EventEmitter<FinalizacaoDraft>();
   @Output() eliminate = new EventEmitter<void>();
 
+  @ViewChild('endDateField', { read: ElementRef }) private endDateField?: ElementRef<HTMLElement>;
+
   finishAttempted = false;
 
   readonly form = new FormGroup<ParadaFormControls>({
@@ -111,6 +115,14 @@ export class ParadaForm implements OnChanges {
     } else {
       this.form.enable({ emitEvent: false });
     }
+    if (changes['finishDisabled']) {
+      this.finishAttempted = !this.finishDisabled;
+    }
+  }
+
+  focusFinishField(): void {
+    const input = this.endDateField?.nativeElement.querySelector('input');
+    (input ?? this.endDateField?.nativeElement)?.focus();
   }
 
   submit(): void {

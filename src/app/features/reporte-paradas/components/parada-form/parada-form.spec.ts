@@ -130,4 +130,20 @@ describe('ParadaForm', () => {
       HTMLButtonElement;
     expect(finishButton.disabled).toBe(true);
   }, 10_000);
+
+  it('apresenta Data e Hora Final como obrigatórias após selecionar uma parada', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ParadaForm],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ParadaForm);
+    fixture.componentRef.setInput('finishDisabled', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Data Final (opcional)');
+
+    fixture.componentRef.setInput('finishDisabled', false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Data Final (opcional)');
+    expect(fixture.nativeElement.textContent).not.toContain('Hora Final (opcional)');
+  }, 10_000);
 });
