@@ -97,10 +97,8 @@
       [startLoading]="view.estado === 'Iniciando'"
       [reportDisabled]="!canReport"
       [reportLoading]="view.reportAsyncState === 'carregando'"
-      [stopDisabled]="!canReport"
       (start)="iniciarBatelada()"
       (report)="abrirReporte()"
-      (stop)="abrirParada()"
       (sair)="sair()"
     ></app-footer-acoes-batelada>
 

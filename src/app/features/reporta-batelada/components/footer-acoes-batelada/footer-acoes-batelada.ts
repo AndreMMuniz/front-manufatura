@@ -14,10 +14,8 @@ export class FooterAcoesBatelada {
   @Input() startLoading = false;
   @Input() reportDisabled = true;
   @Input() reportLoading = false;
-  @Input() stopDisabled = true;
 
   @Output() start = new EventEmitter<void>();
   @Output() report = new EventEmitter<void>();
-  @Output() stop = new EventEmitter<void>();
   @Output() sair = new EventEmitter<void>();
 }
