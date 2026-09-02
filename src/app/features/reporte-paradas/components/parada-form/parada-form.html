@@ -27,6 +27,7 @@
     <po-datepicker
       name="dataFim"
       p-label="Data Final (opcional)"
+      [p-required]="finishAttempted"
       formControlName="endDate"
     ></po-datepicker>
 
@@ -34,12 +35,19 @@
       name="horaFim"
       p-label="Hora Final (opcional)"
       p-placeholder="HH:mm"
+      [p-required]="finishAttempted"
       formControlName="endTime"
     ></po-input>
 
     @if (form.hasError('endPair') && (form.touched || form.dirty)) {
       <p class="parada-form__error" role="alert">
         Data Final e Hora Final devem ser informadas juntas ou deixadas vazias.
+      </p>
+    }
+
+    @if (finishAttempted && (form.controls.endDate.hasError('required') || form.controls.endTime.hasError('required'))) {
+      <p class="parada-form__error" role="alert">
+        Data Final e Hora Final são obrigatórias para finalizar uma parada.
       </p>
     }
 
@@ -55,6 +63,15 @@
         p-type="submit"
         [p-disabled]="form.disabled || loading"
         [p-loading]="loading"
+      ></po-button>
+      <po-button
+        class="parada-form__finish"
+        p-label="Finalizar parada"
+        p-kind="secondary"
+        p-type="button"
+        [p-disabled]="form.disabled || finishLoading"
+        [p-loading]="finishLoading"
+        (p-click)="submitFinish()"
       ></po-button>
     </div>
   </form>

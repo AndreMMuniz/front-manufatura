@@ -81,6 +81,9 @@ export class FinishStopSyncHandler extends FmaSyncHandler {
   readonly commandType = 'FINISH_STOP' as const;
   protected endpoint(request: SyncCommandRequest): string {
     const payload = objectOf(request.payload);
+    if (payload['stopLocalId'] === undefined) {
+      return '/api/production-stops/finish';
+    }
     const stopLocalId = requiredText(payload['stopLocalId']);
     return `/api/production-stops/${encodeURIComponent(stopLocalId)}/finish`;
   }

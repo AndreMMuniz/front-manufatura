@@ -27,7 +27,10 @@ import {
 } from '@po-ui/ng-components';
 
 import { StopReason } from '../../models/reporte-paradas.model';
-import { ParadaDraft } from '../../services/reporte-paradas-workflow-state';
+import {
+  FinalizacaoDraft,
+  ParadaDraft,
+} from '../../services/reporte-paradas-workflow-state';
 
 type ParadaFormControls = {
   reasonId: FormControl<number | null>;
@@ -52,10 +55,14 @@ export class ParadaForm implements OnChanges {
   @Input() draft: ParadaDraft = this.emptyDraft();
   @Input() disabled = false;
   @Input() loading = false;
+  @Input() finishLoading = false;
   @Input() externalError = '';
 
   @Output() draftChange = new EventEmitter<ParadaDraft>();
   @Output() confirm = new EventEmitter<ParadaDraft>();
+  @Output() finish = new EventEmitter<FinalizacaoDraft>();
+
+  finishAttempted = false;
 
   readonly form = new FormGroup<ParadaFormControls>({
     reasonId: new FormControl<number | null>(null, Validators.required),
@@ -94,7 +101,7 @@ export class ParadaForm implements OnChanges {
       this.form.patchValue(this.draft, { emitEvent: false });
       this.syncingInput = false;
     }
-    if (this.disabled || this.loading) {
+    if (this.disabled || this.loading || this.finishLoading) {
       this.form.disable({ emitEvent: false });
     } else {
       this.form.enable({ emitEvent: false });
@@ -107,6 +114,28 @@ export class ParadaForm implements OnChanges {
       return;
     }
     this.confirm.emit(this.form.getRawValue());
+  }
+
+  submitFinish(): void {
+    this.finishAttempted = true;
+    const endDate = this.form.controls.endDate;
+    const endTime = this.form.controls.endTime;
+    endDate.markAsTouched();
+    endTime.markAsTouched();
+    const rawEndDate = endDate.value;
+    const hasEndDate = rawEndDate instanceof Date
+      || (typeof rawEndDate === 'string' && rawEndDate.trim().length > 0);
+    const rawEndTime = endTime.value.trim();
+    if (!hasEndDate) {
+      endDate.setErrors({ ...endDate.errors, required: true });
+    }
+    if (!rawEndTime) {
+      endTime.setErrors({ ...endTime.errors, required: true });
+    }
+    if (!hasEndDate || !rawEndTime || endDate.invalid || endTime.invalid || this.form.disabled) {
+      return;
+    }
+    this.finish.emit({ endDate: rawEndDate!, endTime: rawEndTime });
   }
 
   private endPairValidator(control: AbstractControl): ValidationErrors | null {

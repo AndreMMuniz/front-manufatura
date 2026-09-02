@@ -35,6 +35,7 @@ describe('SynchronizationRecoveryRegistry', () => {
       ['CREATE_STOP', 'CORRECTABLE', '/stoppages'],
       ['FINISH_STOP', 'CORRECTABLE', '/stoppages'],
     ]);
+    expect(getRecoveryDefinition('CREATE_STOP').allowedFields).not.toContain('programmed');
   });
 
   it('abre correção owner-scoped só com allowlist e remove segredos recursivamente', async () => {

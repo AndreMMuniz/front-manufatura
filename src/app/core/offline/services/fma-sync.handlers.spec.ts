@@ -41,6 +41,27 @@ describe('FMA sync handlers', () => {
     expect(post).toHaveBeenCalledWith('/api/production-stops/stop%2F01/finish', request.payload, expect.any(Object));
   });
 
+  it('uses the context finish endpoint when no started stop was selected', async () => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new FinishStopSyncHandler(
+      { post } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+    const request = command('FINISH_STOP', {
+      areaCode: '4113',
+      workCenterCode: 'LASER-01-01',
+      endDate: '2026-08-14',
+      endTime: '09:40',
+    });
+
+    await expect(handler.send(request, new AbortController().signal)).resolves.toEqual(receipt());
+    expect(post).toHaveBeenCalledWith(
+      '/api/production-stops/finish',
+      request.payload,
+      expect.any(Object),
+    );
+  });
+
   it('sends END_OPERATION to the operation end gateway endpoint', async () => {
     const post = vi.fn().mockReturnValue(of(receipt()));
     const handler = new EndOperationSyncHandler(

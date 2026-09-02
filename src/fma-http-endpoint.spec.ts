@@ -561,11 +561,16 @@ describe('gateway FMA', () => {
       body: JSON.stringify(body),
     });
     expect((await send('/api/production-stops', 'stop-open', base)).status).toBe(200);
+    expect((await send('/api/production-stops', 'stop-legacy', {
+      ...base,
+      programmed: true,
+    })).status).toBe(200);
     expect((await send('/api/production-stops', 'stop-past', { ...base, endDate: '2026-08-14', endTime: '10:00' })).status).toBe(200);
     expect((await send('/api/production-stops/local-1/finish', 'stop-finish', {
       areaCode: '4104', workCenterCode: 'PRE-01', endDate: '2026-08-14', endTime: '11:00',
     })).status).toBe(200);
     expect(transport.mock.calls.map(call => String(call[0]))).toEqual([
+      expect.stringContaining('/api/fma/v1/iniciaparada'),
       expect.stringContaining('/api/fma/v1/iniciaparada'),
       expect.stringContaining('/api/fma/v1/incluiparada'),
       expect.stringContaining('/api/fma/v1/finalizaparada'),

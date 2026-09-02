@@ -54,6 +54,42 @@ describe('ParadaForm', () => {
     expect(submitted).toHaveLength(1);
   }, 10_000);
 
+  it('finaliza pelo mesmo formulário somente com Data Final e Hora Final completas', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ParadaForm],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ParadaForm);
+    fixture.detectChanges();
+    const submitted: unknown[] = [];
+    const component = fixture.componentInstance as ParadaForm & {
+      readonly finish?: { subscribe: (listener: (value: unknown) => void) => void };
+    };
+    component.finish?.subscribe(value => submitted.push(value));
+    const finishButton = () => Array.from(
+      fixture.nativeElement.querySelectorAll('.parada-form__actions button'),
+    ).find(button => (button as HTMLButtonElement).textContent?.includes('Finalizar parada')) as
+      HTMLButtonElement | undefined;
+
+    expect(finishButton()).toBeTruthy();
+    finishButton()?.click();
+    expect(submitted).toEqual([]);
+
+    component.form.patchValue({
+      reasonId: null,
+      startDate: null,
+      startTime: '',
+      endDate: '2026-08-14',
+      endTime: '09:40',
+    });
+    fixture.detectChanges();
+    finishButton()?.click();
+
+    expect(submitted).toEqual([{
+      endDate: '2026-08-14',
+      endTime: '09:40',
+    }]);
+  }, 10_000);
+
   it('bloqueia todos os campos e a confirmação durante salvamento', async () => {
     await TestBed.configureTestingModule({
       imports: [ParadaForm],
