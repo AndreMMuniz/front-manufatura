@@ -18,7 +18,9 @@
       <po-input
         name="horaFinalizacao"
         p-label="Hora da Finalização"
+        p-mask="99:99"
         p-placeholder="HH:mm"
+        [p-mask-format-model]="true"
         [p-required]="true"
         formControlName="endTime"
       ></po-input>

@@ -19,7 +19,9 @@
     <po-input
       name="horaInicio"
       p-label="Hora Inicial"
+      p-mask="99:99"
       p-placeholder="HH:mm"
+      [p-mask-format-model]="true"
       [p-required]="true"
       formControlName="startTime"
     ></po-input>
@@ -35,7 +37,9 @@
     <po-input
       name="horaFim"
       [p-label]="finishAttempted ? 'Hora Final' : 'Hora Final (opcional)'"
+      p-mask="99:99"
       p-placeholder="HH:mm"
+      [p-mask-format-model]="true"
       [p-required]="finishAttempted"
       formControlName="endTime"
     ></po-input>

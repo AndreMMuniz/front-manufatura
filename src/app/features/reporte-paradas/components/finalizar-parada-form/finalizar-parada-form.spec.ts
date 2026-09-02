@@ -30,6 +30,19 @@ describe('FinalizarParadaForm', () => {
     expect(component.form.invalid).toBe(true);
   });
 
+  it('insere os dois-pontos ao digitar a hora da finalização', async () => {
+    const { fixture, component } = await setup();
+    const endTime = fixture.nativeElement.querySelector(
+      'input[name="horaFinalizacao"]',
+    ) as HTMLInputElement;
+
+    endTime.value = '1533';
+    endTime.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(endTime.value).toBe('15:33');
+    expect(component.form.controls.endTime.value).toBe('15:33');
+  });
+
   it('bloqueia controles conflitantes durante finalização', async () => {
     const { fixture, component } = await setup();
     fixture.componentRef.setInput('loading', true);

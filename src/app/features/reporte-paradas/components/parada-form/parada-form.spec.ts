@@ -29,6 +29,31 @@ describe('ParadaForm', () => {
     expect(fixture.componentInstance.form.valid).toBe(true);
   }, 10_000);
 
+  it('insere os dois-pontos ao digitar as horas inicial e final', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ParadaForm],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ParadaForm);
+    fixture.detectChanges();
+
+    const startTime = fixture.nativeElement.querySelector(
+      'input[name="horaInicio"]',
+    ) as HTMLInputElement;
+    const endTime = fixture.nativeElement.querySelector(
+      'input[name="horaFim"]',
+    ) as HTMLInputElement;
+
+    startTime.value = '1533';
+    startTime.dispatchEvent(new Event('input', { bubbles: true }));
+    endTime.value = '1745';
+    endTime.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(startTime.value).toBe('15:33');
+    expect(endTime.value).toBe('17:45');
+    expect(fixture.componentInstance.form.controls.startTime.value).toBe('15:33');
+    expect(fixture.componentInstance.form.controls.endTime.value).toBe('17:45');
+  }, 10_000);
+
   it('rejeita fim parcial e emite confirmação somente para formulário válido', async () => {
     await TestBed.configureTestingModule({
       imports: [ParadaForm],

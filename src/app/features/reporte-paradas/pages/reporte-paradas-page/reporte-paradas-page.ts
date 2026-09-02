@@ -313,11 +313,15 @@ export class ReporteParadasPage implements OnInit {
             Promise.resolve().then(() => this.openStopsList?.focusFirst());
           }
         },
-        error: () => {
+        error: (error: unknown) => {
+          const message = error instanceof Error
+            ? error.message
+            : 'Não foi possível finalizar a parada. Os dados informados foram preservados.';
+
           if (
             this.workflow.acceptFinishError(
               token,
-              'Não foi possível finalizar a parada. Os dados informados foram preservados.',
+              message,
             )
           ) {
             this.syncView();
