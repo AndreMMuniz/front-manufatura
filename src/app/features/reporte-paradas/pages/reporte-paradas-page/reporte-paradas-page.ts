@@ -88,6 +88,7 @@ export class ReporteParadasPage implements OnInit {
   readonly registrationError = signal('');
   readonly statusMessage = signal('');
   readonly now = signal(new Date());
+  readonly contextFinishing = signal(false);
 
   @ViewChild(FinalizarParadaForm) private finishForm?: FinalizarParadaForm;
   @ViewChild(ParadasEmAndamentoList) private openStopsList?: ParadasEmAndamentoList;
@@ -95,13 +96,20 @@ export class ReporteParadasPage implements OnInit {
   private areasRequest = 0;
   private centersRequest = 0;
   private pendingPrefill: ProductionContext | null = null;
+  private contextFinishIdempotency: { readonly fingerprint: string; readonly key: string } | null =
+    null;
 
   constructor() {
     effect(() => {
       const view = this.view();
       this.pwaWorkState.setCaptureActive(
         'stoppages',
-        view.dirty || view.finishDirty || view.selectedStopId !== null || view.saving || view.finishing,
+        view.dirty
+          || view.finishDirty
+          || view.selectedStopId !== null
+          || view.saving
+          || view.finishing
+          || this.contextFinishing(),
       );
     });
     this.destroyRef.onDestroy(() => this.pwaWorkState.setCaptureActive('stoppages', false));
