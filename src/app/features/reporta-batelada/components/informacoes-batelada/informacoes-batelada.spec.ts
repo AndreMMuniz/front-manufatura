@@ -65,7 +65,31 @@ describe('InformacoesBatelada', () => {
     expect(selected).toEqual([{ tipo: 'OPERADOR', codigo: 'OP|001', nome: 'Ana Silva' }]);
   });
 
+  it('exibe a ação de equipe somente quando o responsável não é um operador', () => {
+    expect(fixture.debugElement.query(
+      By.css('.informacoes-batelada__responsavel po-button'),
+    )).toBeNull();
+
+    fixture.componentRef.setInput('responsavel', component.responsaveis[1]);
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(
+      By.css('.informacoes-batelada__responsavel po-button'),
+    )).toBeTruthy();
+  });
+
+  it('não emite a gestão de equipe quando o responsável é um operador', () => {
+    const emitted: Array<HTMLElement | null> = [];
+    component.gerenciarEquipe.subscribe(acionador => emitted.push(acionador));
+
+    component.onGerenciarEquipe();
+
+    expect(emitted).toEqual([]);
+  });
+
   it('emite a gestão pelo botão PO-UI real e bloqueia a ação após o início', () => {
+    fixture.componentRef.setInput('responsavel', component.responsaveis[1]);
+    fixture.detectChanges();
     const emitted: Array<HTMLElement | null> = [];
     component.gerenciarEquipe.subscribe(acionador => emitted.push(acionador));
     const host = fixture.debugElement.query(
@@ -82,6 +106,7 @@ describe('InformacoesBatelada', () => {
     fixture.detectChanges();
     expect(host.componentInstance.disabled).toBe(true);
     button.click();
+    component.onGerenciarEquipe();
     expect(emitted).toEqual([button]);
   });
 });

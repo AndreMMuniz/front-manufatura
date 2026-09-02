@@ -227,6 +227,43 @@ export class ReportaBateladaService {
     );
   }
 
+  adotarOrdensIniciadas(
+    ordens: ReadonlyArray<OrdemLiberadaBatelada>,
+  ): Observable<InicioBatelada> {
+    return defer(() => {
+      const uniqueOrderIds = new Set(ordens.map(ordem => ordem.id));
+      if (
+        ordens.length === 0
+        || uniqueOrderIds.size !== ordens.length
+        || ordens.some(ordem => ordem.indEstadoSplit !== 4)
+      ) {
+        throw new Error('A composição deve conter somente ordens já iniciadas.');
+      }
+
+      return forkJoin(ordens.map(ordem =>
+        this.reportCatalog.carregarOrdemSelecionada(ordem)));
+    }).pipe(map(results => {
+      const starts = results.map(result => {
+        const operation = result.sucesso ? result.operacao : undefined;
+        if (!operation?.dataInicio || !operation.horaInicio) {
+          throw new Error('Não foi possível confirmar o início de todas as ordens selecionadas.');
+        }
+        return this.operationStartInstant(operation.dataInicio, operation.horaInicio);
+      });
+      const iniciadoEm = new Date(Math.max(...starts.map(start => start.getTime())));
+      const batchId = this.idempotency.resolve();
+      const orderIds = ordens.map(ordem => ordem.id);
+      this.batches.set(batchId, { orderIds: [...orderIds], encerrada: false });
+      this.reportsByBatch.set(batchId, []);
+      return {
+        batchId,
+        iniciadoEm,
+        ordensIniciadas: [...orderIds],
+        origem: 'DATASUL' as const,
+      };
+    }));
+  }
+
   montarComandoInicio(
     contexto: ContextoBatelada,
     responsavel: ResponsavelBatelada,
@@ -693,9 +730,26 @@ export class ReportaBateladaService {
       batchId: inicio.batchId,
       iniciadoEm: new Date(inicio.iniciadoEm),
       ordensIniciadas: [...inicio.ordensIniciadas],
+      ...(inicio.origem ? { origem: inicio.origem } : {}),
       ...(inicio.startCommandId ? { startCommandId: inicio.startCommandId } : {}),
       ...(inicio.delivery ? { delivery: this.cloneDelivery(inicio.delivery) } : {}),
     };
+  }
+
+  private operationStartInstant(date: Date, time: string): Date {
+    const match = /^(\d{2}):(\d{2})$/.exec(time.trim());
+    if (!match || !(date instanceof Date) || Number.isNaN(date.getTime())) {
+      throw new Error('O início informado pelo Datasul é inválido.');
+    }
+    const result = new Date(date);
+    result.setHours(Number(match[1]), Number(match[2]), 0, 0);
+    if (
+      result.getHours() !== Number(match[1])
+      || result.getMinutes() !== Number(match[2])
+    ) {
+      throw new Error('O início informado pelo Datasul é inválido.');
+    }
+    return result;
   }
 
   private validateDirectStartReceipt(

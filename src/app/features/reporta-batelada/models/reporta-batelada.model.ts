@@ -5,6 +5,7 @@ export enum EstadoBatelada {
   ConsultandoOrdens = 'ConsultandoOrdens',
   OrdensDisponiveis = 'OrdensDisponiveis',
   BateladaPreparada = 'BateladaPreparada',
+  ReconhecendoInicio = 'ReconhecendoInicio',
   Iniciando = 'Iniciando',
   BateladaIniciada = 'BateladaIniciada',
   ReportandoParcial = 'ReportandoParcial',
@@ -23,6 +24,9 @@ export interface OrdemLiberadaBatelada {
   readonly itemOp: string;
   readonly operacao: string;
   readonly split: string;
+  readonly indEstadoSplit?: number;
+  readonly areaCode?: string;
+  readonly workCenterCode?: string;
 }
 
 export type TipoResponsavelBatelada = 'OPERADOR' | 'EQUIPE';
@@ -42,6 +46,7 @@ export interface InicioBatelada {
   readonly batchId: string;
   readonly iniciadoEm: Date;
   readonly ordensIniciadas: ReadonlyArray<string>;
+  readonly origem?: 'COMANDO' | 'DATASUL';
   readonly startCommandId?: string;
   readonly delivery?: ImmediateDeliveryResult;
 }

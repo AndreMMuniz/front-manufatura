@@ -222,13 +222,17 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
     if (composition.length === 0) {
       return false;
     }
+    const startedCount = composition.filter(order => order.indEstadoSplit === 4).length;
+    const mixedStartState = startedCount > 0 && startedCount < composition.length;
 
     this.value.update(snapshot => ({
       ...snapshot,
       composition: this.cloneOrders(composition),
       estado: EstadoBatelada.BateladaPreparada,
       lastOperationalState: EstadoBatelada.BateladaPreparada,
-      errorMessage: '',
+      errorMessage: mixedStartState
+        ? 'Selecione somente ordens que estejam todas iniciadas ou todas não iniciadas.'
+        : '',
     }));
     return true;
   }
@@ -286,8 +290,29 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
     return (
       current.estado === EstadoBatelada.BateladaPreparada &&
       current.composition.length > 0 &&
-      current.responsavel !== null
+      current.responsavel !== null &&
+      current.composition.every(order => order.indEstadoSplit !== 4)
     );
+  }
+
+  beginExistingStartRecognition(): boolean {
+    const current = this.value();
+    if (
+      current.estado !== EstadoBatelada.BateladaPreparada
+      || current.composition.length === 0
+      || current.responsavel === null
+      || !current.composition.every(order => order.indEstadoSplit === 4)
+    ) {
+      return false;
+    }
+
+    this.value.update(snapshot => ({
+      ...snapshot,
+      estado: EstadoBatelada.ReconhecendoInicio,
+      lastOperationalState: EstadoBatelada.BateladaPreparada,
+      errorMessage: '',
+    }));
+    return true;
   }
 
   beginStart(): boolean {
@@ -305,7 +330,8 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
   }
 
   completeStart(inicio: InicioBatelada): void {
-    if (this.value().estado !== EstadoBatelada.Iniciando) {
+    if (![EstadoBatelada.Iniciando, EstadoBatelada.ReconhecendoInicio]
+      .includes(this.value().estado)) {
       return;
     }
 
@@ -319,6 +345,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
         batchId: inicio.batchId,
         iniciadoEm: new Date(inicio.iniciadoEm),
         ordensIniciadas: [...inicio.ordensIniciadas],
+        ...(inicio.origem ? { origem: inicio.origem } : {}),
         ...(inicio.startCommandId ? { startCommandId: inicio.startCommandId } : {}),
         ...(inicio.delivery ? { delivery: structuredClone(inicio.delivery) } : {}),
       },
@@ -326,7 +353,8 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
   }
 
   failStart(message: string): void {
-    if (this.value().estado !== EstadoBatelada.Iniciando) {
+    if (![EstadoBatelada.Iniciando, EstadoBatelada.ReconhecendoInicio]
+      .includes(this.value().estado)) {
       return;
     }
 
@@ -587,6 +615,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
     const state = this.value().estado;
     return [
       EstadoBatelada.Iniciando,
+      EstadoBatelada.ReconhecendoInicio,
       EstadoBatelada.BateladaIniciada,
       EstadoBatelada.ReportandoParcial,
       EstadoBatelada.EmParada,
@@ -667,6 +696,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
             batchId: snapshot.inicio.batchId,
             iniciadoEm: new Date(snapshot.inicio.iniciadoEm),
             ordensIniciadas: [...snapshot.inicio.ordensIniciadas],
+            ...(snapshot.inicio.origem ? { origem: snapshot.inicio.origem } : {}),
             ...(snapshot.inicio.startCommandId
               ? { startCommandId: snapshot.inicio.startCommandId }
               : {}),

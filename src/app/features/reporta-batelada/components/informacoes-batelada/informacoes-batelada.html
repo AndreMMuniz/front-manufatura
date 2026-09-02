@@ -16,7 +16,10 @@
     }
   </dl>
 
-  <div class="informacoes-batelada__responsavel">
+  <div
+    class="informacoes-batelada__responsavel"
+    [class.informacoes-batelada__responsavel--com-select]="responsaveis.length > 0"
+  >
     <div>
       @if (responsaveis.length > 0) {
         <po-select
@@ -34,12 +37,14 @@
         </p>
       }
     </div>
-    <po-button
-      p-label="Criar equipe"
-      p-aria-label="Criar ou gerenciar equipe"
-      p-kind="secondary"
-      [p-disabled]="disabled"
-      (p-click)="onGerenciarEquipe()"
-    ></po-button>
+    @if (exibirCriarEquipe) {
+      <po-button
+        p-label="Criar equipe"
+        p-aria-label="Criar ou gerenciar equipe"
+        p-kind="secondary"
+        [p-disabled]="disabled"
+        (p-click)="onGerenciarEquipe()"
+      ></po-button>
+    }
   </div>
 </po-widget>

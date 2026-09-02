@@ -44,6 +44,12 @@ dd {
 
 .informacoes-batelada__responsavel > po-button {
   align-self: end;
+  display: block;
+  line-height: 0;
+}
+
+.informacoes-batelada__responsavel--com-select > po-button {
+  margin-bottom: calc(var(--app-space-sm) + var(--app-space-xs));
 }
 
 @media (max-width: 480px) {
@@ -55,4 +61,7 @@ dd {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .informacoes-batelada__responsavel--com-select > po-button {
+    margin-bottom: 0;
+  }
 }

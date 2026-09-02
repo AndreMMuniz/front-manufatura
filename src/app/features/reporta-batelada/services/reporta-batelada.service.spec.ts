@@ -42,6 +42,7 @@ describe('ReportaBateladaService', () => {
     pesquisarCentros: ReturnType<typeof vi.fn>;
     listarOrdensPorCentro: ReturnType<typeof vi.fn>;
     listarResponsaveis: ReturnType<typeof vi.fn>;
+    carregarOrdemSelecionada: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -91,6 +92,14 @@ describe('ReportaBateladaService', () => {
       pesquisarCentros: vi.fn(() => of([workCenter()])),
       listarOrdensPorCentro: vi.fn(() => of([order('1'), order('2')])),
       listarResponsaveis: vi.fn(() => of([responsavel()])),
+      carregarOrdemSelecionada: vi.fn((selected: OrdemLiberadaBatelada) => of({
+        sucesso: true,
+        operacao: startedOperation(
+          selected,
+          selected.id === '1' ? new Date(2026, 7, 29) : new Date(2026, 7, 29),
+          selected.id === '1' ? '08:00' : '09:35',
+        ),
+      })),
     };
 
     const captured = new Map<string, { readonly fingerprint: string; readonly result: object }>();
@@ -171,6 +180,29 @@ describe('ReportaBateladaService', () => {
 
     expect(result).toEqual([responsavel()]);
     expect(result[0]).not.toBe(responsavel());
+  });
+
+  it('adopts already open orders for reporting without sending another start command', async () => {
+    const openOrders = [
+      { ...order('1'), indEstadoSplit: 4 },
+      { ...order('2'), indEstadoSplit: 4 },
+    ];
+
+    const adopted = await firstValueFrom(service.adotarOrdensIniciadas(openOrders));
+    const reported = await firstValueFrom(service.reportarBateladaParcial({
+      ...reportRequest({ batchId: adopted.batchId }),
+      dataInicio: adopted.iniciadoEm,
+      horaInicio: '09:35',
+    }));
+
+    expect(adopted).toEqual({
+      batchId: expect.any(String),
+      iniciadoEm: new Date(2026, 7, 29, 9, 35),
+      ordensIniciadas: ['1', '2'],
+      origem: 'DATASUL',
+    });
+    expect(reported.batchId).toBe(adopted.batchId);
+    expect(apiPost).not.toHaveBeenCalled();
   });
 
   it('builds one command containing context, responsible party and all ordered items', () => {
@@ -772,6 +804,32 @@ function order(id: string): OrdemLiberadaBatelada {
 
 function responsavel(): ResponsavelBatelada {
   return { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' };
+}
+
+function startedOperation(order: OrdemLiberadaBatelada, dataInicio: Date, horaInicio: string) {
+  return {
+    ordem: order.ordem,
+    op: order.operacao,
+    split: order.split,
+    item: order.itemOp,
+    descricao: 'Item de produção',
+    unidade: 'UN',
+    roteiro: `${order.operacao} - Operação`,
+    quantidadeOrdem: 100,
+    quantidadeSaldo: 100,
+    linha: 'Extrusão Linha 01',
+    dataInicio,
+    horaInicio,
+    horaFim: '',
+    quantidadeAprovada: 0,
+    quantidadeRetrabalho: 0,
+    quantidadeRefugo: 0,
+    ct: 'CT-EXT-01',
+    grupoMaquina: 'Extrusoras',
+    operador: 'OP-001',
+    equipe: '',
+    turno: '1',
+  };
 }
 
 function persistedBatchStart() {

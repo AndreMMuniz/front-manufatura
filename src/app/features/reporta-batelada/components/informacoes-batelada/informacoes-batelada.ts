@@ -34,6 +34,10 @@ export class InformacoesBatelada {
     return this.responsavel ? this.key(this.responsavel) : '';
   }
 
+  get exibirCriarEquipe(): boolean {
+    return this.responsavel?.tipo !== 'OPERADOR';
+  }
+
   changeResponsavel(value: string): void {
     if (!this.disabled) {
       const options = this.options;
@@ -44,6 +48,9 @@ export class InformacoesBatelada {
   }
 
   onGerenciarEquipe(): void {
+    if (!this.exibirCriarEquipe || this.disabled) {
+      return;
+    }
     this.gerenciarEquipe.emit(
       typeof document === 'undefined' ? null : document.activeElement as HTMLElement | null,
     );

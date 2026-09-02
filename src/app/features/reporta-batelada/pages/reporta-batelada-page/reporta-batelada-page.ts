@@ -135,6 +135,7 @@ export class ReportaBateladaPage implements OnInit {
     return [
       EstadoBatelada.BateladaIniciada,
       EstadoBatelada.Iniciando,
+      EstadoBatelada.ReconhecendoInicio,
       EstadoBatelada.ReportandoParcial,
       EstadoBatelada.EmParada,
       EstadoBatelada.Encerrando,
@@ -147,6 +148,11 @@ export class ReportaBateladaPage implements OnInit {
 
   get canEnd(): boolean {
     return this.workflow.canEnd();
+  }
+
+  get selectedOrdersAlreadyStarted(): boolean {
+    return this.view.composition.length > 0
+      && this.view.composition.every(order => order.indEstadoSplit === 4);
   }
 
   get contextLocked(): boolean {
@@ -360,12 +366,44 @@ export class ReportaBateladaPage implements OnInit {
     this.pendingStartCommand = null;
     this.workflow.prepareBatch();
     this.syncView();
+    this.adotarInicioExistente();
   }
 
   selecionarResponsavel(responsavel: ResponsavelBatelada | null): void {
     this.pendingStartCommand = null;
     this.workflow.setResponsavel(responsavel);
     this.syncView();
+    this.adotarInicioExistente();
+  }
+
+  private adotarInicioExistente(): void {
+    if (!this.workflow.beginExistingStartRecognition()) {
+      return;
+    }
+    const snapshot = this.workflow.snapshot();
+    const request = ++this.startRequest;
+    this.syncView();
+    this.service.adotarOrdensIniciadas(snapshot.composition)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: inicio => {
+          if (request !== this.startRequest || !this.sessionActive) return;
+          this.workflow.completeStart(inicio);
+          this.notification.information(
+            'As ordens selecionadas já estão iniciadas. Utilize Reporte.',
+          );
+          this.syncView();
+        },
+        error: error => {
+          if (request !== this.startRequest || !this.sessionActive) return;
+          const message = error instanceof Error
+            ? error.message
+            : 'Não foi possível confirmar o início das ordens selecionadas.';
+          this.workflow.failStart(message);
+          this.notification.error(message);
+          this.syncView();
+        },
+      });
   }
 
   abrirGerenciarEquipe(acionador?: HTMLElement | null): void {
@@ -779,6 +817,7 @@ export class ReportaBateladaPage implements OnInit {
         this.responsaveisRetry = null;
         this.workflow.setResponsaveis(responsaveis, this.preferredOperatorCode);
         this.syncView();
+        this.adotarInicioExistente();
       },
       error: () => {
         if (

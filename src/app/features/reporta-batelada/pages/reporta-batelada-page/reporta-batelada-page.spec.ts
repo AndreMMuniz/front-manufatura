@@ -43,6 +43,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     pesquisarCentros: ReturnType<typeof vi.fn>;
     listarOrdensLiberadas: ReturnType<typeof vi.fn>;
     listarResponsaveisElegiveis: ReturnType<typeof vi.fn>;
+    adotarOrdensIniciadas: ReturnType<typeof vi.fn>;
     montarComandoInicio: ReturnType<typeof vi.fn>;
     iniciarBatelada: ReturnType<typeof vi.fn>;
     listarReportesBatelada: ReturnType<typeof vi.fn>;
@@ -71,6 +72,11 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       pesquisarCentros: vi.fn(() => of([context().workCenter])),
       listarOrdensLiberadas: vi.fn(() => of(orders())),
       listarResponsaveisElegiveis: vi.fn(() => of([])),
+      adotarOrdensIniciadas: vi.fn(() => of({
+        batchId: 'existing-batch-1',
+        iniciadoEm: new Date(2026, 7, 29, 9, 35),
+        ordensIniciadas: ['1', '2'],
+      })),
       montarComandoInicio: vi.fn((contexto, responsavel, ordensSelecionadas) => ({
         contexto,
         responsavel,
@@ -242,6 +248,55 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.prepararBatelada();
 
     expect(component.view.composition.map(order => order.id)).toEqual(['2', '1']);
+  });
+
+  it('enables only Reporte when every selected order is already open', () => {
+    serviceMock.listarOrdensLiberadas.mockReturnValueOnce(of(
+      orders().map(order => ({ ...order, indEstadoSplit: 4 })),
+    ));
+    serviceMock.listarResponsaveisElegiveis.mockReturnValueOnce(of([
+      { tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' },
+    ]));
+    component.consultarOrdens();
+    component.atualizarSelecao(new Set(['1', '2']));
+
+    component.prepararBatelada();
+    fixture.detectChanges();
+
+    expect(component.canStart).toBe(false);
+    expect(component.canReport).toBe(true);
+    expect(component.view.estado).toBe('BateladaIniciada');
+
+    component.iniciarBatelada();
+    expect(serviceMock.iniciarBatelada).not.toHaveBeenCalled();
+  });
+
+  it('recognizes already open orders after the preferred responsible finishes loading', () => {
+    const responsaveis = new Subject<ReadonlyArray<{
+      tipo: 'OPERADOR';
+      codigo: string;
+      nome: string;
+    }>>();
+    serviceMock.listarOrdensLiberadas.mockReturnValueOnce(of(
+      orders().map(order => ({ ...order, indEstadoSplit: 4 })),
+    ));
+    serviceMock.listarResponsaveisElegiveis.mockReturnValueOnce(responsaveis);
+    component.consultarOrdens();
+    component.atualizarSelecao(new Set(['1', '2']));
+    component.prepararBatelada();
+
+    expect(component.canReport).toBe(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Selecione um operador elegível para habilitar Reporte.',
+    );
+
+    responsaveis.next([
+      { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
+    ]);
+
+    expect(component.canStart).toBe(false);
+    expect(component.canReport).toBe(true);
   });
 
   it('sends exactly one ordered command for every order in the composition', () => {

@@ -125,6 +125,40 @@ describe('ReportaBateladaWorkflowState', () => {
     expect(state.beginStart()).toBe(false);
   });
 
+  it('does not allow a second start when every selected split is already open', () => {
+    prepareContext();
+    state.setOrders([
+      { ...order('1'), indEstadoSplit: 4 } as unknown as OrdemLiberadaBatelada,
+      { ...order('2'), indEstadoSplit: 4 } as unknown as OrdemLiberadaBatelada,
+    ]);
+    state.selectOrder('1', true);
+    state.selectOrder('2', true);
+    state.prepareBatch();
+    state.setResponsaveis([responsavel()]);
+    state.setResponsavel(responsavel());
+
+    expect(state.canStart()).toBe(false);
+    expect(state.beginStart()).toBe(false);
+  });
+
+  it('blocks a mixed composition of open and not-started splits with an actionable message', () => {
+    prepareContext();
+    state.setOrders([
+      { ...order('1'), indEstadoSplit: 4 } as unknown as OrdemLiberadaBatelada,
+      { ...order('2'), indEstadoSplit: 3 } as unknown as OrdemLiberadaBatelada,
+    ]);
+    state.selectOrder('1', true);
+    state.selectOrder('2', true);
+
+    state.prepareBatch();
+
+    expect(state.canStart()).toBe(false);
+    expect(state.canReport()).toBe(false);
+    expect(state.snapshot().errorMessage).toBe(
+      'Selecione somente ordens que estejam todas iniciadas ou todas não iniciadas.',
+    );
+  });
+
   it('restores the last valid operational state and preserves data after start failure', () => {
     prepareBatch();
     state.setResponsaveis([responsavel()]);

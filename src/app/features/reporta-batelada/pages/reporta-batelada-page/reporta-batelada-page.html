@@ -70,9 +70,15 @@
       <p class="reporta-batelada__feedback" role="status" aria-live="polite">
         Iniciando todas as ordens da batelada...
       </p>
+    } @else if (view.estado === 'ReconhecendoInicio') {
+      <p class="reporta-batelada__feedback" role="status" aria-live="polite">
+        Verificando as ordens já iniciadas...
+      </p>
     } @else if (view.estado === 'BateladaIniciada') {
       <p class="reporta-batelada__feedback" role="status" aria-live="polite">
-        @if (view.inicio?.delivery?.status === 'SYNCED') {
+        @if (view.inicio?.origem === 'DATASUL') {
+          As ordens selecionadas já estão iniciadas. Utilize Reporte.
+        } @else if (view.inicio?.delivery?.status === 'SYNCED') {
           Comando de início enviado ao Datasul.
         } @else {
           Início salvo e aguardando envio ao Datasul.
@@ -88,7 +94,8 @@
       </p>
     } @else if (view.composition.length > 0 && !view.responsavel) {
       <p class="reporta-batelada__feedback" role="status">
-        Selecione um operador elegível para habilitar Iniciar.
+        Selecione um operador elegível para habilitar
+        {{ selectedOrdersAlreadyStarted ? 'Reporte' : 'Iniciar' }}.
       </p>
     }
 
