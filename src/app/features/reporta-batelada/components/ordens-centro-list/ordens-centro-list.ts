@@ -9,9 +9,11 @@ import {
   Renderer2,
   ViewChild,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 
 import {
   PoButtonModule,
+  PoFieldModule,
   PoTableColumn,
   PoTableModule,
   PoWidgetModule,
@@ -26,7 +28,14 @@ export interface OrdemBateladaTableItem extends OrdemLiberadaBatelada {
 
 @Component({
   selector: 'app-ordens-centro-batelada-list',
-  imports: [PoButtonModule, PoTableModule, PoWidgetModule, LoadingIndicator],
+  imports: [
+    FormsModule,
+    PoButtonModule,
+    PoFieldModule,
+    PoTableModule,
+    PoWidgetModule,
+    LoadingIndicator,
+  ],
   templateUrl: './ordens-centro-list.html',
   styleUrls: ['./ordens-centro-list.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,6 +51,9 @@ export class OrdensCentroBateladaList implements AfterViewChecked {
   @Output() selectionChange = new EventEmitter<ReadonlySet<string>>();
   @Output() prepare = new EventEmitter<void>();
 
+  private ordersSource: ReadonlyArray<OrdemLiberadaBatelada> = this.orders;
+
+  orderFilter = '';
   items: ReadonlyArray<OrdemBateladaTableItem> = [];
 
   readonly columns: ReadonlyArray<PoTableColumn> = [
@@ -65,6 +77,16 @@ export class OrdensCentroBateladaList implements AfterViewChecked {
   }
 
   ngOnChanges(): void {
+    if (this.orders !== this.ordersSource) {
+      this.ordersSource = this.orders;
+      this.orderFilter = '';
+    }
+
+    this.syncItems();
+  }
+
+  updateOrderFilter(value: string): void {
+    this.orderFilter = value;
     this.syncItems();
   }
 
@@ -85,14 +107,17 @@ export class OrdensCentroBateladaList implements AfterViewChecked {
 
   selectAll(): void {
     if (!this.disabled) {
-      this.setSelection(new Set(this.orders.map(order => order.id)));
+      this.setSelection(new Set([...this.selectedIds, ...this.items.map((order) => order.id)]));
     }
   }
 
   unselectAll(): void {
-    if (!this.disabled) {
-      this.setSelection(new Set<string>());
+    if (this.disabled) {
+      return;
     }
+
+    const visibleIds = new Set(this.items.map((order) => order.id));
+    this.setSelection(new Set([...this.selectedIds].filter((id) => !visibleIds.has(id))));
   }
 
   private setSelection(ids: ReadonlySet<string>): void {
@@ -102,7 +127,12 @@ export class OrdensCentroBateladaList implements AfterViewChecked {
   }
 
   private syncItems(): void {
-    this.items = this.orders.map(order => ({
+    const filter = this.orderFilter.trim();
+    const visibleOrders = filter
+      ? this.orders.filter((order) => order.ordem.includes(filter))
+      : this.orders;
+
+    this.items = visibleOrders.map((order) => ({
       ...order,
       $selected: this.selectedIds.has(order.id),
     }));

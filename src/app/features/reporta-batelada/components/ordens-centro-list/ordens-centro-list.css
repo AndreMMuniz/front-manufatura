@@ -1,3 +1,7 @@
+.ordens-centro-list__filter {
+  margin-bottom: var(--app-space-md);
+}
+
 .ordens-centro-list__table {
   font-variant-numeric: tabular-nums;
   max-width: 100%;

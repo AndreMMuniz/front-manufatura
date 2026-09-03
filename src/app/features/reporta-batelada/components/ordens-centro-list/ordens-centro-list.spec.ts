@@ -13,7 +13,9 @@ describe('OrdensCentroBateladaList', () => {
   ];
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [OrdensCentroBateladaList] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [OrdensCentroBateladaList],
+    }).compileComponents();
     fixture = TestBed.createComponent(OrdensCentroBateladaList);
     component = fixture.componentInstance;
     component.orders = orders;
@@ -24,19 +26,19 @@ describe('OrdensCentroBateladaList', () => {
 
   it('supports accessible multiple selection without mutating domain inputs', () => {
     const emissions: string[][] = [];
-    component.selectionChange.subscribe(ids => emissions.push([...ids]));
+    component.selectionChange.subscribe((ids) => emissions.push([...ids]));
 
     component.selectRow(component.items[1]);
     component.selectRow(component.items[0]);
 
     expect(emissions).toEqual([['second'], ['second', 'first']]);
     expect('$selected' in orders[0]).toBe(false);
-    expect(component.items.filter(item => item.$selected)).toHaveLength(2);
+    expect(component.items.filter((item) => item.$selected)).toHaveLength(2);
   });
 
   it('supports selection through the rendered checkbox DOM and keyboard focus', () => {
     const emissions: string[][] = [];
-    component.selectionChange.subscribe(ids => emissions.push([...ids]));
+    component.selectionChange.subscribe((ids) => emissions.push([...ids]));
     const checkboxes = fixture.debugElement.queryAll(By.css('[role="checkbox"]'));
 
     expect(checkboxes).toHaveLength(1);
@@ -59,6 +61,77 @@ describe('OrdensCentroBateladaList', () => {
 
     expect(component.prepareDisabled).toBe(false);
     expect(fixture.nativeElement.textContent).toContain('1 ordem(ns) selecionada(s)');
+  });
+
+  it('filters the already loaded orders by a partial order number', () => {
+    component.updateOrderFilter(' 50002 ');
+
+    expect(component.items.map((item) => item.ordem)).toEqual(['450002']);
+    expect(component.orders).toEqual(orders);
+  });
+
+  it('focuses the filter when the loaded list appears for keyboard scanner input', async () => {
+    await fixture.whenStable();
+
+    const filterInput = fixture.nativeElement.querySelector('po-input input');
+    expect(filterInput).toBeTruthy();
+    expect(document.activeElement).toBe(filterInput);
+  });
+
+  it('restores every loaded order when the order filter is cleared', () => {
+    component.updateOrderFilter('450001');
+    component.updateOrderFilter('');
+
+    expect(component.items.map((item) => item.ordem)).toEqual(['450001', '450002']);
+  });
+
+  it('clears the filter when a new orders result replaces the current list', () => {
+    component.updateOrderFilter('450001');
+
+    fixture.componentRef.setInput('orders', [
+      { id: 'third', ordem: '460003', itemOp: 'ITEM-3 / OP-3', operacao: '30', split: '01' },
+    ]);
+    fixture.detectChanges();
+
+    expect(component.orderFilter).toBe('');
+    expect(component.items.map((item) => item.ordem)).toEqual(['460003']);
+  });
+
+  it('preserves selected orders hidden by another filter', () => {
+    component.selectRow(component.items[0]);
+
+    component.updateOrderFilter('450002');
+
+    expect([...component.selectedIds]).toEqual(['first']);
+    expect(component.items.map((item) => item.ordem)).toEqual(['450002']);
+    expect(component.prepareDisabled).toBe(false);
+  });
+
+  it('selects and unselects all only within the filtered result', () => {
+    component.selectRow(component.items[0]);
+    component.updateOrderFilter('450002');
+
+    component.selectAll();
+    expect([...component.selectedIds]).toEqual(['first', 'second']);
+
+    component.unselectAll();
+    expect([...component.selectedIds]).toEqual(['first']);
+  });
+
+  it('distinguishes an empty source list from a filter without matches', () => {
+    component.updateOrderFilter('999999');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Nenhuma ordem encontrada para o filtro informado.',
+    );
+
+    fixture.componentRef.setInput('orders', []);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Nenhuma ordem liberada para este Centro de Trabalho.',
+    );
   });
 
   it('gives the rendered table an accessible name', () => {

@@ -3,23 +3,42 @@
     @if (loading) {
       <app-loading text="Carregando ordens..."></app-loading>
     } @else if (orders.length > 0) {
-      <div class="ordens-centro-list__table" aria-label="Ordens liberadas para seleção">
-        <po-table
-          #ordersTable
-          [p-columns]="columns"
-          [p-items]="items"
-          [p-height]="300"
-          [p-hide-columns-manager]="true"
-          [p-selectable]="!disabled"
-          [p-selectable-entire-line]="true"
-          [p-single-select]="false"
-          [p-striped]="true"
-          (p-selected)="selectRow($event)"
-          (p-unselected)="unselectRow($event)"
-          (p-all-selected)="selectAll()"
-          (p-all-unselected)="unselectAll()"
-        ></po-table>
+      <div class="ordens-centro-list__filter">
+        <po-input
+          name="orderFilter"
+          p-label="Filtrar por ordem"
+          p-placeholder="Digite ou escaneie o número da ordem"
+          p-clean="true"
+          [p-auto-focus]="true"
+          [p-disabled]="disabled"
+          [ngModel]="orderFilter"
+          (ngModelChange)="updateOrderFilter($event)"
+        ></po-input>
       </div>
+
+      @if (items.length > 0) {
+        <div class="ordens-centro-list__table" aria-label="Ordens liberadas para seleção">
+          <po-table
+            #ordersTable
+            [p-columns]="columns"
+            [p-items]="items"
+            [p-height]="300"
+            [p-hide-columns-manager]="true"
+            [p-selectable]="!disabled"
+            [p-selectable-entire-line]="true"
+            [p-single-select]="false"
+            [p-striped]="true"
+            (p-selected)="selectRow($event)"
+            (p-unselected)="unselectRow($event)"
+            (p-all-selected)="selectAll()"
+            (p-all-unselected)="unselectAll()"
+          ></po-table>
+        </div>
+      } @else {
+        <p class="ordens-centro-list__empty" role="status">
+          Nenhuma ordem encontrada para o filtro informado.
+        </p>
+      }
     } @else {
       <p class="ordens-centro-list__empty" role="status">
         Nenhuma ordem liberada para este Centro de Trabalho.
