@@ -984,13 +984,13 @@ export class ReportOperacaoPage implements OnInit {
     );
     const invalidReason = refugoItens.some(item =>
       !Number.isFinite(item.quantidade) || item.quantidade <= 0);
-    const requiresReason = quantidadeRefugo > 0;
+    const requiresReason = quantidadeRefugo > 0 || quantidadeRetrabalho > 0;
     const reasonValidation = invalidReason
-      ? 'Os motivos de refugo devem possuir quantidades válidas e maiores que zero.'
+      ? 'O motivo de Refugo/Retrabalho deve possuir uma quantidade válida e maior que zero.'
         : requiresReason && refugoItens.length !== 1
-        ? `Informe exatamente um motivo de refugo para a Ordem ${operation.ordem}.`
+        ? `Informe exatamente um motivo de Refugo/Retrabalho para a Ordem ${operation.ordem}.`
         : !requiresReason && refugoItens.length !== 0
-          ? `Remova o motivo da Ordem ${operation.ordem}, pois não há refugo.`
+          ? `Remova o motivo da Ordem ${operation.ordem}, pois não há refugo nem retrabalho.`
         : '';
 
     if (validation || reasonValidation) {
@@ -1029,6 +1029,18 @@ export class ReportOperacaoPage implements OnInit {
             || this.workflowState.snapshot().activeOrder?.id !== activeOrderId
           ) return;
           if (result.delivery.status === 'ERROR') {
+            const ownerId = this.authSession.currentUser?.id.trim();
+            if (ownerId) {
+              this.correctionContext.activate({
+                ownerId,
+                sourceLocalId: result.apontamentoId,
+                commandType: 'REPORT_OPERATION',
+                aggregateType: 'OPERATION',
+                aggregateId: this.operationAggregateId(operation),
+                payloadSchemaVersion: 1,
+                draft: {},
+              });
+            }
             this.estado = EstadoOperacao.OperacaoIniciada;
             this.operacao = operation;
             this.workflowState.setActiveOperation(operation, this.estado);

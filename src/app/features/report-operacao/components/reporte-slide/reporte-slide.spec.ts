@@ -11,7 +11,7 @@ const scrapReasonService = {
 };
 
 describe('ReporteSlide', () => {
-  it('mostra Motivo Refugo automaticamente e remove controles de quantidade do motivo', async () => {
+  it('mostra Motivo de Refugo/Retrabalho quando houver retrabalho', async () => {
     await TestBed.configureTestingModule({
       imports: [ReporteSlide],
       providers: [
@@ -23,11 +23,13 @@ describe('ReporteSlide', () => {
 
     fixture.detectChanges();
     fixture.componentInstance.abrir([]);
-    fixture.componentInstance.atualizarQuantidade('quantidadeRefugo', 2);
+    fixture.componentInstance.atualizarQuantidade('quantidadeRetrabalho', 2);
     fixture.detectChanges();
 
     expect(scrapReasonService.buscarMotivos).toHaveBeenCalledWith('');
-    expect(fixture.nativeElement.querySelector('po-select[name="reporteMotivoRefugo"]')).not.toBeNull();
+    const motivo = fixture.nativeElement.querySelector('po-select[name="reporteMotivoRefugo"]');
+    expect(motivo).not.toBeNull();
+    expect(motivo.textContent).toContain('Motivo de Refugo/Retrabalho');
     expect(fixture.nativeElement.querySelectorAll('po-number')).toHaveLength(3);
     expect(fixture.nativeElement.querySelectorAll('.reporte-slide__footer po-button')).toHaveLength(2);
   });
@@ -41,25 +43,32 @@ describe('ReporteSlide', () => {
     expect(component.totalInformado).toBe(110);
   });
 
-  it('permite retrabalho sem motivo e exige motivo quando há refugo', () => {
+  it('exige o mesmo motivo quando há retrabalho ou refugo', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     component.atualizarQuantidade('quantidadeRetrabalho', 1);
+    expect(component.canSave).toBe(false);
+
+    component.atualizarMotivo('05');
     expect(component.canSave).toBe(true);
 
     component.atualizarQuantidade('quantidadeRefugo', 1);
-    expect(component.canSave).toBe(false);
+    expect(component.canSave).toBe(true);
   });
 
-  it('limpa o motivo ao voltar a quantidade de refugo para zero', () => {
+  it('mantém o motivo enquanto houver retrabalho e limpa quando ambos voltam a zero', () => {
     const component = new ReporteSlide(
       { markForCheck: vi.fn() } as never,
       { confirm: vi.fn() } as never,
       scrapReasonService as never,
     );
     component.atualizarQuantidade('quantidadeRefugo', 2);
+    component.atualizarQuantidade('quantidadeRetrabalho', 1);
     component.atualizarMotivo('05');
 
     component.atualizarQuantidade('quantidadeRefugo', 0);
+    expect(component.motivoCodigo).toBe('05');
+
+    component.atualizarQuantidade('quantidadeRetrabalho', 0);
 
     expect(component.motivoCodigo).toBe('');
   });
@@ -244,8 +253,31 @@ describe('ReporteSlide', () => {
 
     expect(emitted).not.toHaveBeenCalled();
     expect(component.validationMessage).toBe(
-      'Informe um motivo de refugo da Ordem 450001.',
+      'Informe um motivo de Refugo/Retrabalho da Ordem 450001.',
     );
+  });
+
+  it('exige motivo quando há somente retrabalho e envia a quantidade afetada', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
+    const emitted = vi.spyOn(component.reporteSolicitado, 'emit');
+    component.ordem = '450001';
+    component.atualizarQuantidade('quantidadeRetrabalho', 2);
+
+    component.salvar();
+
+    expect(emitted).not.toHaveBeenCalled();
+    expect(component.validationMessage).toBe(
+      'Informe um motivo de Refugo/Retrabalho da Ordem 450001.',
+    );
+
+    component.atualizarMotivo('05');
+    component.salvar();
+
+    expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
+      quantidadeRetrabalho: 2,
+      quantidadeRefugo: 0,
+      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
+    }));
   });
 
   it('deriva a quantidade do motivo da própria quantidade de refugo', () => {
@@ -273,7 +305,7 @@ describe('ReporteSlide', () => {
     component.atualizarQuantidade('quantidadeRefugo', 1);
 
     expect(component.quantidadeAprovada).toBe(1);
-    expect(component.validationMessage).toBe('Não foi possível carregar os motivos de refugo.');
+    expect(component.validationMessage).toBe('Não foi possível carregar os motivos de Refugo/Retrabalho.');
   });
 
   it('emits the same three-decimal values used by reason validation', () => {

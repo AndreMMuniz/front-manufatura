@@ -264,7 +264,7 @@ describe('gateway FMA', () => {
     });
   });
 
-  it('envia retrabalho sem exigir codMotivoRefugo', async () => {
+  it('envia retrabalho com o motivo compartilhado de refugo e retrabalho', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
     const root = await startGateway(transport);
     const result = await fetch(`${root}/api/operations/report`, {
@@ -276,7 +276,8 @@ describe('gateway FMA', () => {
       },
       body: JSON.stringify({
         ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
-        quantidadeAprovada: 10, quantidadeRetrabalho: 1, quantidadeRefugo: 0, refugoItens: [],
+        quantidadeAprovada: 10, quantidadeRetrabalho: 1, quantidadeRefugo: 0,
+        refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1 }],
         dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
         dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
         tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
@@ -287,10 +288,44 @@ describe('gateway FMA', () => {
     const command = JSON.parse(String(transport.mock.calls[0][1]?.body));
     expect(command).toEqual(expect.objectContaining({
       nrOrdemProducao: 372572, opCodigo: 10, numSplitOperac: 1,
-      qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 0, codMotivoRefugo: '',
+      qtdAprovada: 10, qtdRetrabalho: 1, qtdRefugada: 0, codMotivoRefugo: '05',
     }));
     expect(command).not.toHaveProperty('splits');
     expect(command).not.toHaveProperty('quantidadeMotivo');
+  });
+
+  it('traduz a rejeição técnica de motivo de refugo ou retrabalho', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      code: '5',
+      detailedMessage: 'codMotivoRefugo e obrigatorio quando qtdRefugada > 0 OU qtdRetrabalho > 0 (motiv-refugo tambem justifica retrabalho - log-retrabalho)',
+    }), {
+      status: 422,
+      headers: { 'content-type': 'application/json' },
+    }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/operations/report`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'report-reason-technical-error',
+      },
+      body: JSON.stringify({
+        ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+        quantidadeAprovada: 10, quantidadeRetrabalho: 1, quantidadeRefugo: 0,
+        refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1 }],
+        dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+        dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25',
+        tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
+      }),
+    });
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_REPORT_REASON_REQUIRED',
+      category: 'VALIDATION',
+      userMessage: 'Informe o motivo de Refugo/Retrabalho quando houver quantidade de refugo ou retrabalho.',
+    });
   });
 
   it('rejeita refugo sem exatamente um motivo', async () => {

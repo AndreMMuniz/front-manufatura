@@ -29,10 +29,10 @@
       ></po-number>
     </div>
 
-    @if (quantidadeRefugo > 0) {
+    @if (motivoObrigatorio) {
       <po-select
         name="reporteMotivoRefugo"
-        p-label="Motivo Refugo"
+        p-label="Motivo de Refugo/Retrabalho"
         [p-options]="motivoOptions"
         [p-disabled]="salvando || carregandoMotivos"
         [ngModel]="motivoCodigo"

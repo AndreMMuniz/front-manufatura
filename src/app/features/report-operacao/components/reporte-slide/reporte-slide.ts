@@ -94,6 +94,11 @@ export class ReporteSlide implements OnDestroy {
     return !this.salvando && this.validationError() === '';
   }
 
+  get motivoObrigatorio(): boolean {
+    return this.round3(this.quantidadeRetrabalho) > 0
+      || this.round3(this.quantidadeRefugo) > 0;
+  }
+
   get hasDraft(): boolean {
     return [this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
       .some(quantidade => quantidade !== 0)
@@ -110,17 +115,14 @@ export class ReporteSlide implements OnDestroy {
   ): void {
     const quantidade = typeof valor === 'number' ? valor : 0;
     if (Object.is(this[campo], quantidade)) {
-      if (campo === 'quantidadeRefugo' && this.round3(quantidade) <= 0) {
-        this.motivoCodigo = '';
-      }
       return;
     }
 
     this[campo] = quantidade;
     this.idempotencyKey = '';
     this.validationMessage = '';
-    if (campo === 'quantidadeRefugo') {
-      if (this.round3(quantidade) > 0) {
+    if (campo === 'quantidadeRetrabalho' || campo === 'quantidadeRefugo') {
+      if (this.motivoObrigatorio) {
         this.carregarMotivos();
       } else {
         this.motivoCodigo = '';
@@ -172,7 +174,7 @@ export class ReporteSlide implements OnDestroy {
       ? [{
           codigo: motivo.value,
           descricao: motivo.descricao,
-          quantidade: this.round3(this.quantidadeRefugo),
+          quantidade: this.round3(this.quantidadeRetrabalho + this.quantidadeRefugo),
         }]
       : [];
     this.reporteSolicitado.emit({
@@ -288,8 +290,8 @@ export class ReporteSlide implements OnDestroy {
       .some(quantidade => this.round3(quantidade) > 0)) {
       return 'Informe ao menos uma quantidade produzida.';
     }
-    if (this.round3(this.quantidadeRefugo) > 0 && !this.motivoCodigo.trim()) {
-      return `Informe um motivo de refugo${this.ordemLabel}.`;
+    if (this.motivoObrigatorio && !this.motivoCodigo.trim()) {
+      return `Informe um motivo de Refugo/Retrabalho${this.ordemLabel}.`;
     }
     return '';
   }
@@ -312,7 +314,7 @@ export class ReporteSlide implements OnDestroy {
       error: () => {
         if (request !== this.motivosRequest) return;
         this.carregandoMotivos = false;
-        this.validationMessage = 'Não foi possível carregar os motivos de refugo.';
+        this.validationMessage = 'Não foi possível carregar os motivos de Refugo/Retrabalho.';
         this.changeDetector.markForCheck();
       },
     });

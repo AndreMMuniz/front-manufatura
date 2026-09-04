@@ -591,7 +591,7 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 2,
       quantidadeRetrabalho: 1,
       quantidadeRefugo: 0,
-      refugoItens: [],
+      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1 }],
     });
 
     expect(service.reportarOperacao).toHaveBeenCalledTimes(2);
@@ -664,7 +664,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it.each(['SYNCED', 'PENDING'] as const)(
-    'substitui semanticamente o ERROR pela correção %s e permite encerrar',
+    'permite corrigir imediatamente o ERROR com um novo reporte %s e encerrar',
     (deliveryStatus) => {
       const ending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
       service.reportarOperacao
@@ -683,15 +683,12 @@ describe('ReportOperacaoPage', () => {
         }));
       service.encerrarOperacao.mockReturnValue(ending);
       submitReport({ quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
-      expect(correctionContext.activate({
-        ownerId: '1',
-        sourceLocalId: 'APT-ERROR',
-        commandType: 'REPORT_OPERATION',
-        aggregateType: 'OPERATION',
-        aggregateId: '450001|OP-10458|01',
-        payloadSchemaVersion: 1,
-        draft: {},
-      })).toBe(true);
+      expect(correctionContext.matching('1', 'REPORT_OPERATION')).toEqual(
+        expect.objectContaining({
+          sourceLocalId: 'APT-ERROR',
+          aggregateId: '450001|OP-10458|01',
+        }),
+      );
 
       component.salvarReporte({
         quantidadeAprovada: 4,
@@ -720,7 +717,7 @@ describe('ReportOperacaoPage', () => {
     },
   );
 
-  it('accepts rework without a scrap reason', () => {
+  it('accepts rework with the shared scrap and rework reason', () => {
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -732,13 +729,13 @@ describe('ReportOperacaoPage', () => {
       quantidadeAprovada: 0,
       quantidadeRetrabalho: 1,
       quantidadeRefugo: 0,
-      refugoItens: [],
+      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1 }],
     });
 
     expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRetrabalho: 1,
       quantidadeRefugo: 0,
-      refugoItens: [],
+      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1 }],
     }));
     expect(component.reportes).toHaveLength(1);
   });
@@ -1202,7 +1199,28 @@ describe('ReportOperacaoPage', () => {
 
     expect(service.reportarOperacao).not.toHaveBeenCalled();
     expect(component.feedback).toBe(
-      'Informe exatamente um motivo de refugo para a Ordem 450001.',
+      'Informe exatamente um motivo de Refugo/Retrabalho para a Ordem 450001.',
+    );
+  });
+
+  it('não envia retrabalho sem o motivo compartilhado de Refugo/Retrabalho', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.estado = EstadoOperacao.OperacaoIniciada;
+    component.operacao = baseOperacao({ dataInicio: new Date(), horaInicio: '08:00' });
+
+    component.salvarReporte({
+      quantidadeAprovada: 0,
+      quantidadeRetrabalho: 2,
+      quantidadeRefugo: 0,
+      refugoItens: [],
+    });
+
+    expect(service.reportarOperacao).not.toHaveBeenCalled();
+    expect(component.feedback).toBe(
+      'Informe exatamente um motivo de Refugo/Retrabalho para a Ordem 450001.',
     );
   });
 
