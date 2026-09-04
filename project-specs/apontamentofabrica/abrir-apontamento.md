@@ -55,6 +55,9 @@ Cada registro de `dadosApontamento` contém:
 | `desGrupoMaquina` | string | Descrição do grupo de máquina. |
 | `desModelTurno` | string | Descrição do modelo de turno. |
 | `numSplitOperac` | integer | Número do split da operação. |
+| `codOperadorAlocado` | string | Código do operador já vinculado ao split iniciado. |
+| `codEquipeAlocado` | string | Código alocado retornado pela abertura; no modo operador pode conter o responsável quando `codOperadorAlocado` vier vazio. |
+| `indSplitJaIniciado` | boolean | Indica que o split já foi iniciado e deve ser aberto diretamente para reporte. |
 | `indReporteMod` | integer | Indicador de reporte de mão de obra. |
 | `qtdRefugo` | number | Quantidade refugada. |
 | `qtdSaldo` | number | Quantidade restante para apontamento. |
@@ -75,4 +78,5 @@ Cada registro de `dadosApontamento` contém:
 - O parâmetro `pageSize` foi exibido pela interface com o valor `40`, mas estava desmarcado e não fez parte da URL executada.
 - Os significados funcionais de `indReporteMod` e dos demais códigos precisam ser confirmados com a regra de negócio.
 - Os textos retornados foram preservados literalmente, incluindo a descrição de turno `SEG ~ SÁB 2T - SABÁDO SIM`.
+- Quando `indSplitJaIniciado` for `true`, o responsável alocado deve ser preservado e a interface não deve solicitar uma nova seleção antes do reporte.
 - A resposta fornecida contém `total: 1` e `hasNext: false`; o único item agrupa um registro em `dadosApontamento`.

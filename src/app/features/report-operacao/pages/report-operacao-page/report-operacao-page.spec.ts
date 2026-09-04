@@ -418,6 +418,32 @@ describe('ReportOperacaoPage', () => {
     expect(component.feedback).toContain('Informe as quantidades para reportar.');
   });
 
+  it('preserva o operador alocado mesmo quando o catálogo de responsáveis falha', () => {
+    vi.mocked(service.listarResponsaveis)
+      .mockReturnValue(throwError(() => new Error('catálogo indisponível')));
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 2,
+        dataInicio: new Date(2026, 8, 4),
+        horaInicio: '08:00',
+        operador: '00016570',
+        equipe: '',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'OPERADOR', codigo: '00016570', nome: '00016570',
+    });
+    expect(component.responsavelDisabled).toBe(true);
+    expect(component.feedback).toContain('Informe as quantidades para reportar.');
+  });
+
   it('reporta uma ordem já iniciada após selecionar o operador ausente', () => {
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
       sucesso: true,

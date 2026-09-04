@@ -1435,6 +1435,10 @@ export class ReportOperacaoPage implements OnInit {
       this.responsavelCodigo = '';
       this.workflowState.setResponsavel(null);
     }
+    if (this.operacao?.dataInicio && !this.responsavelCodigo) {
+      this.selectInitialResponsavel(this.operacao, tipoApi);
+      this.responsavelPendenteEmOrdemIniciada = !this.responsavelSelecionado;
+    }
     const request = ++this.responsaveisRequest;
     const areaCode = this.normalizeCode(this.areaCode);
     const workCenterCode = this.normalizeCode(this.workCenterCode);
@@ -1463,7 +1467,7 @@ export class ReportOperacaoPage implements OnInit {
             && !this.responsaveis.some(item =>
               item.tipo === frozenResponsavel.tipo && item.codigo === frozenResponsavel.codigo)
           ) {
-            this.responsaveis = [{ ...frozenResponsavel }, ...this.responsaveis];
+            this.responsaveis = [...this.responsaveis, { ...frozenResponsavel }];
           }
           if (
             this.tipoResponsavel === 'EQUIPE'
@@ -1485,8 +1489,10 @@ export class ReportOperacaoPage implements OnInit {
           }
           if (
             this.operacao
-            && !this.responsavelCodigo
-            && (!tipoApi || Boolean(this.operacao.dataInicio))
+            && (
+              Boolean(this.operacao.dataInicio)
+              || (!this.responsavelCodigo && !tipoApi)
+            )
           ) {
             this.selectInitialResponsavel(this.operacao, tipoApi);
           }
@@ -1511,7 +1517,7 @@ export class ReportOperacaoPage implements OnInit {
             && !this.responsaveis.some(item =>
               item.tipo === frozenResponsavel.tipo && item.codigo === frozenResponsavel.codigo)
           ) {
-            this.responsaveis = [{ ...frozenResponsavel }, ...this.responsaveis];
+            this.responsaveis = [...this.responsaveis, { ...frozenResponsavel }];
           }
           if (this.tipoResponsavel === 'EQUIPE' || frozenResponsavel?.tipo === 'EQUIPE') {
             this.responsaveisError = frozenResponsavel
@@ -1541,8 +1547,7 @@ export class ReportOperacaoPage implements OnInit {
     const operadorApi = operacao.dataInicio ? operacao.operador.trim() : '';
     const equipeApi = operacao.dataInicio ? operacao.equipe.trim() : '';
     const responsavel =
-      snapshotElegivel
-      ?? responsaveis.find(item =>
+      responsaveis.find(item =>
         item.tipo === 'OPERADOR'
         && operadorApi
         && (
@@ -1564,6 +1569,7 @@ export class ReportOperacaoPage implements OnInit {
       ?? (equipeApi && (!tipoObrigatorio || tipoObrigatorio === 'EQUIPE')
         ? { tipo: 'EQUIPE' as const, codigo: this.normalizeCode(equipeApi), nome: equipeApi }
         : null)
+      ?? snapshotElegivel
       ?? responsaveis.find(item =>
         item.tipo === 'OPERADOR'
         && (item.codigo === contextoOperador?.code || item.nome === contextoOperador?.name),

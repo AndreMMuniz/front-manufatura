@@ -5,6 +5,7 @@
     {
       "dadosApontamento": [
         {
+          "codEquipeAlocado": "00016570",
           "desOperacao": "CORTAR / REMACHAR ALAVANCA",
           "qtdOrdem": 1000.0,
           "qtdAprovada": 0.0,
@@ -13,6 +14,8 @@
           "desGrupoMaquina": "PRENSA 45T",
           "desModelTurno": "SEG ~ SÁB 2T - SABÁDO SIM",
           "numSplitOperac": 1,
+          "codOperadorAlocado": "",
+          "indSplitJaIniciado": true,
           "indReporteMod": 2,
           "qtdRefugo": 0.0,
           "qtdSaldo": 1000.0,
