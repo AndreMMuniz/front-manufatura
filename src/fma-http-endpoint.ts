@@ -573,7 +573,7 @@ function reportSplit(item: JsonObject, batch: boolean): JsonObject {
   const rework = nonNegativeFinite(item['quantidadeRetrabalho']);
   const scrap = nonNegativeFinite(item['quantidadeRefugo']);
   const reasons = objectArray(item['refugoItens']);
-  const requiresReason = scrap > 0;
+  const requiresReason = scrap > 0 || (!batch && rework > 0);
   if ((requiresReason && reasons.length !== 1) || (!requiresReason && reasons.length !== 0)) {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
@@ -1136,6 +1136,20 @@ function commandBusinessError(
   if (knownError) return knownError;
   const reason = datasulMessages(value).at(-1);
   if (reason) {
+    const normalizedReason = normalizedBusinessMessage(reason);
+    if (
+      route === '/api/fma/v1/reporteordem'
+      && normalizedReason.includes('codmotivorefugo')
+      && normalizedReason.includes('obrigatorio')
+      && normalizedReason.includes('qtdretrabalho')
+    ) {
+      return new FmaPublicCommandError(
+        422,
+        'DATASUL_REPORT_REASON_REQUIRED',
+        'VALIDATION',
+        'Informe o motivo de Refugo/Retrabalho quando houver quantidade de refugo ou retrabalho.',
+      );
+    }
     return new FmaPublicCommandError(
       status,
       'DATASUL_COMMAND_REJECTED',
