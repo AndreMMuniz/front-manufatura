@@ -638,7 +638,7 @@ describe('ReportOperacaoPage', () => {
     expect(component.reportes).toHaveLength(1);
   });
 
-  it('não incorpora reporte rejeitado nem direciona o operador para a fila', () => {
+  it('não abre contexto técnico após rejeição funcional', () => {
     service.reportarOperacao.mockReturnValue(of({
       apontamentoId: 'APT-1',
       reportadoEm: new Date(),
@@ -661,10 +661,11 @@ describe('ReportOperacaoPage', () => {
     expect(notification.error).toHaveBeenCalledWith(persistedError.userMessage);
     expect(component.reportes).toHaveLength(0);
     expect(component.reporteDisabled).toBe(false);
+    expect(correctionContext.matching('1', 'REPORT_OPERATION')).toBeNull();
   });
 
   it.each(['SYNCED', 'PENDING'] as const)(
-    'permite corrigir imediatamente o ERROR com um novo reporte %s e encerrar',
+    'envia a entrada corrigida como novo reporte %s e encerra',
     (deliveryStatus) => {
       const ending = new Subject<{ apontamentoId: string; reportadoEm: Date }>();
       service.reportarOperacao
@@ -675,7 +676,6 @@ describe('ReportOperacaoPage', () => {
         }))
         .mockReturnValueOnce(of({
           apontamentoId: 'APT-CORRECTION',
-          supersedesLocalId: 'APT-ERROR',
           reportadoEm: new Date('2026-08-28T10:05:00.000Z'),
           delivery: deliveryStatus === 'SYNCED'
             ? { status: 'SYNCED', receipt }
@@ -683,12 +683,7 @@ describe('ReportOperacaoPage', () => {
         }));
       service.encerrarOperacao.mockReturnValue(ending);
       submitReport({ quantidadeAprovada: 10, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
-      expect(correctionContext.matching('1', 'REPORT_OPERATION')).toEqual(
-        expect.objectContaining({
-          sourceLocalId: 'APT-ERROR',
-          aggregateId: '450001|OP-10458|01',
-        }),
-      );
+      expect(correctionContext.matching('1', 'REPORT_OPERATION')).toBeNull();
 
       component.salvarReporte({
         quantidadeAprovada: 4,
@@ -701,7 +696,6 @@ describe('ReportOperacaoPage', () => {
       expect(component.reportes).toEqual([
         expect.objectContaining({
           id: 'APT-CORRECTION',
-          supersedesLocalId: 'APT-ERROR',
           quantidadeAprovada: 4,
           deliveryStatus,
         }),

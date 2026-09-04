@@ -1029,18 +1029,6 @@ export class ReportOperacaoPage implements OnInit {
             || this.workflowState.snapshot().activeOrder?.id !== activeOrderId
           ) return;
           if (result.delivery.status === 'ERROR') {
-            const ownerId = this.authSession.currentUser?.id.trim();
-            if (ownerId) {
-              this.correctionContext.activate({
-                ownerId,
-                sourceLocalId: result.apontamentoId,
-                commandType: 'REPORT_OPERATION',
-                aggregateType: 'OPERATION',
-                aggregateId: this.operationAggregateId(operation),
-                payloadSchemaVersion: 1,
-                draft: {},
-              });
-            }
             this.estado = EstadoOperacao.OperacaoIniciada;
             this.operacao = operation;
             this.workflowState.setActiveOperation(operation, this.estado);
