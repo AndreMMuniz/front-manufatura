@@ -76,33 +76,6 @@
             </div>
           </div>
         }
-      } @else {
-        <div class="gerenciar-equipe__fields">
-          <po-input
-            name="codigoEquipe"
-            p-label="Código"
-            p-required
-            [ngModel]="codigo()"
-            [p-disabled]="state() === 'saving'"
-            (ngModelChange)="onCodigoChange($event)"
-          ></po-input>
-          <po-input
-            name="descricaoEquipe"
-            p-label="Descrição"
-            p-required
-            [ngModel]="descricao()"
-            [p-disabled]="state() === 'saving'"
-            (ngModelChange)="onDescricaoChange($event)"
-          ></po-input>
-          <po-input
-            name="turnoEquipe"
-            p-label="Turno"
-            p-required
-            [ngModel]="turno()"
-            [p-disabled]="state() === 'saving'"
-            (ngModelChange)="onTurnoChange($event)"
-          ></po-input>
-        </div>
       }
 
       <div class="gerenciar-equipe__operators">

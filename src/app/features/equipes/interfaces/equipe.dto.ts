@@ -14,9 +14,6 @@ export interface SalvarEquipeRequestDTO {
 }
 
 export interface CriarEquipeRequest extends EquipeContexto {
-  readonly codigo: string;
-  readonly descricao: string;
-  readonly turno: string;
   readonly operadores: ReadonlyArray<string>;
 }
 

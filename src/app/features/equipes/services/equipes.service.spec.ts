@@ -30,16 +30,15 @@ describe('EquipesService', () => {
     const service = new EquipesService({ post, put } as unknown as AuthenticatedApiService);
 
     await firstValueFrom(service.criarEquipe({
-      areaCode: '4001', workCenterCode: 'ct-01', codigo: ' mont03 ',
-      descricao: ' Montagem ', turno: ' T1 ', operadores: ['001', '001'],
+      areaCode: '4001', workCenterCode: 'ct-01', operadores: ['001', '001'],
     }));
     await firstValueFrom(service.atualizarEquipe({
       areaCode: '4001', workCenterCode: 'ct-01', codigo: 'mont03', operadores: ['001'],
     }));
 
-    expect(post).toHaveBeenCalledWith('/api/teams', expect.objectContaining({
-      codigo: 'MONT03', workCenterCode: 'CT-01', operadores: ['001'],
-    }));
+    expect(post).toHaveBeenCalledWith('/api/teams', {
+      areaCode: '4001', workCenterCode: 'CT-01', operadores: ['001'],
+    });
     expect(put).toHaveBeenCalledWith('/api/teams/MONT03', expect.objectContaining({
       workCenterCode: 'CT-01', operadores: ['001'],
     }));

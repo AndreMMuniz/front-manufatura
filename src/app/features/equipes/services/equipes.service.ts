@@ -58,12 +58,8 @@ export class EquipesService {
 
   criarEquipe(request: CriarEquipeRequest): Observable<Equipe> {
     return this.api.post<EquipeResponseDTO>('/api/teams', {
-      ...request,
       areaCode: this.normalizeCode(request.areaCode),
       workCenterCode: this.normalizeCode(request.workCenterCode),
-      codigo: this.normalizeCode(request.codigo),
-      descricao: request.descricao.trim(),
-      turno: request.turno.trim(),
       operadores: this.uniqueCodes(request.operadores),
     }).pipe(map(response => this.mapEquipeResponse(response)));
   }

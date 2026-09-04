@@ -58,15 +58,15 @@ describe('GerenciarEquipeSlide', () => {
   it('confirma antes de trocar modo, equipe ou contexto com alterações não salvas', () => {
     const { component, dialog } = createComponent();
     component.abrir(contexto());
-    component.onCodigoChange('RASCUNHO');
+    component.onSelecionarOperador({ codigo: '003', nome: 'Operador 3' }, true);
 
     component.onModoChange('existente');
     expect(component.modo()).toBe('nova');
-    expect(component.codigo()).toBe('RASCUNHO');
+    expect(component.codigosSelecionados()).toEqual(new Set(['003']));
     const confirmMode = dialog.confirm.mock.calls[0][0].confirm as () => void;
     confirmMode();
     expect(component.modo()).toBe('existente');
-    expect(component.codigo()).toBe('');
+    expect(component.codigosSelecionados()).toEqual(new Set());
 
     component.onSelecionarEquipe('MONT03');
     component.onSelecionarOperador({ codigo: '001', nome: 'Operador 1' }, false);
@@ -77,7 +77,7 @@ describe('GerenciarEquipeSlide', () => {
     expect(component.equipeSelecionadaCodigo()).toBe('');
 
     component.onModoChange('nova');
-    component.onCodigoChange('OUTRO-RASCUNHO');
+    component.onSelecionarOperador({ codigo: '003', nome: 'Operador 3' }, true);
     component.abrir({ areaCode: '4002', workCenterCode: 'CT-CQ-01' });
     expect(component.contexto()).toEqual(contexto());
     const confirmContext = dialog.confirm.mock.calls[2][0].confirm as () => void;
@@ -154,7 +154,7 @@ describe('GerenciarEquipeSlide', () => {
     ]);
   });
 
-  it('valida os campos de criação e anuncia feedback acessível', () => {
+  it('no modo Nova equipe solicita somente operadores e anuncia a validação acessível', () => {
     const { component, service, fixture } = createComponent();
     const realPageSlide = fixture.debugElement.query(By.directive(PoPageSlideComponent))
       .componentInstance as PoPageSlideComponent;
@@ -165,16 +165,19 @@ describe('GerenciarEquipeSlide', () => {
     fixture.detectChanges();
 
     expect(service.criarEquipe).not.toHaveBeenCalled();
-    expect(component.feedback()).toBe('Informe o código da equipe.');
+    expect(component.feedback()).toBe('Selecione ao menos um operador.');
     const feedback = fixture.nativeElement.querySelector('.gerenciar-equipe__feedback');
     expect(feedback).not.toBeNull();
-    expect(feedback.textContent).toContain('Informe o código da equipe.');
+    expect(feedback.textContent).toContain('Selecione ao menos um operador.');
     expect(feedback.getAttribute('aria-live')).toBe('assertive');
     expect(feedback.getAttribute('aria-atomic')).toBe('true');
     expect(feedback.getAttribute('role')).toBe('alert');
     expect(
       fixture.nativeElement.querySelector('[role="group"][aria-label="Modo de gerenciamento"]'),
     ).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[name="codigoEquipe"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[name="descricaoEquipe"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[name="turnoEquipe"]')).toBeNull();
     const operadoresTable = fixture.debugElement.query(By.css('po-table'))
       .componentInstance as PoTableComponent;
     expect(operadoresTable.items[0]).toEqual({
@@ -197,9 +200,6 @@ describe('GerenciarEquipeSlide', () => {
     expect(service.criarEquipe).toHaveBeenCalledWith({
       areaCode: '4001',
       workCenterCode: 'CT-EXT-01',
-      codigo: 'NOVA01',
-      descricao: 'Equipe Nova',
-      turno: 'Turno 1',
       operadores: ['003'],
     });
     expect(emitted).toHaveBeenCalledOnce();
@@ -318,7 +318,6 @@ describe('GerenciarEquipeSlide', () => {
 
     expect(component.state()).toBe('error');
     expect(component.errorKind()).toBe('save');
-    expect(component.codigo()).toBe('NOVA01');
     expect(component.termoPesquisa()).toBe('003');
     expect(component.codigosSelecionados()).toEqual(new Set(['003']));
 
@@ -379,7 +378,7 @@ describe('GerenciarEquipeSlide', () => {
     expect(cancelled).toHaveBeenCalledOnce();
 
     component.abrir(contexto());
-    component.onCodigoChange('NOVA01');
+    component.onSelecionarOperador({ codigo: '003', nome: 'Operador 3' }, true);
     expect(component.possuiAlteracoes()).toBe(true);
     component.onVoltar();
     expect(dialog.confirm).toHaveBeenCalledWith(
@@ -394,7 +393,7 @@ describe('GerenciarEquipeSlide', () => {
   it('reabre e confirma descarte quando ESC ou botão nativo tenta fechar um draft', () => {
     const { component, dialog, pageSlide } = createComponent();
     component.abrir(contexto());
-    component.onCodigoChange('NOVA01');
+    component.onSelecionarOperador({ codigo: '003', nome: 'Operador 3' }, true);
     expect(component.possuiAlteracoes()).toBe(true);
     pageSlide.open.mockClear();
 
@@ -410,7 +409,7 @@ describe('GerenciarEquipeSlide', () => {
       .componentInstance as PoPageSlideComponent;
     (component as unknown as { pageSlide: PoPageSlideComponent }).pageSlide = realPageSlide;
     component.abrir(contexto());
-    component.onCodigoChange('NOVA01');
+    component.onSelecionarOperador({ codigo: '003', nome: 'Operador 3' }, true);
     fixture.detectChanges();
 
     const slide = fixture.nativeElement.querySelector('.po-page-slide');
@@ -424,14 +423,15 @@ describe('GerenciarEquipeSlide', () => {
   it('mantém uma única confirmação e ignora callback obsoleto após nova abertura', () => {
     const { component, dialog } = createComponent();
     component.abrir(contexto());
-    component.onCodigoChange('NOVA01');
+    const operador = { codigo: '003', nome: 'Operador 3' };
+    component.onSelecionarOperador(operador, true);
 
     component.onVoltar();
     component.onVoltar();
     expect(dialog.confirm).toHaveBeenCalledOnce();
 
     const firstConfirm = dialog.confirm.mock.calls[0][0].confirm as () => void;
-    component.onCodigoChange('');
+    component.onSelecionarOperador(operador, false);
     component.onVoltar();
     component.abrir({ areaCode: '4002', workCenterCode: 'CT-CQ-01' });
     firstConfirm();
@@ -577,9 +577,6 @@ function equipe(codigo: string, codigos: ReadonlyArray<string>): Equipe {
 }
 
 function preencherCriacao(component: GerenciarEquipeSlide): void {
-  component.onCodigoChange('NOVA01');
-  component.onDescricaoChange('Equipe Nova');
-  component.onTurnoChange('Turno 1');
   component.onSelecionarOperador({ codigo: '003', nome: 'Operador 3' }, true);
 }
 

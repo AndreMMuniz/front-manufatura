@@ -236,21 +236,6 @@ export class GerenciarEquipeSlide {
     this.snapshotInicial.set(this.draftKey());
   }
 
-  onCodigoChange(value: string): void {
-    this.codigo.set(value);
-    this.feedback.set('');
-  }
-
-  onDescricaoChange(value: string): void {
-    this.descricao.set(value);
-    this.feedback.set('');
-  }
-
-  onTurnoChange(value: string): void {
-    this.turno.set(value);
-    this.feedback.set('');
-  }
-
   onPesquisarOperador(value: string): void {
     this.termoPesquisa.set(value);
   }
@@ -318,9 +303,6 @@ export class GerenciarEquipeSlide {
         ? this.equipesService.criarEquipe({
             areaCode: contexto.areaCode,
             workCenterCode: contexto.workCenterCode,
-            codigo: this.codigo().trim(),
-            descricao: this.descricao().trim(),
-            turno: this.turno().trim(),
             operadores,
           })
         : this.equipesService.atualizarEquipe({
@@ -453,15 +435,6 @@ export class GerenciarEquipeSlide {
     if (this.modo() === 'existente' && !this.equipeSelecionadaCodigo()) {
       return 'Selecione uma equipe existente.';
     }
-    if (!this.codigo().trim()) {
-      return 'Informe o código da equipe.';
-    }
-    if (!this.descricao().trim()) {
-      return 'Informe a descrição da equipe.';
-    }
-    if (!this.turno().trim()) {
-      return 'Informe o turno da equipe.';
-    }
     if (this.codigosSelecionados().size === 0) {
       return 'Selecione ao menos um operador.';
     }
@@ -547,9 +520,6 @@ export class GerenciarEquipeSlide {
 
   private draftKey(): string {
     return JSON.stringify({
-      codigo: this.codigo().trim(),
-      descricao: this.descricao().trim(),
-      turno: this.turno().trim(),
       operadores: [...this.codigosSelecionados()].sort((a, b) => a.localeCompare(b)),
     });
   }
