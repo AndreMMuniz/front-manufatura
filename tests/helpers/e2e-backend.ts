@@ -485,7 +485,8 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       return;
     }
     if (path === '/api/teams' && request.method() === 'POST') {
-      const team = teamFrom(request.postDataJSON(), teams);
+      const generatedCode = `AUT${String(teams.size + 1).padStart(4, '0')}`;
+      const team = teamFrom({ ...request.postDataJSON(), codigo: generatedCode }, teams);
       teams.set(team.codigo, team);
       await json(route, team, 201);
       return;

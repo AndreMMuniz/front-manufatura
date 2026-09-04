@@ -33,6 +33,8 @@
   --app-container-form: 960px;
   --app-container-content: 1120px;
   --app-container-operational: 1200px;
+  --app-drawer-width-mobile: 100%;
+  --app-drawer-width-tablet: 80%;
   --app-font-size-caption: var(--font-size-sm);
   --app-font-size-body: var(--font-size-default);
   --app-font-size-section-title: var(--font-size-md);
@@ -105,6 +107,18 @@ table,
 
 po-page-default {
   display: block;
+}
+
+@media (min-width: 481px) and (max-width: 960px) {
+  po-page-slide.app-responsive-drawer .po-page-slide-container {
+    width: var(--app-drawer-width-tablet);
+  }
+}
+
+@media (max-width: 480px) {
+  po-page-slide.app-responsive-drawer .po-page-slide-container {
+    width: var(--app-drawer-width-mobile);
+  }
 }
 
 /* The PO UI viewport calculation starts at 90% and is updated asynchronously.
