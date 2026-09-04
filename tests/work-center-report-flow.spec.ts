@@ -428,7 +428,10 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(start).toBeDisabled();
     await expect(report).toBeDisabled();
 
-    await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('op.int/7-a');
+    const operator = page.getByRole('textbox', { name: 'Operador', exact: true });
+    await operator.pressSequentially('op.int/7-a');
+    await expect(operator).toBeEnabled();
+    await operator.blur();
 
     await expect(page.locator('app-reporta-batelada-page p[role="status"]').filter({
       hasText: 'As ordens selecionadas já estão iniciadas. Utilize Reporte.',

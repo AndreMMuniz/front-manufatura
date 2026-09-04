@@ -403,6 +403,39 @@ describe('ReportaBateladaWorkflowState', () => {
     });
   });
 
+  it('restaura operador livre sem alterar caixa, formato ou espaços externos', () => {
+    startBatch();
+    expect(state.enterStop()).toBe(true);
+    const stopped = state.snapshot();
+    const restored = new ReportaBateladaWorkflowState();
+
+    expect(restored.restoreAfterStop({
+      ...stopped,
+      tipoResponsavel: 'OPERADOR',
+      responsavel: {
+        tipo: 'OPERADOR', codigo: ' op.int/7-a ', nome: ' op.int/7-a ',
+      },
+    })).toBe(true);
+
+    expect(restored.snapshot().responsavel?.codigo).toBe(' op.int/7-a ');
+    expect(restored.snapshot().tipoResponsavel).toBe('OPERADOR');
+  });
+
+  it('descarta responsável incompatível com o tipo ao restaurar', () => {
+    startBatch();
+    expect(state.enterStop()).toBe(true);
+    const restored = new ReportaBateladaWorkflowState();
+
+    expect(restored.restoreAfterStop({
+      ...state.snapshot(),
+      tipoResponsavel: 'EQUIPE',
+      responsavel: responsavel(),
+    })).toBe(true);
+
+    expect(restored.snapshot().tipoResponsavel).toBe('EQUIPE');
+    expect(restored.snapshot().responsavel).toBeNull();
+  });
+
   it('ends only from the operational state and restores it on failure', () => {
     startBatch();
     state.setHistory([report()]);

@@ -1069,48 +1069,6 @@ describe('gateway FMA', () => {
       .resolves.not.toHaveProperty('indReporteMod');
   });
 
-  it('usa o responsável alocado da abertura conforme o modo operador', async () => {
-    const opening = {
-      codEquipeAlocado: '00016570',
-      desOperacao: 'CORTAR', qtdOrdem: 1000, qtdAprovada: 200, opCodigo: 10,
-      itCodigo: '30907', desGrupoMaquina: 'PRENSA', desModelTurno: '2T',
-      numSplitOperac: 1, codOperadorAlocado: '', indSplitJaIniciado: true,
-      indReporteMod: 2, qtdRefugo: 0, qtdSaldo: 800, nrOrdemProducao: 372562,
-      un: 'UN', codCtrab: 'PRE-006-02', descItem: 'ALAVANCA',
-      qtdRetrabalho: 2, desCtrab: 'PRENSA 45T',
-    };
-    const transport = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(response('dadosApontamento', [opening]))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        items: [{ 'ds-ordem-producao': { ordem: [{
-          nrOrdemProducao: 372562,
-          operacoes: [{
-            codOperacao: 10,
-            splits: [{
-              numSplit: 1,
-              estadoSplit: 4,
-              dtInicioOperacao: '2026-09-04',
-              segsInicioOperacao: 28_800,
-            }],
-          }],
-        }] } }],
-      }), { status: 200, headers: { 'content-type': 'application/json' } }));
-    const root = await startGateway(transport);
-    const result = await fetch(
-      `${root}/api/production-orders/372562/operations/10?split=1&areaCode=4104&workCenterCode=PRE-006-02`,
-      { headers: { authorization: `Bearer ${await token()}` } },
-    );
-
-    expect(result.status).toBe(200);
-    await expect(result.json()).resolves.toEqual(expect.objectContaining({
-      dataInicio: '2026-09-04',
-      horaInicio: '08:00',
-      indReporteMod: 2,
-      operador: '00016570',
-      equipe: '',
-    }));
-  });
-
   it('inicia a ordem com identidade confiável e devolve receipt reconciliável', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(response('inicioOrdem', [{ dataInicioReporte: '2026-07-21', horaInicioReporte: '0935', nrOrdemProducao: 372562, opCodigo: 10, numSplitOperac: 1, mensagem: 'Reporte iniciado com sucesso', codCtrab: 'PRE-006-02' }]));
     const root = await startGateway(transport);

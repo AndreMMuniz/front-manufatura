@@ -134,15 +134,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
       const indReporteMod = typeof reportModeValue === 'number' && Number.isSafeInteger(reportModeValue)
         ? reportModeValue
         : undefined;
-      const allocatedOperator = text(item['codOperadorAlocado']);
-      const allocatedTeam = text(item['codEquipeAlocado']);
-      const operator = indReporteMod === 2
-        ? allocatedOperator || allocatedTeam
-        : allocatedOperator;
-      const team = indReporteMod === 3
-        ? allocatedTeam || allocatedOperator
-        : indReporteMod === 2 ? '' : allocatedTeam;
-      const start = splitState === 4 || item['indSplitJaIniciado'] === true
+      const start = splitState === 4
         ? startedSplitDetails(
             await client.request('GET', `/api/fcq/v1/ordens/${orderNumber}`),
             orderNumber,
@@ -165,7 +157,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         grupoMaquina: text(item['desGrupoMaquina']),
         ...(indReporteMod === undefined ? {} : { indReporteMod }),
         ...(start ?? {}),
-        operador: operator, equipe: team, turno: text(item['desModelTurno']),
+        operador: '', equipe: '', turno: text(item['desModelTurno']),
       };
     }));
 

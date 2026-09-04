@@ -20,6 +20,7 @@ import {
   OrdemLiberadaBatelada,
   RascunhoReporteBatelada,
   ReporteParcialBatelada,
+  ResponsavelBatelada,
 } from '../../models/reporta-batelada.model';
 import { ReportaBateladaService } from '../../services/reporta-batelada.service';
 
@@ -304,6 +305,25 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
     component.confirmarOperador();
     expect(component.canReport).toBe(true);
+  });
+
+  it('preserva o operador digitado quando a carga tardia do catálogo falha', () => {
+    const responsaveis = new Subject<ReadonlyArray<ResponsavelBatelada>>();
+    serviceMock.listarResponsaveisElegiveis.mockReturnValueOnce(responsaveis);
+    component.consultarOrdens();
+    component.atualizarSelecao(new Set(['1', '2']));
+    component.prepararBatelada();
+    component.selecionarResponsavel({
+      tipo: 'OPERADOR', codigo: 'op.int/7-a', nome: 'op.int/7-a',
+    });
+
+    responsaveis.error(new Error('catálogo indisponível'));
+
+    expect(component.view.responsavel?.codigo).toBe('op.int/7-a');
+    expect(component.canStart).toBe(true);
+    expect(notificationMock.error).not.toHaveBeenCalledWith(
+      'Não foi possível carregar os responsáveis elegíveis. Tente novamente.',
+    );
   });
 
   it('locks the composition while the existing start is being confirmed', () => {
