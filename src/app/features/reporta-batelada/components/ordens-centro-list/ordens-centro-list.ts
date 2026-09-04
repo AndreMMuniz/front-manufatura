@@ -105,6 +105,11 @@ export class OrdensCentroBateladaList implements AfterViewChecked {
     this.setSelection(ids);
   }
 
+  toggleAll(): void {
+    const allVisibleSelected = this.items.every((order) => this.selectedIds.has(order.id));
+    allVisibleSelected ? this.unselectAll() : this.selectAll();
+  }
+
   selectAll(): void {
     if (!this.disabled) {
       this.setSelection(new Set([...this.selectedIds, ...this.items.map((order) => order.id)]));

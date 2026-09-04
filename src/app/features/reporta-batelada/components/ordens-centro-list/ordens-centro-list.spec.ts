@@ -52,6 +52,22 @@ describe('OrdensCentroBateladaList', () => {
     expect(emissions.at(-1)).toEqual(['first', 'second']);
   });
 
+  it('unselects every order on the second click of the select-all checkbox', () => {
+    const emissions: string[][] = [];
+    component.selectionChange.subscribe((ids) => emissions.push([...ids]));
+    const selectAllCheckbox = fixture.debugElement.query(By.css('[role="checkbox"]'))
+      .nativeElement as HTMLElement;
+
+    selectAllCheckbox.click();
+    fixture.detectChanges();
+    selectAllCheckbox.click();
+    fixture.detectChanges();
+
+    expect(emissions).toEqual([['first', 'second'], []]);
+    expect(component.selectedIds.size).toBe(0);
+    expect(component.items.every((item) => !item.$selected)).toBe(true);
+  });
+
   it('announces the selected count and prepares only with a selection', () => {
     expect(component.prepareDisabled).toBe(true);
     expect(fixture.debugElement.query(By.css('[aria-live="polite"]'))).toBeTruthy();

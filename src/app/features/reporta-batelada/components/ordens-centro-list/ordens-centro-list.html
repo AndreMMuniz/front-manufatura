@@ -30,8 +30,8 @@
             [p-striped]="true"
             (p-selected)="selectRow($event)"
             (p-unselected)="unselectRow($event)"
-            (p-all-selected)="selectAll()"
-            (p-all-unselected)="unselectAll()"
+            (p-all-selected)="toggleAll()"
+            (p-all-unselected)="toggleAll()"
           ></po-table>
         </div>
       } @else {
