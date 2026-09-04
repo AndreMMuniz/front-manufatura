@@ -140,6 +140,46 @@ describe('gateway FMA', () => {
     });
   });
 
+  it('regenera a composição ao alterar uma equipe existente', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      items: [{
+        equipeResultado: [{
+          codEquipe: 'EMP-05', desEquipe: 'Empacotadora automática nº 5', numTurno: 2,
+        }],
+        operadores: [{ codOperador: '00406320', nomOperador: 'Abinoa Lindalva de Oliveira' }],
+      }],
+    }), { status: 200 }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/teams/EMP-05`, {
+      method: 'PUT',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        areaCode: '4110', workCenterCode: 'EMPACOTADORA AUTOMÁTICA MASIPACK 1',
+        operadores: ['00406320'],
+      }),
+    });
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual({
+      codigo: 'EMP-05',
+      descricao: 'Empacotadora automática nº 5',
+      turno: '2',
+      operadores: [{ codigo: '00406320', nome: 'Abinoa Lindalva de Oliveira' }],
+    });
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/geraequipe?companyId=1&codUsuario=mjocelio',
+    );
+    expect(transport.mock.calls[0][1]?.method).toBe('POST');
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
+      codAreaProduc: '4110',
+      codCtrab: 'EMPACOTADORA AUTOMÁTICA MASIPACK 1',
+      operadores: ['00406320'],
+    });
+  });
+
   it('consolida operadores e equipes elegíveis para o contexto operacional', async () => {
     const transport = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response('operadores', [

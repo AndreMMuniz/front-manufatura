@@ -352,32 +352,9 @@ function installAdaptedRoutes(
     });
   }));
 
-  app.post('/api/teams', (req, res) => handle(req, res, dependencies, async client => {
-    const body = objectOf(req.body);
-    const operators = uniqueRequiredTexts(body['operadores']);
-    const command = {
-      codAreaProduc: requiredText(body['areaCode']),
-      codCtrab: requiredText(body['workCenterCode']),
-      operadores: operators,
-    };
-    const upstream = await client.request('POST', '/api/fma/v1/geraequipe', command);
-    const result = objectOfUpstream(single(dataset(upstream, 'equipeResultado')));
-    const returnedOperators = dataset(upstream, 'operadores').map(row => {
-      const item = objectOfUpstream(row);
-      return { codigo: requiredUpstreamText(item['codOperador']), nome: requiredUpstreamText(item['nomOperador']) };
-    });
-    const alerts = optionalDataset(upstream, 'alertas').flatMap(row => {
-      const message = text(objectOfUpstream(row)['mensagem']);
-      return message ? [{ mensagem: message }] : [];
-    });
-    return {
-      codigo: requiredUpstreamText(result['codEquipe']),
-      descricao: requiredUpstreamText(result['desEquipe']),
-      turno: String(nonNegativeIntegerUpstream(result['numTurno'])),
-      operadores: returnedOperators,
-      ...(alerts.length > 0 ? { alertas: alerts } : {}),
-    };
-  }));
+  app.post('/api/teams', (req, res) => handle(
+    req, res, dependencies, client => generateTeam(client, objectOf(req.body)),
+  ));
 
   app.post('/api/operations/report', (req, res) => handle(req, res, dependencies, client => {
     const body = objectOf(req.body);
@@ -521,8 +498,37 @@ function installAdaptedRoutes(
   const reads = ['/api/teams/:code'];
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
     client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));
-  app.put('/api/teams/:code', (req, res) => handle(req, res, dependencies, client =>
-    client.request('PUT', concretePath(req), objectOf(req.body), {}, normalizedRoute(req))));
+  app.put('/api/teams/:code', (req, res) => handle(
+    req, res, dependencies, client => generateTeam(client, objectOf(req.body)),
+  ));
+}
+
+async function generateTeam(client: FmaClient, body: JsonObject): Promise<JsonObject> {
+  const command = {
+    codAreaProduc: requiredText(body['areaCode']),
+    codCtrab: requiredText(body['workCenterCode']),
+    operadores: uniqueRequiredTexts(body['operadores']),
+  };
+  const upstream = await client.request('POST', '/api/fma/v1/geraequipe', command);
+  const result = objectOfUpstream(single(dataset(upstream, 'equipeResultado')));
+  const operators = dataset(upstream, 'operadores').map(row => {
+    const item = objectOfUpstream(row);
+    return {
+      codigo: requiredUpstreamText(item['codOperador']),
+      nome: requiredUpstreamText(item['nomOperador']),
+    };
+  });
+  const alerts = optionalDataset(upstream, 'alertas').flatMap(row => {
+    const message = text(objectOfUpstream(row)['mensagem']);
+    return message ? [{ mensagem: message }] : [];
+  });
+  return {
+    codigo: requiredUpstreamText(result['codEquipe']),
+    descricao: requiredUpstreamText(result['desEquipe']),
+    turno: String(nonNegativeIntegerUpstream(result['numTurno'])),
+    operadores: operators,
+    ...(alerts.length > 0 ? { alertas: alerts } : {}),
+  };
 }
 
 function reportCommand(body: JsonObject, batch: boolean): JsonObject {
