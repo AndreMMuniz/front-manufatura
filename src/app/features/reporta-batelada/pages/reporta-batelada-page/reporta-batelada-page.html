@@ -49,9 +49,12 @@
         [responsavel]="view.responsavel"
         [disabled]="contextLocked || loadingAreas || loadingCenters"
         [teamControlsDisabled]="!canManageTeam"
+        [loadingEquipes]="loadingResponsaveis"
+        [equipesError]="responsaveisErrorMessage"
         [startedAt]="view.inicio?.iniciadoEm ?? null"
         (tipoResponsavelChange)="alterarTipoResponsavel($event)"
         (responsavelChange)="selecionarResponsavel($event)"
+        (operadorConfirmado)="confirmarOperador()"
         (gerenciarEquipe)="abrirGerenciarEquipe($event)"
       ></app-informacoes-batelada>
     }

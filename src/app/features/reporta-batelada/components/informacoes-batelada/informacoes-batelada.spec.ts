@@ -62,6 +62,18 @@ describe('InformacoesBatelada', () => {
     }]);
   });
 
+  it('confirma o operador somente no blur, sem bloquear durante a digitação', () => {
+    const confirmations: void[] = [];
+    component.operadorConfirmado.subscribe(() => confirmations.push(undefined));
+
+    component.changeOperador('o');
+    component.changeOperador('op.int/7-a');
+    expect(confirmations).toEqual([]);
+
+    component.confirmOperador();
+    expect(confirmations).toEqual([undefined]);
+  });
+
   it('exibe a ação de equipe somente quando o responsável não é um operador', () => {
     expect(fixture.debugElement.query(
       By.css('.informacoes-batelada__responsavel po-button'),

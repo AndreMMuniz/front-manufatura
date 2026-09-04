@@ -89,6 +89,17 @@ describe('OperacaoInfoCard', () => {
     expect(fixture.debugElement.query(By.css('po-select[name="responsavelOperacao"]'))).toBeNull();
   });
 
+  it('emite a confirmação do operador somente ao sair do input', () => {
+    const confirmations: void[] = [];
+    component.responsavelConfirmado.subscribe(() => confirmations.push(undefined));
+
+    component.changeResponsavel('op.int/7-a');
+    expect(confirmations).toEqual([]);
+
+    component.confirmResponsavel();
+    expect(confirmations).toEqual([undefined]);
+  });
+
   it('permite selecionar a equipe elegível em um dropdown', () => {
     fixture.componentRef.setInput('tipoResponsavel', 'EQUIPE');
     fixture.componentRef.setInput('responsavelDisabled', false);

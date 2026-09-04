@@ -379,8 +379,43 @@ describe('ReportOperacaoPage', () => {
     expect(card.responsavelDisabled).toBe(false);
     expect(component.responsavelSelecionado).toBeNull();
     expect(component.feedback).toContain(
-      'Ordem 450001 já iniciada em 29/08/2026 às 15:59. Selecione o operador responsável para realizar o reporte.',
+      'Ordem 450001 já iniciada em 29/08/2026 às 15:59. Informe o operador responsável para realizar o reporte.',
     );
+
+    component.alterarResponsavel('op.int/7-a');
+    component.confirmarResponsavel();
+    fixture.detectChanges();
+
+    expect(component.responsavelSelecionado?.codigo).toBe('op.int/7-a');
+    expect(card.responsavelDisabled).toBe(true);
+  });
+
+  it('usa e bloqueia o operador alocado informado pela abertura da ordem iniciada', () => {
+    vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
+      sucesso: true,
+      operacao: baseOperacao({
+        indReporteMod: 2,
+        dataInicio: new Date(2026, 8, 4),
+        horaInicio: '08:00',
+        operador: '00016570',
+        equipe: '',
+      }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    operationalContext.currentContext = context();
+    component.updateSelection(new Set(['first']));
+
+    component.openSelectedOrders();
+    fixture.detectChanges();
+    const card = fixture.debugElement.query(By.directive(OperacaoInfoCard))
+      .componentInstance as OperacaoInfoCard;
+
+    expect(component.responsavelSelecionado).toEqual({
+      tipo: 'OPERADOR', codigo: '00016570', nome: '00016570',
+    });
+    expect(card.responsavelDisabled).toBe(true);
+    expect(component.feedback).toContain('Informe as quantidades para reportar.');
   });
 
   it('reporta uma ordem já iniciada após selecionar o operador ausente', () => {

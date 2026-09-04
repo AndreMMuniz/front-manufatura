@@ -261,6 +261,10 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.atualizarSelecao(new Set(['1', '2']));
 
     component.prepararBatelada();
+    component.selecionarResponsavel({
+      tipo: 'OPERADOR', codigo: 'op.int/7-a', nome: 'op.int/7-a',
+    });
+    component.confirmarOperador();
     fixture.detectChanges();
 
     expect(component.canStart).toBe(false);
@@ -271,7 +275,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(serviceMock.iniciarBatelada).not.toHaveBeenCalled();
   });
 
-  it('recognizes already open orders after the preferred responsible finishes loading', () => {
+  it('preserva o operador digitado durante carga tardia e só adota após confirmação', () => {
     const responsaveis = new Subject<ReadonlyArray<{
       tipo: 'OPERADOR';
       codigo: string;
@@ -284,18 +288,21 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.consultarOrdens();
     component.atualizarSelecao(new Set(['1', '2']));
     component.prepararBatelada();
+    component.selecionarResponsavel({
+      tipo: 'OPERADOR', codigo: 'op.int/7-a', nome: 'op.int/7-a',
+    });
 
     expect(component.canReport).toBe(false);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain(
-      'Informe um operador ou selecione uma equipe para habilitar Reporte.',
-    );
 
     responsaveis.next([
       { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
     ]);
 
+    expect(component.view.responsavel?.codigo).toBe('op.int/7-a');
     expect(component.canStart).toBe(false);
+    expect(component.canReport).toBe(false);
+
+    component.confirmarOperador();
     expect(component.canReport).toBe(true);
   });
 
@@ -316,6 +323,10 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.atualizarSelecao(new Set(['1', '2']));
 
     component.prepararBatelada();
+    component.selecionarResponsavel({
+      tipo: 'OPERADOR', codigo: 'op.int/7-a', nome: 'op.int/7-a',
+    });
+    component.confirmarOperador();
 
     expect(component.view.estado).toBe('ReconhecendoInicio');
     expect(component.contextLocked).toBe(true);
@@ -1013,6 +1024,9 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.atualizarSelecao(new Set(['2']));
     component.atualizarSelecao(new Set(['2', '1']));
     component.prepararBatelada();
+    component.selecionarResponsavel({
+      tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva',
+    });
   }
 });
 

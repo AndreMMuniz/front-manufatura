@@ -107,7 +107,6 @@ export class ReportaBateladaPage implements OnInit {
 
   private centersRequest = 0;
   private ordersRequest = 0;
-  private preferredOperatorCode = '';
   private responsaveisRetry: {
     readonly request: number;
     readonly areaCode: string;
@@ -246,7 +245,6 @@ export class ReportaBateladaPage implements OnInit {
 
     const context = this.operationalContext.currentContext;
     const batchContext = context?.reportType === 'BATCH' ? context : null;
-    this.preferredOperatorCode = batchContext?.operator.code ?? '';
     this.recentContexts = this.recentContextService.list();
     if (batchContext) {
       this.areaCode = this.normalizeCode(batchContext.workCenter.areaCode);
@@ -376,13 +374,20 @@ export class ReportaBateladaPage implements OnInit {
     this.pendingStartCommand = null;
     this.workflow.setResponsavel(responsavel);
     this.syncView();
-    this.adotarInicioExistente();
+    if (responsavel?.tipo === 'EQUIPE') this.adotarInicioExistente();
+  }
+
+  confirmarOperador(): void {
+    if (this.view.tipoResponsavel === 'OPERADOR' && this.view.responsavel) {
+      this.adotarInicioExistente();
+    }
   }
 
   alterarTipoResponsavel(tipo: TipoResponsavelBatelada): void {
-    this.pendingStartCommand = null;
-    this.workflow.setTipoResponsavel(tipo);
-    this.syncView();
+    if (this.workflow.setTipoResponsavel(tipo)) {
+      this.pendingStartCommand = null;
+      this.syncView();
+    }
   }
 
   private adotarInicioExistente(): void {
@@ -449,6 +454,7 @@ export class ReportaBateladaPage implements OnInit {
       || this.normalizeCode(this.view.workCenter?.code ?? '') !== workCenterCode
       || !this.sessionActive
       || this.view.composition.length === 0
+      || this.view.tipoResponsavel !== 'EQUIPE'
       || this.contextLocked
     ) {
       return;
@@ -824,9 +830,8 @@ export class ReportaBateladaPage implements OnInit {
         this.loadingResponsaveis = false;
         this.responsaveisErrorMessage = '';
         this.responsaveisRetry = null;
-        this.workflow.setResponsaveis(responsaveis, this.preferredOperatorCode);
+        this.workflow.setResponsaveis(responsaveis);
         this.syncView();
-        this.adotarInicioExistente();
       },
       error: () => {
         if (
@@ -840,7 +845,9 @@ export class ReportaBateladaPage implements OnInit {
           'Não foi possível carregar os responsáveis elegíveis. Tente novamente.';
         this.responsaveisRetry = { request, areaCode, workCenterCode };
         this.workflow.setResponsaveis([]);
-        this.notification.error(this.responsaveisErrorMessage);
+        if (this.view.tipoResponsavel === 'EQUIPE') {
+          this.notification.error(this.responsaveisErrorMessage);
+        }
         this.syncView();
       },
       });

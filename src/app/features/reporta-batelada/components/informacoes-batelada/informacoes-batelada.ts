@@ -23,10 +23,13 @@ export class InformacoesBatelada {
   @Input() responsavel: ResponsavelBatelada | null = null;
   @Input() disabled = false;
   @Input() teamControlsDisabled = false;
+  @Input() loadingEquipes = false;
+  @Input() equipesError = '';
   @Input() startedAt: Date | null = null;
 
   @Output() tipoResponsavelChange = new EventEmitter<TipoResponsavelBatelada>();
   @Output() responsavelChange = new EventEmitter<ResponsavelBatelada | null>();
+  @Output() operadorConfirmado = new EventEmitter<void>();
   @Output() gerenciarEquipe = new EventEmitter<HTMLElement | null>();
 
   readonly tipoOptions: ReadonlyArray<PoSelectOption> = [
@@ -70,6 +73,12 @@ export class InformacoesBatelada {
       this.responsavelChange.emit(codigo.trim()
         ? { tipo: 'OPERADOR', codigo, nome: codigo }
         : null);
+    }
+  }
+
+  confirmOperador(): void {
+    if (!this.disabled && this.tipoResponsavel === 'OPERADOR') {
+      this.operadorConfirmado.emit();
     }
   }
 

@@ -29,6 +29,7 @@ export class OperacaoInfoCard {
 
   @Output() tipoResponsavelChange = new EventEmitter<TipoResponsavelOperacao>();
   @Output() responsavelChange = new EventEmitter<string>();
+  @Output() responsavelConfirmado = new EventEmitter<void>();
   @Output() retryResponsaveis = new EventEmitter<void>();
   @Output() gerenciarEquipe = new EventEmitter<HTMLElement | null>();
 
@@ -54,6 +55,10 @@ export class OperacaoInfoCard {
 
   changeResponsavel(value: string): void {
     this.responsavelChange.emit(value ?? '');
+  }
+
+  confirmResponsavel(): void {
+    this.responsavelConfirmado.emit();
   }
 
   onGerenciarEquipe(): void {

@@ -139,6 +139,28 @@ test.describe('fluxo de Reporte Ordem', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 
+  test('digita código livre do operador sem placeholder e o preserva no início', async ({ page }) => {
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Ordem' }).click();
+    await selectProductionContext(page);
+    await selectSingleOrderWithKeyboard(page, '450001');
+    await page.getByRole('button', { name: 'Abrir apontamento' }).click();
+
+    const operator = page.getByRole('textbox', { name: 'Operador', exact: true });
+    await expect(operator).toHaveAttribute('placeholder', '');
+    await operator.fill('op.int/7-a');
+    await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+
+    await expect(operator).toHaveValue('op.int/7-a');
+    await expect(operator).toBeDisabled();
+    const start = (await readOperationalOutbox(page))
+      .find(entry => entry.commandType === 'START_OPERATION');
+    expect(start?.payload).toEqual(expect.objectContaining({
+      tipoResponsavel: 'OPERADOR',
+      codigoResponsavel: 'op.int/7-a',
+    }));
+  });
+
   test('mantém somente uma ordem selecionada antes de abrir o apontamento', async ({ page }) => {
     await login(page);
     await page.getByRole('link', { name: 'Reporte Ordem' }).click();
@@ -166,7 +188,10 @@ test.describe('fluxo de Reporte Ordem', () => {
     await selectSingleOrderWithKeyboard(page, '450001');
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
-    await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('op.int/7-a');
+    const operator = page.getByRole('textbox', { name: 'Operador', exact: true });
+    await operator.pressSequentially('op.int/7-a');
+    await expect(operator).toBeEnabled();
+    await operator.blur();
     await page.getByRole('button', { name: 'Iniciar' }).click();
     await expect(page.getByRole('button', { name: 'Reporte', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Reporte', exact: true }).click();
@@ -338,7 +363,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await expect(page.getByRole('heading', { name: 'Reporta Operação' })).toHaveCount(0);
     await expect(page.locator('.po-toolbar-title')).toBeVisible();
     await expect(page.locator('.po-toolbar-title')).toHaveText('Reporte Ordem');
-    await expect(page.getByRole('combobox', { name: 'Área de Produção' })).toHaveValue('4001 - Produção');
+    await expect(page.getByRole('textbox', { name: 'Área de Produção' })).toHaveValue('4001');
     await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' })).toHaveValue('CT-EXT-01 - Extrusao Linha 01');
     await page.getByRole('button', { name: 'Consultar ordens' }).click();
     await expect(page.getByRole('cell', { name: '450001' })).toBeVisible();
@@ -464,7 +489,7 @@ test.describe('fluxo de Reporte Batelada', () => {
       page.locator('app-reporta-batelada-page p[role="status"]')
         .filter({ hasText: 'Comando de início enviado ao Datasul.' }),
     ).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Área de Produção' })).toBeDisabled();
+    await expect(page.getByRole('textbox', { name: 'Área de Produção' })).toBeDisabled();
     await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' })).toBeDisabled();
     await expect(responsible).toBeDisabled();
     await expect(start).toBeDisabled();
@@ -549,8 +574,8 @@ test.describe('fluxo de Reporte Batelada', () => {
     await page.getByRole('button', { name: 'Report' }).click();
 
     await expect(page).toHaveURL(/\/batch-reporting$/);
-    await expect(page.getByRole('combobox', { name: 'Área de Produção' }))
-      .toHaveValue('4001 - Produção');
+    await expect(page.getByRole('textbox', { name: 'Área de Produção' }))
+      .toHaveValue('4001');
     await expect(page.getByRole('combobox', { name: 'Centro de Trabalho' }))
       .toHaveValue('CT-EXT-01 - Extrusao Linha 01');
   });

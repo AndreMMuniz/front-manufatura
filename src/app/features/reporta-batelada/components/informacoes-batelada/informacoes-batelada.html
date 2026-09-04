@@ -33,6 +33,7 @@
           [p-disabled]="disabled"
           [ngModel]="operadorCodigo"
           (ngModelChange)="changeOperador($event)"
+          (p-blur)="confirmOperador()"
         ></po-input>
       } @else if (equipeOptions.length > 0) {
         <po-select
@@ -43,7 +44,9 @@
           [ngModel]="responsavelKey"
           (ngModelChange)="changeResponsavel($event)"
         ></po-select>
-      } @else {
+      } @else if (loadingEquipes) {
+        <p class="informacoes-batelada__error" role="status">Carregando equipes...</p>
+      } @else if (!equipesError) {
         <p class="informacoes-batelada__error" role="alert">
           Nenhuma equipe elegível para esta Área e Centro de Trabalho.
         </p>

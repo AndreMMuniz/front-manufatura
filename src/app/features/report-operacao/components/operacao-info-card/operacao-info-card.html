@@ -41,6 +41,7 @@
           [p-disabled]="responsavelDisabled"
           [ngModel]="responsavelCodigo"
           (ngModelChange)="changeResponsavel($event)"
+          (p-blur)="confirmResponsavel()"
         ></po-input>
       }
     </div>

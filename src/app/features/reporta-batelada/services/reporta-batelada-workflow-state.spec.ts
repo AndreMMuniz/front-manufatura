@@ -78,16 +78,11 @@ describe('ReportaBateladaWorkflowState', () => {
     }));
   });
 
-  it('prefills the free operator code from context without requiring catalog eligibility', () => {
+  it('não seleciona automaticamente um operador do catálogo', () => {
     prepareContext();
-    state.setResponsaveis([responsavel(), { tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' }], 'OP-001');
+    state.setResponsaveis([responsavel(), { tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' }]);
 
-    expect(state.snapshot().responsavel).toEqual(responsavel());
-
-    state.setResponsaveis([{ tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' }], 'OP-999');
-    expect(state.snapshot().responsavel).toEqual({
-      tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva',
-    });
+    expect(state.snapshot().responsavel).toBeNull();
   });
 
   it('aceita operador livre, preserva formato e rejeita valor composto apenas por espaços', () => {
@@ -393,6 +388,7 @@ describe('ReportaBateladaWorkflowState', () => {
         { tipo: 'EQUIPE', codigo: 'MONT03', nome: 'Equipe canônica' },
         { tipo: 'OPERADOR', codigo: ' mont03 ', nome: 'Operador homônimo' },
       ],
+      tipoResponsavel: 'EQUIPE',
       responsavel: { tipo: 'EQUIPE', codigo: ' mont03 ', nome: 'Equipe canônica' },
     })).toBe(true);
 

@@ -63,6 +63,7 @@
         [gerenciarEquipeDisabled]="!canManageTeam"
         (tipoResponsavelChange)="alterarTipoResponsavel($event)"
         (responsavelChange)="alterarResponsavel($event)"
+        (responsavelConfirmado)="confirmarResponsavel()"
         (retryResponsaveis)="retryResponsaveis()"
         (gerenciarEquipe)="abrirGerenciarEquipe($event)"
       ></app-operacao-info-card>

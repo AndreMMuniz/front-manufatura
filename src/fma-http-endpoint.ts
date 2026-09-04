@@ -134,7 +134,15 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
       const indReporteMod = typeof reportModeValue === 'number' && Number.isSafeInteger(reportModeValue)
         ? reportModeValue
         : undefined;
-      const start = splitState === 4
+      const allocatedOperator = text(item['codOperadorAlocado']);
+      const allocatedTeam = text(item['codEquipeAlocado']);
+      const operator = indReporteMod === 2
+        ? allocatedOperator || allocatedTeam
+        : allocatedOperator;
+      const team = indReporteMod === 3
+        ? allocatedTeam || allocatedOperator
+        : indReporteMod === 2 ? '' : allocatedTeam;
+      const start = splitState === 4 || item['indSplitJaIniciado'] === true
         ? startedSplitDetails(
             await client.request('GET', `/api/fcq/v1/ordens/${orderNumber}`),
             orderNumber,
@@ -157,14 +165,16 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         grupoMaquina: text(item['desGrupoMaquina']),
         ...(indReporteMod === undefined ? {} : { indReporteMod }),
         ...(start ?? {}),
-        operador: '', equipe: '', turno: text(item['desModelTurno']),
+        operador: operator, equipe: team, turno: text(item['desModelTurno']),
       };
     }));
 
   app.post('/api/operations/start', (req, res) => handle(req, res, dependencies, async client => {
     const body = objectOf(req.body);
     const responsibleType = requiredText(body['tipoResponsavel']);
-    const responsibleCode = requiredVerbatimText(body['codigoResponsavel']);
+    const responsibleCode = responsibleType === 'OPERADOR'
+      ? requiredVerbatimText(body['codigoResponsavel'])
+      : requiredText(body['codigoResponsavel']);
     if (responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE') {
       throw new QualityControlGatewayError(400, 'invalid-request');
     }
@@ -617,7 +627,9 @@ function batchItemIdentity(item: JsonObject): { ordem: unknown; operation: unkno
 
 function responsibleFields(type: unknown, code: unknown): { codOperador: string; codEquipe: string } {
   const responsibleType = requiredText(type);
-  const responsibleCode = requiredVerbatimText(code);
+  const responsibleCode = responsibleType === 'OPERADOR'
+    ? requiredVerbatimText(code)
+    : requiredText(code);
   if (responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE') {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }

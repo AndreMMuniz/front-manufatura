@@ -427,6 +427,15 @@ export class ReportOperacaoPage implements OnInit {
     if (this.operacao?.dataInicio) this.updateStartedOperationFeedback();
   }
 
+  confirmarResponsavel(): void {
+    if (!this.operacao?.dataInicio || !this.responsavelPendenteEmOrdemIniciada) return;
+    const responsavel = this.responsavelSelecionado;
+    if (!responsavel) return;
+    this.workflowState.setResponsavel(responsavel);
+    this.responsavelPendenteEmOrdemIniciada = false;
+    this.changeDetector.markForCheck();
+  }
+
   alterarDataInicio(dataInicio: Date | string | null): void {
     if (this.operacao?.dataInicio || this.isBusy) return;
     this.dataInicioSelecionada = dataInicio;
@@ -480,6 +489,7 @@ export class ReportOperacaoPage implements OnInit {
       || this.normalizeCode(this.areaCode) !== areaCode
       || this.normalizeCode(this.workCenterCode) !== workCenterCode
       || !this.authSession.isAuthenticated()
+      || this.tipoResponsavel !== 'EQUIPE'
       || this.isBusy
       || Boolean(this.operacao?.dataInicio)
     ) {
@@ -573,9 +583,7 @@ export class ReportOperacaoPage implements OnInit {
     this.feedback = 'Abrindo reporte de paradas com o contexto da operação.';
     const area = this.areas.find(item => item.code === this.areaCode);
     const workCenter = this.centers.find(item => item.code === this.workCenterCode);
-    const responsible = this.responsaveis.find(item =>
-      item.tipo === this.tipoResponsavel && item.codigo === this.responsavelCodigo,
-    );
+    const responsible = this.responsavelSelecionado;
     if (!area || !workCenter || !responsible) {
       return;
     }
@@ -1466,10 +1474,13 @@ export class ReportOperacaoPage implements OnInit {
             this.responsavelCodigo = '';
             this.workflowState.setResponsavel(null);
           }
-          if (responsaveis.length === 0 && this.tipoResponsavel === 'EQUIPE') {
+          if (
+            this.tipoResponsavel === 'EQUIPE'
+            && !responsaveis.some(responsavel => responsavel.tipo === 'EQUIPE')
+          ) {
             this.responsaveisError = frozenResponsavel
               ? 'Responsável iniciado preservado; não foi possível revalidar a elegibilidade.'
-              : 'Nenhuma equipe ou operador elegível. Tente novamente.';
+              : 'Nenhuma equipe elegível. Tente novamente.';
             this.feedback = this.responsaveisError;
           }
           if (
@@ -1527,8 +1538,32 @@ export class ReportOperacaoPage implements OnInit {
       ? snapshotResponsavel
       : null;
     const contextoOperador = this.operationalContext.currentContext?.operator;
+    const operadorApi = operacao.dataInicio ? operacao.operador.trim() : '';
+    const equipeApi = operacao.dataInicio ? operacao.equipe.trim() : '';
     const responsavel =
       snapshotElegivel
+      ?? responsaveis.find(item =>
+        item.tipo === 'OPERADOR'
+        && operadorApi
+        && (
+          this.normalizeCode(item.codigo) === this.normalizeCode(operadorApi)
+          || item.nome === operadorApi
+        ),
+      )
+      ?? responsaveis.find(item =>
+        item.tipo === 'EQUIPE'
+        && equipeApi
+        && (
+          this.normalizeCode(item.codigo) === this.normalizeCode(equipeApi)
+          || item.nome === equipeApi
+        ),
+      )
+      ?? (operadorApi && (!tipoObrigatorio || tipoObrigatorio === 'OPERADOR')
+        ? { tipo: 'OPERADOR' as const, codigo: operadorApi, nome: operadorApi }
+        : null)
+      ?? (equipeApi && (!tipoObrigatorio || tipoObrigatorio === 'EQUIPE')
+        ? { tipo: 'EQUIPE' as const, codigo: this.normalizeCode(equipeApi), nome: equipeApi }
+        : null)
       ?? responsaveis.find(item =>
         item.tipo === 'OPERADOR'
         && (item.codigo === contextoOperador?.code || item.nome === contextoOperador?.name),
@@ -1554,10 +1589,9 @@ export class ReportOperacaoPage implements OnInit {
     const startDate = this.formatDate(this.operacao.dataInicio);
     const prefix = `Ordem ${this.operacao.ordem} já iniciada em ${startDate} às ${this.operacao.horaInicio}.`;
     if (this.responsavelPendenteEmOrdemIniciada && !this.responsavelSelecionado) {
-      const responsavel = this.tipoResponsavel === 'EQUIPE'
-        ? 'a equipe responsável'
-        : 'o operador responsável';
-      this.feedback = `${prefix} Selecione ${responsavel} para realizar o reporte.`;
+      this.feedback = this.tipoResponsavel === 'EQUIPE'
+        ? `${prefix} Selecione a equipe responsável para realizar o reporte.`
+        : `${prefix} Informe o operador responsável para realizar o reporte.`;
       return;
     }
     this.feedback = `${prefix} Informe as quantidades para reportar.`;
