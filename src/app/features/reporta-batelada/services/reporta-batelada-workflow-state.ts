@@ -14,6 +14,7 @@ import {
   RascunhoReporteBatelada,
   ReporteParcialBatelada,
   ResponsavelBatelada,
+  TipoResponsavelBatelada,
   TotaisBatelada,
   TotaisOrdemBatelada,
 } from '../models/reporta-batelada.model';
@@ -25,6 +26,7 @@ export interface ReportaBateladaWorkflowSnapshot {
   readonly selectedOrderIds: ReadonlyArray<string>;
   readonly composition: ReadonlyArray<OrdemLiberadaBatelada>;
   readonly responsaveis: ReadonlyArray<ResponsavelBatelada>;
+  readonly tipoResponsavel?: TipoResponsavelBatelada;
   readonly responsavel: ResponsavelBatelada | null;
   readonly estado: EstadoBatelada;
   readonly asyncState: EstadoAssincronoBatelada;
@@ -251,14 +253,21 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       unique.set(this.responsavelKey(canonical), canonical);
     }
     const cloned = [...unique.values()].map(responsavel => ({ ...responsavel }));
-    const current = this.value().responsavel;
+    const snapshotAtual = this.value();
+    const current = snapshotAtual.responsavel;
+    const tipo = snapshotAtual.tipoResponsavel ?? 'OPERADOR';
     const currentKey = current ? this.responsavelKey(current) : '';
-    const preferredCode = this.normalizeCode(preferredOperatorCode);
-    const selected =
-      cloned.find(item => this.responsavelKey(item) === currentKey) ??
-      cloned.find(item =>
-        item.tipo === 'OPERADOR' && this.normalizeCode(item.codigo) === preferredCode) ??
-      null;
+    const selected = tipo === 'EQUIPE'
+      ? cloned.find(item =>
+        item.tipo === 'EQUIPE' && this.responsavelKey(item) === currentKey) ?? null
+      : current?.tipo === 'OPERADOR'
+        ? { ...current }
+        : cloned.find(item =>
+          item.tipo === 'OPERADOR'
+          && this.normalizeCode(item.codigo) === this.normalizeCode(preferredOperatorCode))
+          ?? (preferredOperatorCode.trim()
+            ? { tipo: 'OPERADOR' as const, codigo: preferredOperatorCode, nome: preferredOperatorCode }
+            : null);
 
     this.value.update(snapshot => ({
       ...snapshot,
@@ -267,22 +276,43 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
     }));
   }
 
+  setTipoResponsavel(tipo: TipoResponsavelBatelada): boolean {
+    if (this.isLocked()) {
+      return false;
+    }
+    this.value.update(snapshot => ({
+      ...snapshot,
+      tipoResponsavel: tipo,
+      responsavel: null,
+      errorMessage: '',
+    }));
+    return true;
+  }
+
   setResponsavel(responsavel: ResponsavelBatelada | null): boolean {
     if (this.isLocked()) {
       return false;
     }
 
-    const eligible = responsavel
-      ? this.value().responsaveis.find(item =>
-          this.responsavelKey(item) === this.responsavelKey(responsavel))
-      : null;
+    const current = this.value();
+    const eligible = responsavel?.tipo !== (current.tipoResponsavel ?? 'OPERADOR')
+      ? null
+      : responsavel?.tipo === 'OPERADOR'
+      ? (responsavel.codigo.trim()
+        ? { ...responsavel, nome: responsavel.nome || responsavel.codigo }
+        : null)
+      : responsavel
+        ? current.responsaveis.find(item =>
+            item.tipo === 'EQUIPE'
+            && this.responsavelKey(item) === this.responsavelKey(responsavel))
+        : null;
 
     this.value.update(snapshot => ({
       ...snapshot,
       responsavel: eligible ? { ...eligible } : null,
       errorMessage: '',
     }));
-    return responsavel === null || eligible !== undefined;
+    return responsavel === null || eligible !== null && eligible !== undefined;
   }
 
   canStart(): boolean {
@@ -632,6 +662,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       selectedOrderIds: [],
       composition: [],
       responsaveis: [],
+      tipoResponsavel: 'OPERADOR',
       responsavel: null,
       estado: EstadoBatelada.ContextoPendente,
       asyncState: 'ocioso',
@@ -668,7 +699,9 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
     const selected = snapshot.responsavel
       ? {
           ...snapshot.responsavel,
-          codigo: this.normalizeCode(snapshot.responsavel.codigo),
+          codigo: snapshot.responsavel.tipo === 'OPERADOR'
+            ? snapshot.responsavel.codigo
+            : this.normalizeCode(snapshot.responsavel.codigo),
         }
       : null;
     if (selected) {
@@ -683,6 +716,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       selectedOrderIds: [...snapshot.selectedOrderIds],
       composition: this.cloneOrders(snapshot.composition),
       responsaveis,
+      tipoResponsavel: snapshot.tipoResponsavel ?? snapshot.responsavel?.tipo ?? 'OPERADOR',
       responsavel: selected
         ? { ...(responsaveis.find(item => this.responsavelKey(item) === this.responsavelKey(selected)) ?? selected) }
         : null,

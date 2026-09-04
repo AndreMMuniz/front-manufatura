@@ -164,7 +164,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
   app.post('/api/operations/start', (req, res) => handle(req, res, dependencies, async client => {
     const body = objectOf(req.body);
     const responsibleType = requiredText(body['tipoResponsavel']);
-    const responsibleCode = requiredText(body['codigoResponsavel']);
+    const responsibleCode = requiredVerbatimText(body['codigoResponsavel']);
     if (responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE') {
       throw new QualityControlGatewayError(400, 'invalid-request');
     }
@@ -617,7 +617,7 @@ function batchItemIdentity(item: JsonObject): { ordem: unknown; operation: unkno
 
 function responsibleFields(type: unknown, code: unknown): { codOperador: string; codEquipe: string } {
   const responsibleType = requiredText(type);
-  const responsibleCode = requiredText(code);
+  const responsibleCode = requiredVerbatimText(code);
   if (responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE') {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
@@ -625,6 +625,13 @@ function responsibleFields(type: unknown, code: unknown): { codOperador: string;
     codOperador: responsibleType === 'OPERADOR' ? responsibleCode : '',
     codEquipe: responsibleType === 'EQUIPE' ? responsibleCode : '',
   };
+}
+
+function requiredVerbatimText(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return value;
 }
 
 function emptySetupFields() {

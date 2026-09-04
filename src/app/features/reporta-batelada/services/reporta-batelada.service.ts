@@ -166,6 +166,7 @@ export class ReportaBateladaService {
             selectedOrderIds: ordens.map(ordem => ordem.id),
             composition: ordens.map(ordem => ({ ...ordem })),
             responsaveis,
+            tipoResponsavel: responsavel.tipo,
             responsavel: { ...responsavel },
             estado: EstadoBatelada.BateladaIniciada,
             asyncState: 'sucesso' as const,

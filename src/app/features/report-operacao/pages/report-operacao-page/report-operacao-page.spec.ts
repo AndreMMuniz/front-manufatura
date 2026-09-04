@@ -415,8 +415,10 @@ describe('ReportOperacaoPage', () => {
     }));
   });
 
-  it('reporta ordem já iniciada por equipe após informar diretamente seu código', () => {
-    vi.mocked(service.listarResponsaveis).mockReturnValue(of([]));
+  it('reporta ordem já iniciada por equipe após selecionar seu código catalogado', () => {
+    vi.mocked(service.listarResponsaveis).mockReturnValue(of([
+      { tipo: 'EQUIPE', codigo: 'AUT00037', nome: 'Equipe AUT00037' },
+    ]));
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
       sucesso: true,
       operacao: baseOperacao({
@@ -435,7 +437,7 @@ describe('ReportOperacaoPage', () => {
     component.alterarResponsavel(' aut00037 ');
     expect(component.responsaveisError).toBe('');
     expect(component.responsavelSelecionado).toEqual({
-      tipo: 'EQUIPE', codigo: 'AUT00037', nome: 'AUT00037',
+      tipo: 'EQUIPE', codigo: 'AUT00037', nome: 'Equipe AUT00037',
     });
     component.salvarReporte({
       quantidadeAprovada: 100,
@@ -447,7 +449,7 @@ describe('ReportOperacaoPage', () => {
     expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({
       tipoResponsavel: 'EQUIPE',
       codigoResponsavel: 'AUT00037',
-      equipe: 'AUT00037',
+      equipe: 'Equipe AUT00037',
     }));
   });
 
@@ -1112,7 +1114,7 @@ describe('ReportOperacaoPage', () => {
     expect(component.reporteDisabled).toBe(false);
   });
 
-  it('allows retrying an empty responsible list without reloading the page', () => {
+  it('não bloqueia operador livre quando o catálogo está vazio', () => {
     vi.mocked(service.listarResponsaveis)
       .mockReturnValueOnce(of([]))
       .mockReturnValueOnce(of([{ tipo: 'OPERADOR', codigo: '001', nome: 'Ana Silva' }]));
@@ -1121,7 +1123,7 @@ describe('ReportOperacaoPage', () => {
     component.updateSelection(new Set(['first']));
     component.openSelectedOrders();
 
-    expect(component.responsaveisError).toContain('Tente novamente');
+    expect(component.responsaveisError).toBe('');
 
     component.retryResponsaveis();
 
@@ -1463,7 +1465,7 @@ describe('ReportOperacaoPage', () => {
       item.tipo === 'EQUIPE' && item.codigo === 'MONT03')).toHaveLength(1);
     expect(component.responsavelSelecionado).toEqual({
       tipo: 'OPERADOR',
-      codigo: '001',
+      codigo: ' 001 ',
       nome: 'Ana Silva',
     });
   });

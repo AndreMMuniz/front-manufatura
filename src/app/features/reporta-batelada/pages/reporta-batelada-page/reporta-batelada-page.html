@@ -45,15 +45,18 @@
       <app-informacoes-batelada
         [workCenter]="view.workCenter"
         [responsaveis]="view.responsaveis"
+        [tipoResponsavel]="view.tipoResponsavel ?? 'OPERADOR'"
         [responsavel]="view.responsavel"
-        [disabled]="!canManageTeam"
+        [disabled]="contextLocked || loadingAreas || loadingCenters"
+        [teamControlsDisabled]="!canManageTeam"
         [startedAt]="view.inicio?.iniciadoEm ?? null"
+        (tipoResponsavelChange)="alterarTipoResponsavel($event)"
         (responsavelChange)="selecionarResponsavel($event)"
         (gerenciarEquipe)="abrirGerenciarEquipe($event)"
       ></app-informacoes-batelada>
     }
 
-    @if (responsaveisErrorMessage) {
+    @if (responsaveisErrorMessage && view.tipoResponsavel === 'EQUIPE') {
       <p class="reporta-batelada__feedback reporta-batelada__feedback--error" role="alert">
         {{ responsaveisErrorMessage }}
         <po-button
@@ -94,7 +97,7 @@
       </p>
     } @else if (view.composition.length > 0 && !view.responsavel) {
       <p class="reporta-batelada__feedback" role="status">
-        Selecione um operador elegível para habilitar
+        Informe um operador ou selecione uma equipe para habilitar
         {{ selectedOrdersAlreadyStarted ? 'Reporte' : 'Iniciar' }}.
       </p>
     }

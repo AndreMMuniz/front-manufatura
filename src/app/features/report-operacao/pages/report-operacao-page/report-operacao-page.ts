@@ -188,16 +188,23 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   get responsavelSelecionado(): ResponsavelOperacao | null {
+    if (this.tipoResponsavel === 'OPERADOR') {
+      if (!this.responsavelCodigo.trim()) return null;
+      const catalogado = this.responsaveis.find(responsavel =>
+        responsavel.tipo === 'OPERADOR'
+        && this.normalizeCode(responsavel.codigo) === this.normalizeCode(this.responsavelCodigo));
+      return {
+        tipo: 'OPERADOR',
+        codigo: this.responsavelCodigo,
+        nome: catalogado?.nome ?? this.responsavelCodigo,
+      };
+    }
     const codigo = this.normalizeCode(this.responsavelCodigo);
-    const catalogado = this.responsaveis.find(
+    return this.responsaveis.find(
       responsavel =>
-        responsavel.tipo === this.tipoResponsavel
+        responsavel.tipo === 'EQUIPE'
         && this.normalizeCode(responsavel.codigo) === codigo,
     ) ?? null;
-    if (catalogado || !codigo || this.tipoResponsavel !== 'EQUIPE') {
-      return catalogado;
-    }
-    return { tipo: 'EQUIPE', codigo, nome: codigo };
   }
 
   get canManageTeam(): boolean {
@@ -413,7 +420,9 @@ export class ReportOperacaoPage implements OnInit {
       return;
     }
 
-    this.responsavelCodigo = this.normalizeCode(codigo ?? '');
+    this.responsavelCodigo = this.tipoResponsavel === 'OPERADOR'
+      ? codigo ?? ''
+      : this.normalizeCode(codigo ?? '');
     this.workflowState.setResponsavel(this.responsavelSelecionado);
     if (this.operacao?.dataInicio) this.updateStartedOperationFeedback();
   }
@@ -1448,11 +1457,16 @@ export class ReportOperacaoPage implements OnInit {
           ) {
             this.responsaveis = [{ ...frozenResponsavel }, ...this.responsaveis];
           }
-          if (this.responsavelCodigo && !this.responsavelSelecionado && !this.operacao?.dataInicio) {
+          if (
+            this.tipoResponsavel === 'EQUIPE'
+            && this.responsavelCodigo
+            && !this.responsavelSelecionado
+            && !this.operacao?.dataInicio
+          ) {
             this.responsavelCodigo = '';
             this.workflowState.setResponsavel(null);
           }
-          if (responsaveis.length === 0 && tipoApi !== 'EQUIPE') {
+          if (responsaveis.length === 0 && this.tipoResponsavel === 'EQUIPE') {
             this.responsaveisError = frozenResponsavel
               ? 'Responsável iniciado preservado; não foi possível revalidar a elegibilidade.'
               : 'Nenhuma equipe ou operador elegível. Tente novamente.';
@@ -1488,11 +1502,13 @@ export class ReportOperacaoPage implements OnInit {
           ) {
             this.responsaveis = [{ ...frozenResponsavel }, ...this.responsaveis];
           }
-          this.responsaveisError = frozenResponsavel
-            ? 'Responsável iniciado preservado; não foi possível revalidar a elegibilidade.'
-            : 'Não foi possível carregar equipes e operadores. Tente novamente.';
-          this.feedback = this.responsaveisError;
-          this.notification.error(this.feedback);
+          if (this.tipoResponsavel === 'EQUIPE' || frozenResponsavel?.tipo === 'EQUIPE') {
+            this.responsaveisError = frozenResponsavel
+              ? 'Responsável iniciado preservado; não foi possível revalidar a elegibilidade.'
+              : 'Não foi possível carregar as equipes. Tente novamente.';
+            this.feedback = this.responsaveisError;
+            this.notification.error(this.feedback);
+          }
           this.changeDetector.markForCheck();
         },
       });

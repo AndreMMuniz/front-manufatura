@@ -166,7 +166,7 @@ test.describe('fluxo de Reporte Ordem', () => {
     await selectSingleOrderWithKeyboard(page, '450001');
     await page.getByRole('button', { name: 'Abrir apontamento' }).click();
 
-    await page.getByRole('combobox', { name: 'Operador' }).selectOption('001');
+    await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('op.int/7-a');
     await page.getByRole('button', { name: 'Iniciar' }).click();
     await expect(page.getByRole('button', { name: 'Reporte', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Reporte', exact: true }).click();
@@ -233,9 +233,9 @@ test.describe('fluxo de Reporte Ordem', () => {
     const actionLabels = (await actions.getByRole('button').allTextContents()).map(label => label.trim());
     expect(actionLabels).toEqual(['Iniciar', 'Reporte', 'Parada']);
 
-    const operator = page.getByRole('combobox', { name: 'Operador' });
+    const operator = page.getByRole('textbox', { name: 'Operador', exact: true });
     await expect(operator).toBeEnabled();
-    await operator.selectOption('001');
+    await operator.fill('op.int/7-a');
     await page.getByRole('button', { name: 'Iniciar' }).click();
 
     await expect(operator).toBeDisabled();
@@ -403,8 +403,7 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(start).toBeDisabled();
     await expect(report).toBeDisabled();
 
-    await page.getByRole('combobox', { name: 'Responsável' })
-      .selectOption({ label: 'Operador — OP-001 - Ana Silva' });
+    await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('op.int/7-a');
 
     await expect(page.locator('app-reporta-batelada-page p[role="status"]').filter({
       hasText: 'As ordens selecionadas já estão iniciadas. Utilize Reporte.',
@@ -424,7 +423,10 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithKeyboard(page, '450001');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
 
-    const responsibleBox = await page.getByRole('combobox', { name: 'Responsável' }).boundingBox();
+    await page.getByRole('combobox', { name: 'Reportar por' }).selectOption('EQUIPE');
+    await createTeamFromContext(page, 'pointer');
+    const responsibleBox = await page.locator('app-informacoes-batelada')
+      .getByRole('combobox', { name: 'Equipe' }).boundingBox();
     const actionBox = await page.getByRole(
       'button',
       { name: 'Criar ou gerenciar equipe' },
@@ -452,10 +454,8 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(composition.getByRole('row').filter({ hasText: '450001' })).toBeVisible();
     await expect(composition.getByRole('row').filter({ hasText: '450002' })).toBeVisible();
 
-    const responsible = page.getByRole('combobox', { name: 'Responsável' });
-    await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
-      .toHaveCount(1);
-    await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });
+    const responsible = page.getByRole('textbox', { name: 'Operador', exact: true });
+    await responsible.fill('op.int/7-a');
     const start = page.getByRole('button', { name: 'Iniciar' });
     await expect(start).toBeEnabled();
     await start.click();
@@ -481,10 +481,8 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithKeyboard(page, '450001');
     await selectOrderWithKeyboard(page, '450002');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
-    const responsible = page.getByRole('combobox', { name: 'Responsável' });
-    await expect(responsible.getByRole('option', { name: 'Operador — OP-001 - Ana Silva' }))
-      .toHaveCount(1);
-    await responsible.selectOption({ label: 'Operador — OP-001 - Ana Silva' });
+    const responsible = page.getByRole('textbox', { name: 'Operador', exact: true });
+    await responsible.fill('op.int/7-a');
     await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
 
     const reportAction = page.getByRole('button', { name: 'Reporte', exact: true });
@@ -565,10 +563,12 @@ test.describe('fluxo de Reporte Batelada', () => {
     await selectOrderWithPointer(page, '450002');
     await page.getByRole('button', { name: 'Abrir batelada' }).click();
 
+    await page.getByRole('combobox', { name: 'Reportar por' }).selectOption('EQUIPE');
     await createTeamFromContext(page, 'touch');
-    const responsible = page.getByRole('combobox', { name: 'Responsável' });
-    await expect(responsible).toContainText('Equipe — AUT0001 - Equipe E2E');
-    await expect(responsible).toHaveValue('Equipe — AUT0001 - Equipe E2E');
+    const responsible = page.locator('app-informacoes-batelada')
+      .getByRole('combobox', { name: 'Equipe' });
+    await expect(responsible).toContainText('AUT0001 - Equipe E2E');
+    await expect(responsible).toHaveValue('AUT0001 - Equipe E2E');
 
     const trigger = page.getByRole('button', { name: 'Criar ou gerenciar equipe' });
     await trigger.tap();
@@ -595,8 +595,8 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(members.nth(1)).toBeChecked();
     await drawer.getByRole('button', { name: 'Voltar' }).click();
     await expect(trigger).toBeFocused();
-    await expect(responsible).toContainText('Equipe — AUT0001 - Equipe E2E');
-    await expect(responsible).toHaveValue('Equipe — AUT0001 - Equipe E2E');
+    await expect(responsible).toContainText('AUT0001 - Equipe E2E');
+    await expect(responsible).toHaveValue('AUT0001 - Equipe E2E');
 
     for (const viewport of [
       { width: 1280, height: 800 },

@@ -95,7 +95,7 @@ async function openOperationOrigin(page: Page): Promise<void> {
   const order = page.getByRole('row').filter({ hasText: '450001' }).getByRole('checkbox');
   await order.check();
   await page.getByRole('button', { name: 'Abrir apontamento' }).click();
-  await page.getByRole('combobox', { name: 'Operador' }).selectOption('001');
+  await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('op.int/7-a');
   await page.getByRole('button', { name: 'Iniciar' }).click();
   await page.getByRole('button', { name: 'Parada' }).click();
   await expect(page).toHaveURL(/\/stoppages$/);
@@ -113,8 +113,7 @@ async function openBatchOrigin(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Consultar ordens' }).click();
   await page.getByRole('row').filter({ hasText: '450001' }).getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Abrir batelada' }).click();
-  await page.getByRole('combobox', { name: 'Responsável' })
-    .selectOption({ label: 'Operador — OP-001 - Ana Silva' });
+  await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('op.int/7-a');
   await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
   await page.getByRole('button', { name: 'Parada' }).click();
   await expect(page).toHaveURL(/\/stoppages$/);

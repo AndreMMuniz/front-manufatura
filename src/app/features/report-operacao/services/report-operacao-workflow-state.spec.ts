@@ -112,6 +112,18 @@ describe('ReportOperacaoWorkflowState', () => {
     });
   });
 
+  it('preserva exatamente o código livre do operador ao salvar e restaurar', () => {
+    const state = queuedState();
+    state.setResponsavel({ tipo: 'OPERADOR', codigo: ' op.int/7-a ', nome: 'op.int/7-a' });
+
+    const snapshot = state.snapshot();
+    expect(snapshot.responsavel?.codigo).toBe(' op.int/7-a ');
+
+    const restored = new ReportOperacaoWorkflowState();
+    restored.restore(snapshot);
+    expect(restored.snapshot().responsavel?.codigo).toBe(' op.int/7-a ');
+  });
+
   it('preserves the complete workflow until an explicit change or logout', () => {
     const sessionSubject = new BehaviorSubject<unknown>({ user: {}, token: 'token' });
     const state = new ReportOperacaoWorkflowState({

@@ -34,7 +34,7 @@ dd {
   align-items: end;
   display: grid;
   gap: var(--app-space-sm);
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr) auto;
   min-width: 0;
 }
 
@@ -48,7 +48,7 @@ dd {
   line-height: 0;
 }
 
-.informacoes-batelada__responsavel--com-select > po-button {
+.informacoes-batelada__responsavel > po-button {
   margin-bottom: calc(var(--app-space-sm) + var(--app-space-xs));
 }
 
@@ -61,7 +61,7 @@ dd {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .informacoes-batelada__responsavel--com-select > po-button {
+  .informacoes-batelada__responsavel > po-button {
     margin-bottom: 0;
   }
 }

@@ -68,9 +68,25 @@ describe('OperacaoInfoCard', () => {
     fixture.componentRef.setInput('responsavelDisabled', false);
     fixture.detectChanges();
 
-    const selects = fixture.debugElement.queryAll(By.css('po-select'));
-    expect(selects[0].componentInstance.disabled).toBe(true);
-    expect(selects[1].componentInstance.disabled).toBe(false);
+    const typeSelect = fixture.debugElement.query(By.css('po-select[name="tipoResponsavel"]'));
+    const operatorInput = fixture.debugElement.query(By.css('po-input[name="responsavelOperacao"]'));
+    expect(typeSelect.componentInstance.disabled).toBe(true);
+    expect(operatorInput.componentInstance.disabled).toBe(false);
+    expect(operatorInput.nativeElement.getAttribute('p-placeholder')).toBeNull();
+  });
+
+  it('renderiza operador como texto livre sem placeholder nem dependência do catálogo', () => {
+    fixture.componentRef.setInput('responsaveis', []);
+    fixture.componentRef.setInput('tipoResponsavel', 'OPERADOR');
+    fixture.componentRef.setInput('responsavelDisabled', false);
+    fixture.componentRef.setInput('loadingResponsaveis', true);
+    fixture.detectChanges();
+
+    const operatorInput = fixture.debugElement.query(By.css('po-input[name="responsavelOperacao"]'));
+    expect(operatorInput).toBeTruthy();
+    expect(operatorInput.componentInstance.disabled).toBe(false);
+    expect(operatorInput.nativeElement.getAttribute('p-placeholder')).toBeNull();
+    expect(fixture.debugElement.query(By.css('po-select[name="responsavelOperacao"]'))).toBeNull();
   });
 
   it('permite selecionar a equipe elegível em um dropdown', () => {

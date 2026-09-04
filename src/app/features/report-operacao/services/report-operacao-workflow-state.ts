@@ -136,7 +136,7 @@ export class ReportOperacaoWorkflowState {
     this.value.update(current => ({
       ...current,
       responsavel: responsavel
-        ? { ...responsavel, codigo: this.normalizeCode(responsavel.codigo) }
+        ? { ...responsavel, codigo: this.responsavelCode(responsavel) }
         : null,
     }));
   }
@@ -275,7 +275,7 @@ export class ReportOperacaoWorkflowState {
       responsavel: snapshot.responsavel
         ? {
             ...snapshot.responsavel,
-            codigo: this.normalizeCode(snapshot.responsavel.codigo),
+            codigo: this.responsavelCode(snapshot.responsavel),
           }
         : null,
       reportes: snapshot.reportes.map(reporte => this.cloneReporte(reporte)),
@@ -306,5 +306,11 @@ export class ReportOperacaoWorkflowState {
 
   private normalizeCode(value: string): string {
     return value.trim().toUpperCase();
+  }
+
+  private responsavelCode(responsavel: ResponsavelOperacao): string {
+    return responsavel.tipo === 'OPERADOR'
+      ? responsavel.codigo
+      : this.normalizeCode(responsavel.codigo);
   }
 }

@@ -288,7 +288,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(component.canReport).toBe(false);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain(
-      'Selecione um operador elegível para habilitar Reporte.',
+      'Informe um operador ou selecione uma equipe para habilitar Reporte.',
     );
 
     responsaveis.next([
@@ -540,6 +540,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
   it('abre gestão contextual e seleciona uma equipe criada sem alterar a composição', () => {
     prepareForStart();
+    component.alterarTipoResponsavel('EQUIPE');
     const before = component.view;
     const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
       .componentInstance as GerenciarEquipeSlide;
@@ -665,6 +666,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     component.consultarOrdens();
     component.atualizarSelecao(new Set(['1']));
     component.prepararBatelada();
+    component.selecionarResponsavel(null);
 
     component.iniciarBatelada();
 

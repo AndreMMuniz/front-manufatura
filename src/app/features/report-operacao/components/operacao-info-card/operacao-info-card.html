@@ -35,15 +35,13 @@
           (p-click)="onGerenciarEquipe()"
         ></po-button>
       } @else {
-        <po-select
+        <po-input
           name="responsavelOperacao"
           p-label="Operador"
-          [p-options]="responsavelOptions"
-          [p-disabled]="responsavelDisabled || loadingResponsaveis"
-          [p-loading]="loadingResponsaveis"
+          [p-disabled]="responsavelDisabled"
           [ngModel]="responsavelCodigo"
           (ngModelChange)="changeResponsavel($event)"
-        ></po-select>
+        ></po-input>
       }
     </div>
     <po-input name="turno" p-label="Turno" [p-readonly]="true" [ngModel]="operacao?.turno ?? ''"></po-input>

@@ -47,6 +47,7 @@ import {
   EstadoBatelada,
   RascunhoReporteBatelada,
   ResponsavelBatelada,
+  TipoResponsavelBatelada,
   TotaisBatelada,
   TotaisOrdemBatelada,
 } from '../../models/reporta-batelada.model';
@@ -180,6 +181,7 @@ export class ReportaBateladaPage implements OnInit {
     const center = this.view.workCenter;
     return this.sessionActive
       && Boolean(area)
+      && this.view.tipoResponsavel === 'EQUIPE'
       && Boolean(
         center
         && center.active
@@ -377,6 +379,12 @@ export class ReportaBateladaPage implements OnInit {
     this.adotarInicioExistente();
   }
 
+  alterarTipoResponsavel(tipo: TipoResponsavelBatelada): void {
+    this.pendingStartCommand = null;
+    this.workflow.setTipoResponsavel(tipo);
+    this.syncView();
+  }
+
   private adotarInicioExistente(): void {
     if (!this.workflow.beginExistingStartRecognition()) {
       return;
@@ -483,7 +491,7 @@ export class ReportaBateladaPage implements OnInit {
 
     const snapshot = this.workflow.snapshot();
     if (!snapshot.area || !snapshot.workCenter || !snapshot.responsavel) {
-      this.workflow.failStart('Selecione um operador elegível antes de iniciar.');
+      this.workflow.failStart('Informe um operador ou selecione uma equipe antes de iniciar.');
       this.syncView();
       return;
     }

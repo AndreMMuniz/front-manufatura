@@ -78,13 +78,40 @@ describe('ReportaBateladaWorkflowState', () => {
     }));
   });
 
-  it('prefills the operator from context only when it is eligible', () => {
+  it('prefills the free operator code from context without requiring catalog eligibility', () => {
     prepareContext();
     state.setResponsaveis([responsavel(), { tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' }], 'OP-001');
 
     expect(state.snapshot().responsavel).toEqual(responsavel());
 
     state.setResponsaveis([{ tipo: 'EQUIPE', codigo: 'EQ-A', nome: 'Equipe A' }], 'OP-999');
+    expect(state.snapshot().responsavel).toEqual({
+      tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva',
+    });
+  });
+
+  it('aceita operador livre, preserva formato e rejeita valor composto apenas por espaços', () => {
+    prepareBatch();
+
+    expect(state.setResponsavel({
+      tipo: 'OPERADOR', codigo: ' op.int/7-a ', nome: ' op.int/7-a ',
+    })).toBe(true);
+    expect(state.snapshot().responsavel).toEqual({
+      tipo: 'OPERADOR', codigo: ' op.int/7-a ', nome: ' op.int/7-a ',
+    });
+    expect(state.canStart()).toBe(true);
+
+    expect(state.setResponsavel({ tipo: 'OPERADOR', codigo: '   ', nome: '' })).toBe(false);
+    expect(state.snapshot().responsavel).toBeNull();
+    expect(state.canStart()).toBe(false);
+  });
+
+  it('limpa o responsável incompatível ao alternar o modo antes do início', () => {
+    prepareBatch();
+    state.setResponsavel({ tipo: 'OPERADOR', codigo: 'op.int/7-a', nome: '' });
+
+    expect(state.setTipoResponsavel('EQUIPE')).toBe(true);
+    expect(state.snapshot().tipoResponsavel).toBe('EQUIPE');
     expect(state.snapshot().responsavel).toBeNull();
   });
 
@@ -100,6 +127,7 @@ describe('ReportaBateladaWorkflowState', () => {
       { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
       { tipo: 'EQUIPE', codigo: 'OP-001', nome: 'Equipe atualizada' },
     ]);
+    state.setTipoResponsavel('EQUIPE');
     expect(state.setResponsavel({
       tipo: 'EQUIPE',
       codigo: ' op-001 ',
