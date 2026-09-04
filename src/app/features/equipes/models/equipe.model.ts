@@ -5,4 +5,9 @@ export interface Equipe {
   readonly descricao: string;
   readonly turno: string;
   readonly operadores: ReadonlyArray<Operador>;
+  readonly alertas?: ReadonlyArray<EquipeAlerta>;
+}
+
+export interface EquipeAlerta {
+  readonly mensagem: string;
 }

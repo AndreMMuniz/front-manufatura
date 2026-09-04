@@ -209,7 +209,24 @@ describe('GerenciarEquipeSlide', () => {
       contexto: contexto(),
     });
     expect(notification.success).toHaveBeenCalledWith('Equipe salva com sucesso.');
+    expect(notification.warning).not.toHaveBeenCalled();
     expect(pageSlide.close).toHaveBeenCalledOnce();
+  });
+
+  it('mostra na tela o alerta devolvido pela geração da equipe', () => {
+    const alert = 'Quantidade de operadores informada (6) diferente da quantidade parametrizada para o Centro de Trabalho EMP-01-01 (grup-maquina.num-operador-ctrab=4)';
+    const criada: Equipe = {
+      ...equipe('NOVA01', ['003']),
+      alertas: [{ mensagem: alert }],
+    };
+    const { component, notification } = createComponent({ criada });
+    component.abrir(contexto());
+    preencherCriacao(component);
+
+    component.onSalvar();
+
+    expect(notification.warning).toHaveBeenCalledOnce();
+    expect(notification.warning).toHaveBeenCalledWith(alert);
   });
 
   it('atualiza a equipe existente pelos novos contratos', () => {

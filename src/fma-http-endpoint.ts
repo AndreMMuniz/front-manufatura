@@ -366,11 +366,16 @@ function installAdaptedRoutes(
       const item = objectOfUpstream(row);
       return { codigo: requiredUpstreamText(item['codOperador']), nome: requiredUpstreamText(item['nomOperador']) };
     });
+    const alerts = optionalDataset(upstream, 'alertas').flatMap(row => {
+      const message = text(objectOfUpstream(row)['mensagem']);
+      return message ? [{ mensagem: message }] : [];
+    });
     return {
       codigo: requiredUpstreamText(result['codEquipe']),
       descricao: requiredUpstreamText(result['desEquipe']),
       turno: String(nonNegativeIntegerUpstream(result['numTurno'])),
       operadores: returnedOperators,
+      ...(alerts.length > 0 ? { alertas: alerts } : {}),
     };
   }));
 
@@ -881,6 +886,16 @@ function dataset(value: unknown, name: string): readonly unknown[] {
   if (!Array.isArray(items) || items.length !== 1) throw new QualityControlGatewayError(502, 'invalid-upstream-response');
   const rows = objectOfUpstream(items[0])[name];
   if (!Array.isArray(rows)) throw new QualityControlGatewayError(502, 'invalid-upstream-response');
+  return rows;
+}
+
+function optionalDataset(value: unknown, name: string): readonly unknown[] {
+  const envelope = objectOfUpstream(value);
+  const items = envelope['items'];
+  if (!Array.isArray(items) || items.length !== 1) return invalidUpstream();
+  const rows = objectOfUpstream(items[0])[name];
+  if (rows === undefined) return [];
+  if (!Array.isArray(rows)) return invalidUpstream();
   return rows;
 }
 

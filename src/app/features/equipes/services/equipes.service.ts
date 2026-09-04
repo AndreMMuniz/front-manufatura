@@ -91,6 +91,7 @@ export class EquipesService {
   }
 
   private mapEquipeResponse(response: EquipeResponseDTO): Equipe {
+    const alertas = response.alertas?.map(alerta => ({ mensagem: alerta.mensagem })) ?? [];
     return {
       codigo: response.codigo,
       descricao: response.descricao,
@@ -98,6 +99,7 @@ export class EquipesService {
       operadores: this.removerOperadoresDuplicados(
         response.operadores.map(operator => ({ codigo: operator.codigo, nome: operator.nome })),
       ),
+      ...(alertas.length > 0 ? { alertas } : {}),
     };
   }
 

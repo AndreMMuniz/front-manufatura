@@ -44,6 +44,21 @@ describe('EquipesService', () => {
     }));
   });
 
+  it('preserva os alertas devolvidos ao criar a equipe', async () => {
+    const alert = 'Quantidade de operadores informada (6) diferente da parametrizada (4)';
+    const post = vi.fn().mockReturnValue(of({
+      ...team,
+      alertas: [{ mensagem: alert }],
+    }));
+    const service = new EquipesService({ post } as unknown as AuthenticatedApiService);
+
+    const result = await firstValueFrom(service.criarEquipe({
+      areaCode: '4001', workCenterCode: 'CT-01', operadores: ['001'],
+    }));
+
+    expect(result).toEqual({ ...team, alertas: [{ mensagem: alert }] });
+  });
+
   it('keeps presentation helpers deterministic', () => {
     const service = new EquipesService({} as AuthenticatedApiService);
     const operators = [

@@ -114,6 +114,7 @@ describe('gateway FMA', () => {
       .mockResolvedValueOnce(response('motivosParada', [{ codParada: '', desParada: '' }, { codParada: '07', desParada: 'Manutenção' }]))
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{
         equipeResultado: [{ codEquipe: 'AUT0002', desEquipe: 'Equipe Automática', numTurno: 1 }],
+        alertas: [{ mensagem: 'Quantidade de operadores informada (6) diferente da parametrizada (4)' }],
         operadores: [{ codOperador: '00016570', nomOperador: 'Ana' }],
       }] }), { status: 200 }));
     const root = await startGateway(transport);
@@ -131,6 +132,7 @@ describe('gateway FMA', () => {
     });
     await expect(team.json()).resolves.toEqual({
       codigo: 'AUT0002', descricao: 'Equipe Automática', turno: '1',
+      alertas: [{ mensagem: 'Quantidade de operadores informada (6) diferente da parametrizada (4)' }],
       operadores: [{ codigo: '00016570', nome: 'Ana' }],
     });
     expect(JSON.parse(String(transport.mock.calls[3][1]?.body))).toEqual({

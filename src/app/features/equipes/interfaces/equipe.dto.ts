@@ -6,6 +6,11 @@ export interface EquipeResponseDTO {
   readonly descricao: string;
   readonly turno: string;
   readonly operadores: ReadonlyArray<OperadorDTO>;
+  readonly alertas?: ReadonlyArray<EquipeAlertaDTO>;
+}
+
+export interface EquipeAlertaDTO {
+  readonly mensagem: string;
 }
 
 export interface SalvarEquipeRequestDTO {

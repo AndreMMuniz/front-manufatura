@@ -325,11 +325,17 @@ export class GerenciarEquipeSlide {
           equipe: {
             ...equipe,
             operadores: equipe.operadores.map((operador) => ({ ...operador })),
+            ...(equipe.alertas ? {
+              alertas: equipe.alertas.map((alerta) => ({ ...alerta })),
+            } : {}),
           },
           modo,
           contexto: { ...contextoSalvo },
         };
         this.notification.success('Equipe salva com sucesso.');
+        for (const alerta of equipe.alertas ?? []) {
+          this.notification.warning(alerta.mensagem);
+        }
         this.close(false);
         this.equipeSalva.emit(resultado);
       },
