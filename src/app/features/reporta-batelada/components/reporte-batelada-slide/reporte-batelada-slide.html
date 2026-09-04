@@ -17,7 +17,7 @@
               p-label="Qtde Aprovada"
               [p-min]="0"
               [p-disabled]="salvando"
-              [ngModel]="item.quantidadeAprovada"
+              [ngModel]="item.quantidadeAprovada === 0 ? null : item.quantidadeAprovada"
               (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeAprovada', $event)"
             ></po-number>
             <po-number
@@ -25,7 +25,7 @@
               p-label="Qtde Retrabalho"
               [p-min]="0"
               [p-disabled]="salvando"
-              [ngModel]="item.quantidadeRetrabalho"
+              [ngModel]="item.quantidadeRetrabalho === 0 ? null : item.quantidadeRetrabalho"
               (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeRetrabalho', $event)"
             ></po-number>
             <po-number
@@ -33,7 +33,7 @@
               p-label="Qtde Refugo"
               [p-min]="0"
               [p-disabled]="salvando"
-              [ngModel]="item.quantidadeRefugo"
+              [ngModel]="item.quantidadeRefugo === 0 ? null : item.quantidadeRefugo"
               (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeRefugo', $event)"
             ></po-number>
           </div>

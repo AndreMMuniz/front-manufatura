@@ -76,6 +76,36 @@ describe('ReporteBateladaSlide', () => {
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('th[scope="col"]')).toHaveLength(5);
   });
 
+  it('renders zero quantities as empty fields when starting a batch report', async () => {
+    TestBed.configureTestingModule({
+      imports: [ReporteBateladaSlide],
+      providers: [
+        provideNoopAnimations(),
+        { provide: PoDialogService, useValue: { confirm: vi.fn() } },
+        { provide: MotivoRefugoService, useValue: { buscarMotivos: () => of([]) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ReporteBateladaSlide);
+    fixture.detectChanges();
+    fixture.componentInstance.abrir(orders(), [], null);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const quantityInputs = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>(
+        '.batch-report__fields input',
+      ),
+    ];
+
+    expect(quantityInputs).toHaveLength(6);
+    expect(quantityInputs.map(input => input.value)).toEqual(['', '', '', '', '', '']);
+    expect(fixture.componentInstance.items.every(item =>
+      item.quantidadeAprovada === 0 &&
+      item.quantidadeRetrabalho === 0 &&
+      item.quantidadeRefugo === 0)).toBe(true);
+  });
+
   it('shows Motivo Refugo only for orders with scrap and removes the legacy reason editor', () => {
     TestBed.configureTestingModule({
       imports: [ReporteBateladaSlide],

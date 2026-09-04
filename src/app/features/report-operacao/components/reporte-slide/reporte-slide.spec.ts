@@ -34,6 +34,35 @@ describe('ReporteSlide', () => {
     expect(fixture.nativeElement.querySelectorAll('.reporte-slide__footer po-button')).toHaveLength(2);
   });
 
+  it('renders zero quantities as empty fields when starting an order report', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ReporteSlide],
+      providers: [
+        provideNoopAnimations(),
+        { provide: MotivoRefugoService, useValue: scrapReasonService },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ReporteSlide);
+
+    fixture.detectChanges();
+    fixture.componentInstance.abrir([]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const quantityInputs = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>(
+        '.reporte-slide__entry input',
+      ),
+    ];
+
+    expect(quantityInputs).toHaveLength(3);
+    expect(quantityInputs.map(input => input.value)).toEqual(['', '', '']);
+    expect(fixture.componentInstance.quantidadeAprovada).toBe(0);
+    expect(fixture.componentInstance.quantidadeRetrabalho).toBe(0);
+    expect(fixture.componentInstance.quantidadeRefugo).toBe(0);
+  });
+
   it('sums only approved and scrap quantities in the displayed total', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     component.quantidadeAprovada = 100;
