@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, DeferBlockBehavior, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
@@ -7,6 +7,7 @@ import { PoDialogService } from '@po-ui/ng-components';
 
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
+import { BARCODE_READER_FACTORY } from '../barcode-scanner/barcode-scanner';
 import { RouteGenerationSection } from './route-generation-section';
 
 describe('RouteGenerationSection', () => {
@@ -36,11 +37,20 @@ describe('RouteGenerationSection', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    await TestBed.configureTestingModule({ imports: [RouteGenerationSection], providers: [
+    await TestBed.configureTestingModule({
+      deferBlockBehavior: DeferBlockBehavior.Playthrough,
+      imports: [RouteGenerationSection], providers: [
       QualityControlWorkflowState,
       { provide: QualityControlService, useValue: service },
       { provide: PoDialogService, useValue: { confirm: vi.fn() } },
-    ] }).compileComponents();
+      {
+        provide: BARCODE_READER_FACTORY,
+        useValue: () => ({
+          decodeFromConstraints: vi.fn().mockResolvedValue({ stop: vi.fn() }),
+        }),
+      },
+      ],
+    }).compileComponents();
     fixture = TestBed.createComponent(RouteGenerationSection);
     component = fixture.componentInstance;
     state = TestBed.inject(QualityControlWorkflowState);
@@ -97,16 +107,20 @@ describe('RouteGenerationSection', () => {
     }));
   });
 
-  it('abre o leitor pela câmera sem alterar a Ordem antes da leitura', () => {
+  it('abre o leitor pela câmera sem alterar a Ordem antes da leitura', async () => {
     component.scanOrder();
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(state.orderNumber()).toBe('');
     expect(fixture.debugElement.query(By.css('app-barcode-scanner'))).toBeTruthy();
   });
 
-  it('preenche e consulta automaticamente a Ordem lida pela câmera', () => {
+  it('preenche e consulta automaticamente a Ordem lida pela câmera', async () => {
     component.scanOrder();
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     fixture.debugElement.query(By.css('app-barcode-scanner'))

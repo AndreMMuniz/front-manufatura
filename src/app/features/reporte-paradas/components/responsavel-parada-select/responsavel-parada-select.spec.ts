@@ -5,6 +5,26 @@ import { describe, expect, it } from 'vitest';
 import { ResponsavelParadaSelect } from './responsavel-parada-select';
 
 describe('ResponsavelParadaSelect', () => {
+  it.each([
+    ['OPERADOR', 'Operador'],
+    ['EQUIPE', 'Equipe'],
+  ] as const)('exibe o tipo %s fixo, sem dropdown para troca manual', async (type, label) => {
+    await TestBed.configureTestingModule({
+      imports: [ResponsavelParadaSelect],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ResponsavelParadaSelect);
+    fixture.componentRef.setInput('responsibleType', type);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const fixedType = fixture.debugElement.query(By.css('po-input[name="tipoResponsavelParada"]'));
+    expect(fixedType).toBeTruthy();
+    expect(fixedType.componentInstance.readonly).toBe(true);
+    expect((fixedType.nativeElement.querySelector('input') as HTMLInputElement).value).toBe(label);
+    expect(fixture.debugElement.query(By.css('po-select[name="tipoResponsavelParada"]'))).toBeNull();
+  });
+
   it('renderiza operador como input livre e preserva exatamente o código informado', async () => {
     await TestBed.configureTestingModule({
       imports: [ResponsavelParadaSelect],

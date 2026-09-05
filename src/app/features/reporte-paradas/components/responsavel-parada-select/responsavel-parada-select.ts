@@ -25,19 +25,12 @@ export class ResponsavelParadaSelect {
   @Input() responsibles: ReadonlyArray<ResponsavelParada> = [];
   @Input() responsibleType: TipoResponsavelParada = 'OPERADOR';
   @Input() responsibleCode = '';
-  @Input() responsibleTypeLocked = false;
   @Input() loading = false;
   @Input() disabled = false;
   @Input() errorMessage = '';
 
-  @Output() responsibleTypeChange = new EventEmitter<TipoResponsavelParada>();
   @Output() responsibleCodeChange = new EventEmitter<string>();
   @Output() retry = new EventEmitter<void>();
-
-  readonly typeOptions: ReadonlyArray<PoSelectOption> = [
-    { value: 'OPERADOR', label: 'Operador' },
-    { value: 'EQUIPE', label: 'Equipe' },
-  ];
 
   get responsibleOptions(): ReadonlyArray<PoSelectOption> {
     const unique = new Map<string, ResponsavelParada>();
@@ -58,12 +51,6 @@ export class ResponsavelParadaSelect {
     return this.responsibleType === 'OPERADOR'
       ? 'Nenhum operador elegível para este contexto.'
       : 'Nenhuma equipe elegível para este contexto.';
-  }
-
-  changeType(value: string | null | undefined): void {
-    if (value === 'OPERADOR' || value === 'EQUIPE') {
-      this.responsibleTypeChange.emit(value);
-    }
   }
 
   changeResponsible(value: string | null | undefined): void {

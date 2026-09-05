@@ -1037,7 +1037,7 @@ describe('gateway FMA', () => {
   });
 
   it('lista e adapta centros de trabalho sem expor Basic ao browser', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [{ codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T', indReporteMod: 2 }]));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [{ codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T', indReporteMod: '2' }]));
     const root = await startGateway(transport);
     const result = await fetch(`${root}/api/work-centers?areaCode=4104&active=true`, {
       headers: { authorization: `Bearer ${await token()}` },

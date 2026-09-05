@@ -40,4 +40,17 @@ describe('BarcodeScanner', () => {
     expect(completed).toHaveBeenCalledWith('372562');
     expect(controls.stop).toHaveBeenCalledTimes(1);
   });
+
+  it('informa quando o usuário não autoriza o acesso à câmera', async () => {
+    decode.mockRejectedValueOnce(new DOMException('Permission denied', 'NotAllowedError'));
+    const failed = vi.fn();
+    fixture.componentInstance.scanFailed.subscribe(failed);
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(failed).toHaveBeenCalledWith(
+      'Não foi possível acessar a câmera. Autorize o uso da câmera e tente novamente.',
+    );
+  });
 });

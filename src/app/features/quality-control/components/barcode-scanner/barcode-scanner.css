@@ -6,12 +6,12 @@
   justify-content: center;
   padding: var(--app-space-md);
   position: fixed;
-  z-index: 1000;
+  z-index: var(--app-z-dialog);
 }
 
 .barcode-scanner__panel {
   background: var(--app-color-surface);
-  border-radius: var(--app-radius-md);
+  border-radius: var(--app-radius-container);
   display: grid;
   gap: var(--app-space-md);
   max-width: 640px;

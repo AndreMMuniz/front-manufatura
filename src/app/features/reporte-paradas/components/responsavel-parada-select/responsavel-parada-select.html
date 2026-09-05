@@ -1,13 +1,11 @@
 <po-widget p-title="Responsável pela Parada">
   <div class="responsavel-parada">
-    <po-select
+    <po-input
       name="tipoResponsavelParada"
       p-label="Tipo de responsável"
-      [p-options]="typeOptions"
-      [p-disabled]="disabled || loading || responsibleTypeLocked"
-      [ngModel]="responsibleType"
-      (ngModelChange)="changeType($event)"
-    ></po-select>
+      [p-readonly]="true"
+      [ngModel]="responsibleType === 'EQUIPE' ? 'Equipe' : 'Operador'"
+    ></po-input>
 
     @if (responsibleType === 'EQUIPE') {
       <po-select

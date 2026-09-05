@@ -79,7 +79,10 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
     return dataset(upstream, 'centrosTrabalho').map(row => {
       const item = objectOfUpstream(row);
-      const reportMode = item['indReporteMod'];
+      const rawReportMode = item['indReporteMod'] ?? item['indReportMod'];
+      const reportMode = typeof rawReportMode === 'number'
+        ? rawReportMode
+        : Number(text(rawReportMode));
       return {
         code: text(item['codCtrab']),
         description: text(item['desCtrab']),
