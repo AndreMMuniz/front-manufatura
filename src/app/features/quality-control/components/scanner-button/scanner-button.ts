@@ -12,4 +12,10 @@ export class ScannerButton {
   @Input() disabled = false;
 
   @Output() scannerStarted = new EventEmitter<void>();
+
+  get cameraScannerAvailable(): boolean {
+    return typeof globalThis.matchMedia === 'function'
+      && globalThis.matchMedia('(hover: none) and (pointer: coarse)').matches
+      && typeof globalThis.navigator?.mediaDevices?.getUserMedia === 'function';
+  }
 }

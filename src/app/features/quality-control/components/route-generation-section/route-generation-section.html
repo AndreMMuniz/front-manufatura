@@ -1,4 +1,12 @@
 <section class="route-generation" aria-label="Geração do roteiro de inspeção">
+  @if (scannerOpen) {
+    <app-barcode-scanner
+      (scanCompleted)="useScannedOrder($event)"
+      (scanCancelled)="closeScanner()"
+      (scanFailed)="handleScannerFailure($event)"
+    ></app-barcode-scanner>
+  }
+
   @if (!workflow.route()?.routeNumber) {
     <header class="route-generation__header">
       <div class="route-generation__brand">

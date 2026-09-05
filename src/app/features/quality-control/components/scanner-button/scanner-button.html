@@ -1,6 +1,8 @@
-<po-button
-  p-icon="an an-camera"
-  p-label="Scanner"
-  [p-disabled]="disabled"
-  (p-click)="scannerStarted.emit()"
-></po-button>
+@if (cameraScannerAvailable) {
+  <po-button
+    p-icon="an an-camera"
+    p-label="Scanner"
+    [p-disabled]="disabled"
+    (p-click)="scannerStarted.emit()"
+  ></po-button>
+}

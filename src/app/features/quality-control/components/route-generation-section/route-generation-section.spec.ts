@@ -97,10 +97,25 @@ describe('RouteGenerationSection', () => {
     }));
   });
 
-  it('não injeta OP fictícia ao acionar scanner sem integração', () => {
+  it('abre o leitor pela câmera sem alterar a Ordem antes da leitura', () => {
     component.scanOrder();
+    fixture.detectChanges();
+
     expect(state.orderNumber()).toBe('');
-    expect(state.routeFeedback()).toContain('não está configurada');
+    expect(fixture.debugElement.query(By.css('app-barcode-scanner'))).toBeTruthy();
+  });
+
+  it('preenche e consulta automaticamente a Ordem lida pela câmera', () => {
+    component.scanOrder();
+    fixture.detectChanges();
+
+    fixture.debugElement.query(By.css('app-barcode-scanner'))
+      .triggerEventHandler('scanCompleted', ' 372562 ');
+    fixture.detectChanges();
+
+    expect(state.orderNumber()).toBe('372562');
+    expect(service.getProductionOrderOperations).toHaveBeenCalledWith('372562');
+    expect(fixture.debugElement.query(By.css('app-barcode-scanner'))).toBeNull();
   });
 
   it('exibe junto ao botão a mensagem de roteiro em andamento devolvida pelo gateway', () => {

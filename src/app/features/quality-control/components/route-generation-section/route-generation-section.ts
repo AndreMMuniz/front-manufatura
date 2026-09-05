@@ -7,13 +7,14 @@ import { PoButtonModule, PoDialogService, PoFieldModule, PoWidgetModule } from '
 
 import { OrdemInfoCard } from '../ordem-info-card/ordem-info-card';
 import { OrdemSearch } from '../ordem-search/ordem-search';
+import { BarcodeScanner } from '../barcode-scanner/barcode-scanner';
 import { ProductionOrderOperation } from '../../models/production-order-route';
 import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 
 @Component({
   selector: 'app-route-generation-section',
-  imports: [FormsModule, OrdemInfoCard, OrdemSearch, PoButtonModule, PoFieldModule, PoWidgetModule],
+  imports: [BarcodeScanner, FormsModule, OrdemInfoCard, OrdemSearch, PoButtonModule, PoFieldModule, PoWidgetModule],
   templateUrl: './route-generation-section.html',
   styleUrls: ['./route-generation-section.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,6 +24,7 @@ export class RouteGenerationSection {
   private readonly qualityControlService = inject(QualityControlService);
   private readonly dialog = inject(PoDialogService);
   private readonly destroyRef = inject(DestroyRef);
+  scannerOpen = false;
 
   get canSearchOrder(): boolean {
     return Boolean(this.workflow.orderNumber().trim()) && !this.workflow.isBusy();
@@ -68,7 +70,27 @@ export class RouteGenerationSection {
 
   scanOrder(): void {
     if (this.workflow.isBusy()) return;
-    this.workflow.routeFeedback.set('Leitura por scanner ainda não está configurada neste dispositivo.');
+    this.scannerOpen = true;
+  }
+
+  closeScanner(): void {
+    this.scannerOpen = false;
+  }
+
+  useScannedOrder(value: string): void {
+    const orderNumber = value.trim();
+    this.closeScanner();
+    if (!orderNumber) {
+      this.workflow.routeFeedback.set('O código lido não contém uma Ordem válida.');
+      return;
+    }
+    this.workflow.updateOrderNumber(orderNumber);
+    this.searchOrder();
+  }
+
+  handleScannerFailure(message: string): void {
+    this.closeScanner();
+    this.workflow.routeFeedback.set(message);
   }
 
   updateOrderNumber(orderNumber: string): void {

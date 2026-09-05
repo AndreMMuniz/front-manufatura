@@ -1,0 +1,57 @@
+.barcode-scanner {
+  align-items: center;
+  background: rgb(0 0 0 / 72%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--app-space-md);
+  position: fixed;
+  z-index: 1000;
+}
+
+.barcode-scanner__panel {
+  background: var(--app-color-surface);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  gap: var(--app-space-md);
+  max-width: 640px;
+  padding: var(--app-space-md);
+  width: 100%;
+}
+
+.barcode-scanner__header {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--app-space-md);
+  justify-content: space-between;
+}
+
+.barcode-scanner__header h2,
+.barcode-scanner__header p {
+  margin: 0;
+}
+
+.barcode-scanner__header p {
+  color: var(--app-color-text-muted);
+  margin-top: var(--app-space-xs);
+}
+
+.barcode-scanner__viewport {
+  aspect-ratio: 4 / 3;
+  background: #111;
+  overflow: hidden;
+  position: relative;
+}
+
+.barcode-scanner__viewport video {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.barcode-scanner__viewport span {
+  border: 3px solid var(--app-color-primary);
+  inset: 25% 8%;
+  pointer-events: none;
+  position: absolute;
+}
