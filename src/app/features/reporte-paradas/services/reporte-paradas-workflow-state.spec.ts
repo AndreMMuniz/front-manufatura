@@ -146,8 +146,8 @@ describe('ReporteParadasWorkflowState', () => {
 
   it('preserva o código livre do operador e normaliza apenas o código de equipe', () => {
     state.confirmAreaChange(area);
-    const operatorCenter = { ...center, indReporteMod: 2 };
-    const teamCenter = { ...center, indReporteMod: 3 };
+    const operatorCenter = { ...center, indReporteMod: 2 as const };
+    const teamCenter = { ...center, indReporteMod: 3 as const };
     state.confirmWorkCenterChange(operatorCenter);
 
     state.setResponsibleCode(' op.int/7-a ');

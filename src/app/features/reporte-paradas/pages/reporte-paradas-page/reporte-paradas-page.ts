@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { forkJoin, timer } from 'rxjs';
+import { forkJoin, of, timer } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -526,7 +526,9 @@ export class ReporteParadasPage implements OnInit {
             return;
           }
           forkJoin({
-            responsibles: this.service.listarResponsaveis(area.code, center.code),
+            responsibles: center.indReporteMod === 2
+              ? of([])
+              : this.service.listarResponsaveis(area.code, center.code),
             reasons: this.service.listarMotivos(area.code, center.code),
           })
             .pipe(takeUntilDestroyed(this.destroyRef))
@@ -641,7 +643,9 @@ export class ReporteParadasPage implements OnInit {
     const token = this.workflow.beginContextRequest(areaCode, workCenterCode);
     this.syncView();
     forkJoin({
-      responsibles: this.service.listarResponsaveis(areaCode, workCenterCode),
+      responsibles: this.view().workCenter?.indReporteMod === 2
+        ? of([])
+        : this.service.listarResponsaveis(areaCode, workCenterCode),
       reasons: this.service.listarMotivos(areaCode, workCenterCode),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -715,6 +719,15 @@ export class ReporteParadasPage implements OnInit {
   private findSelectedResponsible(
     snapshot: ReporteParadasWorkflowSnapshot,
   ): ResponsavelParada | undefined {
+    if (snapshot.responsibleType === 'OPERADOR') {
+      return snapshot.responsibleCode.trim()
+        ? {
+            tipo: 'OPERADOR',
+            codigo: snapshot.responsibleCode,
+            nome: snapshot.responsibleCode,
+          }
+        : undefined;
+    }
     return snapshot.responsibles.find(
       (item) =>
         item.tipo === snapshot.responsibleType &&

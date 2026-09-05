@@ -6,4 +6,5 @@ export interface WorkCenter {
   readonly machineGroup: string;
   readonly establishment: string;
   readonly active: boolean;
+  readonly indReporteMod?: 2 | 3;
 }

@@ -25,6 +25,7 @@ export class ResponsavelParadaSelect {
   @Input() responsibles: ReadonlyArray<ResponsavelParada> = [];
   @Input() responsibleType: TipoResponsavelParada = 'OPERADOR';
   @Input() responsibleCode = '';
+  @Input() responsibleTypeLocked = false;
   @Input() loading = false;
   @Input() disabled = false;
   @Input() errorMessage = '';
@@ -66,7 +67,9 @@ export class ResponsavelParadaSelect {
   }
 
   changeResponsible(value: string | null | undefined): void {
-    this.responsibleCodeChange.emit(this.normalizeCode(value ?? ''));
+    this.responsibleCodeChange.emit(
+      this.responsibleType === 'OPERADOR' ? value ?? '' : this.normalizeCode(value ?? ''),
+    );
   }
 
   private normalizeCode(value: string): string {

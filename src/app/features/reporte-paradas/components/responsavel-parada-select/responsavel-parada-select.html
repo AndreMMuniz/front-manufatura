@@ -4,21 +4,31 @@
       name="tipoResponsavelParada"
       p-label="Tipo de responsável"
       [p-options]="typeOptions"
-      [p-disabled]="disabled || loading"
+      [p-disabled]="disabled || loading || responsibleTypeLocked"
       [ngModel]="responsibleType"
       (ngModelChange)="changeType($event)"
     ></po-select>
 
-    <po-select
-      name="responsavelParada"
-      p-label="Responsável"
-      p-placeholder="Selecione o responsável"
-      [p-options]="responsibleOptions"
-      [p-disabled]="disabled || loading"
-      [p-loading]="loading"
-      [ngModel]="responsibleCode"
-      (ngModelChange)="changeResponsible($event)"
-    ></po-select>
+    @if (responsibleType === 'EQUIPE') {
+      <po-select
+        name="responsavelParada"
+        p-label="Equipe"
+        p-placeholder="Selecione a equipe"
+        [p-options]="responsibleOptions"
+        [p-disabled]="disabled || loading"
+        [p-loading]="loading"
+        [ngModel]="responsibleCode"
+        (ngModelChange)="changeResponsible($event)"
+      ></po-select>
+    } @else {
+      <po-input
+        name="responsavelParada"
+        p-label="Código do operador"
+        [p-disabled]="disabled"
+        [ngModel]="responsibleCode"
+        (ngModelChange)="changeResponsible($event)"
+      ></po-input>
+    }
   </div>
 
   @if (loading) {
@@ -34,7 +44,7 @@
         (p-click)="retry.emit()"
       ></po-button>
     </div>
-  } @else if (responsibleOptions.length === 0) {
+  } @else if (responsibleType === 'EQUIPE' && responsibleOptions.length === 0) {
     <p class="responsavel-parada__empty" role="status">{{ emptyMessage }}</p>
   }
 </po-widget>

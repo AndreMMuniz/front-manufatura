@@ -114,12 +114,17 @@ export class ReporteParadasWorkflowState {
       return false;
     }
 
+    const requiredType = this.responsibleTypeFor(center);
     const preferred = context.preferredResponsible
-      ? responsibles.find(
+      ? (context.preferredResponsible.tipo === 'OPERADOR'
+          && requiredType !== 'EQUIPE'
+          && context.preferredResponsible.codigo.trim()
+        ? { ...context.preferredResponsible }
+        : responsibles.find(
           (item) =>
             item.tipo === context.preferredResponsible?.tipo &&
             this.sameCode(item.codigo, context.preferredResponsible.codigo),
-        )
+        ))
       : undefined;
 
     this.invalidateRequests();
@@ -127,12 +132,9 @@ export class ReporteParadasWorkflowState {
       ...this.initialState(),
       area: { ...area },
       workCenter: { ...center },
-      responsibleType: preferred?.tipo ?? 'OPERADOR',
-      responsibleCode: preferred ? this.normalizeCode(preferred.codigo) : '',
-      responsibles: responsibles.map((item) => ({
-        ...item,
-        codigo: this.normalizeCode(item.codigo),
-      })),
+      responsibleType: requiredType ?? preferred?.tipo ?? 'OPERADOR',
+      responsibleCode: preferred ? this.responsibleCode(preferred.tipo, preferred.codigo) : '',
+      responsibles: this.uniqueResponsibles(responsibles),
       origin: context.origin ? { ...context.origin } : undefined,
       metadata: context.metadata ? this.cloneMetadata(context.metadata) : undefined,
     };
@@ -154,6 +156,7 @@ export class ReporteParadasWorkflowState {
       ...this.initialState(),
       area,
       workCenter: workCenter ? { ...workCenter } : null,
+      responsibleType: this.responsibleTypeFor(workCenter) ?? 'OPERADOR',
     };
   }
 
@@ -208,6 +211,9 @@ export class ReporteParadasWorkflowState {
   }
 
   setResponsibleType(type: TipoResponsavelParada): void {
+    if (this.responsibleTypeFor(this.view.workCenter)) {
+      return;
+    }
     if (this.view.responsibleType === type) {
       return;
     }
@@ -221,7 +227,7 @@ export class ReporteParadasWorkflowState {
   }
 
   setResponsibleCode(code: string): void {
-    const responsibleCode = this.normalizeCode(code);
+    const responsibleCode = this.responsibleCode(this.view.responsibleType, code);
     if (this.view.responsibleCode === responsibleCode) {
       return;
     }
@@ -472,7 +478,7 @@ export class ReporteParadasWorkflowState {
   ): ReadonlyArray<ResponsavelParada> {
     const unique = new Map<string, ResponsavelParada>();
     for (const responsible of responsibles) {
-      const codigo = this.normalizeCode(responsible.codigo);
+      const codigo = this.responsibleCode(responsible.tipo, responsible.codigo);
       unique.set(`${responsible.tipo}|${codigo}`, { ...responsible, codigo });
     }
     return [...unique.values()].map((item) => ({ ...item }));
@@ -488,6 +494,18 @@ export class ReporteParadasWorkflowState {
 
   private normalizeCode(value: string): string {
     return value.trim().toUpperCase();
+  }
+
+  private responsibleCode(type: TipoResponsavelParada, value: string): string {
+    return type === 'OPERADOR' ? value : this.normalizeCode(value);
+  }
+
+  private responsibleTypeFor(
+    center: WorkCenter | null,
+  ): TipoResponsavelParada | null {
+    if (center?.indReporteMod === 2) return 'OPERADOR';
+    if (center?.indReporteMod === 3) return 'EQUIPE';
+    return null;
   }
 
   private cloneSnapshot(snapshot: ReporteParadasWorkflowSnapshot): ReporteParadasWorkflowSnapshot {

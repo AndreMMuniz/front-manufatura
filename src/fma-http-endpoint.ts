@@ -79,6 +79,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     const term = optionalText(req.query['term']).toLocaleLowerCase('pt-BR');
     return dataset(upstream, 'centrosTrabalho').map(row => {
       const item = objectOfUpstream(row);
+      const reportMode = item['indReporteMod'];
       return {
         code: text(item['codCtrab']),
         description: text(item['desCtrab']),
@@ -87,6 +88,7 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
         machineGroup: '',
         establishment: '',
         active: true,
+        ...(reportMode === 2 || reportMode === 3 ? { indReporteMod: reportMode } : {}),
       };
     }).filter(center => !term || `${center.code} ${center.description}`.toLocaleLowerCase('pt-BR').includes(term));
   }));

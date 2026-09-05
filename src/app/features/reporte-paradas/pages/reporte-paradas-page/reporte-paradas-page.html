@@ -24,6 +24,7 @@
         [responsibles]="view().responsibles"
         [responsibleType]="view().responsibleType"
         [responsibleCode]="view().responsibleCode"
+        [responsibleTypeLocked]="view().workCenter?.indReporteMod === 2 || view().workCenter?.indReporteMod === 3"
         [loading]="view().contextLoading"
         [disabled]="view().saving || view().finishing || contextFinishing()"
         [errorMessage]="view().contextError"

@@ -145,7 +145,9 @@ export class ReporteParadasService {
       const validated = this.validateCommand(command);
       return forkJoin({
         centers: this.pesquisarCentros(command.areaCode),
-        responsibles: this.listarResponsaveis(command.areaCode, command.workCenterCode),
+        responsibles: command.responsible.tipo === 'OPERADOR'
+          ? of([])
+          : this.listarResponsaveis(command.areaCode, command.workCenterCode),
         reasons: this.listarMotivos(command.areaCode, command.workCenterCode),
       }).pipe(
         switchMap(({ centers, responsibles, reasons }) => {
@@ -160,11 +162,15 @@ export class ReporteParadasService {
           }
           const area = { code: center.areaCode, description: center.area };
 
-          const responsible = responsibles.find(
-            (item) =>
-              item.tipo === command.responsible.tipo &&
-              this.sameCode(item.codigo, command.responsible.codigo),
-          );
+          const responsible = command.responsible.tipo === 'OPERADOR'
+            ? command.responsible.codigo.trim()
+              ? { ...command.responsible }
+              : undefined
+            : responsibles.find(
+                (item) =>
+                  item.tipo === command.responsible.tipo &&
+                  this.sameCode(item.codigo, command.responsible.codigo),
+              );
           if (!responsible) {
             throw new Error(
               'Selecione um responsável elegível para a Área e o Centro de Trabalho.',
@@ -193,7 +199,12 @@ export class ReporteParadasService {
               },
             },
             reason: { ...reason },
-            responsible: { ...responsible, codigo: this.normalizeCode(responsible.codigo) },
+            responsible: {
+              ...responsible,
+              codigo: responsible.tipo === 'OPERADOR'
+                ? responsible.codigo
+                : this.normalizeCode(responsible.codigo),
+            },
             startDate: this.dateOnly(validated.start),
             startTime: command.startTime.trim(),
             ...(validated.end ? { endDate: this.dateOnly(validated.end) } : {}),
