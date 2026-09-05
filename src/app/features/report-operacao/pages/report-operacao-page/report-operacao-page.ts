@@ -502,7 +502,6 @@ export class ReportOperacaoPage implements OnInit {
       nome: resultado.equipe.descricao,
     };
     const key = this.responsavelKey(equipe);
-    const selectedBefore = this.responsavelSelecionado;
     const merged = new Map<string, ResponsavelOperacao>();
     for (const responsavel of this.responsaveis) {
       const canonical = {
@@ -514,17 +513,9 @@ export class ReportOperacaoPage implements OnInit {
     merged.set(key, equipe);
     this.responsaveis = [...merged.values()].map(item => ({ ...item }));
 
-    if (
-      resultado.modo === 'nova'
-      || (resultado.modo === 'existente' && selectedBefore
-        && this.responsavelKey(selectedBefore) === key)
-    ) {
-      this.tipoResponsavel = 'EQUIPE';
-      this.responsavelCodigo = equipe.codigo;
-      this.workflowState.setResponsavel(equipe);
-    } else {
-      this.workflowState.setResponsavel(selectedBefore);
-    }
+    this.tipoResponsavel = 'EQUIPE';
+    this.responsavelCodigo = equipe.codigo;
+    this.workflowState.setResponsavel(equipe);
     this.changeDetector.markForCheck();
   }
 

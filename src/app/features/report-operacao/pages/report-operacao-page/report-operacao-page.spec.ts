@@ -1510,14 +1510,16 @@ describe('ReportOperacaoPage', () => {
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
     component.openSelectedOrders();
-    component.alterarResponsavel('001');
     component.alterarTipoResponsavel('EQUIPE');
+    component.responsaveis = [
+      ...component.responsaveis,
+      { tipo: 'EQUIPE', codigo: 'MONT04', nome: 'Equipe B' },
+    ];
+    component.alterarResponsavel('MONT04');
     const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
       .componentInstance as GerenciarEquipeSlide;
     vi.spyOn(drawer, 'abrir').mockImplementation(() => undefined);
     component.abrirGerenciarEquipe();
-    component.alterarTipoResponsavel('OPERADOR');
-    component.alterarResponsavel(' 001 ');
 
     component.onEquipeSalva(resultadoEquipe(' mont03 ', 'existente'));
     fixture.detectChanges();
