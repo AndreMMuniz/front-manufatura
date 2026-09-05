@@ -5,6 +5,45 @@ import { describe, expect, it } from 'vitest';
 import { ResponsavelParadaSelect } from './responsavel-parada-select';
 
 describe('ResponsavelParadaSelect', () => {
+  it('renderiza operador como input livre e preserva exatamente o código informado', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ResponsavelParadaSelect],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ResponsavelParadaSelect);
+    fixture.componentRef.setInput('responsibleType', 'OPERADOR');
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(By.css('po-input[name="responsavelParada"]'))).toBeTruthy();
+    expect(fixture.debugElement.query(By.css('po-select[name="responsavelParada"]'))).toBeNull();
+
+    const emitted: string[] = [];
+    fixture.componentInstance.responsibleCodeChange.subscribe(value => emitted.push(value));
+    fixture.componentInstance.changeResponsible(' op.int/7-a ');
+
+    expect(emitted).toEqual([' op.int/7-a ']);
+  });
+
+  it('mantém equipes elegíveis em dropdown e normaliza o código selecionado', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ResponsavelParadaSelect],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ResponsavelParadaSelect);
+    fixture.componentRef.setInput('responsibleType', 'EQUIPE');
+    fixture.componentRef.setInput('responsibles', [
+      { tipo: 'EQUIPE', codigo: ' eq-01 ', nome: 'Equipe Um' },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(By.css('po-select[name="responsavelParada"]'))).toBeTruthy();
+    expect(fixture.debugElement.query(By.css('po-input[name="responsavelParada"]'))).toBeNull();
+
+    const emitted: string[] = [];
+    fixture.componentInstance.responsibleCodeChange.subscribe(value => emitted.push(value));
+    fixture.componentInstance.changeResponsible(' eq-01 ');
+
+    expect(emitted).toEqual(['EQ-01']);
+  });
+
   it('filtra opções por tipo e preserva identidade composta normalizada', async () => {
     await TestBed.configureTestingModule({
       imports: [ResponsavelParadaSelect],

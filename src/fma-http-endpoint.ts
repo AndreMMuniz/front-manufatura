@@ -1166,6 +1166,19 @@ function stopBusinessError(value: unknown, route: string): FmaPublicCommandError
       conflict,
     );
   }
+  const retroactiveProgrammedStop = messages.find(message => {
+    const normalized = normalizedBusinessMessage(message);
+    return normalized.includes('datainicioparada nao pode ser anterior a hoje')
+      && normalized.includes('parada programada');
+  });
+  if (retroactiveProgrammedStop) {
+    return new FmaPublicCommandError(
+      422,
+      'DATASUL_RETROACTIVE_PROGRAMMED_STOP',
+      'VALIDATION',
+      retroactiveProgrammedStop,
+    );
+  }
   const future = messages.find(message => {
     const normalized = normalizedBusinessMessage(message);
     return normalized.includes('reporte parada centro trab para o futuro')

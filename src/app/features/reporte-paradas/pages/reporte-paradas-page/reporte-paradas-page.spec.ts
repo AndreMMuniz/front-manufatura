@@ -237,6 +237,57 @@ describe('ReporteParadasPage', () => {
     expect(service.listarResponsaveis).toHaveBeenCalledTimes(2);
   });
 
+  it('usa input livre no Centro por operador e envia o valor como responsável da parada', () => {
+    const operatorCenter = { ...center, indReporteMod: 2 };
+    service.pesquisarCentros.mockReturnValue(of([operatorCenter]));
+    service.listarResponsaveis.mockReturnValue(of([]));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.onResponsibleCodeChange(' op.int/7-a ');
+    component.onDraftChange({
+      reasonId: 1,
+      startDate: '2026-07-28',
+      startTime: '08:00',
+      endDate: null,
+      endTime: '',
+    });
+
+    component.registrarParada();
+
+    expect(component.view().responsibleType).toBe('OPERADOR');
+    expect(service.registrarParada).toHaveBeenCalledWith(expect.objectContaining({
+      responsible: {
+        tipo: 'OPERADOR',
+        codigo: ' op.int/7-a ',
+        nome: ' op.int/7-a ',
+      },
+    }));
+  });
+
+  it('fixa equipe no Centro por equipe e aceita somente opção elegível da lista', () => {
+    const teamCenter = { ...center, indReporteMod: 3 };
+    const team = { tipo: 'EQUIPE' as const, codigo: 'EQ-01', nome: 'Equipe Um' };
+    service.pesquisarCentros.mockReturnValue(of([teamCenter]));
+    service.listarResponsaveis.mockReturnValue(of([team]));
+    fixture.detectChanges();
+    component.onAreaChange('4001');
+    component.onWorkCenterChange('CT-EXT-01');
+    component.onResponsibleCodeChange('EQ-01');
+    component.onDraftChange({
+      reasonId: 1,
+      startDate: '2026-07-28',
+      startTime: '08:00',
+      endDate: null,
+      endTime: '',
+    });
+
+    component.registrarParada();
+
+    expect(component.view().responsibleType).toBe('EQUIPE');
+    expect(service.registrarParada).toHaveBeenCalledWith(expect.objectContaining({ responsible: team }));
+  });
+
   it('mantém paradas locais visíveis junto do erro da consulta ao Datasul', () => {
     const local = openStop();
     service.listarParadasEmAndamento.mockReturnValue(throwError(() =>

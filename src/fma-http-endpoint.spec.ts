@@ -1004,8 +1004,40 @@ describe('gateway FMA', () => {
     });
   });
 
+  it('exibe a mensagem do Datasul ao rejeitar o início retroativo de parada programada', async () => {
+    const userMessage = 'dataInicioParada nao pode ser anterior a hoje para Parada Programada';
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      detailedMessage: userMessage,
+      code: '1',
+      message: userMessage,
+      type: 'error',
+    }), { status: 500, headers: { 'content-type': 'application/json' } }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/production-stops`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.stoppages])}`,
+        'content-type': 'application/json',
+        'idempotency-key': 'stop-programada-retroativa',
+      },
+      body: JSON.stringify({
+        context: { area: { code: '4113' }, workCenter: { code: 'LASER-01-01' } },
+        reason: { code: '05' },
+        responsible: { tipo: 'OPERADOR', codigo: '00016570' },
+        startDate: '2026-08-06', startTime: '09:04',
+      }),
+    });
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_RETROACTIVE_PROGRAMMED_STOP',
+      category: 'VALIDATION',
+      userMessage,
+    });
+  });
+
   it('lista e adapta centros de trabalho sem expor Basic ao browser', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [{ codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T' }]));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [{ codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T', indReporteMod: 2 }]));
     const root = await startGateway(transport);
     const result = await fetch(`${root}/api/work-centers?areaCode=4104&active=true`, {
       headers: { authorization: `Bearer ${await token()}` },
@@ -1014,6 +1046,7 @@ describe('gateway FMA', () => {
     expect(result.status).toBe(200);
     await expect(result.json()).resolves.toEqual([expect.objectContaining({
       code: 'PRE-006-02', description: 'PRENSA 45T', areaCode: '4104', active: true,
+      indReporteMod: 2,
     })]);
     expect(String(transport.mock.calls[0][0])).toBe('https://datasul.example.test/api/fma/v1/centrostrabalho?companyId=1&codUsuario=mjocelio&codAreaProduc=4104');
     expect((transport.mock.calls[0][1]?.headers as Record<string, string>)['Authorization'])

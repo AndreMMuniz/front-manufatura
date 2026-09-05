@@ -284,6 +284,25 @@ describe('ReporteParadasService', () => {
     expect(commands.capture.mock.calls[0][0].payload).not.toHaveProperty('programmed');
   });
 
+  it('aceita operador livre fora do catálogo e preserva seu código no comando', async () => {
+    const { service, catalog, commands } = setup();
+    catalog.listarResponsaveis.mockReturnValue(of([]));
+
+    await firstValueFrom(service.registrarParada(request({
+      responsible: { tipo: 'OPERADOR', codigo: ' op.int/7-a ', nome: ' op.int/7-a ' },
+      endDate: null,
+      endTime: null,
+    })));
+
+    expect(commands.capture.mock.calls[0][0].payload).toEqual(expect.objectContaining({
+      responsible: {
+        tipo: 'OPERADOR',
+        codigo: ' op.int/7-a ',
+        nome: ' op.int/7-a ',
+      },
+    }));
+  });
+
   it('devolve a rejeição do Datasul em vez de classificar a parada como pendente', async () => {
     const { service, deliver, durableRecords, durableOutbox } = setup();
     const remoteError = {

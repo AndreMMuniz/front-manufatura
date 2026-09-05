@@ -132,6 +132,32 @@ describe('ReporteParadasWorkflowState', () => {
     expect(snapshot.metadata).toBeUndefined();
   });
 
+  it.each([
+    [2, 'OPERADOR'],
+    [3, 'EQUIPE'],
+  ] as const)('define o tipo de responsável pelo modo %s do Centro de Trabalho', (mode, type) => {
+    state.confirmAreaChange(area);
+    const centerWithMode = { ...center, indReporteMod: mode };
+
+    state.confirmWorkCenterChange(centerWithMode);
+
+    expect(state.snapshot().responsibleType).toBe(type);
+  });
+
+  it('preserva o código livre do operador e normaliza apenas o código de equipe', () => {
+    state.confirmAreaChange(area);
+    const operatorCenter = { ...center, indReporteMod: 2 };
+    const teamCenter = { ...center, indReporteMod: 3 };
+    state.confirmWorkCenterChange(operatorCenter);
+
+    state.setResponsibleCode(' op.int/7-a ');
+    expect(state.snapshot().responsibleCode).toBe(' op.int/7-a ');
+
+    state.confirmWorkCenterChange(teamCenter);
+    state.setResponsibleCode(' eq-01 ');
+    expect(state.snapshot().responsibleCode).toBe('EQ-01');
+  });
+
   it('não altera snapshot quando o descarte é cancelado', () => {
     prepareDirtyState();
     const before = state.snapshot();
