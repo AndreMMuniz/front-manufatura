@@ -13,7 +13,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { forkJoin } from 'rxjs';
+import { forkJoin, map } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -304,10 +304,8 @@ export class GerenciarEquipeSlide {
             areaCode: contexto.areaCode,
             workCenterCode: contexto.workCenterCode,
             operadores,
-          })
+          }).pipe(map(equipe => ({ equipe, sincronizacaoPendente: false })))
         : this.equipesService.atualizarEquipe({
-            areaCode: contexto.areaCode,
-            workCenterCode: contexto.workCenterCode,
             codigo: this.codigo(),
             operadores,
           });
@@ -316,11 +314,19 @@ export class GerenciarEquipeSlide {
     this.errorKind.set(null);
     this.feedback.set('');
     command$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (equipe) => {
+      next: (saveResult) => {
         if (requestVersion !== this.requestVersion || this.emittedForCurrentOpen) {
           return;
         }
         this.emittedForCurrentOpen = true;
+        const equipe = saveResult.equipe ?? {
+          codigo: this.codigo(),
+          descricao: this.descricao(),
+          turno: this.turno(),
+          operadores: this.operadores()
+            .filter(operador => this.codigosSelecionados().has(operador.codigo))
+            .map(operador => ({ ...operador })),
+        };
         const resultado: GerenciarEquipeResultado = {
           equipe: {
             ...equipe,
@@ -332,7 +338,13 @@ export class GerenciarEquipeSlide {
           modo,
           contexto: { ...contextoSalvo },
         };
-        this.notification.success('Equipe salva com sucesso.');
+        if (saveResult.sincronizacaoPendente) {
+          this.notification.warning(
+            'Sem comunicação com o Datasul. A alteração foi enviada para a fila de sincronização.',
+          );
+        } else {
+          this.notification.success('Equipe salva com sucesso.');
+        }
         for (const alerta of equipe.alertas ?? []) {
           this.notification.warning(alerta.mensagem);
         }

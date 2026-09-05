@@ -46,6 +46,7 @@ import {
   ReportOperationSyncHandler,
   StartBatchSyncHandler,
   StartOperationSyncHandler,
+  UpdateTeamSyncHandler,
 } from './core/offline/services/fma-sync.handlers';
 import { INSECURE_HTTP_TEST_MODE } from './core/runtime/insecure-http-test-mode';
 import { ClientErrorHandler } from './core/logging/client-error-handler';
@@ -108,6 +109,7 @@ export const appConfig: ApplicationConfig = {
     { provide: SYNC_COMMAND_HANDLERS, useClass: CreateStopSyncHandler, multi: true },
     { provide: SYNC_COMMAND_HANDLERS, useClass: FinishStopSyncHandler, multi: true },
     { provide: SYNC_COMMAND_HANDLERS, useClass: DeleteStopSyncHandler, multi: true },
+    { provide: SYNC_COMMAND_HANDLERS, useClass: UpdateTeamSyncHandler, multi: true },
     provideAppInitializer(() => {
       const coordinator = inject(SyncCoordinatorService);
       const pwaUpdate = inject(PwaUpdateService);

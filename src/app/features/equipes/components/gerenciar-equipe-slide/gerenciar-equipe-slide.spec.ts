@@ -7,12 +7,15 @@ import {
   PoPageSlideComponent,
   PoTableComponent,
 } from '@po-ui/ng-components';
-import { Subject, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { Equipe } from '../../models/equipe.model';
 import { Operador } from '../../models/operador.model';
-import { EquipesService } from '../../services/equipes.service';
+import {
+  AtualizarEquipeResultado,
+  EquipesService,
+} from '../../services/equipes.service';
 import { GerenciarEquipeResultado, GerenciarEquipeSlide } from './gerenciar-equipe-slide';
 
 describe('GerenciarEquipeSlide', () => {
@@ -243,8 +246,6 @@ describe('GerenciarEquipeSlide', () => {
     component.onSalvar();
 
     expect(service.atualizarEquipe).toHaveBeenCalledWith({
-      areaCode: '4001',
-      workCenterCode: 'CT-EXT-01',
       codigo: 'MONT03',
       operadores: ['003'],
     });
@@ -253,6 +254,31 @@ describe('GerenciarEquipeSlide', () => {
       modo: 'existente',
       contexto: contexto(),
     });
+  });
+
+  it('fecha com aviso e atualiza localmente quando a alteração entra na fila', () => {
+    const { component, service, notification, pageSlide } = createComponent();
+    service.atualizarEquipe.mockReturnValue(of({ sincronizacaoPendente: true }));
+    const emitted = vi.fn();
+    component.equipeSalva.subscribe(emitted);
+    component.abrir(contexto(), 'existente');
+    component.onSelecionarEquipe('MONT03');
+    component.onSelecionarOperador({ codigo: '001', nome: 'Operador 1' }, false);
+    component.onSelecionarOperador({ codigo: '002', nome: 'Operador 2' }, false);
+    component.onSelecionarOperador({ codigo: '003', nome: 'Operador 3' }, true);
+
+    component.onSalvar();
+
+    expect(notification.success).not.toHaveBeenCalled();
+    expect(notification.warning).toHaveBeenCalledWith(
+      'Sem comunicação com o Datasul. A alteração foi enviada para a fila de sincronização.',
+    );
+    expect(emitted).toHaveBeenCalledWith({
+      equipe: equipe('MONT03', ['003']),
+      modo: 'existente',
+      contexto: contexto(),
+    });
+    expect(pageSlide.close).toHaveBeenCalledOnce();
   });
 
   it('emite cópias defensivas do modo e contexto capturados no início do save', () => {
@@ -527,7 +553,10 @@ function createComponent(
         : items;
     }),
     criarEquipe: vi.fn(() => of(options.criada ?? equipe('NOVA01', ['003']))),
-    atualizarEquipe: vi.fn(() => of(options.atualizada ?? equipe('MONT03', ['003']))),
+    atualizarEquipe: vi.fn((): Observable<AtualizarEquipeResultado> => of({
+      equipe: options.atualizada ?? equipe('MONT03', ['003']),
+      sincronizacaoPendente: false,
+    })),
   };
   const notification = { warning: vi.fn(), error: vi.fn(), success: vi.fn() };
   const dialog = { confirm: vi.fn() };

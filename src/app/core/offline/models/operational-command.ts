@@ -17,6 +17,7 @@ export const OPERATIONAL_COMMAND_TYPES = [
   'CREATE_STOP',
   'FINISH_STOP',
   'DELETE_STOP',
+  'UPDATE_TEAM',
 ] as const;
 
 export type OperationalCommandType = (typeof OPERATIONAL_COMMAND_TYPES)[number];
@@ -27,7 +28,8 @@ export type OperationalAggregateType =
   | 'QUALITY_INSPECTION'
   | 'OPERATION'
   | 'BATCH'
-  | 'STOP';
+  | 'STOP'
+  | 'TEAM';
 
 export interface OperationalCommandDefinition {
   readonly aggregateType: OperationalAggregateType;
@@ -51,6 +53,7 @@ export const OPERATIONAL_COMMAND_DEFINITIONS = Object.freeze({
   CREATE_STOP: definition('STOP'),
   FINISH_STOP: definition('STOP'),
   DELETE_STOP: definition('STOP'),
+  UPDATE_TEAM: definition('TEAM'),
 } satisfies Record<OperationalCommandType, OperationalCommandDefinition>);
 
 export type InitialOperationalSyncStatus = 'PENDING' | 'BLOCKED_AUTH';

@@ -10,6 +10,7 @@ import {
   FinishStopSyncHandler,
   StartBatchSyncHandler,
   StartOperationSyncHandler,
+  UpdateTeamSyncHandler,
 } from './fma-sync.handlers';
 
 describe('FMA sync handlers', () => {
@@ -143,9 +144,41 @@ describe('FMA sync handlers', () => {
     });
     expect(post).toHaveBeenCalledWith('/api/batches/start', {}, expect.any(Object));
   });
+
+  it('reenvia uma alteração de equipe pela rota interna sem duplicar o código no corpo', async () => {
+    const put = vi.fn().mockReturnValue(of({
+      codigo: 'AUT00039',
+      descricao: 'Equipe Automatica AUT00039',
+      turno: '1',
+      operadores: [{ codigo: '00016570', nome: 'JEFFERSON LIBRELON' }],
+    }));
+    const handler = new UpdateTeamSyncHandler(
+      { put } as never,
+      { token: 'session-token' } as AuthSessionService,
+    );
+    const request = command('UPDATE_TEAM', {
+      codigo: 'AUT00039',
+      operadores: ['00016570'],
+    });
+
+    const result = await handler.send(request, new AbortController().signal);
+
+    expect(put).toHaveBeenCalledWith(
+      '/api/teams/AUT00039',
+      { operadores: ['00016570'] },
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Idempotency-Key': request.idempotencyKey }),
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({
+      serverRecordId: 'datasul:team:AUT00039',
+      idempotencyKey: request.idempotencyKey,
+      duplicate: false,
+    }));
+  });
 });
 
-function command(commandType: string, payload: Record<string, string>): SyncCommandRequest {
+function command(commandType: string, payload: SyncCommandRequest['payload']): SyncCommandRequest {
   return {
     localId: 'local-1',
     idempotencyKey: '123e4567-e89b-42d3-a456-426614174000',

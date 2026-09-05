@@ -12,25 +12,33 @@ import { SyncCommandHandler } from './command-transport-router';
 abstract class FmaSyncHandler implements SyncCommandHandler {
   abstract readonly commandType: OperationalCommandType;
   protected abstract endpoint(request: SyncCommandRequest): string;
+  protected readonly method: 'POST' | 'PUT' = 'POST';
 
   constructor(
-    private readonly http: HttpClient,
-    private readonly auth: AuthSessionService,
+    protected readonly http: HttpClient,
+    protected readonly auth: AuthSessionService,
   ) {}
 
   send(request: SyncCommandRequest, signal: AbortSignal): Promise<CommandResult> {
     const token = this.auth.token;
     if (!token) throw { status: 401, code: 'SESSION_REQUIRED', category: 'AUTH' };
-    return abortable(this.http.post<CommandResult>(
-      this.endpoint(request),
-      request.payload,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Idempotency-Key': request.idempotencyKey,
-        },
+    const args = [
+      this.endpoint(request), this.requestBody(request), {
+        headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': request.idempotencyKey },
       },
-    ), signal);
+    ] as const;
+    const source = this.method === 'PUT'
+      ? this.http.put<unknown>(...args)
+      : this.http.post<unknown>(...args);
+    return abortable(source, signal).then(response => this.mapResponse(response, request));
+  }
+
+  protected requestBody(request: SyncCommandRequest): JsonValue {
+    return request.payload;
+  }
+
+  protected mapResponse(response: unknown, _request: SyncCommandRequest): CommandResult {
+    return response as CommandResult;
   }
 }
 
@@ -96,6 +104,38 @@ export class DeleteStopSyncHandler extends FmaSyncHandler {
     const payload = objectOf(request.payload);
     const stopLocalId = requiredText(payload['stopLocalId']);
     return `/api/production-stops/${encodeURIComponent(stopLocalId)}/eliminate`;
+  }
+}
+
+@Injectable()
+export class UpdateTeamSyncHandler extends FmaSyncHandler {
+  readonly commandType = 'UPDATE_TEAM' as const;
+  protected override readonly method = 'PUT' as const;
+
+  protected endpoint(request: SyncCommandRequest): string {
+    const codigo = requiredText(objectOf(request.payload)['codigo']);
+    return `/api/teams/${encodeURIComponent(codigo)}`;
+  }
+
+  protected requestBody(request: SyncCommandRequest): JsonValue {
+    const payload = objectOf(request.payload);
+    const operadores = payload['operadores'];
+    if (!Array.isArray(operadores) || operadores.some(item => typeof item !== 'string')) {
+      throw new Error('invalid-fma-command-payload');
+    }
+    return { operadores };
+  }
+
+  protected mapResponse(_response: unknown, request: SyncCommandRequest): CommandResult {
+    const codigo = requiredText(objectOf(request.payload)['codigo']);
+    const processedAt = new Date().toISOString();
+    return {
+      serverRecordId: `datasul:team:${codigo}`,
+      idempotencyKey: request.idempotencyKey,
+      receivedAt: processedAt,
+      processedAt,
+      duplicate: false,
+    };
   }
 }
 

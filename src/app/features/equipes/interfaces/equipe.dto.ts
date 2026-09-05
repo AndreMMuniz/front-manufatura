@@ -22,7 +22,7 @@ export interface CriarEquipeRequest extends EquipeContexto {
   readonly operadores: ReadonlyArray<string>;
 }
 
-export interface AtualizarEquipeRequest extends EquipeContexto {
+export interface AtualizarEquipeRequest {
   readonly codigo: string;
   readonly operadores: ReadonlyArray<string>;
 }

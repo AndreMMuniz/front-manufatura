@@ -1,7 +1,10 @@
-import { Injectable } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Injectable, Optional } from '@angular/core';
+import { Observable, catchError, from, map, throwError } from 'rxjs';
 
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
+import { normalizeCommandError } from '../../../core/offline/models/sync-error';
+import { OperationalCommandFacade } from '../../../core/offline/services/operational-command.facade';
 import {
   AtualizarEquipeRequest,
   CriarEquipeRequest,
@@ -16,9 +19,18 @@ interface OperatorApiResponse {
   readonly name: string;
 }
 
+export interface AtualizarEquipeResultado {
+  readonly equipe?: Equipe;
+  readonly sincronizacaoPendente: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EquipesService {
-  constructor(private readonly api: AuthenticatedApiService) {}
+  constructor(
+    private readonly api: AuthenticatedApiService,
+    @Optional()
+    private readonly commands: Pick<OperationalCommandFacade, 'capture'> | null = null,
+  ) {}
 
   consultarEquipe(codigoEquipe: string): Observable<Equipe> {
     const codigo = this.normalizeCode(codigoEquipe);
@@ -64,13 +76,29 @@ export class EquipesService {
     }).pipe(map(response => this.mapEquipeResponse(response)));
   }
 
-  atualizarEquipe(request: AtualizarEquipeRequest): Observable<Equipe> {
+  atualizarEquipe(request: AtualizarEquipeRequest): Observable<AtualizarEquipeResultado> {
     const codigo = this.normalizeCode(request.codigo);
+    const operadores = this.uniqueCodes(request.operadores);
     return this.api.put<EquipeResponseDTO>(`/api/teams/${encodeURIComponent(codigo)}`, {
-      areaCode: this.normalizeCode(request.areaCode),
-      workCenterCode: this.normalizeCode(request.workCenterCode),
-      operadores: this.uniqueCodes(request.operadores),
-    }).pipe(map(response => this.mapEquipeResponse(response)));
+      operadores,
+    }).pipe(
+      map(response => ({
+        equipe: this.mapEquipeResponse(response),
+        sincronizacaoPendente: false,
+      })),
+      catchError((error: unknown) => {
+        const normalized = normalizeCommandError(this.publicCommandError(error));
+        if (normalized.category !== 'TRANSIENT' || !this.commands) {
+          return throwError(() => new Error(normalized.userMessage));
+        }
+        return from(this.commands.capture({
+          commandType: 'UPDATE_TEAM',
+          aggregateId: codigo,
+          businessStatus: 'ALTERACAO_PENDENTE',
+          payload: { codigo, operadores: [...operadores] },
+        })).pipe(map(() => ({ sincronizacaoPendente: true })));
+      }),
+    );
   }
 
   montarEquipeAtualizada(equipe: Equipe, operadores: ReadonlyArray<Operador>): Equipe {
@@ -113,5 +141,13 @@ export class EquipesService {
 
   private normalizeText(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  }
+
+  private publicCommandError(error: unknown): unknown {
+    if (!(error instanceof HttpErrorResponse)) return error;
+    const body = error.error;
+    return body && typeof body === 'object' && !Array.isArray(body)
+      ? { status: error.status, ...(body as Readonly<Record<string, unknown>>) }
+      : { status: error.status };
   }
 }

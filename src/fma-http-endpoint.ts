@@ -509,7 +509,8 @@ function installAdaptedRoutes(
   for (const path of reads) app.get(path, (req, res) => handle(req, res, dependencies, client =>
     client.request('GET', concretePath(req), undefined, queryObject(req), normalizedRoute(req))));
   app.put('/api/teams/:code', (req, res) => handle(
-    req, res, dependencies, client => generateTeam(client, objectOf(req.body)),
+    req, res, dependencies,
+    client => updateTeam(client, req.params['code'], objectOf(req.body)),
   ));
 }
 
@@ -520,6 +521,23 @@ async function generateTeam(client: FmaClient, body: JsonObject): Promise<JsonOb
     operadores: uniqueRequiredTexts(body['operadores']),
   };
   const upstream = await client.request('POST', '/api/fma/v1/geraequipe', command);
+  return mapTeamResponse(upstream);
+}
+
+async function updateTeam(
+  client: FmaClient,
+  code: unknown,
+  body: JsonObject,
+): Promise<JsonObject> {
+  const command = {
+    codEquipe: requiredText(code),
+    operadores: uniqueRequiredTexts(body['operadores']),
+  };
+  const upstream = await client.request('POST', '/api/fma/v1/alteraequipe', command);
+  return mapTeamResponse(upstream);
+}
+
+function mapTeamResponse(upstream: unknown): JsonObject {
   const result = objectOfUpstream(single(dataset(upstream, 'equipeResultado')));
   const operators = dataset(upstream, 'operadores').map(row => {
     const item = objectOfUpstream(row);
@@ -1209,7 +1227,7 @@ function datasulMessages(value: unknown): string[] {
     .flatMap(item => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
       const record = item as JsonObject;
-      return [record['message'], record['detailedMessage']];
+      return [record['message'], record['detailedMessage'], record['mensagem']];
     })
     .filter((message): message is string => typeof message === 'string')
     .map(message => message.replace(/[\u0000-\u001f\u007f]/gu, ' ').trim())

@@ -140,7 +140,7 @@ describe('gateway FMA', () => {
     });
   });
 
-  it('regenera a composição ao alterar uma equipe existente', async () => {
+  it('altera a composição de uma equipe existente pela API dedicada', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       items: [{
         equipeResultado: [{
@@ -170,13 +170,35 @@ describe('gateway FMA', () => {
       operadores: [{ codigo: '00406320', nome: 'Abinoa Lindalva de Oliveira' }],
     });
     expect(String(transport.mock.calls[0][0])).toBe(
-      'https://datasul.example.test/api/fma/v1/geraequipe?companyId=1&codUsuario=mjocelio',
+      'https://datasul.example.test/api/fma/v1/alteraequipe?companyId=1&codUsuario=mjocelio',
     );
     expect(transport.mock.calls[0][1]?.method).toBe('POST');
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual({
-      codAreaProduc: '4110',
-      codCtrab: 'EMPACOTADORA AUTOMÁTICA MASIPACK 1',
+      codEquipe: 'EMP-05',
       operadores: ['00406320'],
+    });
+  });
+
+  it('propaga a mensagem do Datasul quando a alteração da equipe é rejeitada', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      mensagem: 'O operador 00406320 não pode ser removido da equipe.',
+    }), { status: 422 }));
+    const root = await startGateway(transport);
+
+    const result = await fetch(`${root}/api/teams/EMP-05`, {
+      method: 'PUT',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ operadores: ['00406320'] }),
+    });
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'O operador 00406320 não pode ser removido da equipe.',
     });
   });
 
