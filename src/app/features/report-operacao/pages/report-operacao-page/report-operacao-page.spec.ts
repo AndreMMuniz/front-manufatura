@@ -1094,14 +1094,13 @@ describe('ReportOperacaoPage', () => {
     expect(card.actionDisabled).toBe(true);
   });
 
-  it('renders the start, report and end operation actions', () => {
+  it('renders only the start and report operation actions', () => {
     fixture.detectChanges();
 
     const actions = fixture.debugElement.queryAll(By.css('app-report-actions po-button'));
     expect(actions.map(action => action.attributes['p-label'])).toEqual([
       'Iniciar',
       'Reporte',
-      'Encerrar',
     ]);
   });
 
@@ -1506,7 +1505,7 @@ describe('ReportOperacaoPage', () => {
     expect(component.responsaveis).not.toContainEqual(expect.objectContaining({ codigo: 'NOVA01' }));
   });
 
-  it('re-upserta edição por chave normalizada sem trocar uma seleção diferente', () => {
+  it('seleciona a equipe editada e mantém o dropdown habilitado antes do início', () => {
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -1521,14 +1520,19 @@ describe('ReportOperacaoPage', () => {
     component.alterarResponsavel(' 001 ');
 
     component.onEquipeSalva(resultadoEquipe(' mont03 ', 'existente'));
+    fixture.detectChanges();
 
     expect(component.responsaveis.filter(item =>
       item.tipo === 'EQUIPE' && item.codigo === 'MONT03')).toHaveLength(1);
     expect(component.responsavelSelecionado).toEqual({
-      tipo: 'OPERADOR',
-      codigo: ' 001 ',
-      nome: 'Ana Silva',
+      tipo: 'EQUIPE',
+      codigo: 'MONT03',
+      nome: 'Equipe Nova',
     });
+    const infoCard = fixture.debugElement.query(By.directive(OperacaoInfoCard))
+      .componentInstance as OperacaoInfoCard;
+    expect(infoCard.responsavelCodigo).toBe('MONT03');
+    expect(infoCard.responsavelDisabled).toBe(false);
   });
 
   function selectContextAndConsult(): void {
