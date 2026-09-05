@@ -16,7 +16,12 @@ import {
   FinishStopRequest,
   StopResponse,
 } from '../interfaces/reporte-paradas.dto';
-import { ProductionContext, StopEntry, StopReason } from '../models/reporte-paradas.model';
+import {
+  ProductionContext,
+  ResponsavelParada,
+  StopEntry,
+  StopReason,
+} from '../models/reporte-paradas.model';
 import { ReporteParadasService, StartedStopsQueryError } from './reporte-paradas.service';
 
 describe('ReporteParadasService', () => {
@@ -59,7 +64,7 @@ describe('ReporteParadasService', () => {
     const catalog = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
       pesquisarCentros: vi.fn(() => of([center])),
-      listarResponsaveis: vi.fn(() =>
+      listarResponsaveis: vi.fn<() => Observable<ReadonlyArray<ResponsavelParada>>>(() =>
         of([{ tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana Silva' }]),
       ),
     };
@@ -303,6 +308,15 @@ describe('ReporteParadasService', () => {
     }));
   });
 
+  it('rejeita operador quando o Centro de Trabalho exige equipe', async () => {
+    const { service, catalog } = setup();
+    catalog.pesquisarCentros.mockReturnValueOnce(of([{ ...center, indReporteMod: 3 }]));
+
+    await expect(firstValueFrom(service.registrarParada(request({
+      responsible: { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'OP-001' },
+    })))).rejects.toThrow('equipe');
+  });
+
   it('devolve a rejeição do Datasul em vez de classificar a parada como pendente', async () => {
     const { service, deliver, durableRecords, durableOutbox } = setup();
     const remoteError = {
@@ -448,24 +462,29 @@ describe('ReporteParadasService', () => {
       firstValueFrom(service.registrarParada(request({ areaCode: '' }))),
     ).rejects.toThrow('Área');
     catalog.listarResponsaveis.mockReturnValueOnce(of([]));
-    await expect(firstValueFrom(service.registrarParada(request()))).rejects.toThrow('responsável');
+    await expect(firstValueFrom(service.registrarParada(request({
+      responsible: { tipo: 'EQUIPE', codigo: 'EQ-01', nome: 'Equipe Um' },
+    })))).rejects.toThrow('responsável');
   });
 
-  it('normaliza identidade composta do responsável', async () => {
-    const { service } = setup();
+  it('normaliza identidade composta da equipe selecionada', async () => {
+    const { service, catalog } = setup();
+    catalog.listarResponsaveis.mockReturnValueOnce(of([
+      { tipo: 'EQUIPE', codigo: 'EQ-01', nome: 'Equipe Um' },
+    ]));
 
     const parada = await firstValueFrom(
       service.registrarParada(
         request({
-          responsible: { tipo: 'OPERADOR', codigo: ' op-001 ', nome: 'Nome não canônico' },
+          responsible: { tipo: 'EQUIPE', codigo: ' eq-01 ', nome: 'Nome não canônico' },
         }),
       ),
     );
 
     expect(parada.responsible).toEqual({
-      tipo: 'OPERADOR',
-      codigo: 'OP-001',
-      nome: 'Ana Silva',
+      tipo: 'EQUIPE',
+      codigo: 'EQ-01',
+      nome: 'Equipe Um',
     });
   });
 
@@ -542,13 +561,16 @@ describe('ReporteParadasService', () => {
     const { service, catalog } = setup();
     const pending = new Subject<
       Array<{
-        tipo: 'OPERADOR';
+        tipo: 'EQUIPE';
         codigo: string;
         nome: string;
       }>
     >();
     catalog.listarResponsaveis.mockReturnValueOnce(pending);
-    const first = firstValueFrom(service.registrarParada(request()));
+    const teamRequest = request({
+      responsible: { tipo: 'EQUIPE', codigo: 'EQ-01', nome: 'Equipe Um' },
+    });
+    const first = firstValueFrom(service.registrarParada(teamRequest));
 
     await expect(
       firstValueFrom(service.registrarParada(request({ idempotencyKey: 'idem-2' }))),
@@ -556,7 +578,10 @@ describe('ReporteParadasService', () => {
 
     pending.error(new Error('falha temporária'));
     await expect(first).rejects.toThrow('falha temporária');
-    await expect(firstValueFrom(service.registrarParada(request()))).resolves.toEqual(
+    catalog.listarResponsaveis.mockReturnValueOnce(of([
+      { tipo: 'EQUIPE', codigo: 'EQ-01', nome: 'Equipe Um' },
+    ]));
+    await expect(firstValueFrom(service.registrarParada(teamRequest))).resolves.toEqual(
       expect.objectContaining({ idempotencyKey: 'idem-1' }),
     );
   });
@@ -795,13 +820,15 @@ describe('ReporteParadasService', () => {
   it('rejeita troca de owner antes do commit', async () => {
     const { service, catalog, authSession, commands } = setup();
     const responsibles = new Subject<
-      Array<{ tipo: 'OPERADOR'; codigo: string; nome: string }>
+      Array<{ tipo: 'EQUIPE'; codigo: string; nome: string }>
     >();
     catalog.listarResponsaveis.mockReturnValueOnce(responsibles);
-    const pending = firstValueFrom(service.registrarParada(request()));
+    const pending = firstValueFrom(service.registrarParada(request({
+      responsible: { tipo: 'EQUIPE', codigo: 'EQ-01', nome: 'Equipe Um' },
+    })));
 
     authSession.currentUser = { id: 'operator-2' };
-    responsibles.next([{ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }]);
+    responsibles.next([{ tipo: 'EQUIPE', codigo: 'EQ-01', nome: 'Equipe Um' }]);
     responsibles.complete();
 
     await expect(pending).rejects.toThrow('sessão mudou');

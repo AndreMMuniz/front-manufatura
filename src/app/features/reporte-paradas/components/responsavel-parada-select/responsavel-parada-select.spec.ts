@@ -44,7 +44,7 @@ describe('ResponsavelParadaSelect', () => {
     expect(emitted).toEqual(['EQ-01']);
   });
 
-  it('filtra opções por tipo e preserva identidade composta normalizada', async () => {
+  it('filtra opções por tipo sem transformar o valor livre do operador', async () => {
     await TestBed.configureTestingModule({
       imports: [ResponsavelParadaSelect],
     }).compileComponents();
@@ -65,7 +65,7 @@ describe('ResponsavelParadaSelect', () => {
     fixture.componentInstance.responsibleCodeChange.subscribe(value => emitted.push(value));
     fixture.componentInstance.changeResponsible(' op-01 ');
 
-    expect(emitted).toEqual(['OP-01']);
+    expect(emitted).toEqual([' op-01 ']);
   });
 
   it('expõe erro de catálogo separado da lista vazia e permite retry', async () => {

@@ -82,7 +82,7 @@ describe('ReporteParadasWorkflowState', () => {
         area,
         workCenter: center,
         responsibleType: 'OPERADOR',
-        responsibleCode: 'OP-001',
+        responsibleCode: ' op-001 ',
         origin: context.origin,
         metadata: context.metadata,
       }),

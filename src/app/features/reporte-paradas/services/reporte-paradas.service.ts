@@ -160,6 +160,16 @@ export class ReporteParadasService {
           if (!center) {
             throw new Error('Informe uma Área de Produção e um Centro de Trabalho válidos.');
           }
+          if (
+            (center.indReporteMod === 2 && command.responsible.tipo !== 'OPERADOR')
+            || (center.indReporteMod === 3 && command.responsible.tipo !== 'EQUIPE')
+          ) {
+            throw new Error(
+              center.indReporteMod === 3
+                ? 'Selecione uma equipe para este Centro de Trabalho.'
+                : 'Informe o código do operador para este Centro de Trabalho.',
+            );
+          }
           const area = { code: center.areaCode, description: center.area };
 
           const responsible = command.responsible.tipo === 'OPERADOR'
