@@ -373,6 +373,50 @@ test.describe('fluxo de Reporte Ordem', () => {
 test.describe('fluxo de Reporte Batelada', () => {
   test.use({ hasTouch: true });
 
+  test('mantém o contorno de foco inteiro nos botões de ação', async ({ page }) => {
+    await page.setViewportSize({ width: 1447, height: 180 });
+    await login(page);
+    await page.getByRole('link', { name: 'Reporte Batelada' }).click();
+    await selectProductionContext(page);
+    await selectOrderWithKeyboard(page, '450001');
+    await page.getByRole('button', { name: 'Abrir batelada' }).click();
+    await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('OP-001');
+
+    const buttons = page.locator('.footer-acoes-batelada button:enabled');
+    expect(await buttons.count()).toBeGreaterThan(1);
+
+    for (const button of await buttons.all()) {
+      await button.focus();
+      const outlineState = await button.evaluate(element => {
+        const style = getComputedStyle(element);
+        const outlineExtent = Number.parseFloat(style.outlineWidth)
+          + Number.parseFloat(style.outlineOffset);
+        const outline = element.getBoundingClientRect();
+        const clipping: string[] = [];
+        let ancestor = element.parentElement;
+
+        while (ancestor) {
+          const ancestorStyle = getComputedStyle(ancestor);
+          const clips = ['hidden', 'clip', 'auto', 'scroll'].includes(ancestorStyle.overflowY);
+          const bounds = ancestor.getBoundingClientRect();
+          if (clips && outline.top - outlineExtent < bounds.top) {
+            clipping.push(`${ancestor.tagName.toLowerCase()}.${ancestor.className}`);
+          }
+          ancestor = ancestor.parentElement;
+        }
+
+        return {
+          label: element.getAttribute('aria-label') ?? element.textContent?.trim(),
+          outlineOffset: style.outlineOffset,
+          outlineWidth: style.outlineWidth,
+          clipping,
+        };
+      });
+
+      expect(outlineState.clipping, JSON.stringify(outlineState)).toEqual([]);
+    }
+  });
+
   test('reconhece ordens já iniciadas e libera somente o reporte', async ({ page }) => {
     await page.route('**/api/production-orders**', async route => {
       const url = new URL(route.request().url());

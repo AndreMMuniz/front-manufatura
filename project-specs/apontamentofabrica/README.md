@@ -23,6 +23,7 @@ consolidados em [Grupos de usuários e acessos Datasul para o frontend](../acess
 | Finalização de parada | `POST` | `/api/fma/v1/finalizaparada` | [finalizar-parada.md](./finalizar-parada.md) |
 | Eliminação de parada | `POST` | `/api/fma/v1/eliminaparada` | [eliminar-parada.md](./eliminar-parada.md) |
 | Geração de equipe | `POST` | `/api/fma/v1/geraequipe` | [gera-equipe.md](./gera-equipe.md) |
+| Alteração de equipe | `POST` | `/api/fma/v1/alteraequipe` | [altera-equipe.md](./altera-equipe.md) |
 | Eliminação de parada programada | `POST` | `/api/fma/v1/eliminaparadaprogramada` | [eliminar-parada-programada.md](./eliminar-parada-programada.md) |
 | Motivos de refugo | `GET` | `/api/fma/v1/motivosrefugo` | [motivos-refugo.md](./motivos-refugo.md) |
 | Motivos de parada | `GET` | `/api/fma/v1/motivosparada` | [motivos-parada.md](./motivos-parada.md) |

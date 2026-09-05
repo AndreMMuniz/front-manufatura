@@ -539,6 +539,17 @@ async function updateTeam(
 
 function mapTeamResponse(upstream: unknown): JsonObject {
   const result = objectOfUpstream(single(dataset(upstream, 'equipeResultado')));
+  if (!text(result['codEquipe'])) {
+    const reason = datasulMessages(result).at(-1);
+    if (reason) {
+      throw new FmaPublicCommandError(
+        422,
+        'DATASUL_COMMAND_REJECTED',
+        'VALIDATION',
+        reason,
+      );
+    }
+  }
   const operators = dataset(upstream, 'operadores').map(row => {
     const item = objectOfUpstream(row);
     return {

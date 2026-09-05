@@ -13,7 +13,7 @@ import {
 } from '../../../core/offline/services/operational-correction-context.service';
 
 describe('SynchronizationRecoveryRegistry', () => {
-  it('fecha a matriz dos 13 command types com rota e policy normativa', () => {
+  it('fecha a matriz dos command types com rota e policy normativa', () => {
     expect(OPERATIONAL_COMMAND_TYPES.map(commandType => [
       commandType,
       getRecoveryDefinition(commandType).policy,
@@ -35,6 +35,7 @@ describe('SynchronizationRecoveryRegistry', () => {
       ['CREATE_STOP', 'CORRECTABLE', '/stoppages'],
       ['FINISH_STOP', 'CORRECTABLE', '/stoppages'],
       ['DELETE_STOP', 'RETRY_ONLY', '/stoppages'],
+      ['UPDATE_TEAM', 'RETRY_ONLY', '/teams'],
     ]);
     expect(getRecoveryDefinition('CREATE_STOP').allowedFields).not.toContain('programmed');
     expect(getRecoveryDefinition('FINISH_STOP').allowedFields).toEqual([

@@ -117,7 +117,7 @@ export class UpdateTeamSyncHandler extends FmaSyncHandler {
     return `/api/teams/${encodeURIComponent(codigo)}`;
   }
 
-  protected requestBody(request: SyncCommandRequest): JsonValue {
+  protected override requestBody(request: SyncCommandRequest): JsonValue {
     const payload = objectOf(request.payload);
     const operadores = payload['operadores'];
     if (!Array.isArray(operadores) || operadores.some(item => typeof item !== 'string')) {
@@ -126,7 +126,7 @@ export class UpdateTeamSyncHandler extends FmaSyncHandler {
     return { operadores };
   }
 
-  protected mapResponse(_response: unknown, request: SyncCommandRequest): CommandResult {
+  protected override mapResponse(_response: unknown, request: SyncCommandRequest): CommandResult {
     const codigo = requiredText(objectOf(request.payload)['codigo']);
     const processedAt = new Date().toISOString();
     return {

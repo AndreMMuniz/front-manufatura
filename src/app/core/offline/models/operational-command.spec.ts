@@ -24,6 +24,7 @@ describe('operational command contract', () => {
       'CREATE_STOP',
       'FINISH_STOP',
       'DELETE_STOP',
+      'UPDATE_TEAM',
     ]);
 
     expect(Object.keys(OPERATIONAL_COMMAND_DEFINITIONS)).toEqual(
@@ -33,7 +34,7 @@ describe('operational command contract', () => {
       expect(OPERATIONAL_COMMAND_DEFINITIONS[commandType].payloadSchemaVersion)
         .toBeGreaterThan(0);
       expect(OPERATIONAL_COMMAND_DEFINITIONS[commandType].aggregateType).toMatch(
-        /^(QUALITY_ROUTE|QUALITY_EXAM|QUALITY_INSPECTION|OPERATION|BATCH|STOP)$/,
+        /^(QUALITY_ROUTE|QUALITY_EXAM|QUALITY_INSPECTION|OPERATION|BATCH|STOP|TEAM)$/,
       );
     }
   });

@@ -29,7 +29,7 @@ export class EquipesService {
   constructor(
     private readonly api: AuthenticatedApiService,
     @Optional()
-    private readonly commands: Pick<OperationalCommandFacade, 'capture'> | null = null,
+    private readonly commands: OperationalCommandFacade | null = null,
   ) {}
 
   consultarEquipe(codigoEquipe: string): Observable<Equipe> {

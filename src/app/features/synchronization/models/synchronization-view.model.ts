@@ -96,6 +96,7 @@ export type SynchronizationModule =
   | 'OPERATION'
   | 'BATCH'
   | 'STOPPAGE'
+  | 'TEAM'
   | 'UNKNOWN';
 
 interface CommandPresentation {
@@ -125,6 +126,7 @@ const COMMAND_PRESENTATIONS: Readonly<Record<OperationalCommandType, CommandPres
     CREATE_STOP: stoppage('Registrar parada', 'CORRECTABLE'),
     FINISH_STOP: stoppage('Finalizar parada', 'CORRECTABLE'),
     DELETE_STOP: stoppage('Eliminar parada', 'RETRY_ONLY'),
+    UPDATE_TEAM: team('Alterar equipe', 'RETRY_ONLY'),
   });
 
 const STATUS_PRESENTATIONS: Readonly<Record<SyncStatus, {
@@ -368,6 +370,18 @@ function stoppage(
       const reason = text(record(payload['reason']), 'description', 'descricao', 'nome');
       return `Parada ${stopId}${reason ? ` · ${reason}` : ''}`;
     },
+  };
+}
+
+function team(commandLabel: string, policy: SynchronizationRecoveryPolicy): CommandPresentation {
+  return {
+    module: 'TEAM',
+    moduleLabel: 'Equipes',
+    commandLabel,
+    route: '/teams',
+    policy,
+    identify: (payload, aggregateId) =>
+      `Equipe ${text(payload, 'codigo') || safeText(aggregateId, 'não identificada')}`,
   };
 }
 

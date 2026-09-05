@@ -148,6 +148,12 @@ po-widget {
   --shadow: var(--shadow-sm);
 }
 
+/* PO UI draws the focus outline outside the button, where scrollable widgets
+   and tables can clip it. Keep the accessible ring inside the button bounds. */
+.po-button:focus {
+  outline-offset: calc(0px - var(--outline-width));
+}
+
 po-widget .po-widget-text {
   color: var(--app-color-text);
   font-size: var(--app-font-size-section-title);

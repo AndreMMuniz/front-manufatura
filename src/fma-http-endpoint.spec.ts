@@ -202,6 +202,34 @@ describe('gateway FMA', () => {
     });
   });
 
+  it('trata mensagem sem resultado em HTTP 200 como rejeição da alteração', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      total: 1,
+      hasNext: false,
+      items: [{
+        equipeResultado: [{ mensagem: 'A equipe está vinculada a um apontamento aberto.' }],
+        operadores: [],
+      }],
+    }), { status: 200 }));
+    const root = await startGateway(transport);
+
+    const result = await fetch(`${root}/api/teams/AUT00039`, {
+      method: 'PUT',
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ operadores: ['00016570'] }),
+    });
+
+    expect(result.status).toBe(422);
+    await expect(result.json()).resolves.toEqual({
+      code: 'DATASUL_COMMAND_REJECTED',
+      category: 'VALIDATION',
+      userMessage: 'A equipe está vinculada a um apontamento aberto.',
+    });
+  });
+
   it('consolida operadores e equipes elegíveis para o contexto operacional', async () => {
     const transport = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response('operadores', [
