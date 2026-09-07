@@ -1,7 +1,7 @@
 import { firstValueFrom, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import { QualityControlService } from './quality-control';
+import { mapItemDrawingEnvelope, QualityControlService } from './quality-control';
 
 const orderEnvelope = {
   total: 1, hasNext: false, items: [{ 'ds-ordem-producao': { ordem: [{
@@ -52,6 +52,44 @@ describe('QualityControlService real Datasul contracts', () => {
       routeHistory: [{ sheetNumber: '64505', operationCode: '30', routeStatus: 'Finalizado', date: null, time: '' }],
     });
     expect(http.get).toHaveBeenCalledWith('/api/quality-control/orders/372562', expect.anything());
+  });
+
+  it('consulta e normaliza o desenho do item pelo gateway autenticado', async () => {
+    const { service, http } = createService();
+    http.get.mockReturnValue(of({
+      total: 1,
+      hasNext: false,
+      items: [{ desenhoResultado: [{
+        tamanhoBytes: 12,
+        nomeArquivo: '30907_REV_R.pdf',
+        mensagem: 'Desenho encontrado',
+        rvCodigo: 'R',
+        arquivoEncontrado: true,
+        itCodigo: '30907',
+        conteudoBase64: 'JVBERi0xLjQ=',
+        caminhoCompleto: '/mnt/desenhos/30907_REV_R.pdf',
+      }] }],
+    }));
+
+    await expect(firstValueFrom(service.getItemDrawing(' 30907 '))).resolves.toEqual({
+      sizeBytes: 12,
+      fileName: '30907_REV_R.pdf',
+      message: 'Desenho encontrado',
+      revisionCode: 'R',
+      found: true,
+      itemCode: '30907',
+      base64Content: 'JVBERi0xLjQ=',
+    });
+    expect(http.get).toHaveBeenCalledWith(
+      '/api/quality-control/drawings/30907',
+      expect.anything(),
+    );
+  });
+
+  it('trata envelope sem desenho como ausência e rejeita contrato inválido', () => {
+    expect(mapItemDrawingEnvelope({ total: 0, hasNext: false, items: [] })).toBeNull();
+    expect(() => mapItemDrawingEnvelope({ items: [{ desenhoResultado: [{}] }] }))
+      .toThrowError('invalid-item-drawing-response');
   });
 
   it.each([

@@ -81,6 +81,22 @@ export class QualityControlDatasulClient {
     );
   }
 
+  getItemDrawing(itemCode: string, userId: string): Promise<unknown> {
+    const search = new URLSearchParams({
+      companyId: String(this.config.companyId),
+      codUsuario: userId,
+      itCodigo: itemCode,
+    });
+    return this.request(
+      'GET',
+      `/api/fcq/v1/desenhoitem?${search}`,
+      undefined,
+      undefined,
+      'get_quality_item_drawing',
+      '/api/fcq/v1/desenhoitem',
+    );
+  }
+
   getRoute(body: {
     readonly nrOrdemProducao: number;
     readonly codOperacao: number;

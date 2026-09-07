@@ -208,6 +208,46 @@ describe('gateway Plano Controle CQ', () => {
     );
   });
 
+  it('consulta o desenho com empresa, usuário autenticado e item definidos no servidor', async () => {
+    const responseBody = {
+      total: 1,
+      hasNext: false,
+      items: [{ desenhoResultado: [{
+        tamanhoBytes: 9,
+        nomeArquivo: '30907_REV_R.pdf',
+        mensagem: 'Desenho encontrado',
+        rvCodigo: 'R',
+        arquivoEncontrado: true,
+        itCodigo: '30907',
+        conteudoBase64: 'JVBERi0=',
+        caminhoCompleto: '/mnt/2D/30907_REV_R.pdf',
+      }] }],
+    };
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const root = await startGateway(transport);
+    const issued = await createAppSessionToken({
+      subject: 'Mjocelio', secret: ENV.APP_AUTH_TOKEN_SECRET,
+      permissions: [APP_PERMISSIONS.qualityControl], ttlMs: 60_000, now: new Date(),
+    });
+
+    const response = await fetch(`${root}/drawings/30907`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(responseBody);
+    const [url, init] = transport.mock.calls[0];
+    expect(String(url)).toBe(
+      'https://datasul.example.test/api/fcq/v1/desenhoitem?companyId=1&codUsuario=Mjocelio&itCodigo=30907',
+    );
+    expect(init?.method).toBe('GET');
+  });
+
   it.each([
     ['operador', { codOperador: '00016570' }],
     ['equipe', { codEquipe: 'AUT00037' }],

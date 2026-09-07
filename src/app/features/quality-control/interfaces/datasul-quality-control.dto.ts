@@ -114,3 +114,18 @@ export interface DatasulFinalizeReceipt {
   readonly componentesPendentes: number;
   readonly mensagem: string;
 }
+
+export interface DatasulItemDrawingItem {
+  readonly desenhoResultado: readonly DatasulItemDrawingResult[];
+}
+
+export interface DatasulItemDrawingResult {
+  readonly tamanhoBytes: number;
+  readonly nomeArquivo: string;
+  readonly mensagem: string;
+  readonly rvCodigo: string;
+  readonly arquivoEncontrado: boolean;
+  readonly itCodigo: string;
+  readonly conteudoBase64: string;
+  readonly caminhoCompleto: string;
+}

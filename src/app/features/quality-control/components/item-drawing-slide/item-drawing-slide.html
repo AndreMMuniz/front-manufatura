@@ -1,0 +1,42 @@
+<po-page-slide
+  class="app-responsive-drawer item-drawing-slide"
+  #pageSlide
+  p-title="Desenho do item"
+  p-size="lg"
+  [p-click-out]="false"
+  (p-close)="onClose()"
+>
+  <section class="item-drawing" aria-label="Visualização do desenho técnico">
+    <p class="item-drawing__feedback" role="status" aria-live="polite">{{ feedback() }}</p>
+
+    @if (loading()) {
+      <div class="item-drawing__state" aria-busy="true">
+        <span class="item-drawing__spinner" aria-hidden="true"></span>
+        <p>Buscando o PDF no Datasul...</p>
+      </div>
+    } @else if (drawing(); as currentDrawing) {
+      <dl class="item-drawing__metadata">
+        <div><dt>Item</dt><dd>{{ currentDrawing.itemCode }}</dd></div>
+        <div><dt>Revisão</dt><dd>{{ currentDrawing.revisionCode || '-' }}</dd></div>
+        <div><dt>Arquivo</dt><dd>{{ currentDrawing.fileName || '-' }}</dd></div>
+      </dl>
+      @if (pdfUrl()) {
+        <iframe
+          class="item-drawing__viewer"
+          [src]="pdfUrl()"
+          [title]="'Desenho técnico do item ' + currentDrawing.itemCode"
+        ></iframe>
+      }
+    } @else if (!loading()) {
+      <div class="item-drawing__state">
+        <p>O desenho não está disponível para visualização.</p>
+      </div>
+    }
+  </section>
+
+  <po-page-slide-footer>
+    <div class="item-drawing__footer">
+      <po-button p-label="Fechar desenho" p-kind="secondary" (p-click)="close()"></po-button>
+    </div>
+  </po-page-slide-footer>
+</po-page-slide>

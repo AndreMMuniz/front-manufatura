@@ -33,6 +33,16 @@ import {
   mapProductionOrderEnvelope,
 } from '../mappers/datasul-quality-control.mapper';
 
+export interface ItemDrawing {
+  readonly sizeBytes: number;
+  readonly fileName: string;
+  readonly message: string;
+  readonly revisionCode: string;
+  readonly found: boolean;
+  readonly itemCode: string;
+  readonly base64Content: string;
+}
+
 export interface StopInspectionRouteRequest {
   routeNumber: string;
   routeLocalId?: string;
@@ -113,6 +123,15 @@ export class QualityControlService {
       `/api/quality-control/orders/${numeric}`,
       { headers: this.authHeaders() },
     ).pipe(map(mapProductionOrderEnvelope));
+  }
+
+  getItemDrawing(itemCode: string): Observable<ItemDrawing | null> {
+    const normalized = itemCode.trim();
+    if (!normalized) return throwError(() => new Error('invalid-item-code'));
+    return this.httpClient().get<unknown>(
+      `/api/quality-control/drawings/${encodeURIComponent(normalized)}`,
+      { headers: this.authHeaders() },
+    ).pipe(map(mapItemDrawingEnvelope));
   }
 
   generateInspectionRoute(
@@ -593,4 +612,43 @@ function positiveIntegerFrom(value: string): number {
     throw new Error('invalid-quality-route-identity');
   }
   return parsed;
+}
+
+export function mapItemDrawingEnvelope(value: unknown): ItemDrawing | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('invalid-item-drawing-response');
+  }
+  const envelope = value as Record<string, unknown>;
+  if (!Array.isArray(envelope['items'])) throw new Error('invalid-item-drawing-response');
+  const candidates = envelope['items'].flatMap(itemValue => {
+    if (!itemValue || typeof itemValue !== 'object' || Array.isArray(itemValue)) return [];
+    const results = (itemValue as Record<string, unknown>)['desenhoResultado'];
+    return Array.isArray(results) ? results : [];
+  });
+  if (candidates.length === 0) return null;
+  const drawing = candidates[0];
+  if (!drawing || typeof drawing !== 'object' || Array.isArray(drawing)) {
+    throw new Error('invalid-item-drawing-response');
+  }
+  const result = drawing as Record<string, unknown>;
+  if (
+    typeof result['arquivoEncontrado'] !== 'boolean'
+    || typeof result['tamanhoBytes'] !== 'number'
+    || !Number.isSafeInteger(result['tamanhoBytes'])
+    || result['tamanhoBytes'] < 0
+    || typeof result['nomeArquivo'] !== 'string'
+    || typeof result['mensagem'] !== 'string'
+    || typeof result['rvCodigo'] !== 'string'
+    || typeof result['itCodigo'] !== 'string'
+    || typeof result['conteudoBase64'] !== 'string'
+  ) throw new Error('invalid-item-drawing-response');
+  return {
+    sizeBytes: result['tamanhoBytes'],
+    fileName: result['nomeArquivo'],
+    message: result['mensagem'],
+    revisionCode: result['rvCodigo'],
+    found: result['arquivoEncontrado'],
+    itemCode: result['itCodigo'],
+    base64Content: result['conteudoBase64'],
+  };
 }

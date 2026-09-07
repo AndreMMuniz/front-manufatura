@@ -62,6 +62,7 @@ export const CLIENT_LOG_ROUTES = [
   '/api/production-stops/:id/finish',
   '/api/production-stops/:id/eliminate',
   '/api/quality-control/orders/:orderNumber',
+  '/api/quality-control/drawings/:itemCode',
   '/api/quality-control/routes',
   '/api/quality-control/results',
   '/api/quality-control/routes/finalize',
@@ -220,6 +221,7 @@ export function normalizeClientApiRoute(
     [/^\/api\/production-stops\/[^/]+\/finish$/, '/api/production-stops/:id/finish'],
     [/^\/api\/production-stops\/[^/]+\/eliminate$/, '/api/production-stops/:id/eliminate'],
     [/^\/api\/quality-control\/orders\/[^/]+$/, '/api/quality-control/orders/:orderNumber'],
+    [/^\/api\/quality-control\/drawings\/[^/]+$/, '/api/quality-control/drawings/:itemCode'],
   ];
   return dynamicRoutes.find(([pattern]) => pattern.test(path))?.[1] ?? '/api/:unmatched';
 }

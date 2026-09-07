@@ -88,9 +88,13 @@
 
   <footer class="exam-entry__footer" [class.exam-entry__footer--with-stop]="showStopRoute">
     <po-button p-label="Fechar" p-kind="secondary" [p-disabled]="workflow.isBusy()" (p-click)="closePanel()"></po-button>
-    <po-button p-label="Finalizar ficha" p-kind="primary" [p-disabled]="!canCompleteExam" (p-click)="completeExam()"></po-button>
+    <div class="exam-entry__finalization-actions">
+      <po-button p-label="Ver desenho" p-kind="secondary" [p-disabled]="!itemCode" (p-click)="openItemDrawing()"></po-button>
+      <po-button p-label="Finalizar ficha" p-kind="primary" [p-disabled]="!canCompleteExam" (p-click)="completeExam()"></po-button>
+    </div>
     @if (showStopRoute) {
       <po-button class="exam-entry__stop-action" p-label="Parar roteiro" p-kind="secondary" [p-danger]="true" [p-disabled]="!canStopRoute" (p-click)="stopRoute()"></po-button>
     }
   </footer>
 </section>
+<app-item-drawing-slide></app-item-drawing-slide>

@@ -20,10 +20,11 @@ import { QualityControlService } from '../../services/quality-control';
 import { QualityControlWorkflowState } from '../../services/quality-control-workflow-state';
 import { OperatorService } from '../../../shop-floor/services/operator';
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
+import { ItemDrawingSlide } from '../item-drawing-slide/item-drawing-slide';
 
 @Component({
   selector: 'app-exam-entry-panel',
-  imports: [FormsModule, PoButtonModule, PoFieldModule, PoIconModule],
+  imports: [FormsModule, ItemDrawingSlide, PoButtonModule, PoFieldModule, PoIconModule],
   templateUrl: './exam-entry-panel.html',
   styleUrls: ['./exam-entry-panel.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,6 +32,7 @@ import { IdempotencyService } from '../../../../core/offline/services/idempotenc
 export class ExamEntryPanel implements AfterViewInit {
   @Output() panelClosed = new EventEmitter<string | undefined>();
   @ViewChild('panelTitle', { read: ElementRef }) private panelTitle?: ElementRef<HTMLElement>;
+  @ViewChild(ItemDrawingSlide) private itemDrawingSlide?: ItemDrawingSlide;
 
   readonly workflow = inject(QualityControlWorkflowState);
   private readonly qualityControlService = inject(QualityControlService);
@@ -116,6 +118,12 @@ export class ExamEntryPanel implements AfterViewInit {
     return this.currentCharacteristic
       ? `${this.currentCharacteristic.reference} ${this.currentCharacteristic.unit}`.trim() || '-'
       : '-';
+  }
+
+  get itemCode(): string { return this.workflow.route()?.itemCode ?? ''; }
+
+  openItemDrawing(): void {
+    if (this.itemCode) this.itemDrawingSlide?.open(this.itemCode);
   }
 
   updateResult(value: string): void {

@@ -83,6 +83,14 @@ possui grande volume.
 
 ## Orientação para consumo no frontend
 
+A aplicação disponibiliza a chamada autenticada `GET /api/quality-control/drawings/{itCodigo}`.
+O gateway obtém `codUsuario` da sessão,
+acrescenta `companyId` no servidor e mantém o Basic Auth restrito ao backend.
+
+Na tela **Plano Controle CQ**, a ação **Ver desenho** fica ao lado de **Finalizar
+ficha**. Ela abre um drawer grande, consulta o item do roteiro atual e apresenta o
+PDF sem interromper nem alterar as medições em andamento.
+
 - Usar `arquivoEncontrado` para decidir se há um arquivo disponível antes de
   tentar decodificar `conteudoBase64`.
 - Decodificar `conteudoBase64` como PDF (`application/pdf`) e gerar uma URL de

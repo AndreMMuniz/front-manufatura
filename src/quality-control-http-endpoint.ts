@@ -47,6 +47,11 @@ export function installQualityControlEndpoints(
     });
   });
 
+  app.get(`${ROOT}/drawings/:itemCode`, async (req, res) => {
+    await handle(req, res, dependencies, async (client, userId) =>
+      client.getItemDrawing(itemCode(req.params['itemCode']), userId));
+  });
+
   app.post(`${ROOT}/routes`, async (req, res) => {
     await handle(req, res, dependencies, async client => {
       const body = objectBody(req.body);
@@ -121,6 +126,7 @@ export function installQualityControlEndpoints(
   });
 
   installMethodGuard(app, `${ROOT}/orders/:orderNumber`, 'GET');
+  installMethodGuard(app, `${ROOT}/drawings/:itemCode`, 'GET');
   installMethodGuard(app, `${ROOT}/routes`, 'POST');
   installMethodGuard(app, `${ROOT}/results`, 'PUT');
   installMethodGuard(app, `${ROOT}/routes/finalize`, 'PUT');
@@ -462,6 +468,17 @@ function positiveInteger(value: unknown): number {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
   return numeric as number;
+}
+
+function itemCode(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 64 || /[\u0000-\u001f\u007f]/u.test(normalized)) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
+  return normalized;
 }
 
 function finiteNumber(value: unknown): number {
