@@ -1,65 +1,92 @@
-# PlanoDeControle
+# Plano de Controle
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.3.
+Aplicação web industrial da Cortag para digitalizar atividades de apontamento de fábrica e controle de qualidade integradas ao **TOTVS Datasul**.
 
-## Atualização do servidor
+O sistema reúne autenticação e autorização, centro de trabalho, equipes, reporte de operação e batelada, paradas, inspeções de qualidade e acompanhamento de sincronização. A interface é preparada para computadores industriais e tablets, com suporte PWA e persistência local para continuidade de lançamentos elegíveis durante instabilidades de rede.
 
-O arquivo [`atualiza-front.bat`](atualiza-front.bat) é a ferramenta de CD manual usada no servidor Windows para atualizar a branch `main`, instalar as dependências, gerar o build de produção e iniciar a aplicação com as variáveis do arquivo `.env`.
+> A visão completa de entrega, incluindo tecnologias, arquitetura, infraestrutura, segurança e recomendações operacionais, está em [DOCUMENTACAO-DE-ENTREGA.md](DOCUMENTACAO-DE-ENTREGA.md).
 
-Consulte o [guia de atualização e inicialização no servidor](docs/atualiza-front.md) antes de executar a ferramenta.
+## Arquitetura resumida
 
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
+```text
+Angular 21 + PO-UI + PWA
+        |
+        | HTTP(S) / API
+        v
+Node.js + Express 5 + Angular SSR
+        |
+        | APIs Datasul
+        v
+TOTVS Datasul
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- O front-end é organizado por funcionalidades, com componentes standalone.
+- O servidor Express entrega o build SSR e atua como gateway seguro para o Datasul.
+- A autenticação gera um JWT da aplicação e as rotas validam permissões funcionais.
+- IndexedDB, Outbox e chaves de idempotência sustentam a operação local-first e a sincronização segura.
+- O Datasul permanece como fonte oficial dos dados corporativos.
 
-## Code scaffolding
+## Tecnologias principais
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+- Angular 21, TypeScript 5.9, RxJS e PO-UI 21;
+- Node.js, Express 5 e Angular SSR;
+- PWA, Service Worker e IndexedDB;
+- Winston para logs;
+- Vitest e Playwright para testes;
+- npm e Angular CLI para build e execução.
 
-```bash
-ng generate component component-name
-```
+## Início rápido
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+Pré-requisitos: Git, Node.js, npm e acesso ao ambiente Datasul.
 
 ```bash
-ng test
+npm install
+cp .env.example .env
+npm start
 ```
 
-## Running end-to-end tests
+O servidor de desenvolvimento fica disponível, por padrão, em `http://localhost:4200`.
 
-For end-to-end (e2e) testing, run:
+O arquivo `.env` deve ser preenchido com os dados do ambiente e nunca deve ser versionado. Consulte `.env.example` para ver as configurações necessárias.
+
+## Comandos
 
 ```bash
-ng e2e
+npm start                    # desenvolvimento
+npm run build                # build de produção
+npm test -- --watch=false    # testes unitários
+npm run test:ci              # testes com cobertura
+npm run e2e                  # testes de ponta a ponta
+npm run e2e:pwa              # testes específicos da PWA
+npm run serve:ssr:plano-de-controle  # servidor do build gerado
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Implantação
 
-## Additional Resources
+A infraestrutura atual utiliza um servidor Windows com Node.js. A atualização é iniciada por `atualiza-front.bat`, que chama a automação PowerShell para atualizar a branch `main`, instalar dependências, gerar um build candidato, publicar, validar `HEAD /api/health` e restaurar a versão anterior em caso de falha.
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Veja o [guia de atualização do servidor](docs/atualiza-front.md) para o procedimento completo.
+
+## Estrutura principal
+
+```text
+src/app/core/       autenticação, HTTP, logs, navegação e operação offline
+src/app/features/   módulos funcionais da aplicação
+src/app/shared/     componentes compartilhados
+src/server.ts       servidor Express, SSR e health check
+tools/              automações de implantação e validação
+docs/               documentação técnica e operacional complementar
+```
+
+## Segurança
+
+- não registre senhas, JWTs ou credenciais de integração;
+- mantenha o `.env` somente no ambiente de execução;
+- utilize HTTPS em produção;
+- proteja e rotacione o segredo de assinatura do JWT;
+- mantenha o clone de produção sem alterações locais.
+
+## Documentação
+
+- [Documentação de entrega](DOCUMENTACAO-DE-ENTREGA.md)
+- [Atualização e inicialização no servidor](docs/atualiza-front.md)

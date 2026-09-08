@@ -82,6 +82,7 @@ opencode.json
 # Local/AI generated documentation and notes
 *.md
 !README.md
+!DOCUMENTACAO-DE-ENTREGA.md
 /Makefile
 docs/
 doc/
