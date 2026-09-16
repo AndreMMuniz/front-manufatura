@@ -42,11 +42,13 @@ Para preparar um servidor vazio, copie somente o arquivo [`new-deploy.bat`](../n
 
 1. valida PowerShell, Git, Node.js e npm, mostrando as versões encontradas;
 2. exige uma versão do Node.js compatível com o Angular (`20.19+`, `22.12+` ou `24+`);
-3. clona a branch `main` do repositório público em `C:\apps\plano-de-controle` ou no diretório informado;
+3. clona a branch `main` do repositório público na mesma pasta onde `new-deploy.bat` foi colocado;
 4. cria o `.env` como uma cópia de `.env.example`, sem sobrescrever um `.env` que já exista;
 5. executa o mesmo deploy com instalação de dependências, build, health check e rollback descrito neste documento.
 
 Não é obrigatório conhecer a URL do Datasul durante o primeiro deploy. A aplicação e o health check podem iniciar, mas o login e as APIs integradas não funcionarão até que a configuração real seja copiada para o `.env`. Depois de alterar esse arquivo, execute `atualiza-front.bat` para reiniciar a aplicação com os novos valores.
+
+Antes do primeiro uso, coloque `new-deploy.bat` sozinho em uma pasta vazia. Como o Git não permite clonar diretamente em uma pasta que já contém o BAT, o instalador cria um clone temporário e move seu conteúdo para essa mesma pasta. Se ela contiver outros arquivos, o processo é interrompido sem sobrescrevê-los.
 
 Se o diretório já contiver este repositório e um `.env`, ambos serão reutilizados e o `.env` será preservado. Qualquer requisito ausente ou etapa com falha interrompe a instalação e mantém o erro visível no Prompt. O único arquivo que precisa ser levado manualmente ao servidor novo é `new-deploy.bat`; os scripts PowerShell usados depois são obtidos pelo próprio clone.
 

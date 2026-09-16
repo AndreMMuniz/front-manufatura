@@ -3,8 +3,8 @@ setlocal EnableExtensions DisableDelayedExpansion
 title Plano de Controle - Novo deploy
 
 set "REPOSITORY_URL=https://github.com/AndreMMuniz/plano-de-controle.git"
-set "DEFAULT_INSTALL_DIR=C:\apps\plano-de-controle"
 set "ENV_CREATED=0"
+for %%I in ("%~dp0.") do set "INSTALL_DIR=%%~fI"
 
 echo ============================================================
 echo  Plano de Controle - Instalacao em um novo servidor
@@ -59,24 +59,32 @@ for /f "usebackq delims=" %%V in (`npm.cmd --version 2^>^&1`) do set "NPM_VERSIO
 echo [OK] npm: %NPM_VERSION%
 echo.
 
-set "INSTALL_DIR=%DEFAULT_INSTALL_DIR%"
-set /p "INSTALL_DIR=Diretorio de instalacao [%DEFAULT_INSTALL_DIR%]: "
-if not defined INSTALL_DIR set "INSTALL_DIR=%DEFAULT_INSTALL_DIR%"
-
 echo.
 echo Repositorio: %REPOSITORY_URL%
-echo Destino:     %INSTALL_DIR%
+echo Diretorio:   %INSTALL_DIR%
 echo.
 
 if exist "%INSTALL_DIR%\.git\" goto :existing_repository
 
+for /f "delims=" %%F in ('dir /b /a "%INSTALL_DIR%" 2^>nul') do if /i not "%%F"=="%~nx0" goto :directory_not_empty
+
+set "CLONE_DIR=%TEMP%\plano-de-controle-new-deploy-%RANDOM%-%RANDOM%"
 echo [1/4] Clonando a branch main do repositorio publico...
-git.exe clone --branch main --single-branch "%REPOSITORY_URL%" "%INSTALL_DIR%"
+git.exe clone --branch main --single-branch "%REPOSITORY_URL%" "%CLONE_DIR%"
 if errorlevel 1 (
+  rmdir /S /Q "%CLONE_DIR%" 2>nul
   echo [ERRO] Nao foi possivel clonar o repositorio.
-  echo        Verifique internet, acesso ao GitHub e se o destino esta vazio.
+  echo        Verifique a conexao com o GitHub.
   goto :failure
 )
+
+echo Movendo o repositorio para a pasta deste BAT...
+robocopy "%CLONE_DIR%" "%INSTALL_DIR%" /E /MOVE /XF "%~nx0" /R:1 /W:1 /NFL /NDL /NP
+if errorlevel 8 (
+  echo [ERRO] Nao foi possivel mover o clone para %INSTALL_DIR%.
+  goto :failure
+)
+rmdir /S /Q "%CLONE_DIR%" 2>nul
 goto :prepare_environment
 
 :existing_repository
@@ -137,6 +145,11 @@ if "%ENV_CREATED%"=="1" (
 echo.
 pause
 exit /b 0
+
+:directory_not_empty
+echo [ERRO] A pasta deste BAT contem outros arquivos e ainda nao e um repositorio.
+echo        Coloque new-deploy.bat sozinho em uma pasta vazia e execute novamente.
+goto :failure
 
 :failure
 echo.
