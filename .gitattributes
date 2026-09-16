@@ -1,0 +1,2 @@
+# Batch files are distributed directly to Windows and must retain CRLF bytes.
+new-deploy.bat -text whitespace=cr-at-eol

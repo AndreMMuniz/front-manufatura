@@ -11,8 +11,12 @@ echo  Plano de Controle - Instalacao em um novo servidor
 echo ============================================================
 echo.
 
-call :require_command powershell.exe "PowerShell 5.1 ou posterior"
-if errorlevel 1 goto :failure
+where powershell.exe >nul 2>&1
+if errorlevel 1 (
+  echo [ERRO] PowerShell 5.1 ou posterior nao foi encontrado no PATH.
+  echo        Instale o requisito, feche este Prompt e tente novamente.
+  goto :failure
+)
 for /f "usebackq delims=" %%V in (`powershell.exe -NoLogo -NoProfile -Command "$PSVersionTable.PSVersion.ToString()"`) do set "POWERSHELL_VERSION=%%V"
 echo [OK] PowerShell: %POWERSHELL_VERSION%
 powershell.exe -NoLogo -NoProfile -Command "if ($PSVersionTable.PSVersion -lt [version]'5.1') { exit 1 }"
@@ -21,13 +25,21 @@ if errorlevel 1 (
   goto :failure
 )
 
-call :require_command git.exe "Git for Windows"
-if errorlevel 1 goto :failure
+where git.exe >nul 2>&1
+if errorlevel 1 (
+  echo [ERRO] Git for Windows nao foi encontrado no PATH.
+  echo        Instale o requisito, feche este Prompt e tente novamente.
+  goto :failure
+)
 for /f "usebackq delims=" %%V in (`git.exe --version 2^>^&1`) do set "GIT_VERSION=%%V"
 echo [OK] %GIT_VERSION%
 
-call :require_command node.exe "Node.js 20.19+, 22.12+ ou 24+"
-if errorlevel 1 goto :failure
+where node.exe >nul 2>&1
+if errorlevel 1 (
+  echo [ERRO] Node.js nao foi encontrado no PATH.
+  echo        Instale Node.js 24.x, feche este Prompt e tente novamente.
+  goto :failure
+)
 for /f "usebackq delims=" %%V in (`node.exe --version 2^>^&1`) do set "NODE_VERSION=%%V"
 echo [OK] Node.js: %NODE_VERSION%
 powershell.exe -NoLogo -NoProfile -Command "$v=[version](& node.exe -p process.versions.node); $ok=($v.Major -eq 20 -and $v.Minor -ge 19) -or ($v.Major -eq 22 -and $v.Minor -ge 12) -or ($v.Major -ge 24); if (-not $ok) { exit 1 }"
@@ -37,8 +49,12 @@ if errorlevel 1 (
   goto :failure
 )
 
-call :require_command npm.cmd "npm"
-if errorlevel 1 goto :failure
+where npm.cmd >nul 2>&1
+if errorlevel 1 (
+  echo [ERRO] npm nao foi encontrado no PATH.
+  echo        Reinstale o Node.js, feche este Prompt e tente novamente.
+  goto :failure
+)
 for /f "usebackq delims=" %%V in (`npm.cmd --version 2^>^&1`) do set "NPM_VERSION=%%V"
 echo [OK] npm: %NPM_VERSION%
 echo.
@@ -120,15 +136,6 @@ if "%ENV_CREATED%"=="1" (
 )
 echo.
 pause
-exit /b 0
-
-:require_command
-where %~1 >nul 2>&1
-if errorlevel 1 (
-  echo [ERRO] %~2 nao foi encontrado no PATH.
-  echo        Instale o requisito, feche este Prompt e tente novamente.
-  exit /b 1
-)
 exit /b 0
 
 :failure
