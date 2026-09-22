@@ -1,14 +1,16 @@
-# Deploy do front-end no servidor
+# Deploy da aplicação no servidor Windows
 
-O arquivo [`atualiza-front.bat`](../atualiza-front.bat) é a ferramenta de CD manual do Plano de Controle. Ele chama [`tools/deploy-front.ps1`](../tools/deploy-front.ps1), que prepara a nova versão, troca o build publicado, reinicia o Node e valida a aplicação automaticamente.
+O deploy é dividido em duas operações. [`atualiza-front.bat`](../atualiza-front.bat) e [`new-deploy.bat`](../new-deploy.bat) somente baixam os arquivos, instalam dependências e geram `.deploy/candidate`. Eles não param, instalam ou iniciam processos. Depois, [`instalar-servico.bat`](../instalar-servico.bat) publica o candidato e administra o serviço Windows.
 
 O Node é executado pelo serviço Windows exibido como `fma service` (identificador interno `FmaService`), instalado pelo WinSW 2.12.0. Ele inicia automaticamente com o Windows (início atrasado) e reinicia 10 segundos após uma falha do processo. O Prompt pode ser fechado e não é necessário manter um usuário conectado.
 
-## Instalar o serviço em um servidor existente
+## Instalar o serviço e migrar o Node antigo
 
-Com o build e o `.env` já publicados, execute `instalar-servico.bat` **como Administrador**. Ele instala o serviço, encerra a instância Node antiga na porta configurada, inicia o mesmo build pelo serviço e valida `HEAD /api/health`. Não faz `git pull`, instalação npm nem novo build. Uma falha na validação deixa o serviço parado para diagnóstico; o build e o `.env` são preservados.
+Execute `instalar-servico.bat` **como Administrador**. Ele instala o serviço, para o serviço existente e encerra a instância Node antiga deste projeto na porta configurada. Em seguida, publica `.deploy/candidate`, inicia o `fma service` e valida `HEAD /api/health`.
 
-`atualiza-front.bat` e `new-deploy.bat` também instalam o serviço automaticamente quando necessário. Ambos devem ser executados como Administrador. Não execute dois instaladores/deploys ao mesmo tempo.
+Não ficam dois servidores concorrendo pela porta: o Node antigo é encerrado antes do `fma service` ser iniciado. Se a porta pertencer a outro programa, a operação é interrompida sem encerrá-lo. Na migração inicial, se não houver candidato mas já existir um build publicado, o instalador pode iniciar esse build como serviço. Ele não executa `git pull`, `npm install` nem build.
+
+Se a nova versão falhar no health check, o build anterior é restaurado e reiniciado quando existe `.deploy/previous`. Não execute preparação e instalação simultaneamente.
 
 O instalador baixa `WinSW.NET461.exe` v2.12.0 do [release oficial](https://github.com/winsw/winsw/releases/tag/v2.12.0), verifica SHA-256 e guarda o executável e XML em `.deploy/service`. É necessário .NET Framework 4.6.1 ou superior (recomendado 4.8). Em servidor sem acesso ao GitHub, copie esse executável para `.deploy/service/FmaService.exe`; o hash também será validado.
 
@@ -29,20 +31,17 @@ Para desinstalar somente o registro do serviço, pare-o e execute `.\.deploy\ser
 
 Validação de scripts: `powershell.exe -NoProfile -File tools/windows-service.tests.ps1`. Os testes simulam SCM e HTTP; a workflow `Windows service scripts` também os executa em PowerShell 5.1. Na homologação Windows, confirme instalação, acesso à aplicação, reinício do computador, recuperação após falha do Node e atualização/rollback antes de liberar para produção.
 
-## O que a ferramenta faz
+## O que cada ferramenta faz
 
-O script executa as etapas abaixo em sequência:
+As etapas são deliberadamente separadas:
 
-| Etapa | Ação | Resultado |
+| Ferramenta | Ações | Altera o processo em execução? |
 | --- | --- | --- |
-| 1 | `git pull origin main` | Baixa e integra a versão mais recente da branch `main`. |
-| 2 | `npm install` | Atualiza as dependências conforme o `package.json` e o lockfile. |
-| 3 | Build em `.deploy/candidate` | Gera a nova aplicação sem alterar o `dist` que ainda está atendendo usuários. |
-| 4 | Parar o serviço Windows | Aguarda a parada antes da troca. Na migração inicial também encerra o Node legado reconhecido na porta configurada. |
-| 5 | Trocar os diretórios | Move o build atual para `.deploy/previous` e publica o candidato em `dist/plano-de-controle`. |
-| 6 | Iniciar e validar | Inicia o serviço e consulta `HEAD /api/health`; se falhar, para o serviço, restaura o build anterior e valida novamente. |
+| `new-deploy.bat` | Clona o repositório, preserva/cria `.env`, executa `git pull`, `npm install` e gera `.deploy/candidate`. | Não. |
+| `atualiza-front.bat` | Executa `git pull origin main`, `npm install` e gera `.deploy/candidate`. | Não. |
+| `instalar-servico.bat` | Instala/configura o serviço, para o Node anterior, publica o candidato, inicia e valida; faz rollback quando possível. | Sim. |
 
-O serviço atual continua no ar se `git pull`, `npm install` ou o build falharem. A indisponibilidade esperada acontece apenas entre a parada do processo antigo e a inicialização saudável do novo processo.
+O processo atual continua no ar durante toda a preparação, inclusive se `git pull`, `npm install` ou o build falharem. A indisponibilidade esperada começa apenas quando `instalar-servico.bat` para o processo anterior para publicar o candidato.
 
 Se o novo servidor não responder ao health check, o script executa rollback do build e reinicia a versão anterior. Ele retorna código `1` para deixar claro que a nova versão não foi publicada, mesmo quando o rollback foi bem-sucedido.
 
@@ -50,7 +49,7 @@ Se o novo servidor não responder ao health check, o script executa rollback do 
 
 Antes de usar a ferramenta, confirme que o servidor possui:
 
-- Windows com Prompt de Comando elevado (Executar como Administrador);
+- Windows; apenas `instalar-servico.bat` precisa de Prompt de Comando elevado (Executar como Administrador);
 - .NET Framework 4.6.1 ou posterior para WinSW;
 - Git e Node.js disponíveis no `PATH`;
 - o repositório clonado no servidor (o caminho é detectado pela localização do próprio `.bat`);
@@ -70,9 +69,9 @@ Para preparar um servidor vazio, copie somente o arquivo [`new-deploy.bat`](../n
 2. exige uma versão do Node.js compatível com o Angular (`20.19+`, `22.12+` ou `24+`);
 3. clona a branch `main` do repositório público na mesma pasta onde `new-deploy.bat` foi colocado;
 4. cria o `.env` como uma cópia de `.env.example`, sem sobrescrever um `.env` que já exista;
-5. executa o mesmo deploy com instalação de dependências, build, health check e rollback descrito neste documento.
+5. instala dependências e gera `.deploy/candidate`, sem iniciar a aplicação.
 
-Não é obrigatório conhecer a URL do Datasul durante o primeiro deploy. A aplicação e o health check podem iniciar, mas o login e as APIs integradas não funcionarão até que a configuração real seja copiada para o `.env`. Depois de alterar esse arquivo, execute `atualiza-front.bat` para reiniciar a aplicação com os novos valores.
+Depois que `new-deploy.bat` terminar, preencha o `.env` e execute `instalar-servico.bat` como Administrador. Não é obrigatório conhecer a URL do Datasul para preparar os arquivos, mas o login e as APIs integradas não funcionarão enquanto a configuração real não estiver no `.env`.
 
 Antes do primeiro uso, coloque `new-deploy.bat` sozinho em uma pasta vazia. Como o Git não permite clonar diretamente em uma pasta que já contém o BAT, o instalador cria um clone temporário e move seu conteúdo para essa mesma pasta. Se ela contiver outros arquivos, o processo é interrompido sem sobrescrevê-los.
 
@@ -81,18 +80,23 @@ Se o diretório já contiver este repositório e um `.env`, ambos serão reutili
 ## Como executar uma atualização
 
 1. Acesse o servidor Windows.
-2. Abra o Prompt de Comando como Administrador.
-3. Execute o arquivo pela raiz do repositório:
+2. Execute a preparação pela raiz do repositório (não precisa elevar o Prompt):
 
    ```bat
    C:\node\front-manufatura\atualiza-front.bat
    ```
 
-4. Acompanhe no terminal as seis etapas.
-5. Confirme a mensagem `DEPLOY CONCLUIDO`.
-6. Feche o Prompt se desejar; o processo Node continuará em segundo plano.
+3. Confirme a mensagem `PREPARACAO CONCLUIDA`. A versão antiga continua no ar.
+4. Abra o Prompt de Comando como Administrador e execute:
 
-Na primeira execução da ferramenta nova, ela também encontra e encerra a instância iniciada manualmente pela versão antiga do `.bat`, desde que seja o Node deste projeto na porta definida por `PORT` (padrão `4000`).
+   ```bat
+   C:\node\front-manufatura\instalar-servico.bat
+   ```
+
+5. Confirme a mensagem `SERVICO ATUALIZADO` ou `SERVICO INSTALADO`.
+6. Feche o Prompt se desejar; o processo continuará em segundo plano como `fma service`.
+
+Na primeira execução de `instalar-servico.bat`, ele também encontra e encerra a instância iniciada manualmente pela versão antiga do `.bat`, desde que seja o Node deste projeto na porta definida por `PORT` (padrão `4000`).
 
 ## Build separado e tempo fora do ar
 

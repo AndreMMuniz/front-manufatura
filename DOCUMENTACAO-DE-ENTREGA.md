@@ -165,12 +165,12 @@ npm run e2e:pwa
 - As APIs operacionais exigem token e validam as permissões associadas aos programas do Datasul.
 - Credenciais técnicas existem apenas no ambiente do servidor.
 - Os logs da aplicação ficam, por padrão, em `logs`, com rotação diária ou por tamanho e retenção padrão de 14 dias.
-- As saídas do processo publicado pelo script ficam em `.deploy/server-*.stdout.log` e `.deploy/server-*.stderr.log`.
+- As saídas do serviço ficam em `.deploy/service/logs`, com rotação configurada pelo WinSW.
 
 ## 9. Limites e recomendações para produção
 
 - Disponibilizar HTTPS antes da operação produtiva fora de rede controlada.
-- Configurar o Node como serviço do Windows, ou utilizar um gerenciador de processos equivalente, para reinício automático.
+- Manter o Node registrado como `fma service` para início automático e recuperação após falhas.
 - Manter o clone de produção sem alterações locais para não bloquear o `git pull`.
 - Proteger e rotacionar o segredo do JWT e as credenciais de integração.
 - Monitorar espaço em disco, retenção de logs, disponibilidade do Datasul e falhas da Outbox.
@@ -182,7 +182,8 @@ npm run e2e:pwa
 - código-fonte da aplicação Angular e do gateway Node/Express;
 - `package.json` e `package-lock.json` para instalação reproduzível das dependências;
 - `.env.example` com a relação de configurações esperadas;
-- `atualiza-front.bat` e `tools/deploy-front.ps1` para publicação no servidor Windows;
+- `new-deploy.bat` e `atualiza-front.bat` para preparar o build candidato;
+- `instalar-servico.bat`, `tools/deploy-front.ps1` e `tools/windows-service.ps1` para publicar e operar o serviço Windows;
 - testes unitários, de integração, E2E e PWA;
 - documentação complementar na pasta `docs`.
 

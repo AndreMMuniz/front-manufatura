@@ -27,6 +27,20 @@ foreach ($file in @('windows-service.ps1', 'deploy-front.ps1')) {
   }
 }
 
+$rootDirectory = Split-Path -Parent $PSScriptRoot
+$entrypoints = @{
+  (Join-Path $rootDirectory 'new-deploy.bat') = '-PrepareOnly'
+  (Join-Path $rootDirectory 'atualiza-front.bat') = '-PrepareOnly'
+  (Join-Path $rootDirectory 'instalar-servico.bat') = '-InstallServiceOnly'
+}
+foreach ($entry in $entrypoints.GetEnumerator()) {
+  $content = [IO.File]::ReadAllText($entry.Key)
+  Assert-Equal ($content.Contains($entry.Value)) $true ("entrypoint mode " + [IO.Path]::GetFileName($entry.Key))
+}
+Assert-Equal ([IO.File]::ReadAllText((Join-Path $rootDirectory 'atualiza-front.bat')).Contains('-InstallServiceOnly')) $false 'update does not start service'
+Assert-Equal ([IO.File]::ReadAllText((Join-Path $rootDirectory 'new-deploy.bat')).Contains('-InstallServiceOnly')) $false 'new deploy does not start service'
+Write-Host 'PASS preparation and service entrypoints are separated'
+
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('bff-service-tests-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
 try {
@@ -101,6 +115,18 @@ try {
   Assert-Equal ($script:events.Contains('start')) $false 'installation does not start before publication'
   $script:registered = [pscustomobject]@{ PathName = '"' + $paths.Executable + '"' }
   Write-Host 'PASS first installation writes configuration and ACLs before registering service'
+
+  $candidate = Join-Path $root '.deploy/candidate'
+  $current = Join-Path $root 'dist/plano-de-controle'
+  $previous = Join-Path $root '.deploy/previous'
+  New-Item -ItemType Directory -Path (Join-Path $candidate 'server') -Force | Out-Null
+  New-Item -ItemType Directory -Path (Join-Path $current 'server') -Force | Out-Null
+  [IO.File]::WriteAllText((Join-Path $candidate 'server/server.mjs'), 'candidate build')
+  [IO.File]::WriteAllText((Join-Path $current 'server/server.mjs'), 'current build')
+  Assert-Equal (Publish-Candidate $candidate $current $previous) $true 'existing build moved'
+  Assert-Equal ([IO.File]::ReadAllText((Join-Path $current 'server/server.mjs'))) 'candidate build' 'candidate published'
+  Assert-Equal ([IO.File]::ReadAllText((Join-Path $previous 'server/server.mjs'))) 'current build' 'previous retained'
+  Write-Host 'PASS prepared candidate is published only by service flow'
 
   # Exercise real rollback filesystem operations with mocked Windows/HTTP boundaries.
   $ProjectRoot = $root

@@ -1,4 +1,7 @@
-param([switch] $InstallServiceOnly)
+param(
+  [switch] $PrepareOnly,
+  [switch] $InstallServiceOnly
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
@@ -118,6 +121,36 @@ function Wait-ForHealth([int] $Port, [int] $Attempts = 15) {
   return $false
 }
 
+function Publish-Candidate(
+  [string] $Candidate,
+  [string] $Current,
+  [string] $Previous
+) {
+  if (-not (Test-Path -LiteralPath (Join-Path $Candidate 'server\server.mjs'))) {
+    throw "Build candidato invalido em $Candidate."
+  }
+
+  $oldBuildMoved = $false
+  try {
+    if (Test-Path -LiteralPath $Previous) {
+      Remove-Item -LiteralPath $Previous -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Current) -Force | Out-Null
+    if (Test-Path -LiteralPath $Current) {
+      Move-Item -LiteralPath $Current -Destination $Previous
+      $oldBuildMoved = $true
+    }
+    Move-Item -LiteralPath $Candidate -Destination $Current
+  } catch {
+    if ($oldBuildMoved -and -not (Test-Path -LiteralPath $Current)) {
+      Move-Item -LiteralPath $Previous -Destination $Current
+    }
+    throw
+  }
+
+  return $oldBuildMoved
+}
+
 function Restore-PreviousVersion([int] $Port) {
   Write-Host 'A nova versao nao ficou saudavel. Iniciando rollback...' -ForegroundColor Yellow
   Stop-CurrentServer -Port $Port
@@ -135,72 +168,81 @@ function Restore-PreviousVersion([int] $Port) {
 }
 
 try {
-  Assert-ServiceAdministrator
-  $null = Get-OwnedFmaService $ProjectRoot
+  if ($PrepareOnly -eq $InstallServiceOnly) {
+    throw 'Escolha uma unica operacao: -PrepareOnly ou -InstallServiceOnly.'
+  }
+
   Set-Location -LiteralPath $ProjectRoot
   New-Item -ItemType Directory -Path $DeployRoot -Force | Out-Null
-  $port = Get-ConfiguredPort
 
-  if ($InstallServiceOnly) {
-    if (-not (Test-Path -LiteralPath $ServerPath)) { throw 'Gere/publice o build antes de instalar o servico.' }
-    Install-FmaService $ProjectRoot
+  if ($PrepareOnly) {
+    Write-Step '[1/3] Atualizando codigo da branch main'
+    Invoke-Checked -Program 'git.exe' -Arguments @('pull', 'origin', 'main')
+
+    Write-Step '[2/3] Instalando/atualizando dependencias'
+    Invoke-Checked -Program 'npm.cmd' -Arguments @('install')
+
+    Write-Step '[3/3] Gerando build candidato sem interromper o servico'
+    Remove-Item -LiteralPath $CandidatePath -Recurse -Force -ErrorAction SilentlyContinue
+    Invoke-Checked -Program 'npm.cmd' -Arguments @(
+      'run', 'build:http-test', '--', '--output-path', '.deploy/candidate'
+    )
+    if (-not (Test-Path -LiteralPath (Join-Path $CandidatePath 'server\server.mjs'))) {
+      throw 'O build terminou sem gerar candidate\server\server.mjs.'
+    }
+
+    Write-Host "`nPREPARACAO CONCLUIDA: candidato criado em $CandidatePath." -ForegroundColor Green
+    Write-Host 'O servico atual nao foi parado nem reiniciado.'
+    Write-Host 'Execute instalar-servico.bat como Administrador para publicar o candidato.'
+    exit 0
+  }
+
+  Assert-ServiceAdministrator
+  $null = Get-OwnedFmaService $ProjectRoot
+  $port = Get-ConfiguredPort
+  $hasCandidate = Test-Path -LiteralPath (Join-Path $CandidatePath 'server\server.mjs')
+  $hasCurrentBuild = Test-Path -LiteralPath $ServerPath
+  if (-not $hasCandidate -and -not $hasCurrentBuild) {
+    throw 'Nenhum build foi encontrado. Execute new-deploy.bat ou atualiza-front.bat primeiro.'
+  }
+
+  # Provisiona antes da indisponibilidade; download/configuracao com falha nao para o servidor atual.
+  Install-FmaService $ProjectRoot
+
+  if (-not $hasCandidate) {
+    Write-Step '[1/2] Parando o Node antigo ou o servico atual'
     Stop-CurrentServer -Port $port
+    Write-Step '[2/2] Iniciando e validando o fma service com o build existente'
     try {
       Start-Server -Port $port
-      if (-not (Wait-ForHealth -Port $port)) { throw 'Servico nao respondeu ao health check. Consulte .deploy\service\logs.' }
+      if (-not (Wait-ForHealth -Port $port)) {
+        throw 'Servico nao respondeu ao health check. Consulte .deploy\service\logs.'
+      }
     } catch {
       Stop-FmaService $ProjectRoot
       throw
     }
-    Write-Host 'Servico instalado e saudavel. O build e o .env foram preservados.'
+    Write-Host "`nSERVICO INSTALADO: $FmaServiceDisplayName esta ativo e saudavel." -ForegroundColor Green
     exit 0
   }
 
-  Write-Step '[1/6] Atualizando codigo da branch main'
-  Invoke-Checked -Program 'git.exe' -Arguments @('pull', 'origin', 'main')
-
-  Write-Step '[2/6] Instalando/atualizando dependencias'
-  Invoke-Checked -Program 'npm.cmd' -Arguments @('install')
-
-  Write-Step '[3/6] Gerando candidato sem interromper o servidor atual'
-  Remove-Item -LiteralPath $CandidatePath -Recurse -Force -ErrorAction SilentlyContinue
-  Invoke-Checked -Program 'npm.cmd' -Arguments @(
-    'run', 'build:http-test', '--', '--output-path', '.deploy/candidate'
-  )
-  if (-not (Test-Path -LiteralPath (Join-Path $CandidatePath 'server\server.mjs'))) {
-    throw 'O build terminou sem gerar candidate\server\server.mjs.'
-  }
-
-  # Provision before downtime: a failed download leaves the current server online.
-  Install-FmaService $ProjectRoot
-
-  Write-Step '[4/6] Parando o servidor atual'
+  Write-Step '[1/3] Parando o Node antigo ou o servico atual'
   Stop-CurrentServer -Port $port
 
-  Write-Step '[5/6] Trocando o build publicado'
-  $oldBuildMoved = $false
+  Write-Step '[2/3] Publicando o build candidato'
   try {
-    if (Test-Path -LiteralPath $PreviousPath) {
-      Remove-Item -LiteralPath $PreviousPath -Recurse -Force
-    }
-    New-Item -ItemType Directory -Path (Split-Path -Parent $CurrentPath) -Force | Out-Null
-    if (Test-Path -LiteralPath $CurrentPath) {
-      Move-Item -LiteralPath $CurrentPath -Destination $PreviousPath
-      $oldBuildMoved = $true
-    }
-    Move-Item -LiteralPath $CandidatePath -Destination $CurrentPath
+    $oldBuildMoved = Publish-Candidate $CandidatePath $CurrentPath $PreviousPath
   } catch {
-    if ($oldBuildMoved) {
-      Move-Item -LiteralPath $PreviousPath -Destination $CurrentPath
-    }
     if (Test-Path -LiteralPath $ServerPath) {
       Start-Server -Port $port | Out-Null
-      if (-not (Wait-ForHealth -Port $port)) { throw 'Falha na troca do build e na recuperacao do servidor anterior.' }
+      if (-not (Wait-ForHealth -Port $port)) {
+        throw 'Falha na publicacao e na recuperacao do build anterior.'
+      }
     }
     throw
   }
 
-  Write-Step '[6/6] Iniciando e validando a nova versao'
+  Write-Step '[3/3] Iniciando e validando a nova versao'
   try {
     Start-Server -Port $port | Out-Null
     if (-not (Wait-ForHealth -Port $port)) {
@@ -208,12 +250,18 @@ try {
     }
   } catch {
     $startupFailure = $_.Exception.Message
-    Restore-PreviousVersion -Port $port
-    throw "$startupFailure A versao anterior foi restaurada e esta no ar."
+    if ($oldBuildMoved) {
+      Restore-PreviousVersion -Port $port
+      throw "$startupFailure A versao anterior foi restaurada e esta no ar."
+    }
+    Stop-FmaService $ProjectRoot
+    throw "$startupFailure Nao havia build anterior para rollback."
   }
 
-  Write-Host "`nDEPLOY CONCLUIDO: http://127.0.0.1:$port/api/health respondeu 204." -ForegroundColor Green
-  Write-Host "Build anterior mantido em $PreviousPath para contingencia."
+  Write-Host "`nSERVICO ATUALIZADO: http://127.0.0.1:$port/api/health respondeu 204." -ForegroundColor Green
+  if ($oldBuildMoved) {
+    Write-Host "Build anterior mantido em $PreviousPath para contingencia."
+  }
   exit 0
 } catch {
   Write-Host "`nERRO: $($_.Exception.Message)" -ForegroundColor Red

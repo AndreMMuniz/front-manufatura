@@ -19,11 +19,6 @@ if errorlevel 1 (
 )
 for /f "usebackq delims=" %%V in (`powershell.exe -NoLogo -NoProfile -Command "$PSVersionTable.PSVersion.ToString()"`) do set "POWERSHELL_VERSION=%%V"
 echo [OK] PowerShell: %POWERSHELL_VERSION%
-powershell.exe -NoLogo -NoProfile -Command "$p=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent()); if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 1 }"
-if errorlevel 1 (
-  echo [ERRO] Execute new-deploy.bat como Administrador para instalar o servico Windows.
-  goto :failure
-)
 powershell.exe -NoLogo -NoProfile -Command "if ($PSVersionTable.PSVersion -lt [version]'5.1') { exit 1 }"
 if errorlevel 1 (
   echo [ERRO] PowerShell 5.1 ou posterior e obrigatorio.
@@ -74,7 +69,7 @@ if exist "%INSTALL_DIR%\.git\" goto :existing_repository
 for /f "delims=" %%F in ('dir /b /a "%INSTALL_DIR%" 2^>nul') do if /i not "%%F"=="%~nx0" goto :directory_not_empty
 
 set "CLONE_DIR=%TEMP%\plano-de-controle-new-deploy-%RANDOM%-%RANDOM%"
-echo [1/4] Clonando a branch main do repositorio publico...
+echo [1/3] Clonando a branch main do repositorio publico...
 git.exe clone --branch main --single-branch "%REPOSITORY_URL%" "%CLONE_DIR%"
 if errorlevel 1 (
   rmdir /S /Q "%CLONE_DIR%" 2>nul
@@ -99,7 +94,7 @@ if /i not "%EXISTING_REMOTE%"=="%REPOSITORY_URL%" (
   echo        Origin encontrado: %EXISTING_REMOTE%
   goto :failure
 )
-echo [1/4] Repositorio correto ja existe; ele sera atualizado pelo deploy.
+echo [1/3] Repositorio correto ja existe; ele sera atualizado na preparacao.
 
 :prepare_environment
 if not exist "%INSTALL_DIR%\.env.example" (
@@ -111,7 +106,7 @@ if not exist "%INSTALL_DIR%\tools\deploy-front.ps1" (
   goto :failure
 )
 
-echo [2/4] Preparando o arquivo de configuracao...
+echo [2/3] Preparando o arquivo de configuracao...
 if exist "%INSTALL_DIR%\.env" (
   echo [OK] O .env existente sera preservado.
 ) else (
@@ -124,16 +119,15 @@ if exist "%INSTALL_DIR%\.env" (
   echo [OK] .env criado a partir de .env.example.
 )
 
-echo [3/4] Instalando dependencias e gerando o build...
-echo [4/4] Publicando, iniciando e validando a aplicacao...
+echo [3/3] Baixando atualizacoes, instalando dependencias e gerando o candidato...
 echo.
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%INSTALL_DIR%\tools\deploy-front.ps1"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%INSTALL_DIR%\tools\deploy-front.ps1" -PrepareOnly
 if errorlevel 1 goto :failure
 
 echo.
 echo ============================================================
-echo  NOVO DEPLOY CONCLUIDO
-echo  Servico fma service configurado para iniciar com o Windows.
+echo  PREPARACAO CONCLUIDA
+echo  Nenhum servico foi instalado, parado ou iniciado.
 echo ============================================================
 echo Projeto: %INSTALL_DIR%
 echo Config:  %INSTALL_DIR%\.env
@@ -143,11 +137,13 @@ if "%ENV_CREATED%"=="1" (
   echo Copie para ele os valores do .env do servidor antigo.
   echo A URL do Datasul pode ficar vazia por enquanto, mas login e APIs
   echo nao funcionarao ate a configuracao ser preenchida.
-  echo Depois de alterar o .env, execute:
-  echo   %INSTALL_DIR%\atualiza-front.bat
+  echo Preencha o .env antes de instalar o servico.
 ) else (
   echo O .env existente foi mantido. Confira seus valores antes de liberar o acesso.
 )
+echo.
+echo Proximo passo: execute como Administrador:
+echo   %INSTALL_DIR%\instalar-servico.bat
 echo.
 pause
 exit /b 0
@@ -160,7 +156,7 @@ goto :failure
 :failure
 echo.
 echo ============================================================
-echo  DEPLOY INTERROMPIDO - VEJA O ERRO ACIMA
+echo  PREPARACAO INTERROMPIDA - VEJA O ERRO ACIMA
 echo ============================================================
 echo Corrija o problema e execute new-deploy.bat novamente.
 echo O .env existente nunca e sobrescrito por este instalador.
