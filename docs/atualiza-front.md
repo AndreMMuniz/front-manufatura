@@ -2,7 +2,32 @@
 
 O arquivo [`atualiza-front.bat`](../atualiza-front.bat) é a ferramenta de CD manual do Plano de Controle. Ele chama [`tools/deploy-front.ps1`](../tools/deploy-front.ps1), que prepara a nova versão, troca o build publicado, reinicia o Node e valida a aplicação automaticamente.
 
-Não é mais necessário encerrar manualmente o servidor antes do deploy. Depois de uma publicação bem-sucedida, o Node permanece em segundo plano e o Prompt pode ser fechado.
+O Node é executado pelo serviço Windows exibido como `fma service` (identificador interno `FmaService`), instalado pelo WinSW 2.12.0. Ele inicia automaticamente com o Windows (início atrasado) e reinicia 10 segundos após uma falha do processo. O Prompt pode ser fechado e não é necessário manter um usuário conectado.
+
+## Instalar o serviço em um servidor existente
+
+Com o build e o `.env` já publicados, execute `instalar-servico.bat` **como Administrador**. Ele instala o serviço, encerra a instância Node antiga na porta configurada, inicia o mesmo build pelo serviço e valida `HEAD /api/health`. Não faz `git pull`, instalação npm nem novo build. Uma falha na validação deixa o serviço parado para diagnóstico; o build e o `.env` são preservados.
+
+`atualiza-front.bat` e `new-deploy.bat` também instalam o serviço automaticamente quando necessário. Ambos devem ser executados como Administrador. Não execute dois instaladores/deploys ao mesmo tempo.
+
+O instalador baixa `WinSW.NET461.exe` v2.12.0 do [release oficial](https://github.com/winsw/winsw/releases/tag/v2.12.0), verifica SHA-256 e guarda o executável e XML em `.deploy/service`. É necessário .NET Framework 4.6.1 ou superior (recomendado 4.8). Em servidor sem acesso ao GitHub, copie esse executável para `.deploy/service/FmaService.exe`; o hash também será validado.
+
+O serviço usa `NT AUTHORITY\LocalService`, sem senha no XML. O instalador concede leitura/execução na pasta do projeto e escrita apenas em `logs` e `.deploy/service/logs`. Instale Node para todos os usuários e use uma pasta local permanente. Se `APP_LOG_DIR` apontar para outro local, conceda escrita à conta do serviço nessa pasta. Recursos de rede que dependam da identidade Windows precisam de uma conta de serviço apropriada configurada pelo administrador.
+
+O XML registra caminhos absolutos para Node, projeto e `.env`. Não mova a instalação nem remova `.deploy/service` com o serviço registrado. Atualizações reutilizam o XML e a conta existentes. Um serviço com o mesmo nome registrado em outra pasta bloqueia a operação.
+
+Para administrar pelo PowerShell elevado:
+
+```powershell
+Get-Service FmaService
+Stop-Service FmaService
+Start-Service FmaService
+Restart-Service FmaService
+```
+
+Para desinstalar somente o registro do serviço, pare-o e execute `.\.deploy\service\FmaService.exe uninstall` na raiz do projeto. Isso preserva build, configuração e logs; um deploy futuro reinstala o serviço.
+
+Validação de scripts: `powershell.exe -NoProfile -File tools/windows-service.tests.ps1`. Os testes simulam SCM e HTTP; a workflow `Windows service scripts` também os executa em PowerShell 5.1. Na homologação Windows, confirme instalação, acesso à aplicação, reinício do computador, recuperação após falha do Node e atualização/rollback antes de liberar para produção.
 
 ## O que a ferramenta faz
 
@@ -13,9 +38,9 @@ O script executa as etapas abaixo em sequência:
 | 1 | `git pull origin main` | Baixa e integra a versão mais recente da branch `main`. |
 | 2 | `npm install` | Atualiza as dependências conforme o `package.json` e o lockfile. |
 | 3 | Build em `.deploy/candidate` | Gera a nova aplicação sem alterar o `dist` que ainda está atendendo usuários. |
-| 4 | Localizar e parar o Node na porta configurada | Encerra somente o processo Node deste projeto; um processo estranho na mesma porta não é finalizado. |
+| 4 | Parar o serviço Windows | Aguarda a parada antes da troca. Na migração inicial também encerra o Node legado reconhecido na porta configurada. |
 | 5 | Trocar os diretórios | Move o build atual para `.deploy/previous` e publica o candidato em `dist/plano-de-controle`. |
-| 6 | Iniciar e validar | Inicia o Node em segundo plano e consulta `HEAD /api/health`; se falhar, restaura o build anterior. |
+| 6 | Iniciar e validar | Inicia o serviço e consulta `HEAD /api/health`; se falhar, para o serviço, restaura o build anterior e valida novamente. |
 
 O serviço atual continua no ar se `git pull`, `npm install` ou o build falharem. A indisponibilidade esperada acontece apenas entre a parada do processo antigo e a inicialização saudável do novo processo.
 
@@ -25,7 +50,8 @@ Se o novo servidor não responder ao health check, o script executa rollback do 
 
 Antes de usar a ferramenta, confirme que o servidor possui:
 
-- Windows com acesso ao Prompt de Comando;
+- Windows com Prompt de Comando elevado (Executar como Administrador);
+- .NET Framework 4.6.1 ou posterior para WinSW;
 - Git e Node.js disponíveis no `PATH`;
 - o repositório clonado no servidor (o caminho é detectado pela localização do próprio `.bat`);
 - acesso do repositório remoto `origin` ao GitHub;
@@ -55,7 +81,7 @@ Se o diretório já contiver este repositório e um `.env`, ambos serão reutili
 ## Como executar uma atualização
 
 1. Acesse o servidor Windows.
-2. Abra o Prompt de Comando.
+2. Abra o Prompt de Comando como Administrador.
 3. Execute o arquivo pela raiz do repositório:
 
    ```bat
@@ -76,7 +102,7 @@ Por isso, a ferramenta gera `.deploy/candidate` enquanto a aplicação antiga co
 
 ## Logs do servidor e das APIs
 
-Os eventos da aplicação são gravados na pasta `logs` por padrão, uma linha por evento, com timestamp ISO 8601 em UTC, nível destacado, nome do evento e metadados em JSON. Exemplo: `2026-08-26T20:33:50.840Z [ERROR] api_request_completed | {"status":500}`. Esse formato facilita a leitura humana e mantém os metadados estruturados para filtros e análise. A saída e os erros do processo em segundo plano também são direcionados para arquivos `server-*.stdout.log` e `server-*.stderr.log` dentro de `.deploy`.
+Os eventos da aplicação são gravados na pasta `logs` por padrão, uma linha por evento, com timestamp ISO 8601 em UTC, nível destacado, nome do evento e metadados em JSON. Exemplo: `2026-08-26T20:33:50.840Z [ERROR] api_request_completed | {"status":500}`. Esse formato facilita a leitura humana e mantém os metadados estruturados para filtros e análise. O WinSW grava stdout, stderr e diagnóstico em `.deploy/service/logs`; stdout/stderr giram a cada 10 MB, com até oito arquivos históricos. Os antigos arquivos `.deploy/server-*.stdout.log` e `.deploy/server-*.stderr.log` são preservados, mas não recebem novas execuções.
 
 Os arquivos seguem o nome `application-AAAA-MM-DD.log`, giram diariamente ou ao atingir 20 MB e são mantidos por 14 dias. O arquivo `.application-log-audit.json` dentro da mesma pasta controla a retenção e não deve ser editado manualmente.
 
@@ -109,7 +135,7 @@ O código foi atualizado e as dependências foram instaladas, mas o candidato n�
 
 ### `ERRO ao iniciar o servidor`
 
-Verifique se o `.env` existe e possui as configurações esperadas, consulte o último `.deploy/server-*.stderr.log` e confira se a porta está livre. Se outro programa estiver usando a porta, a ferramenta recusa encerrá-lo por segurança.
+Verifique se o `.env` existe e possui as configurações esperadas, consulte `.deploy/service/logs` e o Visualizador de Eventos do Windows e confira se a porta está livre. Confirme também acesso da conta LocalService ao Node e à pasta do projeto. Se outro programa estiver usando a porta, a ferramenta recusa encerrá-lo por segurança.
 
 ### Nova versão falhou no health check
 
@@ -122,7 +148,7 @@ Valores inválidos nas variáveis `APP_LOG_*` também interrompem o startup com 
 - A ferramenta publica exclusivamente a branch remota `origin/main`.
 - O backup cobre o build publicado; `git pull` e `npm install` não são revertidos.
 - É mantido apenas um build anterior em `.deploy/previous`.
-- O processo é gerenciado por PID/porta, mas ainda não é um serviço do Windows e não inicia automaticamente após reinicializar a máquina.
+- O serviço inicia automaticamente após reinicialização. Recuperação automática cobre encerramento com falha; travamento com processo vivo exige intervenção/monitoramento externo.
 - O modo `build:http-test` e o acesso HTTP por IP são temporários. Ao disponibilizar HTTPS, troque `build:http-test` por `build` na chamada de `Invoke-Checked` em `tools/deploy-front.ps1`.
 - Alterações locais no servidor podem impedir o `git pull` ou ser combinadas com a versão publicada. Mantenha o clone de produção sem edições manuais.
 

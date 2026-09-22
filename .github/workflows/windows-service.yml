@@ -1,0 +1,28 @@
+name: Windows service scripts
+on:
+  push:
+    paths:
+      - 'tools/*service*.ps1'
+      - 'tools/deploy-front.ps1'
+      - '*servico.bat'
+      - '*deploy.bat'
+      - 'atualiza-front.bat'
+      - '.github/workflows/windows-service.yml'
+  pull_request:
+    paths:
+      - 'tools/*service*.ps1'
+      - 'tools/deploy-front.ps1'
+      - '*servico.bat'
+      - '*deploy.bat'
+      - 'atualiza-front.bat'
+      - '.github/workflows/windows-service.yml'
+permissions:
+  contents: read
+jobs:
+  scripts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell 5.1 service and rollback tests
+        shell: powershell
+        run: ./tools/windows-service.tests.ps1

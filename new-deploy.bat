@@ -19,6 +19,11 @@ if errorlevel 1 (
 )
 for /f "usebackq delims=" %%V in (`powershell.exe -NoLogo -NoProfile -Command "$PSVersionTable.PSVersion.ToString()"`) do set "POWERSHELL_VERSION=%%V"
 echo [OK] PowerShell: %POWERSHELL_VERSION%
+powershell.exe -NoLogo -NoProfile -Command "$p=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent()); if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 1 }"
+if errorlevel 1 (
+  echo [ERRO] Execute new-deploy.bat como Administrador para instalar o servico Windows.
+  goto :failure
+)
 powershell.exe -NoLogo -NoProfile -Command "if ($PSVersionTable.PSVersion -lt [version]'5.1') { exit 1 }"
 if errorlevel 1 (
   echo [ERRO] PowerShell 5.1 ou posterior e obrigatorio.
@@ -128,6 +133,7 @@ if errorlevel 1 goto :failure
 echo.
 echo ============================================================
 echo  NOVO DEPLOY CONCLUIDO
+echo  Servico fma service configurado para iniciar com o Windows.
 echo ============================================================
 echo Projeto: %INSTALL_DIR%
 echo Config:  %INSTALL_DIR%\.env

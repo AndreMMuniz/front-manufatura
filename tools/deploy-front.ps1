@@ -1,3 +1,5 @@
+param([switch] $InstallServiceOnly)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
@@ -10,6 +12,7 @@ $PidFile = Join-Path $DeployRoot 'server.pid'
 $ServerRelativePath = 'dist\plano-de-controle\server\server.mjs'
 $ServerPath = Join-Path $ProjectRoot $ServerRelativePath
 $EnvFile = Join-Path $ProjectRoot '.env'
+. (Join-Path $PSScriptRoot 'windows-service.ps1')
 
 function Write-Step([string] $Message) {
   Write-Host "`n==> $Message" -ForegroundColor Cyan
@@ -76,6 +79,8 @@ function Assert-ManagedNodeProcess([int] $ProcessId, [int] $Port) {
 }
 
 function Stop-CurrentServer([int] $Port) {
+  # SCM stop prevents recovery from restarting Node during deploy or rollback.
+  Stop-FmaService $ProjectRoot
   $processId = Get-ListeningProcessId -Port $Port
   if ($null -eq $processId) {
     Write-Host "Nenhum servidor esta escutando a porta $Port."
@@ -96,24 +101,8 @@ function Start-Server([int] $Port) {
     throw "Build do servidor nao encontrado em $ServerPath."
   }
 
-  $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-  $stdoutPath = Join-Path $DeployRoot "server-$timestamp.stdout.log"
-  $stderrPath = Join-Path $DeployRoot "server-$timestamp.stderr.log"
-  $process = Start-Process -FilePath 'node.exe' `
-    -ArgumentList @('--env-file=.env', $ServerRelativePath) `
-    -WorkingDirectory $ProjectRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $stdoutPath `
-    -RedirectStandardError $stderrPath `
-    -PassThru
-
-  Set-Content -LiteralPath $PidFile -Value $process.Id -Encoding Ascii
-  Start-Sleep -Milliseconds 700
-  if ($process.HasExited) {
-    throw "O servidor encerrou durante a inicializacao. Consulte $stderrPath."
-  }
-  Write-Host "Servidor iniciado em segundo plano (PID $($process.Id), porta $Port)."
-  return $process.Id
+  Start-FmaService $ProjectRoot
+  Write-Host "Servico $FmaServiceDisplayName iniciado (porta $Port)."
 }
 
 function Wait-ForHealth([int] $Port, [int] $Attempts = 15) {
@@ -146,9 +135,26 @@ function Restore-PreviousVersion([int] $Port) {
 }
 
 try {
+  Assert-ServiceAdministrator
+  $null = Get-OwnedFmaService $ProjectRoot
   Set-Location -LiteralPath $ProjectRoot
   New-Item -ItemType Directory -Path $DeployRoot -Force | Out-Null
   $port = Get-ConfiguredPort
+
+  if ($InstallServiceOnly) {
+    if (-not (Test-Path -LiteralPath $ServerPath)) { throw 'Gere/publice o build antes de instalar o servico.' }
+    Install-FmaService $ProjectRoot
+    Stop-CurrentServer -Port $port
+    try {
+      Start-Server -Port $port
+      if (-not (Wait-ForHealth -Port $port)) { throw 'Servico nao respondeu ao health check. Consulte .deploy\service\logs.' }
+    } catch {
+      Stop-FmaService $ProjectRoot
+      throw
+    }
+    Write-Host 'Servico instalado e saudavel. O build e o .env foram preservados.'
+    exit 0
+  }
 
   Write-Step '[1/6] Atualizando codigo da branch main'
   Invoke-Checked -Program 'git.exe' -Arguments @('pull', 'origin', 'main')
@@ -165,21 +171,31 @@ try {
     throw 'O build terminou sem gerar candidate\server\server.mjs.'
   }
 
+  # Provision before downtime: a failed download leaves the current server online.
+  Install-FmaService $ProjectRoot
+
   Write-Step '[4/6] Parando o servidor atual'
   Stop-CurrentServer -Port $port
 
   Write-Step '[5/6] Trocando o build publicado'
-  Remove-Item -LiteralPath $PreviousPath -Recurse -Force -ErrorAction SilentlyContinue
-  New-Item -ItemType Directory -Path (Split-Path -Parent $CurrentPath) -Force | Out-Null
-  if (Test-Path -LiteralPath $CurrentPath) {
-    Move-Item -LiteralPath $CurrentPath -Destination $PreviousPath
-  }
+  $oldBuildMoved = $false
   try {
+    if (Test-Path -LiteralPath $PreviousPath) {
+      Remove-Item -LiteralPath $PreviousPath -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $CurrentPath) -Force | Out-Null
+    if (Test-Path -LiteralPath $CurrentPath) {
+      Move-Item -LiteralPath $CurrentPath -Destination $PreviousPath
+      $oldBuildMoved = $true
+    }
     Move-Item -LiteralPath $CandidatePath -Destination $CurrentPath
   } catch {
-    if (Test-Path -LiteralPath $PreviousPath) {
+    if ($oldBuildMoved) {
       Move-Item -LiteralPath $PreviousPath -Destination $CurrentPath
+    }
+    if (Test-Path -LiteralPath $ServerPath) {
       Start-Server -Port $port | Out-Null
+      if (-not (Wait-ForHealth -Port $port)) { throw 'Falha na troca do build e na recuperacao do servidor anterior.' }
     }
     throw
   }

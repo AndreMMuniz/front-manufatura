@@ -19,6 +19,6 @@ if not "%DEPLOY_EXIT_CODE%"=="0" (
     exit /b %DEPLOY_EXIT_CODE%
 )
 
-echo Deploy concluido. O servidor continua executando em segundo plano.
+echo Deploy concluido. O servico fma service permanece ativo e inicia com o Windows.
 pause
 exit /b 0
