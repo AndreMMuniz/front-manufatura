@@ -104,7 +104,7 @@ export class ReporteParadasService {
     workCenterCode: string,
   ): Observable<ReadonlyArray<ResponsavelParada>> {
     return this.catalog
-      .listarResponsaveis(areaCode, workCenterCode)
+      .listarResponsaveis(areaCode, workCenterCode, 'EQUIPE')
       .pipe(map((responsaveis) => responsaveis.map((responsavel) => ({ ...responsavel }))));
   }
 

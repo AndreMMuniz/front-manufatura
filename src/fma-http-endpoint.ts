@@ -257,11 +257,15 @@ function installAdaptedRoutes(
   app.get('/api/operational-responsibles', (req, res) => handle(req, res, dependencies, async client => {
     const areaCode = requiredText(req.query['areaCode']).toUpperCase();
     requiredText(req.query['workCenterCode']);
+    const responsibleType = optionalText(req.query['tipo']);
+    if (responsibleType && responsibleType !== 'OPERADOR' && responsibleType !== 'EQUIPE') {
+      throw new QualityControlGatewayError(400, 'invalid-request');
+    }
     const [operatorsUpstream, teamsUpstream] = await Promise.all([
-      client.request('GET', '/api/fma/v1/operadores'),
-      client.request('GET', '/api/fma/v1/equipes'),
+      responsibleType === 'EQUIPE' ? Promise.resolve(null) : client.request('GET', '/api/fma/v1/operadores'),
+      responsibleType === 'OPERADOR' ? Promise.resolve(null) : client.request('GET', '/api/fma/v1/equipes'),
     ]);
-    const operators = dataset(operatorsUpstream, 'operadores').flatMap(row => {
+    const operators = (operatorsUpstream === null ? [] : dataset(operatorsUpstream, 'operadores')).flatMap(row => {
       const item = objectOfUpstream(row);
       if (text(item['codAreaProduc']).trim().toUpperCase() !== areaCode) return [];
       return [{
@@ -270,30 +274,30 @@ function installAdaptedRoutes(
         nome: requiredUpstreamText(item['nomOperador']),
       }];
     });
-    const teams = dataset(teamsUpstream, 'Equipes').flatMap(row => {
+    const teams = (teamsUpstream === null ? [] : dataset(teamsUpstream, 'Equipes')).map(row => {
       const item = objectOfUpstream(row);
-      if (text(item['codAreaProduc']).trim().toUpperCase() !== areaCode) return [];
-      return [{
+      const codigo = requiredUpstreamText(item['codEquipe']);
+      return {
         tipo: 'EQUIPE',
-        codigo: requiredUpstreamText(item['codEquipe']),
-        nome: requiredUpstreamText(item['nomEquipe']),
-      }];
+        codigo,
+        nome: text(item['nomEquipe']).trim() || codigo,
+      };
     });
     return [...operators, ...teams];
   }));
 
   app.get('/api/teams', (req, res) => handle(req, res, dependencies, async client => {
-    const areaCode = requiredText(req.query['areaCode']).toUpperCase();
+    requiredText(req.query['areaCode']);
     const upstream = await client.request('GET', '/api/fma/v1/equipes');
-    return dataset(upstream, 'Equipes').flatMap(row => {
+    return dataset(upstream, 'Equipes').map(row => {
       const item = objectOfUpstream(row);
-      if (text(item['codAreaProduc']).trim().toUpperCase() !== areaCode) return [];
-      return [{
-        codigo: requiredUpstreamText(item['codEquipe']),
-        descricao: requiredUpstreamText(item['nomEquipe']),
+      const codigo = requiredUpstreamText(item['codEquipe']);
+      return {
+        codigo,
+        descricao: text(item['nomEquipe']).trim() || codigo,
         turno: String(nonNegativeIntegerUpstream(item['numTurno'])),
         operadores: [],
-      }];
+      };
     });
   }));
 

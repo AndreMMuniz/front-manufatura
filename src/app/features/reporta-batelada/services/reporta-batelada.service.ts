@@ -223,7 +223,7 @@ export class ReportaBateladaService {
       return of([]);
     }
 
-    return this.productionCatalog.listarResponsaveis(areaCode, workCenterCode).pipe(
+    return this.productionCatalog.listarResponsaveis(areaCode, workCenterCode, 'EQUIPE').pipe(
       map(responsaveis => responsaveis.map(responsavel => ({ ...responsavel }))),
     );
   }

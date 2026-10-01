@@ -180,6 +180,7 @@ describe('ReportaBateladaService', () => {
 
     expect(result).toEqual([responsavel()]);
     expect(result[0]).not.toBe(responsavel());
+    expect(catalogMock.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01', 'EQUIPE');
   });
 
   it('adopts already open orders for reporting without sending another start command', async () => {

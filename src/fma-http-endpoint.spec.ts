@@ -251,6 +251,7 @@ describe('gateway FMA', () => {
     await expect(result.json()).resolves.toEqual([
       { tipo: 'OPERADOR', codigo: '00016570', nome: 'Ana' },
       { tipo: 'EQUIPE', codigo: 'PRE-006', nome: 'Preparação 6' },
+      { tipo: 'EQUIPE', codigo: 'EMP-01', nome: 'Empacotadora 1' },
     ]);
     expect(String(transport.mock.calls[0][0])).toBe(
       'https://datasul.example.test/api/fma/v1/operadores?companyId=1&codUsuario=mjocelio',
@@ -260,11 +261,12 @@ describe('gateway FMA', () => {
     );
   });
 
-  it('lista somente as equipes da Área de Produção da ordem', async () => {
+  it('preserva equipes retornadas pelo Datasul mesmo com área ou nome vazio', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(response('Equipes', [
       { codAreaProduc: '4110', codEquipe: 'EMP-01', numTurno: 1, nomEquipe: 'Empacotadora 1' },
       { codAreaProduc: '4120', codEquipe: 'FBAN-003', numTurno: 1, nomEquipe: 'Fábrica 3' },
       { codAreaProduc: '', codEquipe: 'SEM-AREA', numTurno: 0, nomEquipe: 'Sem área' },
+      { codAreaProduc: '', codEquipe: '1262', numTurno: 0, nomEquipe: '' },
     ]));
     const root = await startGateway(transport);
     const result = await fetch(
@@ -278,7 +280,37 @@ describe('gateway FMA', () => {
       descricao: 'Empacotadora 1',
       turno: '1',
       operadores: [],
+    }, {
+      codigo: 'FBAN-003', descricao: 'Fábrica 3', turno: '1', operadores: [],
+    }, {
+      codigo: 'SEM-AREA', descricao: 'Sem área', turno: '0', operadores: [],
+    }, {
+      codigo: '1262', descricao: '1262', turno: '0', operadores: [],
     }]);
+    expect(String(transport.mock.calls[0][0])).toBe(
+      'https://datasul.example.test/api/fma/v1/equipes?companyId=1&codUsuario=mjocelio',
+    );
+  });
+
+  it('consulta apenas equipes para Paradas e mantém pintura sem área na seleção', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('Equipes', [
+      { codAreaProduc: '', codEquipe: 'PINT-02', numTurno: 0, nomEquipe: 'CABINE DE PINTURA AUTOMATICA' },
+      { codAreaProduc: '', codEquipe: 'PINT-01', numTurno: 1, nomEquipe: 'CABINE DE PINTURA AUTOMATICA' },
+      { codAreaProduc: '', codEquipe: '1262', numTurno: 0, nomEquipe: '' },
+    ]));
+    const root = await startGateway(transport);
+    const result = await fetch(
+      `${root}/api/operational-responsibles?areaCode=4122&workCenterCode=PINT-02-01&tipo=EQUIPE`,
+      { headers: { authorization: `Bearer ${await token()}` } },
+    );
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual([
+      { tipo: 'EQUIPE', codigo: 'PINT-02', nome: 'CABINE DE PINTURA AUTOMATICA' },
+      { tipo: 'EQUIPE', codigo: 'PINT-01', nome: 'CABINE DE PINTURA AUTOMATICA' },
+      { tipo: 'EQUIPE', codigo: '1262', nome: '1262' },
+    ]);
+    expect(transport).toHaveBeenCalledTimes(1);
     expect(String(transport.mock.calls[0][0])).toBe(
       'https://datasul.example.test/api/fma/v1/equipes?companyId=1&codUsuario=mjocelio',
     );

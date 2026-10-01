@@ -198,7 +198,7 @@ describe('ReporteParadasService', () => {
 
     expect(catalog.listarAreas).toHaveBeenCalledOnce();
     expect(catalog.pesquisarCentros).toHaveBeenCalledWith('4001', '');
-    expect(catalog.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01');
+    expect(catalog.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01', 'EQUIPE');
     expect(areas).toEqual([{ code: '4001', description: 'Produção' }]);
     expect(centers).toEqual([center]);
     expect(responsaveis).toEqual([{ tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' }]);

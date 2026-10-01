@@ -32,6 +32,7 @@ export class ProductionContextCatalogService {
   listarResponsaveis(
     areaCode: string,
     workCenterCode: string,
+    tipo?: ResponsavelOperacional['tipo'],
   ): Observable<ReadonlyArray<ResponsavelOperacional>> {
     const area = this.normalizeCode(areaCode);
     const center = this.normalizeCode(workCenterCode);
@@ -41,7 +42,7 @@ export class ProductionContextCatalogService {
 
     return this.api.get<ReadonlyArray<ResponsavelOperacional>>(
       '/api/operational-responsibles',
-      { areaCode: area, workCenterCode: center },
+      { areaCode: area, workCenterCode: center, ...(tipo ? { tipo } : {}) },
     ).pipe(
       map(responsaveis => responsaveis.map(responsavel => ({
         ...responsavel,

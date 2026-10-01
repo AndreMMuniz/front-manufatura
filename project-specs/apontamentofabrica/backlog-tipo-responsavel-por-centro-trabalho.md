@@ -130,3 +130,15 @@ Após autorização do usuário, a correção local passou a usar a modalidade d
 - **TR-02 a TR-05:** correção aplicada localmente. Validação no Datasul e publicação continuam pendentes.
 - **TR-06:** pendente de teste funcional dos códigos e regras de elegibilidade.
 - **TR-07:** 243 testes dos fluxos afetados passaram e a compilação de produção foi concluída. Liberação depende de validação funcional nas bases e publicação autorizada.
+
+### Correção do carregamento de equipes
+
+A correção de modalidade foi publicada na `main` no commit `c83657e`, com autorização para publicação direta. A instalação e os testes funcionais nos servidores 228 e 236 (BaseHub) dependem da equipe do cliente.
+
+O retorno de `GET /api/fma/v1/equipes` fornecido pelo usuário confirma a coleção `items[0].Equipes`, com `PINT-01`, `PINT-02` e `PINT-03` contendo `codAreaProduc: ""`, e registros com `nomEquipe: ""`. O filtro local por igualdade de área descartava as equipes de pintura na área `4122`; exigir nome preenchido também impediria carregar registros válidos com nome vazio.
+
+O gateway passou a preservar a lista de equipes retornada pelo Datasul para a empresa e o usuário autenticados, sem aplicar filtro local por área. Quando o nome está vazio, usa o código como descrição. Paradas e Batelada solicitam `tipo=EQUIPE` em `/api/operational-responsibles`, consultando somente `/api/fma/v1/equipes`; Reporte de Ordem usa `/api/teams` com a mesma regra de preservação da lista.
+
+Não há evidência de que área vazia signifique elegibilidade global, nem de vínculo entre equipe e CT por prefixo do código. A aceitação de uma equipe no comando continua sujeita à validação real do Datasul (TR-06). Testar a seleção e o envio no CT `PINT-02-01` após atualizar e reinstalar o serviço no cliente.
+
+Validação local: 487 testes passaram em 28 arquivos, incluindo gateway, Paradas, Ordem, Batelada e catálogo compartilhado. Compilação de produção concluída; grafo atualizado. O teste funcional no Datasul permanece pendente.

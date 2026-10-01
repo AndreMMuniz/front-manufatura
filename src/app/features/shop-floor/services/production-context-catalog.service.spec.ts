@@ -32,6 +32,22 @@ describe('ProductionContextCatalogService', () => {
     });
   });
 
+  it('requests only teams when the team selector is loaded', async () => {
+    const get = vi.fn(() => of([{ tipo: 'EQUIPE', codigo: 'PINT-02', nome: 'Pintura' }]));
+    TestBed.configureTestingModule({ providers: [
+      ProductionContextCatalogService,
+      { provide: AuthenticatedApiService, useValue: { get } },
+      { provide: WorkCenterService, useValue: {} },
+    ] });
+    await expect(firstValueFrom(TestBed.inject(ProductionContextCatalogService)
+      .listarResponsaveis('4122', 'PINT-02-01', 'EQUIPE'))).resolves.toEqual([
+        { tipo: 'EQUIPE', codigo: 'PINT-02', nome: 'Pintura' },
+      ]);
+    expect(get).toHaveBeenCalledWith('/api/operational-responsibles', {
+      areaCode: '4122', workCenterCode: 'PINT-02-01', tipo: 'EQUIPE',
+    });
+  });
+
   it('does not request responsibilities without area and center', async () => {
     const get = vi.fn();
     TestBed.configureTestingModule({ providers: [
