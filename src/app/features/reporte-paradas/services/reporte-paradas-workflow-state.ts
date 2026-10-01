@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
+import { WORK_CENTER_REPORT_MODE_ERROR, workCenterResponsibleType } from '../../shop-floor/models/work-center-report-mode';
 import {
   ProductionContext,
   ProductionContextOrigin,
@@ -14,6 +15,8 @@ import {
   TipoResponsavelParada,
 } from '../models/reporte-paradas.model';
 import { formatLocalDate, formatLocalTime } from '../models/reporte-paradas-time';
+
+const PREFILL_MODE_ERROR = 'O responsável recebido não corresponde à modalidade do Centro de Trabalho. Informe o responsável correto.';
 
 export interface ParadaDraft {
   readonly reasonId: number | null;
@@ -116,6 +119,7 @@ export class ReporteParadasWorkflowState {
 
     const requiredType = this.responsibleTypeFor(center);
     const preferred = context.preferredResponsible
+      && context.preferredResponsible.tipo === requiredType
       ? (context.preferredResponsible.tipo === 'OPERADOR'
           && requiredType !== 'EQUIPE'
           && context.preferredResponsible.codigo.trim()
@@ -137,6 +141,9 @@ export class ReporteParadasWorkflowState {
       responsibles: this.uniqueResponsibles(responsibles),
       origin: context.origin ? { ...context.origin } : undefined,
       metadata: context.metadata ? this.cloneMetadata(context.metadata) : undefined,
+      contextError: !requiredType ? WORK_CENTER_REPORT_MODE_ERROR
+        : context.preferredResponsible && context.preferredResponsible.tipo !== requiredType
+          ? PREFILL_MODE_ERROR : '',
     };
     return true;
   }
@@ -157,6 +164,7 @@ export class ReporteParadasWorkflowState {
       area,
       workCenter: workCenter ? { ...workCenter } : null,
       responsibleType: this.responsibleTypeFor(workCenter) ?? 'OPERADOR',
+      contextError: workCenter && !this.responsibleTypeFor(workCenter) ? WORK_CENTER_REPORT_MODE_ERROR : '',
     };
   }
 
@@ -173,7 +181,7 @@ export class ReporteParadasWorkflowState {
     this.view = {
       ...this.view,
       contextLoading: true,
-      contextError: '',
+      contextError: this.view.contextError === PREFILL_MODE_ERROR ? PREFILL_MODE_ERROR : '',
     };
     return token;
   }
@@ -191,7 +199,8 @@ export class ReporteParadasWorkflowState {
       responsibles: this.uniqueResponsibles(responsibles),
       reasons: reasons.map((reason) => ({ ...reason })),
       contextLoading: false,
-      contextError: '',
+      contextError: this.responsibleTypeFor(this.view.workCenter)
+        ? this.view.contextError : WORK_CENTER_REPORT_MODE_ERROR,
     };
     return true;
   }
@@ -236,6 +245,8 @@ export class ReporteParadasWorkflowState {
       responsibleCode,
       dirty: true,
       idempotencyKey: null,
+      contextError: !this.responsibleTypeFor(this.view.workCenter) ? WORK_CENTER_REPORT_MODE_ERROR
+        : this.view.contextError === PREFILL_MODE_ERROR ? '' : this.view.contextError,
     };
   }
 
@@ -503,9 +514,7 @@ export class ReporteParadasWorkflowState {
   private responsibleTypeFor(
     center: WorkCenter | null,
   ): TipoResponsavelParada | null {
-    if (center?.indReporteMod === 2) return 'OPERADOR';
-    if (center?.indReporteMod === 3) return 'EQUIPE';
-    return null;
+    return workCenterResponsibleType(center);
   }
 
   private cloneSnapshot(snapshot: ReporteParadasWorkflowSnapshot): ReporteParadasWorkflowSnapshot {

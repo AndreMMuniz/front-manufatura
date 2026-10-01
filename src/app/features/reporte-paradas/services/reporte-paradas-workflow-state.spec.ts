@@ -23,6 +23,7 @@ describe('ReporteParadasWorkflowState', () => {
     machineGroup: 'Extrusoras',
     establishment: '101',
     active: true,
+    indReporteMod: 2 as const,
   };
   const context: ProductionContext = {
     area,
@@ -39,6 +40,28 @@ describe('ReporteParadasWorkflowState', () => {
       orderIds: ['OP-1'],
     },
   };
+
+  it('limpa prefill de operador quando o CT exige equipe e permite reconciliar', () => {
+    const teamCenter = { ...center, indReporteMod: 3 as const };
+    const team = { tipo: 'EQUIPE' as const, codigo: 'EQ-01', nome: 'Equipe' };
+    state.applyPrefill(context, [area], [teamCenter], [context.preferredResponsible!, team]);
+    const token = state.beginContextRequest(area.code, center.code);
+    state.acceptContextData(token, [team], []);
+    expect(state.snapshot().responsibleType).toBe('EQUIPE');
+    expect(state.snapshot().responsibleCode).toBe('');
+    expect(state.snapshot().contextError).toContain('modalidade');
+    state.setResponsibleCode('EQ-01');
+    expect(state.snapshot().contextError).toBe('');
+  });
+
+  it('mantem erro de modalidade quando o CT omite o campo', () => {
+    state.confirmAreaChange(area);
+    state.confirmWorkCenterChange({ ...center, indReporteMod: undefined });
+    const token = state.beginContextRequest(area.code, center.code);
+    state.acceptContextData(token, [], []);
+    state.setResponsibleCode('001');
+    expect(state.snapshot().contextError).toContain('modalidade');
+  });
 
   beforeEach(() => {
     session$ = new BehaviorSubject<unknown>({ user: 'operador' });

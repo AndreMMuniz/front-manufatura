@@ -17,11 +17,14 @@
   </dl>
 
   <div class="informacoes-batelada__responsavel">
+    @if (reportModeError) {
+      <p class="informacoes-batelada__error" role="alert">{{ reportModeError }}</p>
+    } @else {
     <po-select
       name="tipoResponsavelBatelada"
       p-label="Reportar por"
       [p-options]="tipoOptions"
-      [p-disabled]="disabled"
+      [p-disabled]="disabled || workCenter !== null"
       [ngModel]="tipoResponsavel"
       (ngModelChange)="changeTipoResponsavel($event)"
     ></po-select>
@@ -60,6 +63,7 @@
         [p-disabled]="disabled || teamControlsDisabled"
         (p-click)="onGerenciarEquipe()"
       ></po-button>
+    }
     }
   </div>
 </po-widget>

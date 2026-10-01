@@ -47,6 +47,7 @@ describe('ReporteParadasPage', () => {
     machineGroup: 'Extrusoras',
     establishment: '101',
     active: true,
+    indReporteMod: 2 as const,
   };
   const responsible = { tipo: 'OPERADOR' as const, codigo: 'OP-001', nome: 'Ana' };
   const prefill: ProductionContext = {
@@ -224,6 +225,7 @@ describe('ReporteParadasPage', () => {
   });
 
   it('distingue erro do catálogo de lista elegível vazia e oferece retry', () => {
+    service.pesquisarCentros.mockReturnValue(of([{ ...center, indReporteMod: 3 }]));
     service.listarResponsaveis.mockReturnValueOnce(
       throwError(() => new Error('Catálogo indisponível')),
     );

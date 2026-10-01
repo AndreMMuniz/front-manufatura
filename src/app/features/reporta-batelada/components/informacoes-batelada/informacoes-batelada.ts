@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { PoButtonModule, PoFieldModule, PoSelectOption, PoWidgetModule } from '@po-ui/ng-components';
 
 import { WorkCenter } from '../../../shop-floor/models/work-center';
+import { WORK_CENTER_REPORT_MODE_ERROR, workCenterResponsibleType } from '../../../shop-floor/models/work-center-report-mode';
 import {
   ResponsavelBatelada,
   TipoResponsavelBatelada,
@@ -37,6 +38,13 @@ export class InformacoesBatelada {
     { label: 'Equipe', value: 'EQUIPE' },
   ];
 
+  get reportModeError(): string {
+    const tipo = workCenterResponsibleType(this.workCenter);
+    if (this.workCenter && !tipo) return WORK_CENTER_REPORT_MODE_ERROR;
+    return tipo && this.responsavel && this.responsavel.tipo !== tipo
+      ? 'O responsável da batelada iniciada diverge da modalidade do Centro de Trabalho. Consulte o responsável pela API.' : '';
+  }
+
   get equipeOptions(): ReadonlyArray<PoSelectOption> {
     return this.responsaveis.filter(item => item.tipo === 'EQUIPE').map(item => ({
       value: this.key(item),
@@ -53,7 +61,7 @@ export class InformacoesBatelada {
   }
 
   changeTipoResponsavel(value: string): void {
-    if (!this.disabled && (value === 'OPERADOR' || value === 'EQUIPE')) {
+    if (!this.disabled && !this.workCenter && (value === 'OPERADOR' || value === 'EQUIPE')) {
       this.tipoResponsavelChange.emit(value);
     }
   }

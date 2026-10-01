@@ -20,6 +20,7 @@
     ></app-contexto-producao-selector>
 
     @if (view().area && view().workCenter) {
+      @if (view().workCenter?.indReporteMod === 2 || view().workCenter?.indReporteMod === 3) {
       <app-responsavel-parada-select
         [responsibles]="view().responsibles"
         [responsibleType]="view().responsibleType"
@@ -30,6 +31,9 @@
         (responsibleCodeChange)="onResponsibleCodeChange($event)"
         (retry)="retryContext()"
       ></app-responsavel-parada-select>
+      } @else {
+        <p class="reporte-paradas__guidance" role="alert">{{ view().contextError }}</p>
+      }
 
       <app-parada-form
         [reasons]="view().reasons"

@@ -105,7 +105,8 @@ describe('ReportaBateladaWorkflowState', () => {
     prepareBatch();
     state.setResponsavel({ tipo: 'OPERADOR', codigo: 'op.int/7-a', nome: '' });
 
-    expect(state.setTipoResponsavel('EQUIPE')).toBe(true);
+    expect(state.setTipoResponsavel('EQUIPE')).toBe(false);
+    state.setWorkCenter({ ...workCenter(), indReporteMod: 3 });
     expect(state.snapshot().tipoResponsavel).toBe('EQUIPE');
     expect(state.snapshot().responsavel).toBeNull();
   });
@@ -122,7 +123,7 @@ describe('ReportaBateladaWorkflowState', () => {
       { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
       { tipo: 'EQUIPE', codigo: 'OP-001', nome: 'Equipe atualizada' },
     ]);
-    state.setTipoResponsavel('EQUIPE');
+    state.setWorkCenter({ ...workCenter(), indReporteMod: 3 });
     expect(state.setResponsavel({
       tipo: 'EQUIPE',
       codigo: ' op-001 ',
@@ -463,6 +464,34 @@ describe('ReportaBateladaWorkflowState', () => {
     expect(state.canEnd()).toBe(false);
   });
 
+  it('seleciona equipe pelo CT e impede troca manual para operador', () => {
+    prepareBatch();
+    state.setResponsavel(responsavel());
+    state.setWorkCenter({ ...workCenter(), indReporteMod: 3 });
+    expect(state.snapshot().tipoResponsavel).toBe('EQUIPE');
+    expect(state.snapshot().responsavel).toBeNull();
+    expect(state.setTipoResponsavel('OPERADOR')).toBe(false);
+    state.setResponsaveis([{ tipo: 'EQUIPE', codigo: 'AUT00037', nome: 'Equipe' }]);
+    state.setResponsavel({ tipo: 'EQUIPE', codigo: 'AUT00037', nome: 'Equipe' });
+    expect(state.canStart()).toBe(true);
+  });
+
+  it.each([undefined, 7, '3'])('bloqueia inicio com modalidade ausente ou invalida: %s', mode => {
+    prepareBatch();
+    state.setWorkCenter({ ...workCenter(), indReporteMod: mode } as unknown as ReturnType<typeof workCenter>);
+    state.setResponsavel(responsavel());
+    expect(state.canStart()).toBe(false);
+    expect(state.beginExistingStartRecognition()).toBe(false);
+  });
+
+  it('preserva o responsavel iniciado ao restaurar CT com modalidade conflitante', () => {
+    startBatch();
+    const saved = state.snapshot();
+    state.restoreDurable({ ...saved, workCenter: { ...saved.workCenter!, indReporteMod: 3 } });
+    expect(state.snapshot().responsavel).toEqual(saved.responsavel);
+    expect(state.canReport()).toBe(false);
+  });
+
   function prepareContext(): void {
     state.setArea({ code: '4001', description: 'Produção' });
     state.setWorkCenter(workCenter());
@@ -498,6 +527,7 @@ function workCenter(code = 'CT-EXT-01') {
     machineGroup: 'Extrusoras',
     establishment: '101',
     active: true,
+    indReporteMod: 2 as 2 | 3 | undefined,
   };
 }
 

@@ -571,7 +571,8 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
 
   it('abre gestão contextual e seleciona uma equipe criada sem alterar a composição', () => {
     prepareForStart();
-    component.alterarTipoResponsavel('EQUIPE');
+    component.centers = [{ ...context().workCenter, indReporteMod: 3 }];
+    component.selecionarCentro('CT-EXT-01');
     const before = component.view;
     const drawer = fixture.debugElement.query(By.directive(GerenciarEquipeSlide))
       .componentInstance as GerenciarEquipeSlide;
@@ -1081,6 +1082,7 @@ function context() {
       machineGroup: 'Extrusoras',
       establishment: '101',
       active: true,
+      indReporteMod: 2 as 2 | 3 | undefined,
     },
     operator: { code: 'OP-001', name: 'Ana Silva', role: 'Operador', active: true },
     reportType: 'BATCH' as const,

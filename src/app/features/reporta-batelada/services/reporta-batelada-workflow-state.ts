@@ -3,6 +3,7 @@ import { Subscription } from 'rxjs';
 
 import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { WorkCenter } from '../../shop-floor/models/work-center';
+import { WORK_CENTER_REPORT_MODE_ERROR, workCenterResponsibleType } from '../../shop-floor/models/work-center-report-mode';
 import {
   AreaProducaoBatelada,
   arredondarQuantidadeBatelada,
@@ -92,9 +93,13 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
 
     const current = this.value();
     if (current.workCenter?.code === workCenter?.code) {
+      const tipo = workCenterResponsibleType(workCenter);
       this.value.update(snapshot => ({
         ...snapshot,
         workCenter: workCenter ? { ...workCenter } : null,
+        tipoResponsavel: tipo ?? 'OPERADOR',
+        responsavel: snapshot.tipoResponsavel === tipo ? snapshot.responsavel : null,
+        errorMessage: workCenter && !tipo ? WORK_CENTER_REPORT_MODE_ERROR : '',
       }));
       return true;
     }
@@ -103,6 +108,8 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       ...this.emptySnapshot(),
       area: current.area ? { ...current.area } : null,
       workCenter: workCenter ? { ...workCenter } : null,
+      tipoResponsavel: workCenterResponsibleType(workCenter) ?? 'OPERADOR',
+      errorMessage: workCenter && !workCenterResponsibleType(workCenter) ? WORK_CENTER_REPORT_MODE_ERROR : '',
     });
     return true;
   }
@@ -272,7 +279,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
   }
 
   setTipoResponsavel(tipo: TipoResponsavelBatelada): boolean {
-    if (this.isLocked()) {
+    if (this.isLocked() || this.value().workCenter) {
       return false;
     }
     if ((this.value().tipoResponsavel ?? 'OPERADOR') === tipo) {
@@ -320,6 +327,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       current.composition.length > 0 &&
       current.responsavel !== null &&
       current.responsavel.tipo === (current.tipoResponsavel ?? 'OPERADOR') &&
+      current.responsavel.tipo === workCenterResponsibleType(current.workCenter) &&
       current.composition.every(order => order.indEstadoSplit !== 4)
     );
   }
@@ -330,6 +338,7 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
       current.estado !== EstadoBatelada.BateladaPreparada
       || current.composition.length === 0
       || current.responsavel === null
+      || current.responsavel.tipo !== workCenterResponsibleType(current.workCenter)
       || !current.composition.every(order => order.indEstadoSplit === 4)
     ) {
       return false;
@@ -396,11 +405,13 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
   }
 
   canReport(): boolean {
-    return this.value().estado === EstadoBatelada.BateladaIniciada;
+    const current = this.value();
+    return current.estado === EstadoBatelada.BateladaIniciada
+      && current.responsavel?.tipo === workCenterResponsibleType(current.workCenter);
   }
 
   canEnd(): boolean {
-    return this.value().estado === EstadoBatelada.BateladaIniciada;
+    return this.canReport();
   }
 
   setDraft(draft: RascunhoReporteBatelada): boolean {

@@ -1036,6 +1036,24 @@ describe('gateway FMA', () => {
     });
   });
 
+  it('normaliza indReportMod retornado pelo Datasul para o CT correto', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [
+      { codAreaProduc: '4122', codCtrab: 'PINT-02-01', indReportMod: 3, desCtrab: 'PINTURA DELTEC - PARKLOG' },
+      { codAreaProduc: '4122', codCtrab: 'CT-OPERADOR', indReportMod: 2, desCtrab: 'Operador' },
+      { codAreaProduc: '4122', codCtrab: 'CT-SEM-MODO', desCtrab: 'Sem modo' },
+      { codAreaProduc: '4122', codCtrab: 'CT-INVALIDO', indReportMod: 7, desCtrab: 'Invalido' },
+    ]));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/work-centers?areaCode=4122`, {
+      headers: { authorization: `Bearer ${await token()}` },
+    });
+    const centers = await result.json();
+    expect(centers[0]).toMatchObject({ code: 'PINT-02-01', areaCode: '4122', indReporteMod: 3 });
+    expect(centers[1]).toMatchObject({ code: 'CT-OPERADOR', indReporteMod: 2 });
+    expect(centers[2]).not.toHaveProperty('indReporteMod');
+    expect(centers[3]).not.toHaveProperty('indReporteMod');
+  });
+
   it('lista e adapta centros de trabalho sem expor Basic ao browser', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(response('centrosTrabalho', [{ codAreaProduc: '4104', codCtrab: 'PRE-006-02', desCtrab: 'PRENSA 45T', indReporteMod: '2' }]));
     const root = await startGateway(transport);

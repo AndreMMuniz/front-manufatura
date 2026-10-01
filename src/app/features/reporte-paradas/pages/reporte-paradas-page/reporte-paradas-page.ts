@@ -23,6 +23,7 @@ import {
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
+import { WORK_CENTER_REPORT_MODE_ERROR, workCenterResponsibleType } from '../../../shop-floor/models/work-center-report-mode';
 import {
   RecentProductionContext,
   RecentProductionContextService,
@@ -397,6 +398,7 @@ export class ReporteParadasPage implements OnInit {
 
   registrarParada(): void {
     const snapshot = this.view();
+    if (!workCenterResponsibleType(snapshot.workCenter) || snapshot.contextError || snapshot.contextLoading) return;
     if (snapshot.saving) {
       return;
     }
@@ -641,6 +643,12 @@ export class ReporteParadasPage implements OnInit {
 
   private loadContextData(areaCode: string, workCenterCode: string): void {
     const token = this.workflow.beginContextRequest(areaCode, workCenterCode);
+    if (!workCenterResponsibleType(this.view().workCenter)) {
+      this.workflow.acceptContextError(token, WORK_CENTER_REPORT_MODE_ERROR);
+      this.syncView();
+      this.loadOpenStops(areaCode, workCenterCode);
+      return;
+    }
     this.syncView();
     forkJoin({
       responsibles: this.view().workCenter?.indReporteMod === 2
@@ -719,6 +727,7 @@ export class ReporteParadasPage implements OnInit {
   private findSelectedResponsible(
     snapshot: ReporteParadasWorkflowSnapshot,
   ): ResponsavelParada | undefined {
+    if (workCenterResponsibleType(snapshot.workCenter) !== snapshot.responsibleType) return undefined;
     if (snapshot.responsibleType === 'OPERADOR') {
       return snapshot.responsibleCode.trim()
         ? {

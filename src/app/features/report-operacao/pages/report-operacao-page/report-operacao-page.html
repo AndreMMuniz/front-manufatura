@@ -51,6 +51,7 @@
         (horaInicioChange)="alterarHoraInicio($event)"
       ></app-producao-form>
 
+      @if (!reportModeError) {
       <app-operacao-info-card
         [operacao]="operacao"
         [responsaveis]="responsaveis"
@@ -67,6 +68,11 @@
         (retryResponsaveis)="retryResponsaveis()"
         (gerenciarEquipe)="abrirGerenciarEquipe($event)"
       ></app-operacao-info-card>
+      }
+
+      @if (reportModeError) {
+        <p class="report-operacao__feedback report-operacao__feedback--error" role="alert">{{ reportModeError }}</p>
+      }
 
     }
 

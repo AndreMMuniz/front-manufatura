@@ -35,6 +35,7 @@ import { ReporteParadasService } from '../../../reporte-paradas/services/reporte
 import { ContextoProducaoSelector } from '../../../shop-floor/components/contexto-producao-selector/contexto-producao-selector';
 import { AreaProducao } from '../../../shop-floor/models/production-area';
 import { WorkCenter } from '../../../shop-floor/models/work-center';
+import { WORK_CENTER_REPORT_MODE_ERROR, workCenterResponsibleType } from '../../../shop-floor/models/work-center-report-mode';
 import { OperationalContextService } from '../../../shop-floor/services/operational-context';
 import {
   RecentProductionContext,
@@ -179,6 +180,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   get canEditProduction(): boolean {
+    if (this.reportModeError) return false;
     return this.estado === EstadoOperacao.OperacaoIniciada
       || (this.estado === EstadoOperacao.Erro && Boolean(this.operacao?.dataInicio));
   }
@@ -228,11 +230,32 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   get tipoResponsavelDefinidoPelaApi(): boolean {
-    return this.operacao?.indReporteMod === 2 || this.operacao?.indReporteMod === 3;
+    return Boolean(this.apiReportType(this.operacao));
+  }
+
+  get reportModeError(): string {
+    const center = this.selectedCenter;
+    const centerType = workCenterResponsibleType(center);
+    if (center && !centerType) return WORK_CENTER_REPORT_MODE_ERROR;
+    const operationMode = this.operacao?.indReporteMod;
+    const startedResponsible = this.operacao?.dataInicio
+      ? this.workflowState.snapshot().responsavel : null;
+    if (centerType && ((operationMode !== undefined
+      && operationMode !== (centerType === 'OPERADOR' ? 2 : 3))
+      || (startedResponsible && startedResponsible.tipo !== centerType))) {
+      return 'A modalidade da ordem diverge da modalidade do Centro de Trabalho. Consulte o responsável pela API antes de iniciar ou reportar.';
+    }
+    return '';
+  }
+
+  private get selectedCenter(): WorkCenter | null {
+    return this.centers.find(center => center.code === this.workCenterCode && center.areaCode === this.areaCode)
+      ?? this.workflowState.snapshot().workCenter;
   }
 
   get responsavelDisabled(): boolean {
     return this.isBusy
+      || Boolean(this.reportModeError)
       || Boolean(this.operacao?.dataInicio && !this.responsavelPendenteEmOrdemIniciada);
   }
 
@@ -241,6 +264,7 @@ export class ReportOperacaoPage implements OnInit {
       this.estado === EstadoOperacao.OPEncontrada
       || (this.estado === EstadoOperacao.Erro && !this.operacao?.dataInicio);
     return this.isBusy
+      || Boolean(this.reportModeError)
       || this.gerenciarEquipeSlide?.state() === 'saving'
       || !this.operacao
       || !this.responsavelSelecionado
@@ -330,6 +354,7 @@ export class ReportOperacaoPage implements OnInit {
     }
 
     this.workflowState.setContext(area, center);
+    this.tipoResponsavel = workCenterResponsibleType(center) ?? 'OPERADOR';
     this.loadOrders(area, center);
   }
 
@@ -736,6 +761,7 @@ export class ReportOperacaoPage implements OnInit {
     this.contextError = '';
     this.consultaEstado = area ? 'pronto' : 'contexto-pendente';
     this.workflowState.setContext(area, center);
+    this.tipoResponsavel = workCenterResponsibleType(center) ?? 'OPERADOR';
     this.feedback = center
       ? 'Centro de Trabalho selecionado. Consulte as ordens liberadas.'
       : 'Selecione um Centro de Trabalho válido.';
@@ -844,6 +870,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private startOperation(): void {
+    if (this.reportModeError) return;
     const responsavel = this.responsavelSelecionado;
     if (!this.operacao || !responsavel) {
       this.feedback = 'Selecione uma equipe ou um operador antes de iniciar.';
@@ -942,6 +969,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private reportOperation(draft: ReporteParcialDraft): void {
+    if (this.reportModeError) return;
     if (this.hasRejectedReport() && !this.matchingReportCorrection()) {
       const message = 'Há um reporte rejeitado pelo Datasul. Abra o Centro de Sincronização para corrigir antes de criar outro reporte.';
       this.feedback = message;
@@ -1420,6 +1448,12 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private loadResponsaveis(): void {
+    if (this.reportModeError) {
+      this.responsaveisError = this.reportModeError;
+      this.loadingResponsaveis = false;
+      this.changeDetector.markForCheck();
+      return;
+    }
     const tipoApi = this.apiReportType(this.operacao);
     if (tipoApi && this.tipoResponsavel !== tipoApi) {
       this.tipoResponsavel = tipoApi;
@@ -1482,7 +1516,7 @@ export class ReportOperacaoPage implements OnInit {
             this.operacao
             && (
               Boolean(this.operacao.dataInicio)
-              || (!this.responsavelCodigo && !tipoApi)
+              || (!this.responsavelCodigo && (!tipoApi || this.operacao.indReporteMod === undefined))
             )
           ) {
             this.selectInitialResponsavel(this.operacao, tipoApi);
@@ -1595,6 +1629,8 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private apiReportType(operacao: ReportOperacao | null): TipoResponsavelOperacao | null {
+    const centerType = workCenterResponsibleType(this.selectedCenter);
+    if (centerType) return centerType;
     if (operacao?.indReporteMod === 2) return 'OPERADOR';
     if (operacao?.indReporteMod === 3) return 'EQUIPE';
     return null;

@@ -89,6 +89,52 @@ describe('ReportOperacaoPage', () => {
     userMessage: 'O Datasul rejeitou o reporte.',
   };
 
+  it('usa Equipe do CT quando a abertura da OP omite o modo', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    expect(component.tipoResponsavel).toBe('EQUIPE');
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarTipoResponsavel('OPERADOR');
+    component.alterarResponsavel('MONT03');
+    component.iniciarOperacao();
+    expect(component.tipoResponsavel).toBe('EQUIPE');
+    expect(service.iniciarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      tipoResponsavel: 'EQUIPE', codigoResponsavel: 'MONT03',
+    }));
+  });
+
+  it('preserva a OP e bloqueia comandos quando CT e abertura discordam', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
+    service.carregarOrdemSelecionada.mockReturnValue(of({
+      sucesso: true, operacao: baseOperacao({ indReporteMod: 2 }),
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+    expect(component.reportModeError).toContain('diverge');
+    expect(workflow.snapshot().operation).not.toBeNull();
+    expect(component.iniciarDisabled).toBe(true);
+    expect(component.reporteDisabled).toBe(true);
+    expect(service.iniciarOperacao).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia inicio quando o CT omite o modo', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: undefined }]));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+    expect(component.reportModeError).toContain('modalidade');
+    expect(service.iniciarOperacao).not.toHaveBeenCalled();
+  });
+
   beforeEach(async () => {
     router = { navigate: vi.fn().mockResolvedValue(true) };
     dialog = { confirm: vi.fn() };
@@ -477,6 +523,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('reporta ordem já iniciada por equipe após selecionar seu código catalogado', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     vi.mocked(service.listarResponsaveis).mockReturnValue(of([
       { tipo: 'EQUIPE', codigo: 'AUT00037', nome: 'Equipe AUT00037' },
     ]));
@@ -568,6 +615,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('fixa o tipo Equipe no modo 3 e mantém escolha e criação de equipe habilitadas', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     vi.mocked(service.carregarOrdemSelecionada).mockReturnValue(of({
       sucesso: true, operacao: baseOperacaoComModo(3),
     }));
@@ -1011,6 +1059,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('does not mutate the loaded operation when starting fails', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     vi.mocked(service.iniciarOperacao).mockReturnValue(throwError(() => new Error('network')));
     fixture.detectChanges();
     selectContextAndConsult();
@@ -1310,7 +1359,7 @@ describe('ReportOperacaoPage', () => {
     component.openSelectedOrders();
     component.alterarResponsavel('');
 
-    expect(service.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01');
+    expect(service.listarResponsaveis).toHaveBeenCalledWith('4001', 'CT-EXT-01', 'OPERADOR');
     component.iniciarOperacao();
 
     expect(service.iniciarOperacao).not.toHaveBeenCalled();
@@ -1348,6 +1397,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('abre a drawer contextual sem navegar e aplica criação por upsert com seleção automática', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -1410,6 +1460,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('preserva o workflow em cancelamento e erro da drawer', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -1434,6 +1485,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('invalida resultado da drawer após troca de CT e retorno ao contexto original', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -1458,6 +1510,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('bloqueia início e ignora resultado de equipe enquanto há save ou início pendente', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -1479,6 +1532,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('ignora resultado e consulta de responsáveis obsoletos após troca de contexto ou logout', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     const pending = new Subject<ReadonlyArray<{
       tipo: 'OPERADOR' | 'EQUIPE';
       codigo: string;
@@ -1506,6 +1560,7 @@ describe('ReportOperacaoPage', () => {
   });
 
   it('seleciona a equipe editada e mantém o dropdown habilitado antes do início', () => {
+    service.pesquisarCentrosTrabalho.mockReturnValue(of([{ ...center(), indReporteMod: 3 }]));
     fixture.detectChanges();
     selectContextAndConsult();
     component.updateSelection(new Set(['first']));
@@ -1589,6 +1644,7 @@ function center() {
     machineGroup: 'Extrusoras',
     establishment: '101',
     active: true,
+    indReporteMod: 2 as 2 | 3 | undefined,
   };
 }
 

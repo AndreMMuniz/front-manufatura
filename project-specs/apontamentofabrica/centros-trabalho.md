@@ -41,6 +41,14 @@ Consulta os centros de trabalho disponíveis para um usuário e uma área de pro
 
 ## Observações do contrato
 
+### Evidência adicional de modalidade — 01/10/2026
+
+- A resposta fornecida para `companyId=1`, `codUsuario=mjocelio` e `codAreaProduc=4122` contém `indReportMod` **numérico** em cada CT. O nome observado é `indReportMod`, sem o `e` de `indReporteMod`.
+- O CT `PINT-02-01` retornou `indReportMod: 3` (Equipe); a captura fornecida mostra HTTP `200 OK`. [JSON integral](./examples/centros-trabalho-company-1-area-4122-response.json).
+- Regra adotada pela aplicação: `2` = Operador; `3` = Equipe. O gateway aceita ambos os nomes e expõe o campo interno `indReporteMod` para os três fluxos. Ausência ou valor inválido impede novos comandos nas telas.
+- Essa evidência não substitui o exemplo anterior da área `4104`. Ainda não foi fornecido um retorno real de modalidade `2`, nem identificado se a alteração foi publicada nas duas bases.
+- A confirmação de coerência com `abrirapontamento` permanece pendente. Em Reporte de Ordem, uma divergência bloqueia início e reporte sem descartar a operação carregada.
+
 - Esta documentação descreve uma requisição e uma resposta fornecidas e não substitui um contrato OpenAPI oficial.
 - O casing dos parâmetros foi preservado conforme a chamada recebida: `companyId`, `codUsuario` e `codAreaProduc`.
 - Embora `codAreaProduc` contenha apenas dígitos no exemplo, o campo correspondente na resposta foi retornado como string.

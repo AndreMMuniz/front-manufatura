@@ -1,0 +1,16 @@
+{
+  "total": 1,
+  "hasNext": false,
+  "items": [
+    {
+      "centrosTrabalho": [
+        {
+          "codAreaProduc": "4122",
+          "codCtrab": "PINT-02-01",
+          "indReportMod": 3,
+          "desCtrab": "PINTURA DELTEC - PARKLOG"
+        }
+      ]
+    }
+  ]
+}
