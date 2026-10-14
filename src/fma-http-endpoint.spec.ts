@@ -96,6 +96,44 @@ async function postBatchStart(root: string, idempotencyKey: string): Promise<Res
 }
 
 describe('gateway FMA', () => {
+  it.each(['14/10/2026', '2026-02-30', '2026-10-14T21:38:00'])(
+    'rejeita data inválida ou horário sem fuso antes de chamar o Datasul: %s', async dataInicio => {
+      const transport = vi.fn<typeof fetch>();
+      const root = await startGateway(transport);
+      const result = await fetch(`${root}/api/operations/start`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${await token()}`, 'content-type': 'application/json', 'idempotency-key': 'invalid-date' },
+        body: JSON.stringify({
+          ordem: '372572', op: '10', split: '1', areaCode: '4113', workCenterCode: 'LASER-01-01',
+          dataInicio, horaInicio: '21:38', tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570',
+        }),
+      });
+      expect(result.status).toBe(400);
+      expect(transport).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    ['2026-10-14', '2026-10-15'],
+    ['2026-10-15T02:30:00.000Z', '2026-10-15T03:40:00.000Z'],
+  ])('preserva os dias de produção na virada da meia-noite (%s)', async (dataInicio, dataFim) => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('reporteOrdem', [{ mensagem: 'Reporte gravado com sucesso' }]));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/operations/report`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${await token()}`, 'content-type': 'application/json', 'idempotency-key': 'night-report' },
+      body: JSON.stringify({
+        ordem: '372572', op: '10', split: '1', areaCode: '4113', ct: 'LASER-01-01',
+        quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0,
+        dataInicio, horaInicio: '23:30', dataFim, horaFim: '00:40',
+        tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570', finalizarSplit: false,
+      }),
+    });
+    expect(result.status).toBe(200);
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toMatchObject({
+      dataInicioReporte: '2026-10-14', horaInicioReporte: '23:30',
+      dataFimReporte: '2026-10-15', horaFimReporte: '00:40',
+    });
+  });
   it('não inventa um catálogo de Áreas sem endpoint correspondente no FMA', async () => {
     const transport = vi.fn<typeof fetch>();
     const root = await startGateway(transport);

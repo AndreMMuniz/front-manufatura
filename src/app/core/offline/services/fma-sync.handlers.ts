@@ -34,7 +34,19 @@ abstract class FmaSyncHandler implements SyncCommandHandler {
   }
 
   protected requestBody(request: SyncCommandRequest): JsonValue {
-    return request.payload;
+    const payload = { ...objectOf(request.payload) };
+    // Persisted instants remain intact; the HTTP contract uses calendar dates.
+    for (const field of ['dataInicio', 'dataFim', 'startDate', 'endDate', 'dataInicioSetup', 'dataFimSetup', 'dataValidadeLote']) {
+      const value = payload[field];
+      if (typeof value !== 'string' || !value || /^\d{4}-\d{2}-\d{2}$/.test(value)) continue;
+      if (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+        throw new Error('invalid-fma-command-payload');
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) throw new Error('invalid-fma-command-payload');
+      payload[field] = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+    return payload;
   }
 
   protected mapResponse(response: unknown, _request: SyncCommandRequest): CommandResult {

@@ -8,12 +8,42 @@ import {
   DeleteStopSyncHandler,
   EndOperationSyncHandler,
   FinishStopSyncHandler,
+  ReportOperationSyncHandler,
+  ReportBatchSyncHandler,
   StartBatchSyncHandler,
   StartOperationSyncHandler,
   UpdateTeamSyncHandler,
 } from './fma-sync.handlers';
 
 describe('FMA sync handlers', () => {
+  it.each([
+    [StartOperationSyncHandler, 'START_OPERATION'],
+    [ReportOperationSyncHandler, 'REPORT_OPERATION'],
+    [StartBatchSyncHandler, 'START_BATCH'],
+    [ReportBatchSyncHandler, 'REPORT_BATCH'],
+  ] as const)('envia datas locais sem modificar o comando persistido: %s', async (Handler, type) => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new Handler({ post } as never, { token: 'session-token' } as AuthSessionService);
+    const payload = Object.freeze({
+      dataInicio: new Date(2026, 9, 14, 23, 30).toISOString(), horaInicio: '23:30',
+      dataFim: new Date(2026, 9, 15, 0, 40).toISOString(), horaFim: '00:40',
+      ocorridoEm: '2026-10-15T03:40:00.000Z',
+    });
+    const request = command(type, payload);
+    await handler.send(request, new AbortController().signal);
+    expect(post.mock.calls[0][1]).toEqual({
+      ...payload, dataInicio: '2026-10-14', dataFim: '2026-10-15',
+    });
+    expect(request.payload).toEqual(payload);
+  });
+
+  it('preserva datas já formatadas e campos de parada vazios', async () => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new CreateStopSyncHandler({ post } as never, { token: 'session-token' } as AuthSessionService);
+    const request = command('CREATE_STOP', { startDate: '2026-10-14', startTime: '21:38', endDate: null, endTime: '' });
+    await handler.send(request, new AbortController().signal);
+    expect(post.mock.calls[0][1]).toEqual(request.payload);
+  });
   it('sends operation commands with bearer token and idempotency key', async () => {
     const post = vi.fn().mockReturnValue(of(receipt()));
     const handler = new StartOperationSyncHandler(

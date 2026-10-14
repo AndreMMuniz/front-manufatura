@@ -1103,9 +1103,19 @@ function isoDate(value: unknown): string {
   const raw = typeof value === 'string' ? value : '';
   const calendarPart = /^(\d{4}-\d{2}-\d{2})/.exec(raw)?.[1];
   if (calendarPart) assertCalendarDate(calendarPart);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  // Compatibility with older clients: resolve their instants in the factory's
+  // timezone, never by truncating UTC or using the gateway host's timezone.
+  if (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
+    throw new QualityControlGatewayError(400, 'invalid-request');
+  }
   const date = raw ? new Date(raw) : null;
   if (!date || Number.isNaN(date.getTime())) throw new QualityControlGatewayError(400, 'invalid-request');
-  return date.toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)!.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
 }
 function localDate(value: unknown): string {
   const raw = requiredText(value);
