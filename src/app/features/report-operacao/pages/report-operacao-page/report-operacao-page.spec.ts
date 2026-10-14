@@ -464,6 +464,22 @@ describe('ReportOperacaoPage', () => {
     expect(component.feedback).toContain('Informe as quantidades para reportar.');
   });
 
+  it('preenche o início da produção e envia a data e hora editadas antes de iniciar', () => {
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    expect(component.dataInicioSelecionada).toBeInstanceOf(Date);
+    expect(component.horaInicioSelecionada).toMatch(/^\d{2}:\d{2}$/);
+    component.alterarDataInicio('2026-10-13');
+    component.alterarHoraInicio('07:25');
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+    expect(service.iniciarOperacao).toHaveBeenCalledWith(expect.objectContaining({
+      dataInicio: new Date(2026, 9, 13), horaInicio: '07:25',
+    }));
+  });
+
   it('preserva o operador alocado mesmo quando o catálogo de responsáveis falha', () => {
     vi.mocked(service.listarResponsaveis)
       .mockReturnValue(throwError(() => new Error('catálogo indisponível')));

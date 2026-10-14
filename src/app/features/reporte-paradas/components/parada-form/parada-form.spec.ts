@@ -156,7 +156,7 @@ describe('ParadaForm', () => {
     expect(finishButton.disabled).toBe(true);
   }, 10_000);
 
-  it('mantém os campos finais habilitados sem parada selecionada e bloqueia o início ao selecionar', async () => {
+  it('mantém início e fim editáveis mesmo ao selecionar uma parada', async () => {
     await TestBed.configureTestingModule({
       imports: [ParadaForm],
     }).compileComponents();
@@ -176,8 +176,8 @@ describe('ParadaForm', () => {
     fixture.componentRef.setInput('finishDisabled', false);
     fixture.detectChanges();
 
-    expect(field('dataInicio').disabled).toBe(true);
-    expect(field('horaInicio').disabled).toBe(true);
+    expect(field('dataInicio').disabled).toBe(false);
+    expect(field('horaInicio').disabled).toBe(false);
     expect(field('dataFim').disabled).toBe(false);
     expect(field('horaFim').disabled).toBe(false);
   }, 10_000);

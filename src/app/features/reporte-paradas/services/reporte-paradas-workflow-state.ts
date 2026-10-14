@@ -85,10 +85,11 @@ export class ReporteParadasWorkflowState {
   }
 
   emptyDraft(): ParadaDraft {
+    const now = new Date();
     return {
       reasonId: null,
-      startDate: null,
-      startTime: '',
+      startDate: formatLocalDate(now),
+      startTime: formatLocalTime(now),
       endDate: null,
       endTime: '',
     };

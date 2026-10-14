@@ -111,10 +111,6 @@ export class ParadaForm implements OnChanges {
       this.form.disable({ emitEvent: false });
     } else {
       this.form.enable({ emitEvent: false });
-      if (!this.finishDisabled) {
-        [this.form.controls.startDate, this.form.controls.startTime]
-          .forEach(control => control.disable({ emitEvent: false }));
-      }
     }
     if (changes['finishDisabled']) {
       this.finishAttempted = !this.finishDisabled;

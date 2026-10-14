@@ -27,6 +27,12 @@ export class InformacoesBatelada {
   @Input() loadingEquipes = false;
   @Input() equipesError = '';
   @Input() startedAt: Date | null = null;
+  @Input() dataInicio: Date | string | null = null;
+  @Input() horaInicio = '';
+  @Input() inicioDisabled = false;
+
+  @Output() dataInicioChange = new EventEmitter<Date | string | null>();
+  @Output() horaInicioChange = new EventEmitter<string>();
 
   @Output() tipoResponsavelChange = new EventEmitter<TipoResponsavelBatelada>();
   @Output() responsavelChange = new EventEmitter<ResponsavelBatelada | null>();

@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { combineLocalDateTime, formatLocalDate, formatLocalTime } from '../../../reporte-paradas/models/reporte-paradas-time';
 import { catchError, of } from 'rxjs';
 
 import {
@@ -104,6 +105,8 @@ export class ReportaBateladaPage implements OnInit {
   loadingCenters = false;
   loadingResponsaveis = false;
   responsaveisErrorMessage = '';
+  dataInicioSelecionada: Date | string | null = formatLocalDate(new Date());
+  horaInicioSelecionada = formatLocalTime(new Date());
 
   private centersRequest = 0;
   private ordersRequest = 0;
@@ -128,7 +131,25 @@ export class ReportaBateladaPage implements OnInit {
   } | null = null;
 
   get canStart(): boolean {
-    return this.workflow.canStart();
+    return this.workflow.canStart() && this.inicioSelecionado() !== null;
+  }
+
+  get inicioDisabled(): boolean {
+    return this.contextLocked || this.pendingStartCommand !== null;
+  }
+
+  alterarDataInicio(value: Date | string | null): void {
+    if (!this.inicioDisabled) this.dataInicioSelecionada = value;
+  }
+
+  alterarHoraInicio(value: string): void {
+    if (!this.inicioDisabled) this.horaInicioSelecionada = value;
+  }
+
+  private inicioSelecionado(): Date | null {
+    return this.dataInicioSelecionada
+      ? combineLocalDateTime(this.dataInicioSelecionada, this.horaInicioSelecionada)
+      : null;
   }
 
   get started(): boolean {
@@ -365,6 +386,9 @@ export class ReportaBateladaPage implements OnInit {
 
   prepararBatelada(): void {
     this.pendingStartCommand = null;
+    const now = new Date();
+    this.dataInicioSelecionada = formatLocalDate(now);
+    this.horaInicioSelecionada = formatLocalTime(now);
     this.workflow.prepareBatch();
     this.syncView();
     this.adotarInicioExistente();
@@ -491,6 +515,11 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   iniciarBatelada(): void {
+    const inicio = this.inicioSelecionado();
+    if (!inicio) {
+      this.notification.warning('Informe Data Início e Hora Início válidas.');
+      return;
+    }
     if (!this.workflow.beginStart()) {
       return;
     }
@@ -509,6 +538,7 @@ export class ReportaBateladaPage implements OnInit {
       },
       snapshot.responsavel,
       snapshot.composition,
+      inicio,
     );
     this.pendingStartCommand = request;
     this.syncView();

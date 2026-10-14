@@ -16,6 +16,30 @@
     }
   </dl>
 
+  @if (!startedAt) {
+    <div class="informacoes-batelada__inicio">
+      <po-datepicker
+        name="dataInicioBatelada"
+        p-label="Data Início"
+        [p-required]="true"
+        [p-disabled]="disabled || inicioDisabled"
+        [ngModel]="dataInicio"
+        (ngModelChange)="dataInicioChange.emit($event)"
+      ></po-datepicker>
+      <po-input
+        name="horaInicioBatelada"
+        p-label="Hora Início"
+        p-mask="99:99"
+        p-placeholder="HH:mm"
+        [p-mask-format-model]="true"
+        [p-required]="true"
+        [p-disabled]="disabled || inicioDisabled"
+        [ngModel]="horaInicio"
+        (ngModelChange)="horaInicioChange.emit($event)"
+      ></po-input>
+    </div>
+  }
+
   <div class="informacoes-batelada__responsavel">
     @if (reportModeError) {
       <p class="informacoes-batelada__error" role="alert">{{ reportModeError }}</p>

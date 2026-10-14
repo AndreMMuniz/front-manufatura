@@ -361,12 +361,33 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
       { tipo: 'OPERADOR', codigo: 'OP-001', nome: 'Ana Silva' },
       [orders()[1], orders()[0]],
+      expect.any(Date),
     );
     expect(serviceMock.iniciarBatelada).toHaveBeenCalledOnce();
     expect(component.view.estado).toBe('BateladaIniciada');
     expect(component.view.inicio?.ordensIniciadas).toEqual(['2', '1']);
     expect(notificationMock.success).toHaveBeenCalledWith('Comando de início enviado ao Datasul.');
     expect(notificationMock.warning).not.toHaveBeenCalled();
+  });
+
+  it('preenche o início automaticamente e envia a edição do usuário', () => {
+    prepareForStart();
+    expect(component.dataInicioSelecionada).toBeTruthy();
+    expect(component.horaInicioSelecionada).toMatch(/^\d{2}:\d{2}$/);
+    component.alterarDataInicio('2026-10-13');
+    component.alterarHoraInicio('07:25');
+    component.iniciarBatelada();
+    expect(serviceMock.montarComandoInicio).toHaveBeenLastCalledWith(
+      expect.anything(), expect.anything(), expect.anything(), new Date(2026, 9, 13, 7, 25),
+    );
+  });
+
+  it('não inicia com data ou hora inválida', () => {
+    prepareForStart();
+    component.alterarHoraInicio('25:90');
+    expect(component.canStart).toBe(false);
+    component.iniciarBatelada();
+    expect(serviceMock.iniciarBatelada).not.toHaveBeenCalled();
   });
 
   it('confirma o início somente quando a entrega foi sincronizada', () => {

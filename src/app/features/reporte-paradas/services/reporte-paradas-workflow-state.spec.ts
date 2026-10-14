@@ -91,6 +91,23 @@ describe('ReporteParadasWorkflowState', () => {
     >();
   });
 
+  it('preenche o início local e renova os valores após registrar, preservando edições do rascunho', () => {
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    expect(state.snapshot().draft).toMatchObject({
+      startDate: date,
+      startTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      endDate: null,
+      endTime: '',
+    });
+    state.updateDraft({ ...state.snapshot().draft, startDate: '2026-10-01', startTime: '07:15' });
+    state.setResponsibleCode('OP-001');
+    expect(state.snapshot().draft).toMatchObject({ startDate: '2026-10-01', startTime: '07:15' });
+    state.completeRegistration();
+    expect(state.snapshot().draft.startDate).toBe(date);
+    expect(state.snapshot().dirty).toBe(false);
+  });
+
   it('aplica prefill somente quando Área e CT são integralmente elegíveis', () => {
     expect(
       state.applyPrefill(

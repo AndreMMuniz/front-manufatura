@@ -27,6 +27,15 @@ describe('InformacoesBatelada', () => {
     expect(input.nativeElement.getAttribute('p-placeholder')).toBeNull();
   });
 
+  it('mostra data e hora de início editáveis antes de iniciar a produção', () => {
+    const date = fixture.debugElement.query(By.css('po-datepicker[name="dataInicioBatelada"]'));
+    const time = fixture.debugElement.query(By.css('po-input[name="horaInicioBatelada"]'));
+    expect(date).toBeTruthy();
+    expect(time).toBeTruthy();
+    expect(date.componentInstance.disabled).toBe(false);
+    expect(time.componentInstance.disabled).toBe(false);
+  });
+
   it('não depende do catálogo no modo operador', () => {
     fixture.componentRef.setInput('responsaveis', []);
     fixture.componentRef.setInput('responsavel', null);

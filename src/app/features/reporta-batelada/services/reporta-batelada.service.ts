@@ -269,13 +269,13 @@ export class ReportaBateladaService {
     contexto: ContextoBatelada,
     responsavel: ResponsavelBatelada,
     ordens: ReadonlyArray<OrdemLiberadaBatelada>,
+    now = new Date(),
   ): IniciarBateladaRequest {
     const uniqueOrderIds = new Set(ordens.map(ordem => ordem.id));
     if (ordens.length === 0 || uniqueOrderIds.size !== ordens.length) {
       throw new Error('A batelada deve conter ordens únicas.');
     }
 
-    const now = new Date();
     return {
       batchId: this.idempotency.resolve(),
       idempotencyKey: this.idempotency.resolve(),

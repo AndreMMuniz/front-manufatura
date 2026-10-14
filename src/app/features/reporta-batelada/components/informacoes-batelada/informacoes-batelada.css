@@ -1,3 +1,10 @@
+.informacoes-batelada__inicio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--app-space-md);
+  margin-bottom: var(--app-space-md);
+}
+
 .informacoes-batelada__context {
   display: grid;
   grid-template-columns: repeat(3, minmax(160px, 1fr));

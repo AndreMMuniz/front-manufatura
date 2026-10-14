@@ -233,6 +233,19 @@ describe('ReportaBateladaService', () => {
     vi.useRealTimers();
   });
 
+  it('usa o início local escolhido pelo usuário no comando da batelada', () => {
+    const start = new Date(2026, 9, 13, 7, 25);
+    const request = service.montarComandoInicio(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
+      responsavel(),
+      [order('1')],
+      start,
+    );
+    expect(request).toMatchObject({
+      dataInicio: '2026-10-13', horaInicio: '07:25', occurredAt: start.toISOString(),
+    });
+  });
+
   it('rejects an empty or duplicated composition at the start boundary', () => {
     expect(() => service.montarComandoInicio(
       { areaCode: '4001', workCenterCode: 'CT-EXT-01' },
