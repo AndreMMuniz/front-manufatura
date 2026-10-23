@@ -450,6 +450,37 @@ describe('ReportOperacaoService', () => {
     expect(retry.reportadoEm).toEqual(first.reportadoEm);
   });
 
+  it('returns the split confirmed by start instead of the loaded split', async () => {
+    deliver.mockResolvedValue({ status: 'SYNCED', receipt: {
+      serverRecordId: 'datasul:operation:450001:OP-10458:2',
+      businessResult: { split: '2' },
+    } });
+    const result = await firstValueFrom(service.iniciarOperacao(startOperationRequest()));
+    expect(result).toMatchObject({ split: '2' });
+  });
+
+  it('restores the confirmed split from the persisted start receipt', async () => {
+    const start = persistedStart();
+    listLocalRecords.mockResolvedValue([start]);
+    listOutbox.mockResolvedValue([{ ...outboxProjection(start, 'SYNCED'), receipt: {
+      serverRecordId: 'datasul:operation:450001:OP-10458:2', businessResult: { split: '2' },
+    } }]);
+    const restored = await firstValueFrom(service.restaurarOperacaoAtiva());
+    expect(restored?.operation.split).toBe('2');
+  });
+
+  it('restores report history across the split change using the start dependency', async () => {
+    const report = { ...persistedReport('report-new-split', 1, '2026-08-28T09:00:00.000Z'),
+      aggregateId: '450001|OP-10458|2', dependencyIds: ['start-1'] };
+    listLocalRecords.mockResolvedValue([persistedStart(), report]);
+    const restored = await firstValueFrom(service.restaurarOperacaoAtiva());
+    expect(restored?.reportes).toEqual([expect.objectContaining({ id: 'report-new-split' })]);
+    listLocalRecords.mockResolvedValue([persistedStart(), {
+      ...report, payload: { ...report.payload, finalizarSplit: true },
+    }]);
+    expect(await firstValueFrom(service.restaurarOperacaoAtiva())).toBeNull();
+  });
+
   it('persiste e observa a entrega remota antes de concluir o início da operação', async () => {
     const error = {
       code: 'DATASUL_COMMAND_REJECTED',

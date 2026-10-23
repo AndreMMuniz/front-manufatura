@@ -1314,7 +1314,7 @@ describe('gateway FMA', () => {
   });
 
   it('inicia a ordem com identidade confiável e devolve receipt reconciliável', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('inicioOrdem', [{ dataInicioReporte: '2026-07-21', horaInicioReporte: '0935', nrOrdemProducao: 372562, opCodigo: 10, numSplitOperac: 1, mensagem: 'Reporte iniciado com sucesso', codCtrab: 'PRE-006-02' }]));
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('inicioOrdem', [{ dataInicioReporte: '2026-07-21', horaInicioReporte: '0935', nrOrdemProducao: 372562, opCodigo: 10, numSplitOperac: 2, mensagem: 'Reporte iniciado com sucesso', codCtrab: 'PRE-006-02' }]));
     const root = await startGateway(transport);
     const body = { ordem: '372562', op: '10', split: '1', areaCode: '4104', workCenterCode: 'PRE-006-02', tipoResponsavel: 'OPERADOR', codigoResponsavel: ' op.int/7-a ', dataInicio: '2026-07-21T12:35:00.000Z', horaInicio: '09:35' };
     const result = await fetch(`${root}/api/operations/start`, {
@@ -1322,7 +1322,7 @@ describe('gateway FMA', () => {
     });
 
     expect(result.status).toBe(200);
-    await expect(result.json()).resolves.toEqual(expect.objectContaining({ idempotencyKey: '123e4567-e89b-42d3-a456-426614174000', duplicate: false }));
+    await expect(result.json()).resolves.toEqual(expect.objectContaining({ idempotencyKey: '123e4567-e89b-42d3-a456-426614174000', duplicate: false, businessResult: { split: '2' } }));
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({ codOperador: ' op.int/7-a ', codEquipe: '', dataInicioReporte: '2026-07-21', horaInicioReporte: '09:35' }));
     expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciaordem?companyId=1&codUsuario=mjocelio');
   });

@@ -929,6 +929,7 @@ export class ReportOperacaoPage implements OnInit {
           ...operation,
           operador,
           equipe,
+          split: start.split ?? operation.split,
           dataInicio: start.dataInicio,
           horaInicio: start.horaInicio,
           ...(start.idempotencyKey ? { startCommandId: start.idempotencyKey } : {}),

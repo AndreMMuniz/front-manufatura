@@ -209,11 +209,14 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     const promise = (async () => {
       const upstream = await client.request('POST', '/api/fma/v1/iniciaordem', command);
       const result = objectOfUpstream(single(dataset(upstream, 'inicioOrdem')));
-      return receipt(
+      const returnedSplit = positiveIntegerUpstream(result['numSplitOperac']);
+      if (positiveIntegerUpstream(result['nrOrdemProducao']) !== command.nrOrdemProducao
+        || positiveIntegerUpstream(result['opCodigo']) !== command.opCodigo) return invalidUpstream();
+      return { ...receipt(
         idempotencyKey,
         `datasul:operation:${integerText(result['nrOrdemProducao'])}:${integerText(result['opCodigo'])}:${integerText(result['numSplitOperac'])}`,
         dependencies.now?.() ?? new Date(),
-      );
+      ), businessResult: { split: String(returnedSplit) } };
     })();
     const cacheEntry: CommandRequestEntry = {
       canonical, promise, createdAt: dependencies.now?.().getTime() ?? Date.now(),

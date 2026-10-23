@@ -1,9 +1,12 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import { Observable, Subscription } from 'rxjs';
 
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { JsonValue } from '../models/local-record';
+import { operationStartSplit } from '../models/operation-start-split';
+import { deliveryDispositionOf } from '../models/delivery-disposition';
+import { OutboxRepository } from '../repositories/outbox.repository';
 import { OperationalCommandType } from '../models/operational-command';
 import { CommandResult, SyncCommandRequest } from '../models/sync-command';
 import { SyncCommandHandler } from './command-transport-router';
@@ -17,20 +20,43 @@ abstract class FmaSyncHandler implements SyncCommandHandler {
   constructor(
     protected readonly http: HttpClient,
     protected readonly auth: AuthSessionService,
+    @Optional() protected readonly outbox?: OutboxRepository,
   ) {}
 
-  send(request: SyncCommandRequest, signal: AbortSignal): Promise<CommandResult> {
+  async send(request: SyncCommandRequest, signal: AbortSignal): Promise<CommandResult> {
     const token = this.auth.token;
     if (!token) throw { status: 401, code: 'SESSION_REQUIRED', category: 'AUTH' };
     const args = [
-      this.endpoint(request), this.requestBody(request), {
+      this.endpoint(request), await this.resolvedRequestBody(request), {
         headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': request.idempotencyKey },
       },
     ] as const;
+    signal.throwIfAborted();
     const source = this.method === 'PUT'
       ? this.http.put<unknown>(...args)
       : this.http.post<unknown>(...args);
     return abortable(source, signal).then(response => this.mapResponse(response, request));
+  }
+
+  private async resolvedRequestBody(request: SyncCommandRequest): Promise<JsonValue> {
+    const body = this.requestBody(request);
+    const ownerId = this.auth.currentUser?.id;
+    if (!this.outbox || !ownerId
+      || (this.commandType !== 'REPORT_OPERATION' && this.commandType !== 'END_OPERATION')) return body;
+    const payload = objectOf(body);
+    const entries = await this.outbox.listByOwner(ownerId);
+    const current = entries.find(entry => entry.localId === request.localId);
+    const starts = entries.filter(entry => {
+      if (entry.commandType !== 'START_OPERATION' || entry.status !== 'SYNCED'
+        || deliveryDispositionOf(entry.deliveryDisposition) !== 'ACTIVE'
+        || !current?.dependencyIds.includes(entry.localId)) return false;
+      const start = objectOf(entry.payload);
+      return start['ordem'] === payload['ordem'] && start['op'] === payload['op']
+        && start['areaCode'] === payload['areaCode'] && start['workCenterCode'] === payload['ct'];
+    });
+    if (starts.length !== 1) return body;
+    const split = operationStartSplit(starts[0].receipt, String(payload['ordem']), String(payload['op']));
+    return split ? { ...payload, split } : body;
   }
 
   protected requestBody(request: SyncCommandRequest): JsonValue {

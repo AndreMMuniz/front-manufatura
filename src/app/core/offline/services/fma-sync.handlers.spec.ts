@@ -1,8 +1,10 @@
+// @vitest-environment node
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { SyncCommandRequest } from '../models/sync-command';
+import { OutboxRepository } from '../repositories/outbox.repository';
 import {
   CreateStopSyncHandler,
   DeleteStopSyncHandler,
@@ -16,6 +18,25 @@ import {
 } from './fma-sync.handlers';
 
 describe('FMA sync handlers', () => {
+  it.each([
+    [ReportOperationSyncHandler, 'REPORT_OPERATION'],
+    [EndOperationSyncHandler, 'END_OPERATION'],
+  ] as const)('uses the confirmed dependency split when sending a queued %s', async (Handler, type) => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const request = command(type, { ordem: '372562', op: '10', split: '1', areaCode: '4104', ct: 'PRE-01' });
+    const entries = [
+      { localId: request.localId, dependencyIds: ['start-1'] },
+      { localId: 'start-1', commandType: 'START_OPERATION', status: 'SYNCED',
+        payload: { ordem: '372562', op: '10', areaCode: '4104', workCenterCode: 'PRE-01' },
+        receipt: { ...receipt(), serverRecordId: 'datasul:operation:372562:10:2', businessResult: { split: '2' } } },
+    ];
+    const handler = new Handler({ post } as never, { token: 'session-token', currentUser: { id: '1' } } as AuthSessionService,
+      { listByOwner: vi.fn().mockResolvedValue(entries) } as unknown as OutboxRepository);
+    await handler.send(request, new AbortController().signal);
+    expect(post.mock.calls[0][1]).toMatchObject({ split: '2' });
+    expect(request.payload).toMatchObject({ split: '1' });
+  });
+
   it.each([
     [StartOperationSyncHandler, 'START_OPERATION'],
     [ReportOperationSyncHandler, 'REPORT_OPERATION'],

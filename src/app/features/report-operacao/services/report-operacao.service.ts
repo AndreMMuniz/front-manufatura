@@ -5,6 +5,7 @@ import { Observable, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
 import { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
+import { operationStartSplit } from '../../../core/offline/models/operation-start-split';
 import { JsonValue, LocalRecord } from '../../../core/offline/models/local-record';
 import { OfflineStorageError } from '../../../core/offline/models/offline-storage-error';
 import { OutboxEntry } from '../../../core/offline/models/outbox-entry';
@@ -97,6 +98,7 @@ export class ReportOperacaoService {
   }
 
   iniciarOperacao(request: IniciarOperacaoRequest): Observable<{
+    readonly split: string;
     readonly dataInicio: Date;
     readonly horaInicio: string;
     readonly idempotencyKey: string;
@@ -129,6 +131,9 @@ export class ReportOperacaoService {
       switchMap(confirmation => from(
         this.immediateDelivery.deliver(confirmation.localId),
       ).pipe(map(delivery => ({
+        split: delivery.status === 'SYNCED'
+          ? operationStartSplit(delivery.receipt, request.ordem, request.op) ?? request.split
+          : request.split,
         dataInicio: request.dataInicio,
         horaInicio: request.horaInicio,
         idempotencyKey: confirmation.idempotencyKey,
@@ -206,7 +211,8 @@ export class ReportOperacaoService {
           && outboxById.get(record.localId)?.status !== 'ERROR')
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       const start = starts.find(candidate =>
-        !activeRecords.some(record => record.aggregateId === candidate.aggregateId && (
+        !activeRecords.some(record => (record.aggregateId === candidate.aggregateId
+          || record.dependencyIds?.includes(candidate.idempotencyKey)) && (
           record.commandType === 'END_OPERATION'
           || (record.commandType === 'REPORT_OPERATION'
             && (record.payload as Record<string, unknown>)['finalizarSplit'] === true)
@@ -215,11 +221,17 @@ export class ReportOperacaoService {
       const payload = start.payload as Record<string, unknown>;
       const area = payload['area'] as AreaProducao | undefined;
       const workCenter = payload['workCenter'] as WorkCenter | undefined;
-      const operation = this.restoreOperationSnapshot(
+      let operation = this.restoreOperationSnapshot(
         payload['operation'],
         start.idempotencyKey,
         start.occurredAt,
       );
+      if (operation) {
+        const split = operationStartSplit(
+          outboxById.get(start.localId)?.receipt, operation.ordem, operation.op,
+        ) ?? operation.split;
+        operation = { ...operation, split };
+      }
       const responsibleType = payload['tipoResponsavel'];
       const responsibleCode = payload['codigoResponsavel'];
       const responsibleName =
@@ -237,7 +249,8 @@ export class ReportOperacaoService {
       const reportes = activeRecords
         .filter(record =>
           record.commandType === 'REPORT_OPERATION'
-          && record.aggregateId === start.aggregateId)
+          && (record.aggregateId === start.aggregateId
+            || record.dependencyIds?.includes(start.idempotencyKey)))
         .sort((left, right) => this.compareLogicalPosition(left, right))
         .flatMap(record => this.restoreOperationReport(
           record.payload,

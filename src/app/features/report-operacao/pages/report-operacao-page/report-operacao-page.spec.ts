@@ -1092,6 +1092,23 @@ describe('ReportOperacaoPage', () => {
     expect(component.estado).toBe(EstadoOperacao.Erro);
   });
 
+  it('updates the operation and workflow with the split returned by start', () => {
+    service.iniciarOperacao.mockImplementation(request => of({
+      dataInicio: request.dataInicio, horaInicio: request.horaInicio, split: '2',
+      delivery: { status: 'SYNCED', receipt: {} },
+    }));
+    fixture.detectChanges();
+    selectContextAndConsult();
+    component.updateSelection(new Set(['first']));
+    component.openSelectedOrders();
+    component.alterarResponsavel('001');
+    component.iniciarOperacao();
+    expect(component.operacao?.split).toBe('2');
+    expect(workflow.snapshot().operation?.split).toBe('2');
+    component.salvarReporte({ quantidadeAprovada: 1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+    expect(service.reportarOperacao).toHaveBeenCalledWith(expect.objectContaining({ split: '2' }));
+  });
+
   it('mostra o motivo do Datasul e não inicia a operação quando o split já foi iniciado', () => {
     service.iniciarOperacao.mockImplementation(request => of({
       dataInicio: request.dataInicio,
