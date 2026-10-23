@@ -5,6 +5,7 @@ import { Observable, Subscription } from 'rxjs';
 import { AuthSessionService } from '../../auth/auth-session.service';
 import { JsonValue } from '../models/local-record';
 import { operationStartSplit } from '../models/operation-start-split';
+import { batchStartSplits } from '../models/batch-start-splits';
 import { deliveryDispositionOf } from '../models/delivery-disposition';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { OperationalCommandType } from '../models/operational-command';
@@ -42,10 +43,32 @@ abstract class FmaSyncHandler implements SyncCommandHandler {
     const body = this.requestBody(request);
     const ownerId = this.auth.currentUser?.id;
     if (!this.outbox || !ownerId
-      || (this.commandType !== 'REPORT_OPERATION' && this.commandType !== 'END_OPERATION')) return body;
+      || (this.commandType !== 'REPORT_OPERATION' && this.commandType !== 'END_OPERATION'
+        && this.commandType !== 'REPORT_BATCH')) return body;
     const payload = objectOf(body);
     const entries = await this.outbox.listByOwner(ownerId);
     const current = entries.find(entry => entry.localId === request.localId);
+    if (this.commandType === 'REPORT_BATCH') {
+      const context = objectOf(payload['contexto']);
+      const starts = entries.filter(entry => {
+        if (entry.commandType !== 'START_BATCH' || entry.status !== 'SYNCED'
+          || entry.aggregateId !== request.aggregateId
+          || deliveryDispositionOf(entry.deliveryDisposition) !== 'ACTIVE'
+          || !current?.dependencyIds.includes(entry.localId)) return false;
+        const start = objectOf(entry.payload);
+        const startContext = objectOf(start['contexto']);
+        return start['batchId'] === payload['batchId']
+          && startContext['areaCode'] === context['areaCode']
+          && startContext['workCenterCode'] === context['workCenterCode'];
+      });
+      if (starts.length !== 1 || !Array.isArray(payload['items'])) return body;
+      const splits = batchStartSplits(starts[0].receipt);
+      return { ...payload, items: payload['items'].map(value => {
+        const item = objectOf(value);
+        const split = splits.get(String(item['orderId']));
+        return split ? { ...item, split } : item;
+      }) };
+    }
     const starts = entries.filter(entry => {
       if (entry.commandType !== 'START_OPERATION' || entry.status !== 'SYNCED'
         || deliveryDispositionOf(entry.deliveryDisposition) !== 'ACTIVE'

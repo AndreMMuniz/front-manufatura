@@ -7,6 +7,7 @@ import { AuthSessionService } from '../../../core/auth/auth-session.service';
 import { AuthenticatedApiService } from '../../../core/http/authenticated-api.service';
 import { ClientLogService } from '../../../core/logging/client-log.service';
 import { deliveryDispositionOf } from '../../../core/offline/models/delivery-disposition';
+import { batchStartSplits } from '../../../core/offline/models/batch-start-splits';
 import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
 import type {
   OutboxEntry,
@@ -325,8 +326,7 @@ export class ReportaBateladaService {
         };
         this.batches.set(batchId, {
           orderIds: [...orderIds], encerrada: false,
-          splitsByOrder: new Map(receipt.orderResults?.flatMap(result =>
-            result.split ? [[result.orderId, result.split] as const] : [])),
+          splitsByOrder: batchStartSplits(receipt),
         });
         this.reportsByBatch.set(batchId, []);
         return this.cloneInicio(inicio) as InicioBateladaEntregue;
@@ -692,7 +692,11 @@ export class ReportaBateladaService {
     if (!matches) {
       throw new Error('A composição da batelada não corresponde ao comando informado.');
     }
-    this.batches.set(batchId, { orderIds: [...durableOrderIds], encerrada: false });
+    const startEntry = start ? await this.outbox.getById(ownerId, start.localId) : null;
+    this.batches.set(batchId, {
+      orderIds: [...durableOrderIds], encerrada: false,
+      splitsByOrder: batchStartSplits(startEntry?.status === 'SYNCED' ? startEntry.receipt : undefined),
+    });
   }
 
   private hasCompleteResults(

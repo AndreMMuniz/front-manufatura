@@ -18,6 +18,31 @@ import {
 } from './fma-sync.handlers';
 
 describe('FMA sync handlers', () => {
+  it('uses the confirmed batch splits for a queued final report', async () => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const request = command('REPORT_BATCH', {
+      batchId: 'batch-1', contexto: { areaCode: '4104', workCenterCode: 'PRE-01' }, finalizarSplit: true,
+      items: [{ orderId: '372562|ITEM|10|1', split: '1' }, { orderId: '372563|ITEM|10|1', split: '1' }],
+    });
+    const entries = [
+      { localId: request.localId, dependencyIds: ['start-batch'] },
+      { localId: 'start-batch', aggregateId: request.aggregateId, commandType: 'START_BATCH', status: 'SYNCED',
+        payload: { batchId: 'batch-1', contexto: { areaCode: '4104', workCenterCode: 'PRE-01' } },
+        receipt: { ...receipt(), orderResults: [
+          { orderId: '372563|ITEM|10|1', success: true, split: '3' },
+          { orderId: '372562|ITEM|10|1', success: true, split: '2' },
+        ] } },
+    ];
+    const handler = new ReportBatchSyncHandler({ post } as never,
+      { token: 'session-token', currentUser: { id: '1' } } as AuthSessionService,
+      { listByOwner: vi.fn().mockResolvedValue(entries) } as unknown as OutboxRepository);
+    await handler.send(request, new AbortController().signal);
+    expect(post.mock.calls[0][1]).toMatchObject({ finalizarSplit: true, items: [
+      { orderId: '372562|ITEM|10|1', split: '2' }, { orderId: '372563|ITEM|10|1', split: '3' },
+    ] });
+    expect(request.payload).toMatchObject({ items: [{ split: '1' }, { split: '1' }] });
+  });
+
   it.each([
     [ReportOperationSyncHandler, 'REPORT_OPERATION'],
     [EndOperationSyncHandler, 'END_OPERATION'],

@@ -456,7 +456,7 @@ describe('ReportaBateladaService', () => {
       .toThrowError('Informe um motivo de refugo para a ordem 450001.');
   });
 
-  it('reports each order with the split returned by start instead of the loaded split', async () => {
+  it.each([false, true])('reports each order with the confirmed split, including final report: %s', async finalizarSplit => {
     apiPost.mockImplementation((_url: string, body: { ordens: { id: string }[] }, key: string) => of({
       serverRecordId: 'start', idempotencyKey: key,
       receivedAt: '2026-08-18T12:00:01.000Z', processedAt: '2026-08-18T12:00:01.000Z', duplicate: false,
@@ -467,11 +467,26 @@ describe('ReportaBateladaService', () => {
     const start = await firstValueFrom(service.iniciarBatelada(service.montarComandoInicio(
       reportRequest().contexto, responsavel(), [order('1'), order('2')],
     )));
-    await firstValueFrom(service.reportarBateladaParcial(reportRequest({ batchId: start.batchId })));
+    await firstValueFrom(service.reportarBateladaParcial({ ...reportRequest({ batchId: start.batchId }), finalizarSplit }));
     expect(capture.mock.calls.at(-1)![0].payload.items).toEqual([
       expect.objectContaining({ orderId: '1', split: '2' }),
       expect.objectContaining({ orderId: '2', split: '3' }),
     ]);
+  });
+
+  it('recovers confirmed splits when finalizing a persisted batch', async () => {
+    currentUser = { id: 'operator-1' };
+    const start = persistedBatchStart();
+    listLocalRecords.mockResolvedValue([start]);
+    getOutbox.mockResolvedValue({ ...persistedBatchOutbox(start), status: 'SYNCED', receipt: {
+      orderResults: [{ orderId: '2', success: true, split: '3' }, { orderId: '1', success: true, split: '2' }],
+    } });
+    await firstValueFrom(service.reportarBateladaParcial({
+      ...reportRequest({ batchId: start.aggregateId }), finalizarSplit: true,
+    }));
+    expect(capture.mock.calls.at(-1)![0].payload).toMatchObject({ finalizarSplit: true, items: [
+      { orderId: '1', split: '2' }, { orderId: '2', split: '3' },
+    ] });
   });
 
   it('allows rework without a scrap reason', () => {
