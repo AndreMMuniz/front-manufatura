@@ -626,7 +626,12 @@ describe('gateway FMA', () => {
   });
 
   it('traduz início e reporte em batelada com receipts completos por ordem', async () => {
-    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response('iniciosOrdemBatelada', [
+        { nrOrdemProducao: 372570, opCodigo: 20, numSplitOperac: 3 },
+        { nrOrdemProducao: 372569, opCodigo: 20, numSplitOperac: 2 },
+      ]))
+      .mockResolvedValue(new Response(null, { status: 204 }));
     const root = await startGateway(transport);
     const authorization = `Bearer ${await token([APP_PERMISSIONS.batchReporting])}`;
     const headers = { authorization, 'content-type': 'application/json', 'idempotency-key': 'batch-command-1' };
@@ -644,6 +649,10 @@ describe('gateway FMA', () => {
     });
     const startReceipt = await start.json() as { orderResults: unknown[] };
     expect(startReceipt.orderResults).toHaveLength(2);
+    expect(startReceipt.orderResults).toEqual([
+      { orderId: ordens[0].id, success: true, split: '2' },
+      { orderId: ordens[1].id, success: true, split: '3' },
+    ]);
 
     const report = await fetch(`${root}/api/batches/report`, {
       method: 'POST', headers: { ...headers, 'idempotency-key': 'batch-report-1' }, body: JSON.stringify({
@@ -652,7 +661,7 @@ describe('gateway FMA', () => {
         dataInicio: '2026-08-14T12:35:00.000Z', horaInicio: '09:35',
         dataFim: '2026-08-14T13:35:00.000Z', horaFim: '10:35', finalizarSplit: true,
         items: ordens.map(order => ({
-          orderId: order.id, ordem: order.ordem, quantidadeAprovada: 1,
+          orderId: order.id, ordem: order.ordem, split: order.ordem === '372569' ? '2' : '3', quantidadeAprovada: 1,
           quantidadeRetrabalho: 0, quantidadeRefugo: 0, refugoItens: [],
         })),
       }),
@@ -674,6 +683,28 @@ describe('gateway FMA', () => {
       codEquipe: '',
     }));
     expect(String(transport.mock.calls[1][0])).toContain('/api/fma/v1/reporteordembatelada');
+    expect(JSON.parse(String(transport.mock.calls[1][1]?.body)).splits).toEqual([
+      expect.objectContaining({ nrOrdemProducao: 372569, numSplitOperac: 2 }),
+      expect.objectContaining({ nrOrdemProducao: 372570, numSplitOperac: 3 }),
+    ]);
+  });
+
+  it.each([
+    [],
+    [{ nrOrdemProducao: 372569, opCodigo: 20, numSplitOperac: 2 }],
+    [
+      { nrOrdemProducao: 372569, opCodigo: 20, numSplitOperac: 2 },
+      { nrOrdemProducao: 372569, opCodigo: 20, numSplitOperac: 3 },
+    ],
+    [
+      { nrOrdemProducao: 372569, opCodigo: 20, numSplitOperac: 2 },
+      { nrOrdemProducao: 372570, opCodigo: 20, numSplitOperac: 0 },
+    ],
+  ].map(rows => ({ rows })))('rejeita confirmação de início sem splits válidos para todas as ordens: %j', async ({ rows }) => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(response('iniciosOrdemBatelada', rows));
+    const root = await startGateway(transport);
+    const result = await postBatchStart(root, 'invalid-batch-splits');
+    expect(result.status).toBe(502);
   });
 
   it('preserva a mensagem de rejeição do Datasul em HTTP não-2xx ao iniciar batelada', async () => {

@@ -48,6 +48,7 @@ import type { ReportaBateladaWorkflowSnapshot } from './reporta-batelada-workflo
 
 interface BatchMockRecord {
   readonly orderIds: ReadonlyArray<string>;
+  readonly splitsByOrder?: ReadonlyMap<string, string>;
   encerrada: boolean;
 }
 
@@ -254,7 +255,11 @@ export class ReportaBateladaService {
       const iniciadoEm = new Date(Math.max(...starts.map(start => start.getTime())));
       const batchId = this.idempotency.resolve();
       const orderIds = ordens.map(ordem => ordem.id);
-      this.batches.set(batchId, { orderIds: [...orderIds], encerrada: false });
+      this.batches.set(batchId, {
+        orderIds: [...orderIds], encerrada: false,
+        splitsByOrder: new Map(results.map((result, index) =>
+          [orderIds[index], result.operacao!.split] as const)),
+      });
       this.reportsByBatch.set(batchId, []);
       return {
         batchId,
@@ -318,7 +323,11 @@ export class ReportaBateladaService {
           ordensIniciadas: orderIds,
           delivery: { status: 'SYNCED', receipt },
         };
-        this.batches.set(batchId, { orderIds: [...orderIds], encerrada: false });
+        this.batches.set(batchId, {
+          orderIds: [...orderIds], encerrada: false,
+          splitsByOrder: new Map(receipt.orderResults?.flatMap(result =>
+            result.split ? [[result.orderId, result.split] as const] : [])),
+        });
         this.reportsByBatch.set(batchId, []);
         return this.cloneInicio(inicio) as InicioBateladaEntregue;
       }),
@@ -448,10 +457,14 @@ export class ReportaBateladaService {
           dataFim: validated.dataFim.toISOString(),
           horaFim: validated.horaFim,
           finalizarSplit: validated.finalizarSplit,
-          items: validated.items.map(item => ({
-            ...item,
-            refugoItens: item.refugoItens.map(reason => ({ ...reason })),
-          })),
+          items: validated.items.map(item => {
+            const split = this.batches.get(validated.batchId)?.splitsByOrder?.get(item.orderId);
+            return {
+              ...item,
+              ...(split ? { split } : {}),
+              refugoItens: item.refugoItens.map(reason => ({ ...reason })),
+            };
+          }),
         },
       })).pipe(
         switchMap(confirmation => {

@@ -653,12 +653,12 @@ function batchItemIdentity(item: JsonObject): { ordem: unknown; operation: unkno
   const identity = {
     ordem: item['ordem'] ?? parts[0],
     operation: item['operacao'] ?? parts[2],
+    // The catalog ID keeps the pre-start split; start may return a new one.
     split: item['split'] ?? parts[3],
   };
   if (
     (item['ordem'] !== undefined && String(item['ordem']) !== parts[0])
     || (item['operacao'] !== undefined && String(item['operacao']) !== parts[2])
-    || (item['split'] !== undefined && String(item['split']) !== parts[3])
   ) throw new QualityControlGatewayError(400, 'invalid-request');
   return identity;
 }
@@ -714,12 +714,31 @@ async function idempotentCommand(
   const promise = (async () => {
     const upstream = await client.request('POST', endpoint, command, {}, endpoint, !validateResponse);
     validateResponse?.(upstream);
-    return receipt(
+    const result = receipt(
       idempotencyKey,
       `datasul:${resource}:${idempotencyKey}`,
       dependencies.now?.() ?? new Date(),
       orderIds,
     );
+    if (resource === 'batch-start') {
+      const rows = dataset(upstream, 'iniciosOrdemBatelada').map(objectOfUpstream);
+      const splits = requiredObjects(command['splits']);
+      if (rows.length !== splits.length) return invalidUpstream();
+      return {
+        ...result,
+        orderResults: splits.map((split, index) => {
+          const matches = rows.filter(row =>
+            integerText(row['nrOrdemProducao']) === String(split['nrOrdemProducao'])
+            && integerText(row['opCodigo']) === String(split['opCodigo']));
+          if (matches.length !== 1) return invalidUpstream();
+          return {
+            orderId: orderIds[index], success: true,
+            split: String(positiveIntegerUpstream(matches[0]['numSplitOperac'])),
+          };
+        }),
+      };
+    }
+    return result;
   })();
   const cacheEntry: CommandRequestEntry = { canonical, promise, createdAt: now };
   commandRequests.set(cacheKey, cacheEntry);

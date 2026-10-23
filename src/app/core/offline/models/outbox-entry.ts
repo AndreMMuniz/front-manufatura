@@ -19,6 +19,7 @@ export interface RemoteCommandReceipt {
   readonly orderResults?: readonly {
     readonly orderId: string;
     readonly success: boolean;
+    readonly split?: string;
     readonly serverRecordId?: string;
     readonly errorCode?: string;
   }[];
