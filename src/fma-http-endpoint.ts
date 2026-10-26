@@ -277,31 +277,35 @@ function installAdaptedRoutes(
         nome: requiredUpstreamText(item['nomOperador']),
       }];
     });
-    const teams = (teamsUpstream === null ? [] : dataset(teamsUpstream, 'Equipes')).map(row => {
-      const item = objectOfUpstream(row);
-      const codigo = requiredUpstreamText(item['codEquipe']);
-      return {
-        tipo: 'EQUIPE',
-        codigo,
-        nome: text(item['nomEquipe']).trim() || codigo,
-      };
-    });
+    const teams = (teamsUpstream === null ? [] : dataset(teamsUpstream, 'Equipes'))
+      .filter(row => text(objectOfUpstream(row)['codAreaProduc']).trim().toUpperCase() === areaCode)
+      .map(row => {
+        const item = objectOfUpstream(row);
+        const codigo = requiredUpstreamText(item['codEquipe']);
+        return {
+          tipo: 'EQUIPE',
+          codigo,
+          nome: text(item['nomEquipe']).trim() || codigo,
+        };
+      });
     return [...operators, ...teams];
   }));
 
   app.get('/api/teams', (req, res) => handle(req, res, dependencies, async client => {
-    requiredText(req.query['areaCode']);
+    const areaCode = requiredText(req.query['areaCode']).toUpperCase();
     const upstream = await client.request('GET', '/api/fma/v1/equipes');
-    return dataset(upstream, 'Equipes').map(row => {
-      const item = objectOfUpstream(row);
-      const codigo = requiredUpstreamText(item['codEquipe']);
-      return {
-        codigo,
-        descricao: text(item['nomEquipe']).trim() || codigo,
-        turno: String(nonNegativeIntegerUpstream(item['numTurno'])),
-        operadores: [],
-      };
-    });
+    return dataset(upstream, 'Equipes')
+      .filter(row => text(objectOfUpstream(row)['codAreaProduc']).trim().toUpperCase() === areaCode)
+      .map(row => {
+        const item = objectOfUpstream(row);
+        const codigo = requiredUpstreamText(item['codEquipe']);
+        return {
+          codigo,
+          descricao: text(item['nomEquipe']).trim() || codigo,
+          turno: String(nonNegativeIntegerUpstream(item['numTurno'])),
+          operadores: [],
+        };
+      });
   }));
 
   app.get('/api/scrap-reasons', (req, res) => handle(req, res, dependencies, async client => {
