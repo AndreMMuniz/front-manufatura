@@ -765,11 +765,12 @@ describe('ReportOperacaoPage', () => {
     expect(component.reportes).toHaveLength(1);
   });
 
-  it('não abre contexto técnico após rejeição funcional', () => {
+  it('exibe a rejeição de saldo da API sem confirmar o reporte', () => {
+    const balanceError = { ...persistedError, userMessage: 'A quantidade informada excede o saldo da ordem.' };
     service.reportarOperacao.mockReturnValue(of({
       apontamentoId: 'APT-1',
       reportadoEm: new Date(),
-      delivery: { status: 'ERROR', error: persistedError },
+      delivery: { status: 'ERROR', error: balanceError },
     }));
     const confirmarReporte = vi.fn();
     const informarErro = vi.fn();
@@ -784,8 +785,8 @@ describe('ReportOperacaoPage', () => {
 
     expect(service.reportarOperacao).toHaveBeenCalledOnce();
     expect(confirmarReporte).not.toHaveBeenCalled();
-    expect(informarErro).toHaveBeenCalledWith(persistedError.userMessage);
-    expect(notification.error).toHaveBeenCalledWith(persistedError.userMessage);
+    expect(informarErro).toHaveBeenCalledWith(balanceError.userMessage);
+    expect(notification.error).toHaveBeenCalledWith(balanceError.userMessage);
     expect(component.reportes).toHaveLength(0);
     expect(component.reporteDisabled).toBe(false);
     expect(correctionContext.matching('1', 'REPORT_OPERATION')).toBeNull();
@@ -1016,9 +1017,9 @@ describe('ReportOperacaoPage', () => {
     expect(component.feedback).toContain('Inicie a operação');
   });
 
-  it('keeps the drawer draft when partial validation rejects the balance', () => {
+  it('keeps the drawer draft when partial validation rejects a negative quantity', () => {
     vi.mocked(service.validarReporteParcial).mockReturnValue(
-      'A quantidade acumulada não pode ultrapassar o saldo da OP.',
+      'As quantidades não podem ser negativas.',
     );
     fixture.detectChanges();
     selectContextAndConsult();
@@ -1029,10 +1030,10 @@ describe('ReportOperacaoPage', () => {
     const informarErro = vi.fn();
     (component as unknown as { reporteSlide: { informarErro: typeof informarErro } }).reporteSlide = { informarErro };
 
-    component.salvarReporte({ quantidadeAprovada: 321, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
+    component.salvarReporte({ quantidadeAprovada: -1, quantidadeRetrabalho: 0, quantidadeRefugo: 0 });
 
     expect(service.reportarOperacao).not.toHaveBeenCalled();
-    expect(informarErro).toHaveBeenCalledWith('A quantidade acumulada não pode ultrapassar o saldo da OP.');
+    expect(informarErro).toHaveBeenCalledWith('As quantidades não podem ser negativas.');
   });
 
   it('does not apply a stale partial-report response to another operation', () => {

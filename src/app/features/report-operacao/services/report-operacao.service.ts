@@ -342,14 +342,12 @@ export class ReportOperacaoService {
   }
 
   validarReporteParcial(
-    operacao: ReportOperacao,
+    _operacao: ReportOperacao,
     quantidadeAprovada: number,
     quantidadeRetrabalho: number,
     quantidadeRefugo: number,
   ): string {
     const parcial = quantidadeAprovada + quantidadeRetrabalho + quantidadeRefugo;
-    const acumulado =
-      operacao.quantidadeAprovada + operacao.quantidadeRetrabalho + operacao.quantidadeRefugo;
 
     if (
       [quantidadeAprovada, quantidadeRetrabalho, quantidadeRefugo]
@@ -360,10 +358,6 @@ export class ReportOperacaoService {
 
     if (parcial <= 0) {
       return 'Informe ao menos uma quantidade produzida.';
-    }
-
-    if (this.round3(acumulado + parcial) > this.round3(operacao.quantidadeSaldo)) {
-      return 'A quantidade acumulada não pode ultrapassar o saldo da OP.';
     }
 
     return '';
@@ -387,10 +381,6 @@ export class ReportOperacaoService {
 
     if (quantidadeTotal <= 0) {
       return 'Informe ao menos uma quantidade produzida.';
-    }
-
-    if (quantidadeTotal > operacao.quantidadeSaldo) {
-      return 'A quantidade produzida não pode ultrapassar o saldo da OP.';
     }
 
     if (operacao.dataFim && operacao.dataInicio && this.dateOnly(operacao.dataFim) < this.dateOnly(operacao.dataInicio)) {
@@ -446,10 +436,6 @@ export class ReportOperacaoService {
 
   private dateOnly(date: Date): Date {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  private round3(value: number): number {
-    return Math.round((value + Number.EPSILON) * 1000) / 1000;
   }
 
   private operationAggregateId(ordem: string, op: string, split: string): string {

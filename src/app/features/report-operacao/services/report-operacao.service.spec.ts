@@ -332,26 +332,23 @@ describe('ReportOperacaoService', () => {
     expect(service.validarReporte(baseOperacaoIniciada({ quantidadeAprovada: -1 }))).toBe('As quantidades não podem ser negativas.');
   });
 
-  it('blocks quantities above available balance', () => {
-    expect(service.validarReporte(baseOperacaoIniciada({ quantidadeAprovada: 321 }))).toBe(
-      'A quantidade produzida não pode ultrapassar o saldo da OP.',
-    );
+  it('leaves validation of quantities above available balance to the API', () => {
+    expect(service.validarReporte(baseOperacaoIniciada({ quantidadeAprovada: 321 }))).toBe('');
   });
 
   it('allows valid reporting payloads', () => {
     expect(service.validarReporte(baseOperacaoIniciada({ quantidadeAprovada: 10 }))).toBe('');
   });
 
-  it('validates partial quantities against the accumulated total and order balance', () => {
+  it('leaves accumulated balance validation to the API and validates quantity input', () => {
     const operacao = baseOperacaoIniciada({
       quantidadeAprovada: 300,
       quantidadeRetrabalho: 10,
     });
 
     expect(service.validarReporteParcial(operacao, 5, 0, 0)).toBe('');
-    expect(service.validarReporteParcial(operacao, 11, 0, 0)).toBe(
-      'A quantidade acumulada não pode ultrapassar o saldo da OP.',
-    );
+    expect(service.validarReporteParcial(operacao, 11, 0, 0)).toBe('');
+    expect(service.validarReporteParcial(operacao, 321, 10, 5)).toBe('');
     expect(service.validarReporteParcial(operacao, 0, 0, 0)).toBe(
       'Informe ao menos uma quantidade produzida.',
     );
