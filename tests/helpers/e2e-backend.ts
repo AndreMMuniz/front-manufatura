@@ -22,6 +22,7 @@ const AREAS = [
 const WORK_CENTERS = [
   {
     code: 'CT-EXT-01',
+    indReporteMod: 2,
     description: 'Extrusao Linha 01',
     areaCode: '4001',
     area: 'Producao',
@@ -31,6 +32,7 @@ const WORK_CENTERS = [
   },
   {
     code: 'CT-CQ-01',
+    indReporteMod: 2,
     description: 'Controle de Qualidade',
     areaCode: '4002',
     area: 'Qualidade',
@@ -440,8 +442,9 @@ export async function mockE2eBackend(context: BrowserContext): Promise<void> {
       await json(route, []);
       return;
     }
+    if (path === '/api/reporting-scope') { await json(route, { companyId: '1' }); return; }
     if (path === '/api/scrap-reasons' && request.method() === 'GET') {
-      await json(route, [{ codigo: '05', descricao: 'Borra' }]);
+      await json(route, [{ codigo: '05', descricao: 'Borra', materialScrap: true, rework: false }, { codigo: '18', descricao: 'Retrabalho', materialScrap: false, rework: true }]);
       return;
     }
     if (

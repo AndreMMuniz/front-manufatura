@@ -25,12 +25,15 @@ import {
 } from '../models/reporta-batelada.model';
 
 import { ReportaBateladaService } from './reporta-batelada.service';
+import { ReportaBateladaWorkflowState } from './reporta-batelada-workflow-state';
+import { EstadoBatelada } from '../models/reporta-batelada.model';
 
 describe('ReportaBateladaService', () => {
   let service: ReportaBateladaService;
   let session$: BehaviorSubject<unknown>;
   let currentUser: { readonly id: string } | null;
   let apiPost: ReturnType<typeof vi.fn>;
+  let apiGet: ReturnType<typeof vi.fn>;
   let capture: ReturnType<typeof vi.fn>;
   let deliver: ReturnType<typeof vi.fn>;
   let listLocalRecords: ReturnType<typeof vi.fn>;
@@ -48,6 +51,7 @@ describe('ReportaBateladaService', () => {
   beforeEach(() => {
     session$ = new BehaviorSubject<unknown>({ user: 'operador' });
     currentUser = null;
+    apiGet = vi.fn();
     apiPost = vi.fn((
       _url: string,
       body: { readonly ordens: ReadonlyArray<{ readonly id: string }> },
@@ -123,7 +127,7 @@ describe('ReportaBateladaService', () => {
     TestBed.configureTestingModule({
       providers: [
         ReportaBateladaService,
-        { provide: AuthenticatedApiService, useValue: { post: apiPost } },
+        { provide: AuthenticatedApiService, useValue: { post: apiPost, get: apiGet } },
         {
           provide: AuthSessionService,
           useValue: {
@@ -147,6 +151,32 @@ describe('ReportaBateladaService', () => {
       ],
     });
     service = TestBed.inject(ReportaBateladaService);
+  });
+
+  it('REP-02 queries opening without interpreting its payload or capturing commands', async () => {
+    const payload = { opaque: [1, 2] };
+    apiGet.mockReturnValue(of(payload));
+    const result = await firstValueFrom(service.consultarAberturaBatelada({
+      areaCode: '4113', workCenterCode: 'LASER-01-01',
+      ordens: ['393591-10', '393592-10', '393593-10'],
+    }));
+    expect(apiGet).toHaveBeenCalledWith('/api/batches/open', {
+      areaCode: '4113', workCenterCode: 'LASER-01-01',
+      ordens: '393591-10,393592-10,393593-10',
+    });
+    expect(result).toBe(payload);
+    expect(capture).not.toHaveBeenCalled();
+    expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it('REP-02 propagates network error without restoring local state', async () => {
+    const error = new HttpErrorResponse({ status: 0 });
+    apiGet.mockReturnValue(throwError(() => error));
+    await expect(firstValueFrom(service.consultarAberturaBatelada({
+      areaCode: '4113', workCenterCode: 'LASER-01-01', ordens: ['393591-10'],
+    }))).rejects.toBe(error);
+    expect(listLocalRecords).not.toHaveBeenCalled();
+    expect(listOutbox).not.toHaveBeenCalled();
   });
 
   it('delegates Area/CT catalogs and returns defensive copies', async () => {
@@ -507,6 +537,39 @@ describe('ReportaBateladaService', () => {
     };
 
     expect(() => service.validarReporteParcial(reworkOnly)).not.toThrow();
+  });
+
+  it('restores the local active batch before the first report without sending another start', async () => {
+    const empty = new ReportaBateladaWorkflowState().snapshot();
+    const snapshot = {
+      ...empty, area: { code: '4001', description: 'Produção' }, workCenter: workCenter(),
+      batchId: 'already-started', inicio: { batchId: 'already-started', iniciadoEm: new Date('2026-10-31T10:00:00Z'), ordensIniciadas: ['1', '2'] },
+      orders: [order('1'), order('2')], selectedOrderIds: ['1', '2'], composition: [order('1'), order('2')],
+      responsavel: responsavel(), estado: EstadoBatelada.BateladaIniciada,
+    };
+    const restored = service.restaurarSessaoLocal(JSON.parse(JSON.stringify(snapshot)));
+    expect(restored?.batchId).toBe('already-started');
+    expect(restored?.history).toEqual([]);
+    expect(apiPost).not.toHaveBeenCalled();
+    await firstValueFrom(service.reportarBateladaParcial(reportRequest({ batchId: 'already-started' })));
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({ commandType: 'REPORT_BATCH', aggregateId: 'already-started' }));
+    expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it('rejects mixed report versions before capturing any command', () => {
+    const legacy = reportRequest();
+    const itemV2 = { ...legacy.items[0], schemaVersion: 2 as const, motivos: [] };
+    expect(() => service.validarReporteParcial({ ...legacy, items: [itemV2] })).toThrow('uniforme');
+    expect(() => service.validarReporteParcial({ ...legacy, schemaVersion: 2, items: legacy.items })).toThrow('uniforme');
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('rejects v2 quantities that round to zero or overflow before persistence', () => {
+    const base = reportRequest();
+    const request = (quantidadeAprovada: number) => ({ ...base, schemaVersion: 2 as const, items: [{ ...base.items[0], schemaVersion: 2 as const, quantidadeAprovada, quantidadeRetrabalho: 0, quantidadeRefugo: 0, refugoItens: [], motivos: [] }] });
+    expect(() => service.validarReporteParcial(request(0.0004))).toThrow('positiva');
+    expect(() => service.validarReporteParcial(request(1e306))).toThrow('finitos');
+    expect(capture).not.toHaveBeenCalled();
   });
 
   it('requires the single reason quantity to equal the order scrap quantity', () => {

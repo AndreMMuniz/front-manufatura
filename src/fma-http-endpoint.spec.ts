@@ -21,6 +21,123 @@ const ENV = {
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
+describe('REP-02 batch opening transport', () => {
+  const query = 'areaCode=4113&workCenterCode=LASER-01-01&ordens=393591-10,393592-10,393593-10';
+
+  it('preserves unknown JSON and uses server identity with Basic Auth', async () => {
+    // Synthetic transport payload, not a Datasul success contract.
+    const payload = { opaque: [{ value: 7 }], extra: true };
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/batches/open?${query}&companyId=99&codUsuario=other`, {
+      headers: { authorization: `Bearer ${await token([APP_PERMISSIONS.batchReporting])}` },
+    });
+    expect(result.status).toBe(200);
+    expect(result.headers.get('cache-control')).toBe('no-store');
+    expect(await result.json()).toEqual(payload);
+    expect(transport).toHaveBeenCalledTimes(1);
+    const [url, options] = transport.mock.calls[0];
+    expect(new URL(String(url)).pathname).toBe('/api/fma/v1/abrirapontamentobatelada');
+    expect(Object.fromEntries(new URL(String(url)).searchParams)).toEqual({
+      companyId: '1', codUsuario: 'mjocelio', codAreaProduc: '4113',
+      codCtrab: 'LASER-01-01', ordens: '393591-10,393592-10,393593-10',
+    });
+    expect(options?.method).toBe('GET');
+    expect(options?.body).toBeUndefined();
+    expect(new Headers(options?.headers).get('authorization')).toBe(`Basic ${Buffer.from('integracao:segredo-tecnico').toString('base64')}`);
+  });
+
+  it.each([
+    '', 'areaCode=4113&workCenterCode=LASER-01-01',
+    `${query}&areaCode=other`, `${query}&ordens=other`,
+    'areaCode=4113&workCenterCode=LASER-01-01&ordens=one,,two',
+    'areaCode=4113&workCenterCode=LASER-01-01&ordens=%20',
+  ])('rejects invalid query before upstream: %s', async invalid => {
+    const transport = vi.fn<typeof fetch>();
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/batches/open?${invalid}`, {
+      headers: { authorization: `Bearer ${await token([APP_PERMISSIONS.batchReporting])}` },
+    });
+    expect(result.status).toBe(400);
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('requires batch permission (authenticated=%s)', async authenticated => {
+    const transport = vi.fn<typeof fetch>();
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/batches/open?${query}`, {
+      headers: authenticated ? { authorization: `Bearer ${await token()}` } : {},
+    });
+    expect(result.status).toBe(authenticated ? 403 : 401);
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 500])('propagates upstream status %s without exposing internal details', async status => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ error_description: 'internal host' }, { status }));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/batches/open?${query}`, {
+      headers: { authorization: `Bearer ${await token([APP_PERMISSIONS.batchReporting])}` },
+    });
+    expect(result.status).toBe(status);
+    expect(await result.json()).toEqual({ code: 'datasul-request-failed' });
+  });
+
+  it.each(['', 'invalid json'])('rejects invalid upstream JSON: %s', async body => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(body));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/batches/open?${query}`, {
+      headers: { authorization: `Bearer ${await token([APP_PERMISSIONS.batchReporting])}` },
+    });
+    expect(result.status).toBe(502);
+    expect(await result.json()).toEqual({ code: 'invalid-upstream-response' });
+  });
+});
+
+describe('REP-01 v2 gateway', () => {
+  it.each([false, true])('maps independent reasons and validates catalogue eligibility (batch=%s)', async batch => {
+    const transport = vi.fn<typeof fetch>().mockImplementation(async (url) => String(url).includes('motivosrefugo')
+      ? response('motivosRefugo', [
+        { codMotivoRefugo: '01', refugoRetrabalho: true, refugoMaterial: false },
+        { codMotivoRefugo: '02', refugoRetrabalho: false, refugoMaterial: true },
+      ]) : new Response(null, { status: 204 }));
+    const root = await startGateway(transport);
+    const item = {
+      orderId: '372572|ITEM|10|1', ordem: '372572', op: '10', split: '1',
+      quantidadeAprovada: 100, quantidadeRetrabalho: 5, quantidadeRefugo: 2,
+      motivos: [
+        { codigo: '01', descricao: 'Retrabalho', quantidadeRetrabalho: 5, quantidadeRefugo: 0 },
+        { codigo: '02', descricao: 'Refugo', quantidadeRetrabalho: 0, quantidadeRefugo: 2 },
+      ],
+    };
+    const body = {
+      schemaVersion: 2,
+      dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+      dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25', finalizarSplit: false,
+      ...(batch ? { contexto: { areaCode: '4113', workCenterCode: 'LASER-01-01' }, responsavel: { tipo: 'OPERADOR', codigo: '00016570' }, items: [item] }
+        : { ...item, areaCode: '4113', ct: 'LASER-01-01', tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570' }),
+    };
+    const headers = { authorization: `Bearer ${await token([batch ? APP_PERMISSIONS.batchReporting : APP_PERMISSIONS.operationReporting])}`, 'content-type': 'application/json', 'idempotency-key': 'rep01-v2' };
+    const result = await fetch(`${root}/api/${batch ? 'batches' : 'operations'}/report`, { method: 'POST', headers, body: JSON.stringify(body) });
+    expect(result.status).toBe(200);
+    const sent = JSON.parse(String(transport.mock.calls[1][1]?.body));
+    const split = batch ? sent.splits[0] : sent;
+    expect(split).toEqual(expect.objectContaining({ qtdRetrabalho: 5, qtdRefugada: 2, codMotivoRefugo: '', motivos: [
+      { codMotivo: '01', qtdRetrabalho: 5, qtdRefugada: 0 },
+      { codMotivo: '02', qtdRetrabalho: 0, qtdRefugada: 2 },
+    ] }));
+    const overflowItem = { ...item, quantidadeAprovada: 1e306, quantidadeRetrabalho: 0, quantidadeRefugo: 0, motivos: [] };
+    const overflow = { ...body, ...(batch ? { items: [overflowItem] } : overflowItem) };
+    const overflowing = await fetch(`${root}/api/${batch ? 'batches' : 'operations'}/report`, { method: 'POST', headers: { ...headers, 'idempotency-key': 'rep01-overflow' }, body: JSON.stringify(overflow) });
+    expect(overflowing.status).toBe(400);
+    item.motivos[0].codigo = '02';
+    item.motivos[1].codigo = '01';
+    const invalid = { ...body, ...(batch ? { items: [item] } : { motivos: item.motivos, items: [] }) };
+    const rejected = await fetch(`${root}/api/${batch ? 'batches' : 'operations'}/report`, { method: 'POST', headers: { ...headers, 'idempotency-key': 'rep01-invalid' }, body: JSON.stringify(invalid) });
+    expect(rejected.status).toBe(400);
+    expect(transport.mock.calls.filter(call => call[1]?.method === 'POST')).toHaveLength(1);
+  });
+});
+
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>((resolve, reject) => {
     server.closeAllConnections();

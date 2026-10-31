@@ -1,3 +1,4 @@
+import type { MotivoReporte } from '../../../../report-reasons';
 import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
 
 export enum EstadoBatelada {
@@ -62,6 +63,9 @@ export interface MotivoRefugoBatelada {
 }
 
 export interface ItemReporteBatelada {
+  readonly legacyReasons?: ReadonlyArray<MotivoRefugoBatelada>;
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly orderId: string;
   readonly ordem: string;
   readonly quantidadeAprovada: number;
@@ -71,12 +75,16 @@ export interface ItemReporteBatelada {
 }
 
 export interface RascunhoReporteBatelada {
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly idempotencyKey: string | null;
   readonly items: ReadonlyArray<ItemReporteBatelada>;
   readonly finalizarSplit?: boolean;
 }
 
 export interface ReporteParcialBatelada {
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly reporteId: string;
   readonly batchId: string;
   readonly idempotencyKey: string;

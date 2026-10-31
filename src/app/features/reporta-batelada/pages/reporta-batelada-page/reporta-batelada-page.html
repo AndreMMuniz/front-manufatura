@@ -121,6 +121,8 @@
     ></app-footer-acoes-batelada>
 
     <app-reporte-batelada-slide
+      [draftPersistence]="reportDrafts"
+      [draftIdentity]="reportDraftOwner + '|batch|' + areaCode + '|' + (view.workCenter?.code ?? '') + '|' + (view.batchId ?? '')"
       (rascunhoAlterado)="atualizarRascunho($event)"
       (reporteSolicitado)="salvarReporte($event)"
     ></app-reporte-batelada-slide>

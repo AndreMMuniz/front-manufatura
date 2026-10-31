@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
@@ -7,11 +7,77 @@ import { ReporteSlide } from './reporte-slide';
 import { MotivoRefugoService } from '../../services/motivo-refugo.service';
 
 const scrapReasonService = {
-  buscarMotivos: vi.fn(() => of([{ codigo: '05', descricao: 'Borra' }])),
+  buscarMotivos: vi.fn(() => of([{ codigo: '05', descricao: 'Borra', materialScrap: true, rework: true }])),
 };
 
 describe('ReporteSlide', () => {
-  it('mostra Motivo de Refugo/Retrabalho quando houver retrabalho', async () => {
+  it('keeps restored selections until the real PO select receives its asynchronous catalog', async () => {
+    const catalog = new Subject<ReadonlyArray<{ codigo: string; descricao: string; materialScrap: boolean; rework: boolean }>>();
+    await TestBed.configureTestingModule({ imports: [ReporteSlide], providers: [provideNoopAnimations(), { provide: MotivoRefugoService, useValue: { buscarMotivos: () => catalog } }] }).compileComponents();
+    const fixture = TestBed.createComponent(ReporteSlide);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.draftIdentity = 'restored-order';
+    component.draftPersistence = { read: async () => ({ quantidadeAprovada: 0, quantidadeRetrabalho: 5, quantidadeRefugo: 2, motivoRetrabalhoCodigo: '18', motivoCodigo: '05' }) } as never;
+    component.abrir([]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.report-reasons po-select')).toHaveLength(0);
+    expect(component.motivoRetrabalhoCodigo).toBe('18');
+    catalog.next([{ codigo: '18', descricao: 'Retrabalho', rework: true, materialScrap: false }, { codigo: '05', descricao: 'Borra', rework: false, materialScrap: true }]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.motivoRetrabalhoCodigo).toBe('18');
+    expect(component.motivoCodigo).toBe('05');
+    expect(fixture.nativeElement.querySelector('po-select[name="reporteMotivoRetrabalho"] select')?.value).toBe('18');
+    expect(fixture.nativeElement.querySelector('po-select[name="reporteMotivoRefugo"] select')?.value).toBe('05');
+  });
+  it('restores quantities and independent selections after component reconstruction and clears on discard', async () => {
+    let saved: unknown = null;
+    const store = {
+      read: async () => saved,
+      write: async (_identity: string, data: unknown) => { saved = data === null ? null : JSON.parse(JSON.stringify(data)); return true; },
+    };
+    const build = () => {
+      const dialog = { confirm: vi.fn() };
+      const component = new ReporteSlide({ markForCheck: vi.fn() } as never, dialog as never, scrapReasonService as never);
+      Object.defineProperty(component, 'pageSlide', { value: { open: vi.fn(), close: vi.fn() } });
+      component.draftPersistence = store as never;
+      component.draftIdentity = 'area|ct|order|operation|split';
+      return { component, dialog };
+    };
+    const first = build().component;
+    first.abrir([]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    first.atualizarQuantidade('quantidadeRetrabalho', 5);
+    first.atualizarQuantidade('quantidadeRefugo', 2);
+    first.atualizarMotivo('05', 'retrabalho');
+    first.atualizarMotivo('05');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const second = build();
+    second.component.abrir([]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(second.component.quantidadeRetrabalho).toBe(5);
+    expect(second.component.quantidadeRefugo).toBe(2);
+    expect(second.component.motivoRetrabalhoCodigo).toBe('05');
+    expect(second.component.motivoCodigo).toBe('05');
+    expect(second.component.canSave).toBe(true);
+    second.component.informarErro('Falha remota');
+    expect(saved).not.toBeNull();
+    second.component.voltar();
+    second.dialog.confirm.mock.calls[0][0].confirm();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(saved).toBeNull();
+  });
+  it('requires independent reasons when both quantities are positive (REP-01)', () => {
+    const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
+    component.atualizarQuantidade('quantidadeRetrabalho', 5);
+    component.atualizarQuantidade('quantidadeRefugo', 2);
+    component.atualizarMotivo('05');
+    expect(component.canSave).toBe(false);
+  });
+  it('mostra motivo independente quando houver retrabalho', async () => {
     await TestBed.configureTestingModule({
       imports: [ReporteSlide],
       providers: [
@@ -27,9 +93,9 @@ describe('ReporteSlide', () => {
     fixture.detectChanges();
 
     expect(scrapReasonService.buscarMotivos).toHaveBeenCalledWith('');
-    const motivo = fixture.nativeElement.querySelector('po-select[name="reporteMotivoRefugo"]');
+    const motivo = fixture.nativeElement.querySelector('po-select[name="reporteMotivoRetrabalho"]');
     expect(motivo).not.toBeNull();
-    expect(motivo.textContent).toContain('Motivo de Refugo/Retrabalho');
+    expect(motivo.textContent).toContain('Motivo de retrabalho');
     expect(fixture.nativeElement.querySelectorAll('po-number')).toHaveLength(3);
     expect(fixture.nativeElement.querySelectorAll('.reporte-slide__footer po-button')).toHaveLength(2);
   });
@@ -72,15 +138,16 @@ describe('ReporteSlide', () => {
     expect(component.totalInformado).toBe(110);
   });
 
-  it('exige o mesmo motivo quando há retrabalho ou refugo', () => {
+  it('exige motivos independentes quando há retrabalho e refugo', () => {
     const component = new ReporteSlide({ markForCheck: vi.fn() } as never, { confirm: vi.fn() } as never, scrapReasonService as never);
     component.atualizarQuantidade('quantidadeRetrabalho', 1);
     expect(component.canSave).toBe(false);
 
-    component.atualizarMotivo('05');
+    component.atualizarMotivo('05', 'retrabalho');
     expect(component.canSave).toBe(true);
-
     component.atualizarQuantidade('quantidadeRefugo', 1);
+    expect(component.canSave).toBe(false);
+    component.atualizarMotivo('05');
     expect(component.canSave).toBe(true);
   });
 
@@ -93,9 +160,10 @@ describe('ReporteSlide', () => {
     component.atualizarQuantidade('quantidadeRefugo', 2);
     component.atualizarQuantidade('quantidadeRetrabalho', 1);
     component.atualizarMotivo('05');
-
+    component.atualizarMotivo('05', 'retrabalho');
     component.atualizarQuantidade('quantidadeRefugo', 0);
-    expect(component.motivoCodigo).toBe('05');
+    expect(component.motivoCodigo).toBe('');
+    expect(component.motivoRetrabalhoCodigo).toBe('05');
 
     component.atualizarQuantidade('quantidadeRetrabalho', 0);
 
@@ -184,8 +252,8 @@ describe('ReporteSlide', () => {
       scrapReasonService as never,
     );
     component.motivoOptions = [
-      { label: '05 - Borra', value: '05', descricao: 'Borra' },
-      { label: '07 - Trinca', value: '07', descricao: 'Trinca' },
+      { label: '05 - Borra', value: '05', descricao: 'Borra', materialScrap: true, rework: true },
+      { label: '07 - Trinca', value: '07', descricao: 'Trinca', materialScrap: true, rework: true },
     ];
     const emitted: Array<{ idempotencyKey?: string }> = [];
     component.reporteSolicitado.subscribe(draft => emitted.push(draft));
@@ -282,7 +350,7 @@ describe('ReporteSlide', () => {
 
     expect(emitted).not.toHaveBeenCalled();
     expect(component.validationMessage).toBe(
-      'Informe um motivo de Refugo/Retrabalho da Ordem 450001.',
+      'Informe um motivo de refugo elegível.',
     );
   });
 
@@ -296,16 +364,16 @@ describe('ReporteSlide', () => {
 
     expect(emitted).not.toHaveBeenCalled();
     expect(component.validationMessage).toBe(
-      'Informe um motivo de Refugo/Retrabalho da Ordem 450001.',
+      'Informe um motivo de retrabalho elegível.',
     );
 
-    component.atualizarMotivo('05');
+    component.atualizarMotivo('05', 'retrabalho');
     component.salvar();
 
     expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRetrabalho: 2,
       quantidadeRefugo: 0,
-      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
+      schemaVersion: 2, motivos: [{ codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 2, quantidadeRefugo: 0 }],
     }));
   });
 
@@ -319,7 +387,7 @@ describe('ReporteSlide', () => {
 
     expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRefugo: 2,
-      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 2 }],
+      motivos: [{ codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 2 }],
     }));
   });
 
@@ -348,7 +416,7 @@ describe('ReporteSlide', () => {
 
     expect(emitted).toHaveBeenCalledWith(expect.objectContaining({
       quantidadeRefugo: 1.234,
-      refugoItens: [{ codigo: '05', descricao: 'Borra', quantidade: 1.234 }],
+      motivos: [{ codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 1.234 }],
     }));
   });
 });

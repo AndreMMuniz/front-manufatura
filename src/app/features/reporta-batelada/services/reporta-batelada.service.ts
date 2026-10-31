@@ -1,3 +1,4 @@
+import { validateReportReasons } from '../../../../report-reasons';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 
@@ -25,6 +26,7 @@ import { AreaProducao } from '../../shop-floor/models/production-area';
 import { WorkCenter } from '../../shop-floor/models/work-center';
 import { ProductionContextCatalogService } from '../../shop-floor/services/production-context-catalog.service';
 import {
+  ConsultaAberturaBateladaRequest,
   EncerrarBateladaRequest,
   EncerrarBateladaResponse,
   IniciarBateladaRequest,
@@ -100,6 +102,34 @@ export class ReportaBateladaService {
 
   descartarFluxoParada(): void {
     this.stoppedWorkflow = null;
+  }
+
+  restaurarSessaoLocal(snapshot: ReportaBateladaWorkflowSnapshot): ReportaBateladaWorkflowSnapshot | null {
+    try {
+      if (!snapshot || !snapshot.batchId || !snapshot.area?.code || !snapshot.workCenter?.code || !snapshot.responsavel?.codigo
+        || !snapshot.inicio || snapshot.inicio.batchId !== snapshot.batchId || !Array.isArray(snapshot.composition) || !snapshot.composition.length
+        || !Array.isArray(snapshot.history) || !Array.isArray(snapshot.orders) || !Array.isArray(snapshot.selectedOrderIds) || !Array.isArray(snapshot.responsaveis)
+        || ![EstadoBatelada.BateladaIniciada, EstadoBatelada.ReportandoParcial, EstadoBatelada.EmParada].includes(snapshot.estado)
+        || snapshot.composition.some(order => !order?.id || !order.ordem || !order.operacao || !order.split)
+        || new Set(snapshot.composition.map(order => order.id)).size !== snapshot.composition.length) return null;
+      const inicio = this.cloneInicio(snapshot.inicio);
+      if (Number.isNaN(inicio.iniciadoEm.getTime())) return null;
+      const history = snapshot.history.map(report => this.cloneReport(report));
+      const splits = new Map(inicio.delivery?.status === 'SYNCED' ? batchStartSplits(inicio.delivery.receipt) : []);
+      for (const order of snapshot.composition) if (!splits.has(order.id)) splits.set(order.id, order.split);
+      this.batches.set(snapshot.batchId, { orderIds: snapshot.composition.map(order => order.id), splitsByOrder: splits, encerrada: false });
+      this.reportsByBatch.set(snapshot.batchId, history);
+      return { ...snapshot, inicio, history, draft: null, estado: snapshot.estado === EstadoBatelada.ReportandoParcial ? EstadoBatelada.BateladaIniciada : snapshot.estado, reportAsyncState: 'ocioso', historyAsyncState: 'ocioso' };
+    } catch { return null; }
+  }
+
+  /** Transport only: the success contract must be confirmed before restoring workflow state. */
+  consultarAberturaBatelada(request: ConsultaAberturaBateladaRequest): Observable<unknown> {
+    return defer(() => this.api.get<unknown>('/api/batches/open', {
+      areaCode: request.areaCode,
+      workCenterCode: request.workCenterCode,
+      ordens: request.ordens.join(','),
+    }));
   }
 
   restaurarBateladaAtiva(): Observable<ReportaBateladaWorkflowSnapshot | null> {
@@ -381,7 +411,7 @@ export class ReportaBateladaService {
       ...item.refugoItens.map(reason => reason.quantidade),
     ]);
 
-    if (quantities.some(quantity => !Number.isFinite(quantity) || quantity < 0)) {
+    if (quantities.some(quantity => !Number.isFinite(quantity) || (request.schemaVersion === 2 && !Number.isFinite(arredondarQuantidadeBatelada(quantity))) || quantity < 0)) {
       throw new Error('As quantidades devem ser números finitos e não negativos.');
     }
 
@@ -396,11 +426,17 @@ export class ReportaBateladaService {
     if (!Number.isFinite(total)) {
       throw new Error('O total informado excede o limite permitido.');
     }
-    if (total <= 0) {
+    if (request.schemaVersion === 2 ? !request.items.some(item => [item.quantidadeAprovada, item.quantidadeRetrabalho, item.quantidadeRefugo].some(value => arredondarQuantidadeBatelada(value) > 0)) : total <= 0) {
       throw new Error('Informe ao menos uma quantidade positiva para salvar o reporte.');
     }
 
     for (const item of request.items) {
+      if ((request.schemaVersion === 2) !== (item.schemaVersion === 2)) throw new Error('A versão do reporte e de suas ordens deve ser uniforme.');
+      if (request.schemaVersion === 2) {
+        const error = validateReportReasons(item.quantidadeRetrabalho, item.quantidadeRefugo, item.motivos ?? []);
+        if (error) throw new Error(error);
+        continue;
+      }
       const requiresReason = arredondarQuantidadeBatelada(item.quantidadeRefugo) > 0;
       if (requiresReason && item.refugoItens.length !== 1) {
         throw new Error(`Informe um motivo de refugo para a ordem ${item.ordem}.`);
@@ -449,6 +485,7 @@ export class ReportaBateladaService {
           ? { dependencyIds: validated.dependencyIds }
           : {}),
         payload: {
+          ...(validated.schemaVersion === 2 ? { schemaVersion: 2 } : {}),
           batchId: validated.batchId,
           contexto: { ...validated.contexto },
           responsavel: { ...validated.responsavel },
@@ -459,9 +496,12 @@ export class ReportaBateladaService {
           finalizarSplit: validated.finalizarSplit,
           items: validated.items.map(item => {
             const split = this.batches.get(validated.batchId)?.splitsByOrder?.get(item.orderId);
+            const { motivos, legacyReasons, ...legacyItem } = item;
             return {
-              ...item,
+              ...legacyItem,
+              ...(validated.schemaVersion === 2 ? { quantidadeAprovada: arredondarQuantidadeBatelada(item.quantidadeAprovada), quantidadeRetrabalho: arredondarQuantidadeBatelada(item.quantidadeRetrabalho), quantidadeRefugo: arredondarQuantidadeBatelada(item.quantidadeRefugo) } : {}),
               ...(split ? { split } : {}),
+              ...(validated.schemaVersion === 2 ? { motivos: (motivos ?? []).map(reason => ({ ...reason })) } : {}),
               refugoItens: item.refugoItens.map(reason => ({ ...reason })),
             };
           }),
@@ -726,6 +766,7 @@ export class ReportaBateladaService {
     request: ReporteParcialBateladaRequest,
   ): ReporteParcialBateladaRequest {
     return {
+      ...(request.schemaVersion === 2 ? { schemaVersion: 2 as const } : {}),
       batchId: request.batchId,
       idempotencyKey: request.idempotencyKey,
       contexto: { ...request.contexto },
@@ -738,6 +779,8 @@ export class ReportaBateladaService {
       ...(request.dependencyIds ? { dependencyIds: [...request.dependencyIds] } : {}),
       items: request.items.map(item => ({
         ...item,
+        ...(item.legacyReasons ? { legacyReasons: item.legacyReasons.map(reason => ({ ...reason })) } : {}),
+        ...(item.motivos ? { motivos: item.motivos.map(reason => ({ ...reason })) } : {}),
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
       })),
     };
@@ -985,6 +1028,7 @@ export class ReportaBateladaService {
   ): ReadonlyArray<ItemReporteBatelada> {
     return items.map(item => ({
       ...item,
+      ...(item.motivos ? { motivos: item.motivos.map(reason => ({ ...reason })) } : {}),
       refugoItens: item.refugoItens.map(reason => ({ ...reason })),
     }));
   }

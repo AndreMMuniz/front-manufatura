@@ -1,3 +1,5 @@
+import { ReportDraftPersistence } from '../../../../core/offline/services/report-draft-persistence.service';
+import { MotivoReporte, setReportReason, validateReportReasons } from '../../../../../report-reasons';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -28,6 +30,8 @@ import { PwaWorkStateService } from '../../../../core/offline/pwa/pwa-work-state
 import { IdempotencyService } from '../../../../core/offline/services/idempotency.service';
 
 export interface ReporteParcialDraft {
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly idempotencyKey?: string;
   readonly quantidadeAprovada: number;
   readonly quantidadeRetrabalho: number;
@@ -45,6 +49,12 @@ export interface ReporteParcialDraft {
 })
 export class ReporteSlide implements OnDestroy {
   @Input() ordem = '';
+  @Input() draftPersistence: ReportDraftPersistence | null = null;
+  @Input() draftIdentity = '';
+  private activeDraftIdentity = '';
+  private draftRevision = 0;
+  private restoreRequest = 0;
+  restoringDraft = false;
   @Output() reporteSolicitado = new EventEmitter<ReporteParcialDraft>();
 
   @ViewChild('pageSlide', { static: true }) private pageSlide!: PoPageSlideComponent;
@@ -57,10 +67,13 @@ export class ReporteSlide implements OnDestroy {
   validationMessage = '';
   carregandoMotivos = false;
   motivoCodigo = '';
+  motivoRetrabalhoCodigo = '';
   motivoOptions: ReadonlyArray<{
     readonly label: string;
     readonly value: string;
     readonly descricao: string;
+    readonly materialScrap?: boolean;
+    readonly rework?: boolean;
   }> = [];
   private idempotencyKey = '';
   private finalizarAoSalvar = false;
@@ -81,6 +94,7 @@ export class ReporteSlide implements OnDestroy {
   ) {}
 
   ngOnDestroy(): void {
+    this.restoreRequest++;
     this.pwaWorkState.setCaptureActive('report-operation', false);
     this.destroyed$.next();
     this.destroyed$.complete();
@@ -91,12 +105,25 @@ export class ReporteSlide implements OnDestroy {
   }
 
   get canSave(): boolean {
-    return !this.salvando && this.validationError() === '';
+    return !this.salvando && !this.restoringDraft && this.validationError() === '';
   }
 
   get motivoObrigatorio(): boolean {
     return this.round3(this.quantidadeRetrabalho) > 0
       || this.round3(this.quantidadeRefugo) > 0;
+  }
+
+  get refugoObrigatorio(): boolean { return this.round3(this.quantidadeRefugo) > 0; }
+  get retrabalhoObrigatorio(): boolean { return this.round3(this.quantidadeRetrabalho) > 0; }
+  get motivosRefugoOptions() { return this.motivoOptions.filter(option => option.materialScrap === true); }
+  get motivosRetrabalhoOptions() { return this.motivoOptions.filter(option => option.rework === true); }
+  get motivos(): MotivoReporte[] {
+    let reasons: MotivoReporte[] = [];
+    for (const [field, code] of [['quantidadeRetrabalho', this.motivoRetrabalhoCodigo], ['quantidadeRefugo', this.motivoCodigo]] as const) {
+      const option = this.motivoOptions.find(item => item.value === code);
+      reasons = setReportReason(reasons, field, this[field], option ? { codigo: option.value, descricao: option.descricao } : undefined);
+    }
+    return reasons;
   }
 
   get hasDraft(): boolean {
@@ -114,11 +141,14 @@ export class ReporteSlide implements OnDestroy {
     valor: number | null | undefined,
   ): void {
     const quantidade = typeof valor === 'number' ? valor : 0;
-    if (Object.is(this[campo], quantidade)) {
+    if (this.salvando || Object.is(this[campo], quantidade)) {
       return;
     }
 
     this[campo] = quantidade;
+    this.draftRevision++;
+    if (campo === 'quantidadeRefugo' && this.round3(quantidade) <= 0) this.motivoCodigo = '';
+    if (campo === 'quantidadeRetrabalho' && this.round3(quantidade) <= 0) this.motivoRetrabalhoCodigo = '';
     this.idempotencyKey = '';
     this.validationMessage = '';
     if (campo === 'quantidadeRetrabalho' || campo === 'quantidadeRefugo') {
@@ -128,27 +158,40 @@ export class ReporteSlide implements OnDestroy {
         this.motivoCodigo = '';
       }
     }
+    this.persistDraft();
   }
 
-  atualizarMotivo(codigo: string | null | undefined): void {
+  atualizarMotivo(codigo: string | null | undefined, tipo: 'refugo' | 'retrabalho' = 'refugo'): void {
+    if (this.salvando) return;
+    const field = tipo === 'refugo' ? 'motivoCodigo' : 'motivoRetrabalhoCodigo';
     const motivoCodigo = codigo ?? '';
-    if (motivoCodigo !== this.motivoCodigo) {
+    if (motivoCodigo !== this[field]) {
       this.idempotencyKey = '';
     }
-    this.motivoCodigo = motivoCodigo;
+    this[field] = motivoCodigo;
+    this.draftRevision++;
     this.validationMessage = '';
+    this.persistDraft();
   }
 
   abrir(reportes: ReadonlyArray<ReporteParcialOperacao>, finalizarAoSalvar = false): void {
+    if (this.activeDraftIdentity !== this.draftIdentity) this.resetDraft();
+    this.restoreRequest++;
+    this.restoringDraft = false;
+    this.activeDraftIdentity = this.draftIdentity;
     this.historico = reportes.map(reporte => ({
       ...reporte,
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
+      ...(reporte.motivos ? { motivos: reporte.motivos.map(item => ({ ...item })) } : {}),
+
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }));
     if (!this.hasDraft) this.resetDraft();
+    if (this.finalizarAoSalvar !== finalizarAoSalvar) this.idempotencyKey = '';
     this.finalizarAoSalvar = finalizarAoSalvar;
+    if (!this.hasDraft) this.restorePersistedDraft();
     this.pwaWorkState.setCaptureActive('report-operation', true);
     this.pageSlide.open();
     this.slideOpen = true;
@@ -156,7 +199,7 @@ export class ReporteSlide implements OnDestroy {
   }
 
   salvar(): void {
-    if (this.salvando) {
+    if (this.salvando || this.restoringDraft) {
       return;
     }
 
@@ -169,20 +212,15 @@ export class ReporteSlide implements OnDestroy {
     this.salvando = true;
     this.validationMessage = '';
     this.idempotencyKey ||= this.createIdempotencyKey();
-    const motivo = this.motivoOptions.find(option => option.value === this.motivoCodigo);
-    const refugoItens: ReadonlyArray<ReporteRefugoItem> = motivo
-      ? [{
-          codigo: motivo.value,
-          descricao: motivo.descricao,
-          quantidade: this.round3(this.quantidadeRetrabalho + this.quantidadeRefugo),
-        }]
-      : [];
+    this.persistDraft();
     this.reporteSolicitado.emit({
       idempotencyKey: this.idempotencyKey,
       quantidadeAprovada: this.round3(this.quantidadeAprovada),
       quantidadeRetrabalho: this.round3(this.quantidadeRetrabalho),
       quantidadeRefugo: this.round3(this.quantidadeRefugo),
-      refugoItens,
+      schemaVersion: 2,
+      motivos: this.motivos,
+      refugoItens: [],
       finalizarSplit: this.finalizarAoSalvar,
     });
   }
@@ -209,6 +247,7 @@ export class ReporteSlide implements OnDestroy {
             : [item];
         });
     this.salvando = false;
+    this.clearPersistedDraft();
     this.resetDraft();
     this.pwaWorkState.setCaptureActive('report-operation', false);
     if (this.slideOpen) {
@@ -238,6 +277,7 @@ export class ReporteSlide implements OnDestroy {
       title: 'Descartar reporte?',
       message: 'Existem quantidades ainda não salvas. Deseja descartá-las?',
       confirm: () => {
+        this.clearPersistedDraft();
         this.resetDraft();
         this.pwaWorkState.setCaptureActive('report-operation', false);
         if (this.slideOpen) {
@@ -267,6 +307,50 @@ export class ReporteSlide implements OnDestroy {
     }).format(data);
   }
 
+  private persistDraft(): void {
+    if (!this.draftPersistence || !this.activeDraftIdentity) return;
+    void this.draftPersistence.write(this.activeDraftIdentity, {
+      quantidadeAprovada: this.quantidadeAprovada,
+      quantidadeRetrabalho: this.quantidadeRetrabalho,
+      quantidadeRefugo: this.quantidadeRefugo,
+      motivoCodigo: this.motivoCodigo,
+      motivoRetrabalhoCodigo: this.motivoRetrabalhoCodigo,
+      idempotencyKey: this.idempotencyKey,
+      finalizarSplit: this.finalizarAoSalvar,
+    }).then(saved => {
+      if (!saved) { this.validationMessage = 'Não foi possível preservar o rascunho após recarga nesta aba.'; this.changeDetector.markForCheck(); }
+    });
+  }
+
+  private restorePersistedDraft(): void {
+    if (!this.draftPersistence || !this.activeDraftIdentity) return;
+    const identity = this.activeDraftIdentity;
+    const revision = this.draftRevision;
+    const request = ++this.restoreRequest;
+    this.restoringDraft = true;
+    void this.draftPersistence.read<Record<string, unknown>>(identity).then(saved => {
+      if (request !== this.restoreRequest || identity !== this.activeDraftIdentity || revision !== this.draftRevision) return;
+      if (saved && ['quantidadeAprovada', 'quantidadeRetrabalho', 'quantidadeRefugo'].every(field => typeof saved[field] === 'number' && Number.isFinite(saved[field]) && (saved[field] as number) >= 0)) {
+        this.quantidadeAprovada = saved['quantidadeAprovada'] as number;
+        this.quantidadeRetrabalho = saved['quantidadeRetrabalho'] as number;
+        this.quantidadeRefugo = saved['quantidadeRefugo'] as number;
+        this.motivoCodigo = typeof saved['motivoCodigo'] === 'string' ? saved['motivoCodigo'] : '';
+        this.motivoRetrabalhoCodigo = typeof saved['motivoRetrabalhoCodigo'] === 'string' ? saved['motivoRetrabalhoCodigo'] : '';
+        this.idempotencyKey = saved['finalizarSplit'] === this.finalizarAoSalvar && typeof saved['idempotencyKey'] === 'string' ? saved['idempotencyKey'] : '';
+        if (this.motivoObrigatorio) this.carregarMotivos();
+      }
+    }).catch(() => {
+      if (request === this.restoreRequest) this.validationMessage = 'Não foi possível restaurar o rascunho salvo. As quantidades atuais foram preservadas.';
+    }).finally(() => { if (request === this.restoreRequest) { this.restoringDraft = false; this.changeDetector.markForCheck(); } });
+  }
+
+  private clearPersistedDraft(): void {
+    this.restoreRequest++;
+    this.restoringDraft = false;
+    this.draftRevision++;
+    if (this.draftPersistence && this.activeDraftIdentity) void this.draftPersistence.write(this.activeDraftIdentity, null);
+  }
+
   private resetDraft(): void {
     this.quantidadeAprovada = 0;
     this.quantidadeRetrabalho = 0;
@@ -275,6 +359,7 @@ export class ReporteSlide implements OnDestroy {
     this.finalizarAoSalvar = false;
     this.validationMessage = '';
     this.motivoCodigo = '';
+    this.motivoRetrabalhoCodigo = '';
   }
 
   private validationError(): string {
@@ -283,27 +368,27 @@ export class ReporteSlide implements OnDestroy {
       this.quantidadeRetrabalho,
       this.quantidadeRefugo,
     ];
-    if (quantidades.some(quantidade => !Number.isFinite(quantidade) || quantidade < 0)) {
+    if (quantidades.some(quantidade => !Number.isFinite(quantidade) || !Number.isFinite(this.round3(quantidade)) || quantidade < 0)) {
       return 'As quantidades não podem ser negativas.';
     }
     if (![this.quantidadeAprovada, this.quantidadeRetrabalho, this.quantidadeRefugo]
       .some(quantidade => this.round3(quantidade) > 0)) {
       return 'Informe ao menos uma quantidade produzida.';
     }
-    if (this.motivoObrigatorio && !this.motivoCodigo.trim()) {
-      return `Informe um motivo de Refugo/Retrabalho${this.ordemLabel}.`;
-    }
-    return '';
+    if (this.retrabalhoObrigatorio && !this.motivosRetrabalhoOptions.some(option => option.value === this.motivoRetrabalhoCodigo)) return 'Informe um motivo de retrabalho elegível.';
+    if (this.refugoObrigatorio && !this.motivosRefugoOptions.some(option => option.value === this.motivoCodigo)) return 'Informe um motivo de refugo elegível.';
+    return validateReportReasons(this.quantidadeRetrabalho, this.quantidadeRefugo, this.motivos);
   }
 
-  private carregarMotivos(): void {
-    if (this.carregandoMotivos || this.motivoOptions.length > 0) return;
+  carregarMotivos(retry = false): void {
+    if (this.carregandoMotivos || (!retry && this.motivoOptions.length > 0)) return;
     this.carregandoMotivos = true;
     const request = ++this.motivosRequest;
     this.motivoService.buscarMotivos('').pipe(takeUntil(this.destroyed$)).subscribe({
       next: motivos => {
         if (request !== this.motivosRequest) return;
         this.motivoOptions = motivos.map(motivo => ({
+          ...motivo,
           label: `${motivo.codigo} - ${motivo.descricao}`,
           value: motivo.codigo,
           descricao: motivo.descricao,

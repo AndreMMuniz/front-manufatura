@@ -7,6 +7,7 @@
   [p-hide-close]="true"
 >
   <section class="batch-report">
+    @if (restoringDraft || carregandoMotivos) { <p role="status">Carregando os dados do reporte...</p> }
     <div class="batch-report__orders" aria-label="Quantidades por ordem">
       @for (item of items; track item.orderId) {
         <article class="batch-report__order">
@@ -16,7 +17,7 @@
               [name]="'aprovada-' + item.orderId"
               p-label="Qtde Aprovada"
               [p-min]="0"
-              [p-disabled]="salvando"
+              [p-disabled]="salvando || restoringDraft"
               [ngModel]="item.quantidadeAprovada === 0 ? null : item.quantidadeAprovada"
               (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeAprovada', $event)"
             ></po-number>
@@ -24,7 +25,7 @@
               [name]="'retrabalho-' + item.orderId"
               p-label="Qtde Retrabalho"
               [p-min]="0"
-              [p-disabled]="salvando"
+              [p-disabled]="salvando || restoringDraft"
               [ngModel]="item.quantidadeRetrabalho === 0 ? null : item.quantidadeRetrabalho"
               (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeRetrabalho', $event)"
             ></po-number>
@@ -32,26 +33,32 @@
               [name]="'refugo-' + item.orderId"
               p-label="Qtde Refugo"
               [p-min]="0"
-              [p-disabled]="salvando"
+              [p-disabled]="salvando || restoringDraft"
               [ngModel]="item.quantidadeRefugo === 0 ? null : item.quantidadeRefugo"
               (ngModelChange)="atualizarQuantidade(item.orderId, 'quantidadeRefugo', $event)"
             ></po-number>
           </div>
 
-          @if (item.quantidadeRefugo > 0) {
-            <po-select
-              [name]="'motivo-refugo-' + item.orderId"
-              p-label="Motivo Refugo"
-              [p-options]="motivoOptions"
-              [p-disabled]="salvando || carregandoMotivos"
-              [ngModel]="motivoSelecionado(item)"
-              (ngModelChange)="atualizarMotivo(item.orderId, $event)"
-            ></po-select>
+          <div class="report-reasons">
+            @if (positivo(item.quantidadeRetrabalho) && !restoringDraft && !carregandoMotivos && motivosRetrabalhoOptions.length > 0) {
+              <po-select [name]="'motivo-retrabalho-' + item.orderId" p-label="Motivo de retrabalho" [p-required]="true" [p-options]="motivosRetrabalhoOptions" [p-disabled]="salvando || restoringDraft || carregandoMotivos" [ngModel]="motivoSelecionado(item, 'retrabalho')" (ngModelChange)="atualizarMotivo(item.orderId, $event, 'retrabalho')"></po-select>
+            }
+            @if (positivo(item.quantidadeRefugo) && !restoringDraft && !carregandoMotivos && motivosRefugoOptions.length > 0) {
+              <po-select [name]="'motivo-refugo-' + item.orderId" p-label="Motivo de refugo" [p-required]="true" [p-options]="motivosRefugoOptions" [p-disabled]="salvando || restoringDraft || carregandoMotivos" [ngModel]="motivoSelecionado(item)" (ngModelChange)="atualizarMotivo(item.orderId, $event)"></po-select>
+            }
+          </div>
+          @if (item.legacyReasons?.length) {
+            <p>Motivo legado de refugo: revise as seleções antes de salvar.
+              @for (reason of item.legacyReasons ?? []; track $index) { <span>{{ reason.motivoCode }} - {{ reason.descricao }}: {{ formatQuantidade(reason.quantidade) }}</span> }
+            </p>
           }
         </article>
       }
     </div>
 
+    @if (!carregandoMotivos && catalogoNecessarioIndisponivel) {
+      <po-button p-label="Tentar carregar motivos" [p-disabled]="salvando || restoringDraft" (p-click)="carregarMotivos(true)"></po-button>
+    }
     @if (validationMessage) {
       <p class="batch-report__feedback" role="alert">{{ validationMessage }}</p>
     }
@@ -83,12 +90,20 @@
                   <td data-label="Retrabalho">{{ formatQuantidade(item.quantidadeRetrabalho) }}</td>
                   <td data-label="Refugo">{{ formatQuantidade(item.quantidadeRefugo) }}</td>
                 </tr>
+                @if (item.motivos?.length) {
+                  <tr class="batch-report__history-reasons"><td colspan="5">
+                    @for (motivo of item.motivos ?? []; track motivo.codigo) {
+                      @if (motivo.quantidadeRetrabalho > 0) { <span>Retrabalho — {{ motivo.codigo }} - {{ motivo.descricao }}: {{ formatQuantidade(motivo.quantidadeRetrabalho) }}</span> }
+                      @if (motivo.quantidadeRefugo > 0) { <span>Refugo — {{ motivo.codigo }} - {{ motivo.descricao }}: {{ formatQuantidade(motivo.quantidadeRefugo) }}</span> }
+                    }
+                  </td></tr>
+                }
                 @if (item.refugoItens.length > 0) {
                   <tr class="batch-report__history-reasons">
                     <td colspan="5">
                       <strong>Ordem {{ item.ordem }}:</strong>
                       @for (reason of item.refugoItens; track reason.motivoCode + $index) {
-                        <span>{{ reason.motivoCode }} — {{ reason.descricao }}: {{ formatQuantidade(reason.quantidade) }}</span>
+                        <span>Motivo legado de refugo — {{ reason.motivoCode }} — {{ reason.descricao }}: {{ formatQuantidade(reason.quantidade) }}</span>
                       }
                     </td>
                   </tr>
@@ -115,7 +130,7 @@
       <po-button
         p-label="Voltar"
         p-kind="secondary"
-        [p-disabled]="salvando"
+        [p-disabled]="salvando || restoringDraft"
         (p-click)="voltar()"
       ></po-button>
     </div>

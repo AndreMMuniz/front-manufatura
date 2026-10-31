@@ -5,7 +5,7 @@
         name="reporteQuantidadeAprovada"
         p-label="Qtde Aprovada"
         [p-min]="0"
-        [p-disabled]="salvando"
+        [p-disabled]="salvando || restoringDraft"
         [ngModel]="quantidadeAprovada === 0 ? null : quantidadeAprovada"
         (ngModelChange)="atualizarQuantidade('quantidadeAprovada', $event)"
       ></po-number>
@@ -14,7 +14,7 @@
         name="reporteQuantidadeRetrabalho"
         p-label="Qtde Retrabalho"
         [p-min]="0"
-        [p-disabled]="salvando"
+        [p-disabled]="salvando || restoringDraft"
         [ngModel]="quantidadeRetrabalho === 0 ? null : quantidadeRetrabalho"
         (ngModelChange)="atualizarQuantidade('quantidadeRetrabalho', $event)"
       ></po-number>
@@ -23,21 +23,24 @@
         name="reporteQuantidadeRefugo"
         p-label="Qtde Refugo"
         [p-min]="0"
-        [p-disabled]="salvando"
+        [p-disabled]="salvando || restoringDraft"
         [ngModel]="quantidadeRefugo === 0 ? null : quantidadeRefugo"
         (ngModelChange)="atualizarQuantidade('quantidadeRefugo', $event)"
       ></po-number>
     </div>
 
-    @if (motivoObrigatorio) {
-      <po-select
-        name="reporteMotivoRefugo"
-        p-label="Motivo de Refugo/Retrabalho"
-        [p-options]="motivoOptions"
-        [p-disabled]="salvando || carregandoMotivos"
-        [ngModel]="motivoCodigo"
-        (ngModelChange)="atualizarMotivo($event)"
-      ></po-select>
+    @if (restoringDraft || carregandoMotivos) { <p role="status">Carregando os dados do reporte...</p> }
+    <div class="report-reasons">
+      @if (retrabalhoObrigatorio && !restoringDraft && !carregandoMotivos && motivosRetrabalhoOptions.length > 0) {
+        <po-select name="reporteMotivoRetrabalho" p-label="Motivo de retrabalho" [p-required]="true" [p-options]="motivosRetrabalhoOptions" [p-disabled]="salvando || restoringDraft || carregandoMotivos" [ngModel]="motivoRetrabalhoCodigo" (ngModelChange)="atualizarMotivo($event, 'retrabalho')"></po-select>
+      }
+      @if (refugoObrigatorio && !restoringDraft && !carregandoMotivos && motivosRefugoOptions.length > 0) {
+        <po-select name="reporteMotivoRefugo" p-label="Motivo de refugo" [p-required]="true" [p-options]="motivosRefugoOptions" [p-disabled]="salvando || restoringDraft || carregandoMotivos" [ngModel]="motivoCodigo" (ngModelChange)="atualizarMotivo($event, 'refugo')"></po-select>
+      }
+    </div>
+    @if (!carregandoMotivos && ((refugoObrigatorio && motivosRefugoOptions.length === 0) || (retrabalhoObrigatorio && motivosRetrabalhoOptions.length === 0))) {
+      <p role="alert">Nenhum motivo disponível. Verifique a conexão e tente novamente.</p>
+      <po-button p-label="Tentar carregar motivos" [p-disabled]="salvando || restoringDraft" (p-click)="carregarMotivos(true)"></po-button>
     }
 
     @if (validationMessage) {
@@ -80,11 +83,17 @@
               ? 'Rejeitado pelo Datasul'
               : 'Envio pendente' }}
         </small>
+        @for (motivo of reporte.motivos ?? []; track motivo.codigo) {
+          <div class="reporte-slide__reasons">
+            @if (motivo.quantidadeRetrabalho > 0) { <span>Retrabalho — {{ motivo.codigo }} - {{ motivo.descricao }}: {{ formatQuantidade(motivo.quantidadeRetrabalho) }}</span> }
+            @if (motivo.quantidadeRefugo > 0) { <span>Refugo — {{ motivo.codigo }} - {{ motivo.descricao }}: {{ formatQuantidade(motivo.quantidadeRefugo) }}</span> }
+          </div>
+        }
         @if (reporte.refugoItens.length > 0) {
           <div class="reporte-slide__reasons">
             @for (item of reporte.refugoItens; track item.codigo + $index) {
               <span>
-                {{ item.codigo }} - {{ item.descricao }}:
+                Motivo legado compartilhado — {{ item.codigo }} - {{ item.descricao }}:
                 {{ formatQuantidade(item.quantidade) }}
               </span>
             }
@@ -105,7 +114,7 @@
         [p-disabled]="!canSave"
         (p-click)="salvar()"
       ></po-button>
-      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="salvando" (p-click)="voltar()"></po-button>
+      <po-button p-label="Voltar" p-kind="secondary" [p-disabled]="salvando || restoringDraft" (p-click)="voltar()"></po-button>
     </div>
   </po-page-slide-footer>
 </po-page-slide>

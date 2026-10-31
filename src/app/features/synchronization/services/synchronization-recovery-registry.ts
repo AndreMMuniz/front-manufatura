@@ -47,14 +47,14 @@ const RECOVERY_DEFINITIONS: Readonly<Record<OperationalCommandType, RecoveryDefi
     ]),
     REPORT_OPERATION: correctable('/operation-reporting', [
       'ordem', 'op', 'split', 'quantidadeAprovada', 'quantidadeRetrabalho',
-      'quantidadeRefugo', 'refugoItens', 'dataInicio', 'horaInicio', 'dataFim',
+      'quantidadeRefugo', 'refugoItens', 'schemaVersion', 'motivos', 'dataInicio', 'horaInicio', 'dataFim',
       'horaFim', 'operador', 'equipe', 'tipoResponsavel', 'codigoResponsavel', 'ct',
     ]),
     END_OPERATION: retryOnly('/operation-reporting'),
     START_BATCH: correctable('/batch-reporting', [
       'batchId', 'contexto', 'responsavel', 'ordens', 'iniciadoEm',
     ]),
-    REPORT_BATCH: correctable('/batch-reporting', ['batchId', 'items']),
+    REPORT_BATCH: correctable('/batch-reporting', ['batchId', 'items', 'schemaVersion']),
     END_BATCH: retryOnly('/batch-reporting'),
     CREATE_STOP: correctable('/stoppages', [
       'localId', 'context', 'reason', 'responsible', 'startDate', 'startTime',

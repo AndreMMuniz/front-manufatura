@@ -1,3 +1,5 @@
+import { ReportDraftPersistence } from '../../../../core/offline/services/report-draft-persistence.service';
+import { validateReportReasons } from '../../../../../report-reasons';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -91,6 +93,8 @@ export class ReportOperacaoPage implements OnInit {
   private readonly workflowState = inject(ReportOperacaoWorkflowState);
   private readonly operationalContext = inject(OperationalContextService);
   private readonly recentContextService = inject(RecentProductionContextService);
+  readonly reportDrafts = inject(ReportDraftPersistence);
+  get reportDraftOwner(): string { return this.authSession.currentUser?.id ?? ''; }
   private readonly authSession = inject(AuthSessionService);
   private readonly idempotency = inject(IdempotencyService);
   private readonly correctionContext = inject(OperationalCorrectionContextService);
@@ -298,7 +302,7 @@ export class ReportOperacaoPage implements OnInit {
     this.applyInitialContext();
     if (snapshot.operation) {
       this.loadResponsaveis();
-    }
+    } else void this.restoreLocalDraftSession();
   }
 
   onAreaChange(code: string): void {
@@ -425,6 +429,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   abrirReporte(): void {
+    this.persistLocalDraftSession();
     if (!this.reporteDisabled) {
       this.reporteSlide?.abrir(this.reportes);
     }
@@ -596,6 +601,7 @@ export class ReportOperacaoPage implements OnInit {
     }
 
     this.workflowState.setActiveOperation(this.operacao, this.estado);
+    this.persistLocalDraftSession();
     this.feedback = 'Abrindo reporte de paradas com o contexto da operação.';
     const area = this.areas.find(item => item.code === this.areaCode);
     const workCenter = this.centers.find(item => item.code === this.workCenterCode);
@@ -841,6 +847,7 @@ export class ReportOperacaoPage implements OnInit {
           this.reportes = [];
           this.responsaveis = [];
           this.workflowState.setActiveOperation(this.operacao, this.estado);
+          this.persistLocalDraftSession();
           this.workflowState.setScrap([], '');
           this.workflowState.setResponsavel(null);
           this.applyApiReportType(this.operacao);
@@ -940,6 +947,7 @@ export class ReportOperacaoPage implements OnInit {
         this.horaInicioSelecionada = start.horaInicio;
         this.estado = EstadoOperacao.OperacaoIniciada;
         this.workflowState.setActiveOperation(this.operacao, this.estado);
+        this.persistLocalDraftSession();
         this.feedback = this.auxiliaryFlow === 'refugo'
           ? 'Operação iniciada. Informe a quantidade de refugo no reporte.'
           : 'Operação iniciada. Informe as quantidades para reportar.';
@@ -1022,7 +1030,9 @@ export class ReportOperacaoPage implements OnInit {
     const invalidReason = refugoItens.some(item =>
       !Number.isFinite(item.quantidade) || item.quantidade <= 0);
     const requiresReason = quantidadeRefugo > 0 || quantidadeRetrabalho > 0;
-    const reasonValidation = invalidReason
+    const reasonValidation = draft.schemaVersion === 2
+      ? validateReportReasons(quantidadeRetrabalho, quantidadeRefugo, draft.motivos ?? [])
+      : invalidReason
       ? 'O motivo de Refugo/Retrabalho deve possuir uma quantidade válida e maior que zero.'
         : requiresReason && refugoItens.length !== 1
         ? `Informe exatamente um motivo de Refugo/Retrabalho para a Ordem ${operation.ordem}.`
@@ -1053,9 +1063,9 @@ export class ReportOperacaoPage implements OnInit {
     };
 
     this.reportOperacaoService.reportarOperacao(
-      this.toReportRequest(
+      { ...this.toReportRequest(
         parcial, responsavel, refugoItens, idempotencyKey,
-      ),
+      ), ...(draft.schemaVersion === 2 ? { schemaVersion: 2 as const, motivos: draft.motivos?.map(item => ({ ...item })) ?? [] } : {}) },
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -1085,6 +1095,7 @@ export class ReportOperacaoPage implements OnInit {
             quantidadeAprovada,
             quantidadeRetrabalho,
             quantidadeRefugo,
+            ...(draft.schemaVersion === 2 ? { schemaVersion: 2 as const, motivos: draft.motivos?.map(item => ({ ...item })) ?? [] } : {}),
             refugoItens: refugoItens.map(item => ({ ...item })),
             commandId: result.apontamentoId,
             deliveryStatus: result.delivery.status,
@@ -1099,7 +1110,9 @@ export class ReportOperacaoPage implements OnInit {
           }, this.reportes);
           this.estado = EstadoOperacao.OperacaoIniciada;
           this.workflowState.setActiveOperation(this.operacao, this.estado);
+          this.persistLocalDraftSession();
           this.workflowState.reconcileReporte(reporte);
+          this.persistLocalDraftSession();
           this.reporteSlide?.confirmarReporte(reporte);
           switch (result.delivery.status) {
             case 'SYNCED':
@@ -1222,6 +1235,28 @@ export class ReportOperacaoPage implements OnInit {
     });
   }
 
+  private persistLocalDraftSession(): void {
+    const snapshot = this.workflowState.snapshot();
+    if (snapshot.area && snapshot.workCenter && snapshot.operation?.dataInicio && snapshot.activeOrder && snapshot.responsavel) {
+      void this.reportDrafts.saveActive('operation', [snapshot.area.code, snapshot.workCenter.code, snapshot.operation.ordem, snapshot.operation.op, snapshot.operation.split].join('|'), { ...snapshot, selectedOrderIds: [...snapshot.selectedOrderIds] });
+    }
+  }
+
+  private async restoreLocalDraftSession(): Promise<void> {
+    const request = this.operationRequest;
+    const owner = this.reportDraftOwner;
+    const saved = await this.reportDrafts.readActive<ReturnType<ReportOperacaoWorkflowState['snapshot']>>('operation');
+    if (owner !== this.reportDraftOwner || request !== this.operationRequest || this.operacao || !saved) return;
+    if (this.workflowState.restoreLocalSession(saved)) {
+      const snapshot = this.workflowState.snapshot();
+      this.areas = snapshot.area ? [{ ...snapshot.area }] : [];
+      this.centers = snapshot.workCenter ? [{ ...snapshot.workCenter }] : [];
+      this.hydrate(snapshot);
+      this.loadResponsaveis();
+      this.changeDetector.markForCheck();
+    }
+  }
+
   private hydrate(snapshot: ReturnType<ReportOperacaoWorkflowState['snapshot']>): void {
     this.areaCode = snapshot.area?.code ?? '';
     this.workCenterCode = snapshot.workCenter?.code ?? '';
@@ -1238,6 +1273,7 @@ export class ReportOperacaoPage implements OnInit {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
+      ...(reporte.motivos ? { motivos: reporte.motivos.map(item => ({ ...item })) } : {}),
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     }));
     this.operacao = snapshot.operation
@@ -1252,6 +1288,7 @@ export class ReportOperacaoPage implements OnInit {
     if (snapshot.operation) {
       if (snapshot.operationState === EstadoOperacao.Reportando) {
         this.workflowState.setActiveOperation(this.operacao!, this.estado);
+    this.persistLocalDraftSession();
       } else if (
         this.operacao
         && (
@@ -1268,6 +1305,7 @@ export class ReportOperacaoPage implements OnInit {
   }
 
   private clearActiveOperation(): void {
+    void this.reportDrafts.clearActive('operation');
     this.operacao = null;
     this.estado = EstadoOperacao.SemOP;
     this.reportes = [];

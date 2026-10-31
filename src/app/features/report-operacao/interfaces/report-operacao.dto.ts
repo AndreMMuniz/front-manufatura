@@ -1,3 +1,4 @@
+import type { MotivoReporte } from '../../../../report-reasons';
 import type { ReportOperacao, TipoResponsavelOperacao } from '../models/report-operacao.model';
 import type { AreaProducao } from '../../shop-floor/models/production-area';
 import type { WorkCenter } from '../../shop-floor/models/work-center';
@@ -89,6 +90,8 @@ export interface RefugoItemRequest {
 }
 
 export interface ReportarOperacaoRequest {
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly idempotencyKey: string;
   readonly ordem: string;
   readonly op: string;

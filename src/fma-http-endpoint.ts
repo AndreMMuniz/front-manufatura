@@ -1,3 +1,4 @@
+import { validateReportReasons, roundReportQuantity, MotivoReporte } from './report-reasons';
 import express, { type Application, type Request, type Response as ExpressResponse } from 'express';
 
 import { APP_PERMISSIONS } from './app-permissions';
@@ -63,13 +64,30 @@ export function installFmaEndpoints(app: Application, dependencies: FmaEndpointD
     '/api/production-areas', '/api/work-centers', '/api/operators',
     '/api/operational-responsibles', '/api/teams', '/api/scrap-reasons',
     '/api/stop-reasons', '/api/production-orders', '/api/operations',
-    '/api/batches', '/api/production-stops',
+    '/api/batches', '/api/production-stops', '/api/reporting-scope',
   ];
   for (const root of roots) app.use(root, (_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
   app.use('/api', express.json({ limit: '64kb' }));
+
+  app.get('/api/reporting-scope', (req, res) => handle(req, res, dependencies, async client => ({ companyId: client.companyId })));
+
+  // Transport only until real success fixtures define the batch opening contract.
+  app.get('/api/batches/open', (req, res) => handle(req, res, dependencies, async client => {
+    const areaCode = requiredText(req.query['areaCode']);
+    const workCenterCode = requiredText(req.query['workCenterCode']);
+    const ordens = requiredText(req.query['ordens']);
+    if (ordens.split(',').some(reference => !reference.trim())) {
+      throw new QualityControlGatewayError(400, 'invalid-request');
+    }
+    return client.request('GET', '/api/fma/v1/abrirapontamentobatelada', undefined, {
+      codAreaProduc: areaCode,
+      codCtrab: workCenterCode,
+      ordens,
+    });
+  }));
 
   app.get('/api/work-centers', (req, res) => handle(req, res, dependencies, async client => {
     const areaCode = optionalText(req.query['areaCode']);
@@ -382,10 +400,10 @@ function installAdaptedRoutes(
     req, res, dependencies, client => generateTeam(client, objectOf(req.body)),
   ));
 
-  app.post('/api/operations/report', (req, res) => handle(req, res, dependencies, client => {
+  app.post('/api/operations/report', (req, res) => handle(req, res, dependencies, async client => {
     const body = objectOf(req.body);
     const command = reportCommand(body, false);
-    return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/reporteordem', command, 'operation-report');
+    return idempotentCommand(req, client, dependencies, commandRequests, '/api/fma/v1/reporteordem', command, 'operation-report', [], undefined, () => validateReasonEligibility(client, body, false));
   }));
 
   app.post('/api/operations/end', (req, res) => handle(req, res, dependencies, client => {
@@ -433,12 +451,13 @@ function installAdaptedRoutes(
     );
   }));
 
-  app.post('/api/batches/report', (req, res) => handle(req, res, dependencies, client => {
+  app.post('/api/batches/report', (req, res) => handle(req, res, dependencies, async client => {
     const body = objectOf(req.body);
     const command = reportCommand(body, true);
     return idempotentCommand(
       req, client, dependencies, commandRequests, '/api/fma/v1/reporteordembatelada', command,
       'batch-report', requiredObjects(body['items']).map(item => requiredText(item['orderId'])),
+      undefined, () => validateReasonEligibility(client, body, true),
     );
   }));
 
@@ -597,9 +616,10 @@ function reportCommand(body: JsonObject, batch: boolean): JsonObject {
   const dataFimReporte = localDate(endedAt);
   const horaFimReporte = validTime(body['horaFim']);
   assertChronological(dataInicioReporte, horaInicioReporte, dataFimReporte, horaFimReporte);
-  const splits = items.map(item => reportSplit(item, batch));
-  if (splits.reduce((total, split) => total
-    + Number(split['qtdAprovada']) + Number(split['qtdRetrabalho']) + Number(split['qtdRefugada']), 0) <= 0) {
+  const splits = items.map(item => reportSplit(item, batch, body['schemaVersion'] === 2));
+  const reportTotal = splits.reduce((total, split) => total
+    + Number(split['qtdAprovada']) + Number(split['qtdRetrabalho']) + Number(split['qtdRefugada']), 0);
+  if (reportTotal <= 0 || !Number.isFinite(reportTotal)) {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
   const common = {
@@ -629,13 +649,15 @@ function reportCommand(body: JsonObject, batch: boolean): JsonObject {
   };
 }
 
-function reportSplit(item: JsonObject, batch: boolean): JsonObject {
-  const approved = nonNegativeFinite(item['quantidadeAprovada']);
-  const rework = nonNegativeFinite(item['quantidadeRetrabalho']);
-  const scrap = nonNegativeFinite(item['quantidadeRefugo']);
+function reportSplit(item: JsonObject, batch: boolean, v2 = false): JsonObject {
+  const approved = v2 ? roundReportQuantity(nonNegativeFinite(item['quantidadeAprovada'])) : nonNegativeFinite(item['quantidadeAprovada']);
+  const rework = v2 ? roundReportQuantity(nonNegativeFinite(item['quantidadeRetrabalho'])) : nonNegativeFinite(item['quantidadeRetrabalho']);
+  const scrap = v2 ? roundReportQuantity(nonNegativeFinite(item['quantidadeRefugo'])) : nonNegativeFinite(item['quantidadeRefugo']);
   const reasons = objectArray(item['refugoItens']);
+  const motives = v2 ? objectArray(item['motivos']) : [];
+  if (v2 && (reasons.length || validateReportReasons(rework, scrap, motives as unknown as MotivoReporte[]))) throw new QualityControlGatewayError(400, 'invalid-request');
   const requiresReason = scrap > 0 || (!batch && rework > 0);
-  if ((requiresReason && reasons.length !== 1) || (!requiresReason && reasons.length !== 0)) {
+  if (!v2 && ((requiresReason && reasons.length !== 1) || (!requiresReason && reasons.length !== 0))) {
     throw new QualityControlGatewayError(400, 'invalid-request');
   }
   const identity = batch ? batchItemIdentity(item) : {
@@ -645,10 +667,11 @@ function reportSplit(item: JsonObject, batch: boolean): JsonObject {
     nrOrdemProducao: positiveInteger(identity.ordem),
     opCodigo: positiveInteger(identity.operation),
     numSplitOperac: positiveInteger(identity.split),
-    qtdAprovada: approved,
-    qtdRetrabalho: rework,
-    qtdRefugada: scrap,
-    codMotivoRefugo: reasons.length === 1
+    qtdAprovada: nonNegativeFinite(approved),
+    qtdRetrabalho: nonNegativeFinite(rework),
+    qtdRefugada: nonNegativeFinite(scrap),
+    ...(v2 ? { motivos: motives.map(reason => ({ codMotivo: requiredText(reason['codigo']), qtdRetrabalho: roundReportQuantity(nonNegativeFinite(reason['quantidadeRetrabalho'])), qtdRefugada: roundReportQuantity(nonNegativeFinite(reason['quantidadeRefugo'])) })) } : {}),
+    codMotivoRefugo: !v2 && reasons.length === 1
       ? requiredText(reasons[0][batch ? 'motivoCode' : 'codigo'])
       : '',
   };
@@ -707,6 +730,7 @@ async function idempotentCommand(
   resource: string,
   orderIds: readonly string[] = [],
   validateResponse?: (upstream: unknown) => void,
+  beforeSend?: () => Promise<void>,
 ): Promise<ReturnType<typeof receipt>> {
   const idempotencyKey = safeId(req.header('idempotency-key'));
   const cacheKey = `${client.subject}\u0000${endpoint}\u0000${idempotencyKey}`;
@@ -719,6 +743,7 @@ async function idempotentCommand(
     return { ...(await existing.promise), duplicate: true };
   }
   const promise = (async () => {
+    await beforeSend?.();
     const upstream = await client.request('POST', endpoint, command, {}, endpoint, !validateResponse);
     validateResponse?.(upstream);
     const result = receipt(
@@ -823,6 +848,8 @@ class FmaClient {
   ) {
     this.config = readQualityControlDatasulConfig(dependencies.env);
   }
+
+  get companyId(): string { return String(this.config.companyId); }
 
   async request(
     method: 'GET' | 'POST' | 'PUT',
@@ -1331,4 +1358,19 @@ function operationName(method: string, route: string): string {
     .replace(/[^a-z0-9]+/gi, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 120);
+}
+
+async function validateReasonEligibility(client: FmaClient, body: JsonObject, batch: boolean): Promise<void> {
+  if (body['schemaVersion'] !== undefined && body['schemaVersion'] !== 2) throw new QualityControlGatewayError(400, 'invalid-request');
+  if (body['schemaVersion'] !== 2) return;
+  const items = batch ? requiredObjects(body['items']) : [body];
+  const reasons = items.flatMap(item => objectArray(item['motivos']));
+  if (!reasons.length) return;
+  const upstream = await client.request('GET', '/api/fma/v1/motivosrefugo');
+  const catalog = dataset(upstream, 'motivosRefugo').map(objectOfUpstream);
+  for (const reason of reasons) {
+    const match = catalog.find(item => item['codMotivoRefugo'] === reason['codigo']);
+    if (!match || (nonNegativeFinite(reason['quantidadeRetrabalho']) > 0 && match['refugoRetrabalho'] !== true)
+      || (nonNegativeFinite(reason['quantidadeRefugo']) > 0 && match['refugoMaterial'] !== true)) throw new QualityControlGatewayError(400, 'invalid-request');
+  }
 }

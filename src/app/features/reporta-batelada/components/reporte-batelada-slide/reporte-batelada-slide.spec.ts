@@ -11,6 +11,122 @@ import { OrdemLiberadaBatelada, ReporteParcialBatelada } from '../../models/repo
 import { ReporteBateladaSlide } from './reporte-batelada-slide';
 
 describe('ReporteBateladaSlide', () => {
+  it('waits for asynchronous options before mounting PO selects for a restored batch draft', async () => {
+    const catalog = new Subject<ReadonlyArray<{ codigo: string; descricao: string; materialScrap: boolean; rework: boolean }>>();
+    await TestBed.configureTestingModule({ imports: [ReporteBateladaSlide], providers: [provideNoopAnimations(), { provide: PoDialogService, useValue: { confirm: vi.fn() } }, { provide: MotivoRefugoService, useValue: { buscarMotivos: () => catalog } }] }).compileComponents();
+    const fixture = TestBed.createComponent(ReporteBateladaSlide);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.abrir(orders(), [], { schemaVersion: 2, idempotencyKey: null, items: orders().map((order, index) => ({ schemaVersion: 2, orderId: order.id, ordem: order.ordem, quantidadeAprovada: 0, quantidadeRetrabalho: index === 0 ? 5 : 0, quantidadeRefugo: index === 0 ? 2 : 0, refugoItens: [], motivos: index === 0 ? [{ codigo: '18', descricao: 'Retrabalho', quantidadeRetrabalho: 5, quantidadeRefugo: 0 }, { codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 2 }] : [] })) });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.report-reasons po-select')).toHaveLength(0);
+    catalog.next([{ codigo: '18', descricao: 'Retrabalho', rework: true, materialScrap: false }, { codigo: '05', descricao: 'Borra', rework: false, materialScrap: true }]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.motivoSelecionado(component.items[0], 'retrabalho')).toBe('18');
+    expect(component.motivoSelecionado(component.items[0])).toBe('05');
+    expect(fixture.nativeElement.querySelector('select[name="motivo-retrabalho-2"]')?.value).toBe('18');
+    expect(fixture.nativeElement.querySelector('select[name="motivo-refugo-2"]')?.value).toBe('05');
+  });
+  it('keeps a safe empty draft when persisted data is corrupt', async () => {
+    const { component } = createComponent();
+    component.draftPersistence = { read: async () => ({ schemaVersion: 2, items: [null] }) } as never;
+    component.draftIdentity = 'batch';
+    component.abrir(orders(), [], null);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(component.validationMessage).toContain('inválido');
+    expect(component.restoringDraft).toBe(false);
+    expect(component.hasDraft).toBe(false);
+  });
+
+  it('does not let a stale restore unlock a newer context', async () => {
+    const pending: Array<(value: unknown) => void> = [];
+    const { component } = createComponent();
+    component.draftPersistence = { read: () => new Promise(resolve => pending.push(resolve)) } as never;
+    component.draftIdentity = 'first';
+    component.abrir(orders(), [], null);
+    component.draftIdentity = 'second';
+    component.abrir(orders(), [], null);
+    pending[0](null);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(component.restoringDraft).toBe(true);
+    pending[1](null);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(component.restoringDraft).toBe(false);
+  });
+  it('restores a persisted v2 draft after reconstruction without sharing selections across orders', async () => {
+    let saved: unknown = null;
+    const store = { read: async () => saved, write: async (_identity: string, data: unknown) => { saved = data === null ? null : JSON.parse(JSON.stringify(data)); return true; } };
+    const first = createComponent().component;
+    first.draftPersistence = store as never;
+    first.draftIdentity = 'area|ct|batch';
+    first.abrir(orders(), [], null);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    first.atualizarQuantidade('2', 'quantidadeRetrabalho', 5);
+    first.atualizarQuantidade('2', 'quantidadeRefugo', 2);
+    first.atualizarMotivo('2', '18', 'retrabalho');
+    first.atualizarMotivo('2', '05');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const second = createComponent().component;
+    second.draftPersistence = store as never;
+    second.draftIdentity = 'area|ct|batch';
+    second.abrir(orders(), [], null);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(second.motivoSelecionado(second.items[0], 'retrabalho')).toBe('18');
+    expect(second.motivoSelecionado(second.items[0])).toBe('05');
+    expect(second.items[1].motivos).toEqual([]);
+    expect(second.canSave).toBe(true);
+    second.confirmarReporte(report());
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(saved).toBeNull();
+  });
+
+  it('keeps legacy reasons visible in the draft until explicitly reviewed', () => {
+    const { component } = createComponent();
+    component.abrir(orders(), [], { idempotencyKey: 'old', items: report().items });
+    expect(component.items[0].legacyReasons).toEqual(report().items[0].refugoItens);
+    const draft = vi.spyOn(component.rascunhoAlterado, 'emit');
+    component.atualizarQuantidade('1', 'quantidadeAprovada', 10);
+    expect(draft.mock.calls[0][0].items[0].legacyReasons).toEqual(report().items[0].refugoItens);
+    expect(component.items[0].motivos).toEqual([]);
+  });
+  it('preserves independent reasons through failure, zeroing and draft restoration', () => {
+    const { component } = createComponent();
+    component.abrir(orders(), [], null);
+    component.atualizarQuantidade('2', 'quantidadeRetrabalho', 5);
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 2);
+    component.atualizarMotivo('2', '18', 'retrabalho');
+    component.atualizarMotivo('2', '05');
+    const emitted = vi.spyOn(component.reporteSolicitado, 'emit');
+    component.salvar();
+    const draft = emitted.mock.calls[0][0];
+    expect(draft.schemaVersion).toBe(2);
+    expect(draft.items[0].motivos).toEqual([
+      { codigo: '18', descricao: 'Quebra', quantidadeRetrabalho: 5, quantidadeRefugo: 0 },
+      { codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 2 },
+    ]);
+    component.informarErro('Falha remota');
+    component.atualizarQuantidade('2', 'quantidadeRefugo', 0);
+    expect(component.motivoSelecionado(component.items[0], 'retrabalho')).toBe('18');
+    expect(component.motivoSelecionado(component.items[0])).toBe('');
+    const restored = createComponent().component;
+    restored.abrir(orders(), [], draft);
+    expect(restored.canSave).toBe(true);
+    expect(restored.items[0].motivos).not.toBe(draft.items[0].motivos);
+    expect(restored.items[1].motivos).toEqual([]);
+  });
+  it('does not reuse a legacy draft key or infer two independent reasons', () => {
+    const { component } = createComponent();
+    component.abrir(orders(), [], { idempotencyKey: 'old-key', items: report().items });
+    expect(component.canSave).toBe(false);
+    expect(component.items[0].motivos).toEqual([]);
+    expect(component.validationMessage).toContain('legado');
+    component.atualizarMotivo('2', '05');
+    const emitted = vi.spyOn(component.reporteSolicitado, 'emit');
+    component.salvar();
+    expect(emitted.mock.calls[0][0].idempotencyKey).not.toBe('old-key');
+  });
   it('uses the same small drawer size as the order report', () => {
     TestBed.configureTestingModule({
       imports: [ReporteBateladaSlide],
@@ -39,12 +155,14 @@ describe('ReporteBateladaSlide', () => {
     expect(component.totalInformado).toBe(110);
   });
 
-  it('allows a batch report containing only rework without a scrap reason', () => {
+  it('requires a rework reason for a batch containing only rework', () => {
     const { component } = createComponent();
     component.abrir(orders(), [], null);
     component.atualizarQuantidade('2', 'quantidadeRetrabalho', 2);
 
     expect(component.totalInformado).toBe(0);
+    expect(component.canSave).toBe(false);
+    component.atualizarMotivo('2', '05', 'retrabalho');
     expect(component.canSave).toBe(true);
   });
 
@@ -112,7 +230,7 @@ describe('ReporteBateladaSlide', () => {
       providers: [
         provideNoopAnimations(),
         { provide: PoDialogService, useValue: { confirm: vi.fn() } },
-        { provide: MotivoRefugoService, useValue: { buscarMotivos: () => of([]) } },
+        { provide: MotivoRefugoService, useValue: { buscarMotivos: () => of([{ codigo: '05', descricao: 'Borra', materialScrap: true, rework: true }]) } },
       ],
     });
     const fixture = TestBed.createComponent(ReporteBateladaSlide);
@@ -128,9 +246,9 @@ describe('ReporteBateladaSlide', () => {
       .find(order => order.textContent?.includes('Ordem 450001'));
     const scrapReason = scrapOrder?.querySelector('po-select');
 
-    expect(reworkOrder?.querySelector('po-select')).toBeNull();
+    expect(reworkOrder?.querySelector('po-select')?.textContent).toContain('Motivo de retrabalho');
     expect(scrapReason).toBeTruthy();
-    expect(scrapReason?.textContent ?? '').toContain('Motivo Refugo');
+    expect(scrapReason?.textContent ?? '').toContain('Motivo de refugo');
     expect(host.textContent).not.toContain('Editar Motivo');
     expect(host.textContent).not.toContain('Quantidade do motivo');
     expect(host.textContent).not.toContain('Adicionar motivo');
@@ -144,12 +262,14 @@ describe('ReporteBateladaSlide', () => {
 
     component.atualizarQuantidade('2', 'quantidadeAprovada', 4);
     component.atualizarQuantidade('1', 'quantidadeRetrabalho', 2);
+    component.atualizarMotivo('1', '05', 'retrabalho');
     component.salvar();
     component.salvar();
 
     expect(component.items.map(item => item.orderId)).toEqual(['2', '1']);
     expect(emitted).toHaveBeenCalledTimes(1);
     expect(emitted.mock.calls[0][0]).toEqual({
+      schemaVersion: 2,
       idempotencyKey: expect.any(String),
       finalizarSplit: false,
       items: [
@@ -190,8 +310,8 @@ describe('ReporteBateladaSlide', () => {
     component.salvar();
 
     expect(component.validationMessage).toBe('');
-    expect(emitted.mock.calls[0][0].items[0].refugoItens).toEqual([
-      { motivoCode: '05', descricao: 'Borra', quantidade: 2 },
+    expect(emitted.mock.calls[0][0].items[0].motivos).toEqual([
+      { codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 2 },
     ]);
     expect(component.items[1].refugoItens).toEqual([]);
   });
@@ -203,12 +323,12 @@ describe('ReporteBateladaSlide', () => {
     component.atualizarMotivo('2', '05');
 
     component.atualizarQuantidade('2', 'quantidadeRefugo', 3.5);
-    expect(component.items[0].refugoItens).toEqual([
-      { motivoCode: '05', descricao: 'Borra', quantidade: 3.5 },
+    expect(component.items[0].motivos).toEqual([
+      { codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 3.5 },
     ]);
 
     component.atualizarQuantidade('2', 'quantidadeRefugo', 0);
-    expect(component.items[0].refugoItens).toEqual([]);
+    expect(component.items[0].motivos).toEqual([]);
   });
 
   it('rejects an aggregate overflow even when each quantity is finite', () => {
@@ -282,7 +402,7 @@ describe('ReporteBateladaSlide', () => {
 
     expect(motivoService.buscarMotivos).toHaveBeenCalledOnce();
     expect(component.motivoOptions).toEqual([
-      { label: 'NEW - Atual', value: 'NEW', descricao: 'Atual' },
+      { codigo: 'NEW', label: 'NEW - Atual', value: 'NEW', descricao: 'Atual' },
     ]);
   });
 
@@ -297,8 +417,8 @@ describe('ReporteBateladaSlide', () => {
 
     expect(component.historico).toHaveLength(1);
     expect(component.salvando).toBe(true);
-    expect(component.items[0].refugoItens).toEqual([
-      { motivoCode: '05', descricao: 'Borra', quantidade: 1 },
+    expect(component.items[0].motivos).toEqual([
+      { codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 1 },
     ]);
     expect(pageSlide.open).toHaveBeenCalledOnce();
   });
@@ -307,8 +427,8 @@ describe('ReporteBateladaSlide', () => {
 function createComponent(
   motivoService: { buscarMotivos: ReturnType<typeof vi.fn> } = {
     buscarMotivos: vi.fn(() => of([
-      { codigo: '05', descricao: 'Borra' },
-      { codigo: '18', descricao: 'Quebra' },
+      { codigo: '05', descricao: 'Borra', materialScrap: true, rework: true },
+      { codigo: '18', descricao: 'Quebra', materialScrap: true, rework: true },
     ])),
   },
 ) {

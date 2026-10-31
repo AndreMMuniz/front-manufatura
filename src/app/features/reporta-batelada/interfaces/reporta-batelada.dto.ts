@@ -1,3 +1,4 @@
+import type { MotivoReporte } from '../../../../report-reasons';
 import {
   ContextoBatelada,
   OrdemLiberadaBatelada,
@@ -8,6 +9,13 @@ import {
 export interface ConsultaOrdensBateladaRequest {
   readonly areaCode: string;
   readonly workCenterCode: string;
+}
+
+/** Explicit upstream references; their hyphen-separated components are not yet mapped. */
+export interface ConsultaAberturaBateladaRequest {
+  readonly areaCode: string;
+  readonly workCenterCode: string;
+  readonly ordens: ReadonlyArray<string>;
 }
 
 export interface IniciarBateladaRequest {
@@ -43,6 +51,9 @@ export interface RefugoItemBateladaRequest {
 }
 
 export interface ItemReporteParcialBateladaRequest {
+  readonly legacyReasons?: readonly { readonly motivoCode: string; readonly descricao: string; readonly quantidade: number }[];
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly orderId: string;
   readonly ordem: string;
   readonly quantidadeAprovada: number;
@@ -52,6 +63,8 @@ export interface ItemReporteParcialBateladaRequest {
 }
 
 export interface ReporteParcialBateladaRequest {
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly batchId: string;
   readonly idempotencyKey: string;
   readonly items: ReadonlyArray<ItemReporteParcialBateladaRequest>;

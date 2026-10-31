@@ -1,3 +1,4 @@
+import { roundReportQuantity, validateReportReasons } from '../../../../report-reasons';
 import { inject, Injectable } from '@angular/core';
 
 import { Observable, delay, forkJoin, from, map, of, switchMap } from 'rxjs';
@@ -276,6 +277,11 @@ export class ReportOperacaoService {
   }
 
   reportarOperacao(request: ReportarOperacaoRequest): Observable<ReporteOperacaoResultado> {
+    if (request.schemaVersion === 2) {
+      if ([request.quantidadeAprovada, request.quantidadeRetrabalho, request.quantidadeRefugo].some(value => !Number.isFinite(value) || value < 0 || !Number.isFinite(roundReportQuantity(value)))) throw new Error('As quantidades devem ser finitas e não negativas.');
+      const error = validateReportReasons(request.quantidadeRetrabalho, request.quantidadeRefugo, request.motivos ?? []);
+      if (error) throw new Error(error);
+    }
     const reportadoEm = new Date(this.combineDateTime(request.dataFim, request.horaFim));
     const command = {
       commandType: 'REPORT_OPERATION',
@@ -290,10 +296,12 @@ export class ReportOperacaoService {
         split: request.split,
         areaCode: request.areaCode,
         finalizarSplit: request.finalizarSplit,
-        quantidadeAprovada: request.quantidadeAprovada,
-        quantidadeRetrabalho: request.quantidadeRetrabalho,
-        quantidadeRefugo: request.quantidadeRefugo,
-        refugoItens: (request.refugoItens ?? []).map(item => ({ ...item })),
+        quantidadeAprovada: request.schemaVersion === 2 ? roundReportQuantity(request.quantidadeAprovada) : request.quantidadeAprovada,
+        quantidadeRetrabalho: request.schemaVersion === 2 ? roundReportQuantity(request.quantidadeRetrabalho) : request.quantidadeRetrabalho,
+        quantidadeRefugo: request.schemaVersion === 2 ? roundReportQuantity(request.quantidadeRefugo) : request.quantidadeRefugo,
+        ...(request.schemaVersion === 2
+          ? { schemaVersion: 2, motivos: (request.motivos ?? []).map(item => ({ ...item })) }
+          : { refugoItens: (request.refugoItens ?? []).map(item => ({ ...item })) }),
         dataInicio: request.dataInicio.toISOString(),
         horaInicio: request.horaInicio,
         dataFim: request.dataFim.toISOString(),
@@ -521,6 +529,7 @@ export class ReportOperacaoService {
       quantidadeAprovada: value['quantidadeAprovada'],
       quantidadeRetrabalho: value['quantidadeRetrabalho'],
       quantidadeRefugo: value['quantidadeRefugo'],
+      ...(value['schemaVersion'] === 2 ? { schemaVersion: 2 as const, motivos: Array.isArray(value['motivos']) ? value['motivos'] as unknown as NonNullable<ReporteParcialOperacao['motivos']> : [] } : {}),
       refugoItens: Array.isArray(value['refugoItens'])
         ? value['refugoItens'] as ReporteParcialOperacao['refugoItens']
         : [],

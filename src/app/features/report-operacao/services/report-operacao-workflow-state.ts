@@ -48,6 +48,17 @@ export class ReportOperacaoWorkflowState {
     return this.cloneSnapshot(this.value());
   }
 
+  restoreLocalSession(snapshot: ReportOperacaoWorkflowSnapshot): boolean {
+    try {
+      if (!snapshot?.area?.code || !snapshot.workCenter?.code || !snapshot.operation?.ordem || !snapshot.operation.op || !snapshot.operation.split
+        || !snapshot.operation.dataInicio || !snapshot.activeOrder || !snapshot.responsavel?.codigo || !Array.isArray(snapshot.orders) || !Array.isArray(snapshot.queue) || !Array.isArray(snapshot.reportes)) return false;
+      const restored = this.cloneSnapshot({ ...snapshot, selectedOrderIds: new Set(snapshot.selectedOrderIds), operationState: EstadoOperacao.OperacaoIniciada });
+      if (Number.isNaN(new Date(restored.operation!.dataInicio!).getTime())) return false;
+      this.value.set(restored);
+      return true;
+    } catch { return false; }
+  }
+
   setContext(area: AreaProducao | null, workCenter: WorkCenter | null): void {
     const current = this.value();
     const sameArea = current.area?.code === area?.code;
@@ -300,6 +311,7 @@ export class ReportOperacaoWorkflowState {
       registradoEm: new Date(reporte.registradoEm),
       dataInicio: new Date(reporte.dataInicio),
       dataFim: new Date(reporte.dataFim),
+      ...(reporte.motivos ? { motivos: reporte.motivos.map(item => ({ ...item })) } : {}),
       refugoItens: (reporte.refugoItens ?? []).map(item => ({ ...item })),
     };
   }

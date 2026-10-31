@@ -36,6 +36,19 @@ describe('ReportOperacaoWorkflowState', () => {
     expect(snapshot.selectedOrderIds).not.toBe(state.snapshot().selectedOrderIds);
     expect(snapshot.orders[0]).not.toBe(orders[0]);
   });
+  it('restores a serialized active operation before the first report without changing production', () => {
+    const first = queuedState();
+    first.setResponsavel({ tipo: 'OPERADOR', codigo: '001', nome: 'Operador' });
+    first.setActiveOperation({ ...operation(), dataInicio: new Date('2026-10-31T10:00:00Z') }, EstadoOperacao.OperacaoIniciada);
+    const original = first.snapshot();
+    const saved = JSON.parse(JSON.stringify({ ...original, selectedOrderIds: [...original.selectedOrderIds] }));
+    const restored = new ReportOperacaoWorkflowState();
+    expect(restored.restoreLocalSession(saved)).toBe(true);
+    expect(restored.snapshot().operation?.ordem).toBe('450001');
+    expect(restored.snapshot().operation?.quantidadeAprovada).toBe(original.operation?.quantidadeAprovada);
+    expect(restored.snapshot().operation?.dataInicio).toEqual(original.operation?.dataInicio);
+    expect(restored.snapshot().reportes).toEqual([]);
+  });
 
   it('completes the single selected order and clears order-specific data', () => {
     const state = queuedState();

@@ -1,3 +1,4 @@
+import { ReportDraftPersistence } from '../../../../core/offline/services/report-draft-persistence.service';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -89,6 +90,8 @@ export class ReportaBateladaPage implements OnInit {
   private readonly workflow = inject(ReportaBateladaWorkflowState);
   private readonly notification = inject(PoNotificationService);
   private readonly dialog = inject(PoDialogService);
+  readonly reportDrafts = inject(ReportDraftPersistence);
+  get reportDraftOwner(): string { return this.authSession.currentUser?.id ?? ''; }
   private readonly authSession = inject(AuthSessionService);
   private readonly clientLogs = inject(ClientLogService);
   private readonly idempotency = inject(IdempotencyService);
@@ -255,7 +258,8 @@ export class ReportaBateladaPage implements OnInit {
       restoreBatch()
         .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
         .subscribe(restored => {
-          if (!restored || this.workflow.snapshot().batchId) return;
+          if (!restored) { void this.restoreLocalDraftSession(); return; }
+          if (this.workflow.snapshot().batchId) return;
           this.workflow.restoreDurable(restored);
           this.areas = [{ ...restored.area! }];
           this.areaCode = restored.area?.code ?? '';
@@ -700,9 +704,11 @@ export class ReportaBateladaPage implements OnInit {
     }
     this.service.reportarBateladaParcial({
       batchId,
+      ...(draft.schemaVersion === 2 ? { schemaVersion: 2 as const } : {}),
       idempotencyKey: draft.idempotencyKey,
       items: draft.items.map(item => ({
         ...item,
+        ...(item.motivos ? { motivos: item.motivos.map(reason => ({ ...reason })) } : {}),
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
       })),
       contexto: { areaCode: snapshot.area.code, workCenterCode: snapshot.workCenter.code },
@@ -973,13 +979,34 @@ export class ReportaBateladaPage implements OnInit {
     this.syncView();
   }
 
+  private async restoreLocalDraftSession(): Promise<void> {
+    const request = this.startRequest;
+    const owner = this.reportDraftOwner;
+    const saved = await this.reportDrafts.readActive<ReportaBateladaWorkflowSnapshot>('batch');
+    if (owner !== this.reportDraftOwner || request !== this.startRequest || this.workflow.snapshot().batchId || !saved) return;
+    const restored = this.service.restaurarSessaoLocal(saved);
+    if (!restored) return;
+    try {
+      this.workflow.restoreDurable(restored);
+      this.areas = [{ ...restored.area! }];
+      this.areaCode = restored.area!.code;
+      this.centers = [{ ...restored.workCenter! }];
+      this.syncView();
+    } catch { /* Invalid local snapshot must not manufacture an active batch. */ }
+  }
+
   private syncView(): void {
     this.view = this.workflow.snapshot();
+    if (this.view.batchId && this.view.inicio && this.view.area && this.view.workCenter
+      && [EstadoBatelada.BateladaIniciada, EstadoBatelada.ReportandoParcial, EstadoBatelada.EmParada].includes(this.view.estado)) {
+      void this.reportDrafts.saveActive('batch', [this.view.area.code, this.view.workCenter.code, this.view.batchId].join('|'), this.view);
+    } else if (this.view.estado === EstadoBatelada.Encerrada) void this.reportDrafts.clearActive('batch');
     this.selectedIds = new Set(this.view.selectedOrderIds);
     this.changeDetector.markForCheck();
   }
 
   private resetCurrentBatch(): void {
+    void this.reportDrafts.clearActive('batch');
     this.invalidateTeamContext();
     this.centersRequest += 1;
     this.ordersRequest += 1;

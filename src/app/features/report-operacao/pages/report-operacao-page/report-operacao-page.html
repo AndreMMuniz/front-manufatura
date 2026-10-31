@@ -90,6 +90,8 @@
     </p>
 
     <app-reporte-slide
+      [draftPersistence]="reportDrafts"
+      [draftIdentity]="reportDraftOwner + '|operation|' + areaCode + '|' + workCenterCode + '|' + (operacao?.ordem ?? '') + '|' + (operacao?.op ?? '') + '|' + (operacao?.split ?? '')"
       [ordem]="operacao?.ordem ?? ''"
       (reporteSolicitado)="salvarReporte($event)"
     ></app-reporte-slide>

@@ -573,7 +573,7 @@ test.describe('fluxo de Reporte Batelada', () => {
 
     const firstOrder = drawer.locator('article').filter({ hasText: 'Ordem 450001' });
     await firstOrder.getByRole('spinbutton', { name: 'Qtde Refugo', exact: true }).fill('3');
-    await firstOrder.getByRole('combobox', { name: 'Motivo Refugo' }).selectOption('05');
+    await firstOrder.getByRole('combobox', { name: 'Motivo de refugo' }).selectOption('05');
     await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
     await expect(drawer.locator('.batch-report__history-row').filter({ hasText: '450001' })).toHaveCount(2);
     await drawer.getByRole('button', { name: 'Voltar', exact: true }).click();
@@ -694,3 +694,54 @@ test.describe('fluxo de Reporte Batelada', () => {
     await expect(trigger).toBeDisabled();
   });
 });
+
+for (const batch of [false, true]) {
+  test('REP-01 motivos independentes ' + (batch ? 'Batelada' : 'Ordem'), async ({ page }) => {
+    await page.setViewportSize({ width: 480, height: 800 });
+    await login(page);
+    await page.getByRole('link', { name: batch ? 'Reporte Batelada' : 'Reporte Ordem', exact: true }).click();
+    await selectProductionContext(page);
+    if (batch) {
+      await selectOrderWithKeyboard(page, '450001');
+      await selectOrderWithKeyboard(page, '450002');
+    } else await selectSingleOrderWithKeyboard(page, '450001');
+    await page.getByRole('button', { name: batch ? 'Abrir batelada' : 'Abrir apontamento', exact: true }).click();
+    const operator = page.getByRole('textbox', { name: 'Operador', exact: true });
+    await operator.fill('op.int/7-a');
+    await operator.blur();
+    await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+    const report = page.getByRole('button', { name: 'Reporte', exact: true });
+    await expect(report).toBeEnabled();
+    await report.click();
+    const drawer = page.locator(batch ? 'app-reporte-batelada-slide' : 'app-reporte-slide');
+    const fields = batch ? drawer.locator('article').filter({ hasText: 'Ordem 450001' }) : drawer;
+    await fields.getByRole('spinbutton', { name: 'Qtde Retrabalho', exact: true }).fill('5');
+    await fields.getByRole('spinbutton', { name: 'Qtde Refugo', exact: true }).fill('2');
+    await fields.getByRole('combobox', { name: 'Motivo de retrabalho', exact: true }).selectOption('18');
+    await fields.getByRole('combobox', { name: 'Motivo de refugo', exact: true }).selectOption('05');
+    await fields.getByRole('spinbutton', { name: 'Qtde Refugo', exact: true }).fill('0');
+    await expect(fields.getByRole('combobox', { name: 'Motivo de refugo', exact: true })).toHaveCount(0);
+    await expect(fields.getByRole('combobox', { name: 'Motivo de retrabalho', exact: true })).toHaveValue('18');
+    await fields.getByRole('spinbutton', { name: 'Qtde Refugo', exact: true }).fill('2');
+    await fields.getByRole('combobox', { name: 'Motivo de refugo', exact: true }).selectOption('05');
+    if (batch) await expect(drawer.locator('article').filter({ hasText: 'Ordem 450002' }).getByRole('combobox')).toHaveCount(0);
+    // Reload before the first report: recover local active identity and draft without starting again.
+    await page.reload();
+    await expect(report).toBeEnabled();
+    await report.click();
+    await expect(fields.getByRole('spinbutton', { name: 'Qtde Retrabalho', exact: true })).toHaveValue('5');
+    await expect(fields.getByRole('spinbutton', { name: 'Qtde Refugo', exact: true })).toHaveValue('2');
+    await expect(fields.getByRole('combobox', { name: 'Motivo de retrabalho', exact: true })).toHaveValue('18');
+    await expect(fields.getByRole('combobox', { name: 'Motivo de refugo', exact: true })).toHaveValue('05');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
+    await expect.poll(async () => (await readOperationalOutbox(page)).filter(entry => entry.commandType === (batch ? 'REPORT_BATCH' : 'REPORT_OPERATION')).length).toBe(1);
+    const entry = (await readOperationalOutbox(page)).find(entry => entry.commandType === (batch ? 'REPORT_BATCH' : 'REPORT_OPERATION'))!;
+    expect(entry.payload.schemaVersion).toBe(2);
+    const item = batch ? (entry.payload.items as Array<Record<string, unknown>>).find(item => item.ordem === '450001')! : entry.payload;
+    expect(item.motivos).toEqual([
+      { codigo: '18', descricao: 'Retrabalho', quantidadeRetrabalho: 5, quantidadeRefugo: 0 },
+      { codigo: '05', descricao: 'Borra', quantidadeRetrabalho: 0, quantidadeRefugo: 2 },
+    ]);
+  });
+}

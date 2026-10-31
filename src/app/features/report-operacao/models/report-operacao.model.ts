@@ -1,3 +1,4 @@
+import type { MotivoReporte } from '../../../../report-reasons';
 import type { ImmediateDeliveryResult } from '../../../core/offline/models/immediate-delivery-result';
 
 export enum EstadoOperacao {
@@ -76,6 +77,8 @@ export interface ReporteRefugoItem {
 }
 
 export interface ReporteParcialOperacao {
+  readonly schemaVersion?: 2;
+  readonly motivos?: ReadonlyArray<MotivoReporte>;
   readonly id: string;
   readonly idempotencyKey: string;
   readonly registradoEm: Date;

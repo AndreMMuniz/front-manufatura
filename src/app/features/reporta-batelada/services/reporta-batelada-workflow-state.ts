@@ -781,9 +781,13 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
 
   private cloneDraft(draft: RascunhoReporteBatelada): RascunhoReporteBatelada {
     return {
+      ...(draft.schemaVersion === 2 ? { schemaVersion: 2 as const } : {}),
       idempotencyKey: draft.idempotencyKey,
+      ...(draft.finalizarSplit !== undefined ? { finalizarSplit: draft.finalizarSplit } : {}),
       items: draft.items.map(item => ({
         ...item,
+        ...(item.legacyReasons ? { legacyReasons: item.legacyReasons.map(reason => ({ ...reason })) } : {}),
+        ...(item.motivos ? { motivos: item.motivos.map(reason => ({ ...reason })) } : {}),
         refugoItens: item.refugoItens.map(reason => ({ ...reason })),
       })),
     };
@@ -823,6 +827,6 @@ export class ReportaBateladaWorkflowState implements OnDestroy {
   }
 
   private draftFingerprint(draft: RascunhoReporteBatelada): string {
-    return JSON.stringify(draft.items);
+    return JSON.stringify({ schemaVersion: draft.schemaVersion, finalizarSplit: draft.finalizarSplit, items: draft.items });
   }
 }
