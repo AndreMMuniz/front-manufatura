@@ -45,6 +45,18 @@ describe('LocalCommandRepository', () => {
     );
   });
 
+  it('REP-03 preserves approved quantities in the durable record and outbox', async () => {
+    const payload = { schemaVersion: 2, items: [
+      { orderId: '1', quantidadeAprovada: 125.5, quantidadeRetrabalho: 0, quantidadeRefugo: 0, motivos: [] },
+      { orderId: '2', quantidadeAprovada: 150.75, quantidadeRetrabalho: 0, quantidadeRefugo: 0, motivos: [] },
+    ] };
+    await commands.persistConfirmedCommand(request(payload, {
+      aggregateType: 'BATCH', commandType: 'REPORT_BATCH',
+    }));
+    expect((await localRecords.listByOwner('operator-1'))[0].payload).toEqual(payload);
+    expect((await outbox.listByOwner('operator-1'))[0].payload).toEqual(payload);
+  });
+
   it('commita exatamente 1 registro + 1 Outbox e retorna somente o snapshot defensivo', async () => {
     const payload = { quantity: 5, measuredAt: new Date('2026-07-28T15:30:00.000Z') };
     const result = await commands.persistConfirmedCommand(request(payload));

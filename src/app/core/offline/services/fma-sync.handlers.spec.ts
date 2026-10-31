@@ -18,6 +18,24 @@ import {
 } from './fma-sync.handlers';
 
 describe('FMA sync handlers', () => {
+  it.each([
+    [ReportOperationSyncHandler, 'REPORT_OPERATION', '/api/operations/report'],
+    [ReportBatchSyncHandler, 'REPORT_BATCH', '/api/batches/report'],
+  ] as const)('REP-03 preserves above-balance quantities during queued delivery: %s', async (Handler, type, endpoint) => {
+    const post = vi.fn().mockReturnValue(of(receipt()));
+    const handler = new Handler({ post } as never, { token: 'session-token' } as AuthSessionService);
+    const item = { quantidadeAprovada: 125.5, quantidadeRetrabalho: 0, quantidadeRefugo: 0, motivos: [] };
+    const payload = type === 'REPORT_BATCH'
+      ? { schemaVersion: 2, items: [{ ...item, orderId: '1' }, { ...item, orderId: '2', quantidadeAprovada: 150.75 }] }
+      : { schemaVersion: 2, ...item };
+    const request = command(type, payload);
+    await expect(handler.send(request, new AbortController().signal)).resolves.toEqual(receipt());
+    expect(post).toHaveBeenCalledWith(endpoint, payload, expect.objectContaining({
+      headers: expect.objectContaining({ 'Idempotency-Key': request.idempotencyKey }),
+    }));
+    expect(request.payload).toEqual(payload);
+  });
+
   it('uses the confirmed batch splits for a queued final report', async () => {
     const post = vi.fn().mockReturnValue(of(receipt()));
     const request = command('REPORT_BATCH', {

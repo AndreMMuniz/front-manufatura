@@ -603,6 +603,29 @@ describe('ReportaBateladaService', () => {
       .toThrowError('O total informado excede o limite permitido.');
   });
 
+  it('REP-03 delegates above-balance production for two orders to Datasul', async () => {
+    // Both started operations have quantityOrdem/quantidadeSaldo = 100.
+    const inicio = await startBatch();
+    currentUser = { id: 'operator-1' };
+    const base = reportRequest({ batchId: inicio.batchId });
+    const request: ReporteParcialBateladaRequest = {
+      ...base, schemaVersion: 2,
+      items: base.items.map((item, index) => ({
+        ...item, schemaVersion: 2, quantidadeAprovada: index === 0 ? 125.5 : 150.75,
+        quantidadeRetrabalho: 0, quantidadeRefugo: 0, refugoItens: [], motivos: [],
+      })),
+    };
+    const result = await firstValueFrom(service.reportarBateladaParcial(request));
+    expect(result.delivery.status).toBe('SYNCED');
+    expect(capture.mock.calls.at(-1)![0].payload.items).toMatchObject([
+      { orderId: '1', quantidadeAprovada: 125.5 },
+      { orderId: '2', quantidadeAprovada: 150.75 },
+    ]);
+    currentUser = null;
+    const history = await firstValueFrom(service.listarReportesBatelada(inicio.batchId));
+    expect(history[0].items.map(item => item.quantidadeAprovada)).toEqual([125.5, 150.75]);
+  });
+
   it('persists one ordered multi-order report and returns defensive history copies', async () => {
     const inicio = await startBatch();
     currentUser = { id: 'operator-1' };

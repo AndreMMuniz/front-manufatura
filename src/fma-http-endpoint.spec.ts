@@ -21,6 +21,45 @@ const ENV = {
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
+describe('REP-03 balance tolerance belongs to Datasul', () => {
+  it.each([false, true])('forwards quantities unchanged and preserves the remote decision (batch=%s)', async batch => {
+    const transport = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({ type: 'error', message: 'Quantidade acima da tolerância configurada.' }, { status: 422 }));
+    const root = await startGateway(transport);
+    const item = {
+      orderId: '372572|ITEM|10|1', ordem: '372572', op: '10', split: '1',
+      quantidadeAprovada: 125.5, quantidadeRetrabalho: 0, quantidadeRefugo: 0, motivos: [],
+    };
+    const body = {
+      schemaVersion: 2, dataInicio: '2026-08-14T10:18:00.000Z', horaInicio: '07:18',
+      dataFim: '2026-08-14T11:25:00.000Z', horaFim: '08:25', finalizarSplit: false,
+      ...(batch ? {
+        contexto: { areaCode: '4113', workCenterCode: 'LASER-01-01' },
+        responsavel: { tipo: 'OPERADOR', codigo: '00016570' },
+        items: [item, { ...item, orderId: '372573|ITEM|10|1', ordem: '372573', quantidadeAprovada: 150.75 }],
+      } : { ...item, areaCode: '4113', ct: 'LASER-01-01', tipoResponsavel: 'OPERADOR', codigoResponsavel: '00016570' }),
+    };
+    const authorization = `Bearer ${await token([batch ? APP_PERMISSIONS.batchReporting : APP_PERMISSIONS.operationReporting])}`;
+    const send = (key: string) => fetch(`${root}/api/${batch ? 'batches' : 'operations'}/report`, {
+      method: 'POST', headers: { authorization, 'content-type': 'application/json', 'idempotency-key': key },
+      body: JSON.stringify(body),
+    });
+    const accepted = await send('rep03-accepted');
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toMatchObject({ duplicate: false });
+    const rejected = await send('rep03-rejected');
+    expect(rejected.status).toBe(422);
+    expect(await rejected.json()).toMatchObject({ category: 'VALIDATION', userMessage: 'Quantidade acima da tolerância configurada.' });
+    expect(transport).toHaveBeenCalledTimes(2);
+    for (const [, options] of transport.mock.calls) {
+      const sent = JSON.parse(String(options?.body));
+      expect(batch ? sent.splits.map((split: { qtdAprovada: number }) => split.qtdAprovada) : [sent.qtdAprovada])
+        .toEqual(batch ? [125.5, 150.75] : [125.5]);
+    }
+  });
+});
+
 describe('REP-05 origin IP forwarding', () => {
   it.each([undefined, '10.101.1.7, 10.101.1.8'])('appends the Node peer to the existing chain: %s', async chain => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json({}));
