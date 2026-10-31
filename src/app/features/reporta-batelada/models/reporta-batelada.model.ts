@@ -30,6 +30,13 @@ export interface OrdemLiberadaBatelada {
   readonly workCenterCode?: string;
 }
 
+/** Remote snapshot only; never a local balance calculation or report total. */
+export interface QuantidadesOrdemBatelada {
+  readonly orderId: string;
+  readonly quantidadeOrdem: number | null;
+  readonly quantidadeSaldo: number | null;
+}
+
 export type TipoResponsavelBatelada = 'OPERADOR' | 'EQUIPE';
 
 export interface ResponsavelBatelada {

@@ -1,16 +1,17 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
-import { PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoWidgetModule } from '@po-ui/ng-components';
 
 import {
   OrdemLiberadaBatelada,
+  QuantidadesOrdemBatelada,
   TotaisBatelada,
   TotaisOrdemBatelada,
 } from '../../models/reporta-batelada.model';
 
 @Component({
   selector: 'app-ordens-selecionadas-batelada',
-  imports: [PoWidgetModule],
+  imports: [PoWidgetModule, PoButtonModule],
   templateUrl: './ordens-selecionadas.html',
   styleUrls: ['./ordens-selecionadas.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,6 +26,15 @@ export class OrdensSelecionadasBatelada {
     quantidadeTotal: 0,
   };
   @Input() locked = false;
+  @Input() quantities: ReadonlyArray<QuantidadesOrdemBatelada> = [];
+  @Input() loadingQuantities = false;
+  @Output() refreshQuantities = new EventEmitter<void>();
+
+  remoteQuantity(orderId: string, field: 'quantidadeOrdem' | 'quantidadeSaldo'): string {
+    if (this.loadingQuantities) return 'Consultando…';
+    const value = this.quantities.find(item => item.orderId === orderId)?.[field];
+    return typeof value === 'number' && Number.isFinite(value) ? this.formatQuantity(value) : 'Indisponível';
+  }
 
   totalsFor(orderId: string): TotaisOrdemBatelada {
     return this.totals.find(item => item.orderId === orderId) ?? {

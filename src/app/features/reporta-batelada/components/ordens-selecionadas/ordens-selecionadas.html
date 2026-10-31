@@ -7,6 +7,8 @@
           <th scope="col">Item / OP</th>
           <th scope="col">Operação</th>
           <th scope="col">Split</th>
+          <th scope="col">Quantidade da ordem</th>
+          <th scope="col">Quantidade de saldo</th>
           <th scope="col">Aprovada</th>
           <th scope="col">Retrabalho</th>
           <th scope="col">Refugo</th>
@@ -20,6 +22,8 @@
             <td data-label="Item / OP">{{ order.itemOp }}</td>
             <td data-label="Operação">{{ order.operacao }}</td>
             <td data-label="Split">{{ order.split }}</td>
+            <td data-label="Quantidade da ordem">{{ remoteQuantity(order.id, 'quantidadeOrdem') }}</td>
+            <td data-label="Quantidade de saldo">{{ remoteQuantity(order.id, 'quantidadeSaldo') }}</td>
             <td data-label="Aprovada">{{ formatQuantity(totalsFor(order.id).quantidadeAprovada) }}</td>
             <td data-label="Retrabalho">{{ formatQuantity(totalsFor(order.id).quantidadeRetrabalho) }}</td>
             <td data-label="Refugo">{{ formatQuantity(totalsFor(order.id).quantidadeRefugo) }}</td>
@@ -29,6 +33,20 @@
       </tbody>
     </table>
   </div>
+
+  <p class="ordens-selecionadas__status" aria-live="polite">
+    @if (loadingQuantities) {
+      Consultando quantidades no Datasul...
+    } @else {
+      Quantidade da ordem e saldo refletem a última consulta ao Datasul. Reportes pendentes não estão incluídos.
+    }
+  </p>
+  <po-button
+    p-label="Atualizar quantidades"
+    p-kind="secondary"
+    [p-disabled]="loadingQuantities"
+    (p-click)="refreshQuantities.emit()"
+  ></po-button>
 
   <section class="ordens-selecionadas__consolidated" aria-label="Consolidado da batelada">
     <strong>Consolidado da batelada</strong>

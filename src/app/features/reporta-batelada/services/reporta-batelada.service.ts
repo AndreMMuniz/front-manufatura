@@ -42,6 +42,7 @@ import {
   InicioBateladaEntregue,
   ItemReporteBatelada,
   OrdemLiberadaBatelada,
+  QuantidadesOrdemBatelada,
   ReporteParcialBatelada,
   ReporteParcialBateladaEntregue,
   ResponsavelBatelada,
@@ -81,6 +82,38 @@ export class ReportaBateladaService {
   private readonly batches = new Map<string, BatchMockRecord>();
   private readonly reportsByBatch = new Map<string, ReadonlyArray<ReporteParcialBatelada>>();
   private stoppedWorkflow: ReportaBateladaWorkflowSnapshot | null = null;
+
+  consultarQuantidadesOrdens(
+    contexto: ContextoBatelada,
+    ordens: ReadonlyArray<OrdemLiberadaBatelada>,
+    batchId?: string | null,
+  ): Observable<ReadonlyArray<QuantidadesOrdemBatelada>> {
+    if (!ordens.length) return of([]);
+    const available = (value: unknown): number | null =>
+      typeof value === 'number' && Number.isFinite(value) ? value : null;
+    return forkJoin(ordens.map(ordem => {
+      const split = (batchId ? this.batches.get(batchId)?.splitsByOrder?.get(ordem.id) : undefined) ?? ordem.split;
+      const unavailable: QuantidadesOrdemBatelada = {
+        orderId: ordem.id, quantidadeOrdem: null, quantidadeSaldo: null,
+      };
+      return defer(() => this.reportCatalog.carregarOrdemSelecionada({
+        ...ordem, split, areaCode: contexto.areaCode, workCenterCode: contexto.workCenterCode,
+      })).pipe(
+        map(result => {
+          const operation = result.sucesso ? result.operacao : undefined;
+          if (!operation || Number(operation.ordem) !== Number(ordem.ordem)
+            || Number(operation.op) !== Number(ordem.operacao) || Number(operation.split) !== Number(split)
+            || operation.ct !== contexto.workCenterCode) return unavailable;
+          return {
+            orderId: ordem.id,
+            quantidadeOrdem: available(operation.quantidadeOrdem),
+            quantidadeSaldo: available(operation.quantidadeSaldo),
+          };
+        }),
+        catchError(() => of(unavailable)),
+      );
+    }));
+  }
 
   constructor() {
     this.authSession?.session$.subscribe(session => {

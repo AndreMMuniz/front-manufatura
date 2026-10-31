@@ -11,7 +11,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { combineLocalDateTime, formatLocalDate, formatLocalTime } from '../../../reporte-paradas/models/reporte-paradas-time';
-import { catchError, of } from 'rxjs';
+import { catchError, of, Subscription } from 'rxjs';
 
 import {
   PoButtonModule,
@@ -47,6 +47,7 @@ import { ReporteBateladaSlide } from '../../components/reporte-batelada-slide/re
 import { IniciarBateladaRequest } from '../../interfaces/reporta-batelada.dto';
 import {
   EstadoBatelada,
+  QuantidadesOrdemBatelada,
   RascunhoReporteBatelada,
   ResponsavelBatelada,
   TipoResponsavelBatelada,
@@ -107,6 +108,11 @@ export class ReportaBateladaPage implements OnInit {
   loadingAreas = false;
   loadingCenters = false;
   loadingResponsaveis = false;
+  quantities: ReadonlyArray<QuantidadesOrdemBatelada> = [];
+  loadingQuantities = false;
+  private quantitiesKey = '';
+  private quantitiesRequest = 0;
+  private quantitiesSubscription?: Subscription;
   responsaveisErrorMessage = '';
   dataInicioSelecionada: Date | string | null = formatLocalDate(new Date());
   horaInicioSelecionada = formatLocalTime(new Date());
@@ -1006,12 +1012,46 @@ export class ReportaBateladaPage implements OnInit {
 
   private syncView(): void {
     this.view = this.workflow.snapshot();
+    this.refreshQuantities();
     if (this.view.batchId && this.view.inicio && this.view.area && this.view.workCenter
       && [EstadoBatelada.BateladaIniciada, EstadoBatelada.ReportandoParcial, EstadoBatelada.EmParada].includes(this.view.estado)) {
       void this.reportDrafts.saveActive('batch', [this.view.area.code, this.view.workCenter.code, this.view.batchId].join('|'), this.view);
     } else if (this.view.estado === EstadoBatelada.Encerrada) void this.reportDrafts.clearActive('batch');
     this.selectedIds = new Set(this.view.selectedOrderIds);
     this.changeDetector.markForCheck();
+  }
+
+  atualizarQuantidades(): void {
+    if (!this.sessionActive || this.loadingQuantities) return;
+    this.quantitiesKey = '';
+    this.refreshQuantities();
+    this.changeDetector.markForCheck();
+  }
+
+  private refreshQuantities(): void {
+    const snapshot = this.view;
+    const area = snapshot.area;
+    const center = snapshot.workCenter;
+    const key = this.sessionActive && area && center && snapshot.composition.length
+      ? JSON.stringify([area.code, center.code, snapshot.batchId,
+        snapshot.composition.map(order => [order.id, order.ordem, order.operacao, order.split]),
+        snapshot.history.map(report => report.idempotencyKey)])
+      : '';
+    if (key === this.quantitiesKey) return;
+    this.quantitiesKey = key;
+    const request = ++this.quantitiesRequest;
+    this.quantitiesSubscription?.unsubscribe();
+    this.quantities = [];
+    this.loadingQuantities = Boolean(key);
+    if (!key || !area || !center) return;
+    this.quantitiesSubscription = this.service.consultarQuantidadesOrdens(
+      { areaCode: area.code, workCenterCode: center.code }, snapshot.composition, snapshot.batchId,
+    ).pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef)).subscribe(quantities => {
+      if (request !== this.quantitiesRequest || !this.sessionActive) return;
+      this.quantities = quantities;
+      this.loadingQuantities = false;
+      this.changeDetector.markForCheck();
+    });
   }
 
   private resetCurrentBatch(): void {

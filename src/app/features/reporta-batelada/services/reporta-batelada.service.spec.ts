@@ -153,6 +153,55 @@ describe('ReportaBateladaService', () => {
     service = TestBed.inject(ReportaBateladaService);
   });
 
+  it('queries AbrirApontamento per order with the selected area and center, preserving remote balances', async () => {
+    catalogMock.carregarOrdemSelecionada.mockImplementation(selected => of({
+      sucesso: true, operacao: {
+        ...startedOperation(selected, new Date(), '08:00'),
+        quantidadeOrdem: selected.id === '1' ? 1000 : 500,
+        quantidadeSaldo: selected.id === '1' ? -25.5 : 0,
+      },
+    }));
+    expect(await firstValueFrom(service.consultarQuantidadesOrdens(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' }, [order('2'), order('1')],
+    ))).toEqual([
+      { orderId: '2', quantidadeOrdem: 500, quantidadeSaldo: 0 },
+      { orderId: '1', quantidadeOrdem: 1000, quantidadeSaldo: -25.5 },
+    ]);
+    expect(catalogMock.carregarOrdemSelecionada).toHaveBeenCalledWith(expect.objectContaining({
+      id: '2', split: '01', areaCode: '4001', workCenterCode: 'CT-EXT-01',
+    }));
+    expect(capture).not.toHaveBeenCalled();
+    expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it('does not turn missing values or an individual query failure into zero', async () => {
+    catalogMock.carregarOrdemSelecionada.mockImplementation(selected => selected.id === '2'
+      ? throwError(() => new Error('offline'))
+      : of({ sucesso: true, operacao: { ...startedOperation(selected, new Date(), '08:00'), quantidadeSaldo: undefined } }));
+    expect(await firstValueFrom(service.consultarQuantidadesOrdens(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' }, [order('1'), order('2')],
+    ))).toEqual([
+      { orderId: '1', quantidadeOrdem: 100, quantidadeSaldo: null },
+      { orderId: '2', quantidadeOrdem: null, quantidadeSaldo: null },
+    ]);
+  });
+
+  it('rejects another operation identity and uses the split confirmed at batch start', async () => {
+    apiPost.mockImplementationOnce((_url: string, body: { ordens: ReadonlyArray<{ id: string }> }, key: string) => of({
+      serverRecordId: 'start', idempotencyKey: key, receivedAt: '2026-08-18T12:00:01.000Z', processedAt: '2026-08-18T12:00:01.000Z', duplicate: false,
+      orderResults: body.ordens.map(ordem => ({ orderId: ordem.id, success: true, split: '3' })),
+    }));
+    const inicio = await startBatch();
+    catalogMock.carregarOrdemSelecionada.mockImplementation(selected => of({
+      sucesso: true, operacao: { ...startedOperation(selected, new Date(), '08:00'), op: '99' },
+    }));
+    const results = await firstValueFrom(service.consultarQuantidadesOrdens(
+      { areaCode: '4001', workCenterCode: 'CT-EXT-01' }, [order('1'), order('2')], inicio.batchId,
+    ));
+    expect(catalogMock.carregarOrdemSelecionada).toHaveBeenCalledWith(expect.objectContaining({ split: '3' }));
+    expect(results.every(item => item.quantidadeOrdem === null && item.quantidadeSaldo === null)).toBe(true);
+  });
+
   it('REP-02 queries opening without interpreting its payload or capturing commands', async () => {
     const payload = { opaque: [1, 2] };
     apiGet.mockReturnValue(of(payload));

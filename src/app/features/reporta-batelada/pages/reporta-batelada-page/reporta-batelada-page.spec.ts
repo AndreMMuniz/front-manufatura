@@ -41,6 +41,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
   const session$ = new BehaviorSubject<unknown>({ user: 'operador' });
   let serviceMock: {
     listarAreas: ReturnType<typeof vi.fn>;
+    consultarQuantidadesOrdens: ReturnType<typeof vi.fn>;
     pesquisarCentros: ReturnType<typeof vi.fn>;
     listarOrdensLiberadas: ReturnType<typeof vi.fn>;
     listarResponsaveisElegiveis: ReturnType<typeof vi.fn>;
@@ -70,6 +71,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     session$.next({ user: 'operador' });
     serviceMock = {
       listarAreas: vi.fn(() => of([{ code: '4001', description: 'Produção' }])),
+      consultarQuantidadesOrdens: vi.fn(() => of([])),
       pesquisarCentros: vi.fn(() => of([context().workCenter])),
       listarOrdensLiberadas: vi.fn(() => of(orders())),
       listarResponsaveisElegiveis: vi.fn(() => of([])),
@@ -136,6 +138,37 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     fixture = TestBed.createComponent(ReportaBateladaPage);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('queries quantities only for the current composition and refreshes after start/report', () => {
+    expect(serviceMock.consultarQuantidadesOrdens).not.toHaveBeenCalled();
+    prepareForStart();
+    expect(serviceMock.consultarQuantidadesOrdens).toHaveBeenCalledOnce();
+    component.iniciarBatelada();
+    expect(serviceMock.consultarQuantidadesOrdens).toHaveBeenCalledTimes(2);
+    component.salvarReporte(reportDraft('quantity-refresh'));
+    expect(serviceMock.consultarQuantidadesOrdens).toHaveBeenCalledTimes(3);
+    expect(serviceMock.consultarQuantidadesOrdens.mock.calls.at(-1)![2]).toBe('batch-1');
+    component.atualizarQuantidades();
+    expect(serviceMock.consultarQuantidadesOrdens).toHaveBeenCalledTimes(4);
+  });
+
+  it('discards quantity responses when the context changes and after logout', () => {
+    const pending = new Subject<ReadonlyArray<{ orderId: string; quantidadeOrdem: number; quantidadeSaldo: number }>>();
+    serviceMock.consultarQuantidadesOrdens.mockReturnValue(pending);
+    prepareForStart();
+    expect(component.loadingQuantities).toBe(true);
+    component.selecionarAreaInput('4002');
+    pending.next([{ orderId: '1', quantidadeOrdem: 1000, quantidadeSaldo: 800 }]);
+    expect(component.quantities).toEqual([]);
+    expect(component.loadingQuantities).toBe(false);
+    component.selecionarArea('4001');
+    component.selecionarCentro('CT-EXT-01');
+    prepareForStart();
+    session$.next(null);
+    pending.next([{ orderId: '1', quantidadeOrdem: 1000, quantidadeSaldo: 700 }]);
+    expect(component.quantities).toEqual([]);
+    expect(component.loadingQuantities).toBe(false);
   });
 
   it('prefills Area and CT from a BATCH operational context', () => {

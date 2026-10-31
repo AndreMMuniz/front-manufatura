@@ -38,6 +38,9 @@
     @if (view.composition.length > 0) {
       <app-ordens-selecionadas-batelada
         [orders]="view.composition"
+      [quantities]="quantities"
+      [loadingQuantities]="loadingQuantities"
+      (refreshQuantities)="atualizarQuantidades()"
         [totals]="workflowTotals"
         [batchTotals]="workflowBatchTotals"
         [locked]="started"

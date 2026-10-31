@@ -695,6 +695,35 @@ test.describe('fluxo de Reporte Batelada', () => {
   });
 });
 
+test('REP-02 mostra quantidades por ordem e preserva zero, erro e layout móvel', async ({ page, context }) => {
+  await login(page);
+  await page.getByRole('link', { name: 'Reporte Batelada', exact: true }).click();
+  await selectProductionContext(page);
+  await selectOrderWithKeyboard(page, '450001');
+  await selectOrderWithKeyboard(page, '450002');
+  await page.getByRole('button', { name: 'Abrir batelada', exact: true }).click();
+  const table = page.getByRole('table', { name: 'Composição da batelada' });
+  const first = table.getByRole('row').filter({ hasText: '450001' });
+  const second = table.getByRole('row').filter({ hasText: '450002' });
+  await expect(first.locator('[data-label="Quantidade da ordem"]')).toHaveText('500,000');
+  await expect(first.locator('[data-label="Quantidade de saldo"]')).toHaveText('320,000');
+  await expect(second.locator('[data-label="Quantidade da ordem"]')).toHaveText('400,000');
+  await expect(second.locator('[data-label="Quantidade de saldo"]')).toHaveText('250,000');
+  await context.route('**/api/production-orders/450001/operations/**', async route => {
+    await route.fulfill({ json: {
+      ordem: '450001', op: '10', split: '01', ct: 'CT-EXT-01', quantidadeOrdem: 500, quantidadeSaldo: 0,
+    } });
+  });
+  await context.route('**/api/production-orders/450002/operations/**', route => route.abort());
+  await page.getByRole('button', { name: 'Atualizar quantidades', exact: true }).click();
+  await expect(first.locator('[data-label="Quantidade de saldo"]')).toHaveText('0,000');
+  await expect(second.locator('[data-label="Quantidade de saldo"]')).toHaveText('Indisponível');
+  await expect(page.getByRole('region', { name: 'Consolidado da batelada' })).toContainText('Total: 0,000');
+  await page.setViewportSize({ width: 480, height: 800 });
+  await expect(first.locator('[data-label="Quantidade da ordem"]')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
 test('REP-04 encerra e inicia nova batelada pela área recente sem recarregar', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: 'Reporte Batelada', exact: true }).click();

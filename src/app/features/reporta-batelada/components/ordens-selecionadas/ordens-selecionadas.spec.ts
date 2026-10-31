@@ -56,6 +56,23 @@ describe('OrdensSelecionadasBatelada', () => {
     expect(fixture.debugElement.queryAll(By.css('input'))).toHaveLength(0);
   });
 
+  it('shows remote quantities by order identity, distinguishing zero from unavailable', () => {
+    fixture.componentRef.setInput('quantities', [
+      { orderId: '1', quantidadeOrdem: 1000, quantidadeSaldo: 750.25 },
+      { orderId: '2', quantidadeOrdem: 400, quantidadeSaldo: 0 },
+    ]);
+    fixture.detectChanges();
+    const rows = fixture.debugElement.queryAll(By.css('tbody tr'));
+    expect(rows[0].query(By.css('[data-label="Quantidade da ordem"]')).nativeElement.textContent).toContain('400,000');
+    expect(rows[0].query(By.css('[data-label="Quantidade de saldo"]')).nativeElement.textContent).toContain('0,000');
+    expect(rows[1].query(By.css('[data-label="Quantidade da ordem"]')).nativeElement.textContent).toContain('1.000,000');
+    expect(rows[1].query(By.css('[data-label="Quantidade de saldo"]')).nativeElement.textContent).toContain('750,250');
+    fixture.componentRef.setInput('quantities', []);
+    fixture.detectChanges();
+    expect(rows[0].query(By.css('[data-label="Quantidade de saldo"]')).nativeElement.textContent).toContain('Indisponível');
+    expect(fixture.nativeElement.textContent).toContain('19,875');
+  });
+
   it('announces that the composition is locked after start', () => {
     fixture.componentRef.setInput('locked', true);
     fixture.detectChanges();
