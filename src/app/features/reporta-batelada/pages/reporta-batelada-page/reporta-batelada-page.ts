@@ -195,6 +195,11 @@ export class ReportaBateladaPage implements OnInit {
     return this.workflow.totalsByOrder();
   }
 
+  get recentContextsLocked(): boolean {
+    return !this.sessionActive
+      || (this.contextLocked && this.view.estado !== EstadoBatelada.Encerrada);
+  }
+
   get workflowBatchTotals(): TotaisBatelada {
     return this.workflow.batchTotals();
   }
@@ -322,8 +327,12 @@ export class ReportaBateladaPage implements OnInit {
   }
 
   selecionarContextoRecente(context: RecentProductionContext): void {
-    this.selecionarAreaInput(context.areaCode);
-    this.carregarCentros(context.areaCode);
+    if (this.recentContextsLocked || this.loadingCenters || this.view.estado === EstadoBatelada.ConsultandoOrdens) return;
+    const areaCode = this.normalizeCode(context.areaCode);
+    if (!areaCode) return;
+    if (this.view.estado === EstadoBatelada.Encerrada) this.resetCurrentBatch();
+    this.selecionarAreaInput(areaCode);
+    this.carregarCentros(areaCode);
   }
 
   selecionarCentro(code: string): void {
@@ -932,7 +941,7 @@ export class ReportaBateladaPage implements OnInit {
           this.endIdempotencyKey = null;
           this.notification.success('Salvo neste dispositivo — envio pendente.');
           this.syncView();
-          void this.router.navigate(['/work-center']);
+          this.reportSlide?.voltar();
         },
         error: () => {
           if (!this.isCurrentBatchRequest(request, this.endingRequest, batchId)) {

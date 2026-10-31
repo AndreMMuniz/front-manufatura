@@ -235,7 +235,7 @@ export class ReporteBateladaSlide implements OnDestroy {
   voltar(): void {
     if (!this.hasDraft) {
       this.pwaWorkState.setCaptureActive('batch-report', false);
-      this.pageSlide.close();
+      if (!this.pageSlide.hidden) this.pageSlide.close();
       return;
     }
 

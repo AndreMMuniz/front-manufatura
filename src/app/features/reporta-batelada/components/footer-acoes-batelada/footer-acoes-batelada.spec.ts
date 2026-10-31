@@ -16,6 +16,7 @@ describe('FooterAcoesBatelada', () => {
     expect(buttons.map(button => button.componentInstance.label())).toEqual([
       'Iniciar',
       'Reporte',
+      'Encerrar',
       'Sair',
     ]);
     expect(buttons[0].componentInstance.disabled).toBe(true);
@@ -26,14 +27,17 @@ describe('FooterAcoesBatelada', () => {
     const fixture = TestBed.createComponent(FooterAcoesBatelada);
     fixture.componentRef.setInput('startDisabled', false);
     fixture.componentRef.setInput('reportDisabled', false);
+    fixture.componentRef.setInput('endDisabled', false);
     fixture.detectChanges();
 
     const start = vi.fn();
     const report = vi.fn();
     const sair = vi.fn();
+    const end = vi.fn();
     fixture.componentInstance.start.subscribe(start);
     fixture.componentInstance.report.subscribe(report);
     fixture.componentInstance.sair.subscribe(sair);
+    fixture.componentInstance.end.subscribe(end);
 
     const buttons = fixture.debugElement.queryAll(By.css('po-button'));
     buttons.forEach(button => button.componentInstance.onClick());
@@ -41,5 +45,6 @@ describe('FooterAcoesBatelada', () => {
     expect(start).toHaveBeenCalledOnce();
     expect(report).toHaveBeenCalledOnce();
     expect(sair).toHaveBeenCalledOnce();
+    expect(end).toHaveBeenCalledOnce();
   });
 });

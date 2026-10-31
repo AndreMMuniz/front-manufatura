@@ -882,7 +882,7 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
     expect(serviceMock.reportarBateladaParcial).toHaveBeenCalledOnce();
   });
 
-  it('ends after a confirmed final report and returns to work center', () => {
+  it('ends after a confirmed final report and stays available for a new batch', () => {
     prepareForStart();
     component.iniciarBatelada();
 
@@ -899,7 +899,86 @@ describe('ReportaBateladaPage - consulta e seleção', () => {
       expect.objectContaining({ finalizarSplit: true }),
     );
     expect(component.view.estado).toBe('Encerrada');
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/work-center']);
+    expect(routerMock.navigate).not.toHaveBeenCalled();
+  });
+
+  it('REP-04 starts a clean second cycle from a recent area after ending', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    component.salvarReporte({ ...reportDraft('first-final'), finalizarSplit: true });
+    component.recentContexts = [{ areaCode: '4001', lastUsedAt: '2026-10-31T12:00:00Z' }];
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector('.contexto-producao__recent-button') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    button.click();
+    fixture.detectChanges();
+    expect(component.view).toMatchObject({
+      batchId: null, inicio: null, encerramento: null, workCenter: null,
+      composition: [], orders: [], selectedOrderIds: [], history: [], draft: null, responsavel: null,
+    });
+    expect(component.selectedIds.size).toBe(0);
+    component.selecionarCentro('CT-EXT-01');
+    prepareForStart();
+    serviceMock.iniciarBatelada.mockReturnValueOnce(of({
+      batchId: 'batch-2', iniciadoEm: new Date(), ordensIniciadas: ['1', '2'],
+      delivery: { status: 'SYNCED', receipt: {} },
+    }));
+    component.iniciarBatelada();
+    expect(component.view.batchId).toBe('batch-2');
+    expect(component.view.history).toEqual([]);
+    expect(serviceMock.iniciarBatelada).toHaveBeenCalledTimes(2);
+    expect(serviceMock.encerrarBatelada).toHaveBeenCalledOnce();
+    component.salvarReporte({ ...reportDraft('second-final'), finalizarSplit: true });
+    expect(component.view.estado).toBe('Encerrada');
+    expect(serviceMock.encerrarBatelada).toHaveBeenCalledTimes(2);
+    expect(serviceMock.encerrarBatelada.mock.calls[1][0].batchId).toBe('batch-2');
+    expect(serviceMock.encerrarBatelada.mock.calls[1][0].dependencyIds).toEqual(['second-final']);
+  });
+
+  it('REP-04 exposes the final report through the ending action', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    fixture.detectChanges();
+    const button = fixture.debugElement.queryAll(By.css('app-footer-acoes-batelada po-button'))
+      .find(item => item.componentInstance.label() === 'Encerrar');
+    expect(button).toBeDefined();
+    button!.triggerEventHandler('p-click');
+    expect(dialogMock.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Encerrar batelada?' }));
+  });
+
+  it('REP-04 discards old history responses and does not reuse composition on a missing area', () => {
+    const pending = new Subject<ReadonlyArray<ReporteParcialBatelada>>();
+    prepareForStart();
+    component.iniciarBatelada();
+    serviceMock.listarReportesBatelada.mockReturnValueOnce(pending);
+    component.abrirReporte();
+    component.salvarReporte({ ...reportDraft('last'), finalizarSplit: true });
+    serviceMock.pesquisarCentros.mockReturnValueOnce(of([]));
+    component.selecionarContextoRecente({ areaCode: '9999', lastUsedAt: '' });
+    pending.next([confirmedReport('stale')]);
+    expect(component.view.batchId).toBeNull();
+    expect(component.view.history).toEqual([]);
+    expect(component.view.composition).toEqual([]);
+    expect(component.view.workCenter).toBeNull();
+    expect(notificationMock.warning).toHaveBeenCalledWith(expect.stringContaining('9999'));
+  });
+
+  it('REP-04 ignores recent context clicks while active or sending', () => {
+    prepareForStart();
+    component.iniciarBatelada();
+    const draft = reportDraft('protected');
+    component.atualizarRascunho(draft);
+    const before = component.view;
+    serviceMock.pesquisarCentros.mockClear();
+    component.selecionarContextoRecente({ areaCode: '4002', lastUsedAt: '' });
+    expect(serviceMock.pesquisarCentros).not.toHaveBeenCalled();
+    expect(component.view).toEqual(before);
+    const pending = new Subject<ReturnType<typeof confirmedReport>>();
+    serviceMock.reportarBateladaParcial.mockReturnValueOnce(pending);
+    component.salvarReporte(draft);
+    component.selecionarContextoRecente({ areaCode: '4002', lastUsedAt: '' });
+    expect(serviceMock.pesquisarCentros).not.toHaveBeenCalled();
+    expect(component.view.estado).toBe('ReportandoParcial');
   });
 
   it('does not end or alter the batch when confirmation is cancelled', () => {

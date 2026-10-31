@@ -102,6 +102,22 @@ describe('ContextoProducaoSelector', () => {
     expect(values).toEqual([' 4104 ']);
   });
 
+  it('permite liberar somente os recentes e mantém o bloqueio durante carregamento', () => {
+    fixture.componentRef.setInput('recentContexts', [{ areaCode: '4001', lastUsedAt: '' }]);
+    fixture.componentRef.setInput('disabled', true);
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector('.contexto-producao__recent-button') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fixture.componentRef.setInput('recentContextsDisabled', false);
+    fixture.detectChanges();
+    expect(button.disabled).toBe(false);
+    expect(component.centerDisabled).toBe(true);
+    expect(component.actionDisabled).toBe(true);
+    fixture.componentRef.setInput('loadingCenters', true);
+    fixture.detectChanges();
+    expect(button.disabled).toBe(true);
+  });
+
   it('mostra os contextos recentes e emite a escolha sem aceitá-la localmente', () => {
     const recent: RecentProductionContext = {
       areaCode: '4104', lastUsedAt: '2026-08-17T12:00:00.000Z',

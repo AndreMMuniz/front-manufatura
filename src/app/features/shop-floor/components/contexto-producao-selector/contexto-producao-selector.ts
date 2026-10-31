@@ -29,6 +29,7 @@ export class ContextoProducaoSelector {
   @Input() loadingCenters = false;
   @Input() loadingAction = false;
   @Input() disabled = false;
+  @Input() recentContextsDisabled: boolean | undefined;
   @Input() consultBlocked = false;
   @Input() showAction = true;
   @Input() actionLabel = 'Consultar ordens';

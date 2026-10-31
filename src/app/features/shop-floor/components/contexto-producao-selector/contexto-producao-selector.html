@@ -41,7 +41,7 @@
         <button
           class="contexto-producao__recent-button"
           type="button"
-          [disabled]="disabled || loadingCenters || loadingAction"
+          [disabled]="(recentContextsDisabled ?? disabled) || loadingCenters || loadingAction"
           (click)="recentContextSelect.emit(context)"
         >
           {{ context.areaCode }}

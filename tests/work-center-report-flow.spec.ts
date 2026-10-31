@@ -695,6 +695,47 @@ test.describe('fluxo de Reporte Batelada', () => {
   });
 });
 
+test('REP-04 encerra e inicia nova batelada pela área recente sem recarregar', async ({ page }) => {
+  await login(page);
+  await page.getByRole('link', { name: 'Reporte Batelada', exact: true }).click();
+  await selectProductionContext(page);
+  for (let cycle = 0; cycle < 2; cycle++) {
+    if (cycle > 0) {
+      const recent = page.getByRole('button', { name: '4001', exact: true });
+      await expect(recent).toBeEnabled();
+      await recent.focus();
+      await page.keyboard.press('Enter');
+      const center = page.getByRole('combobox', { name: 'Centro de Trabalho' });
+      await expect(center).toBeEnabled();
+      await center.selectOption('CT-EXT-01');
+      await expect(page.getByRole('table', { name: 'Composição da batelada' })).toHaveCount(0);
+      await page.getByRole('button', { name: 'Consultar ordens', exact: true }).click();
+    }
+    await selectOrderWithKeyboard(page, '450001');
+    await selectOrderWithKeyboard(page, '450002');
+    await page.getByRole('button', { name: 'Abrir batelada', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Operador', exact: true }).fill('OP-001');
+    await page.getByRole('button', { name: 'Iniciar', exact: true }).click();
+    await expect(page.getByRole('button', { name: '4001', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Encerrar', exact: true }).click();
+    await page.getByRole('button', { name: 'Informar reporte final', exact: true }).click();
+    const drawer = page.locator('app-reporte-batelada-slide');
+    await expect(drawer.getByText('Nenhum reporte realizado nesta batelada.')).toBeVisible();
+    for (const order of ['450001', '450002']) {
+      await drawer.locator('article').filter({ hasText: `Ordem ${order}` })
+        .getByRole('spinbutton', { name: 'Qtde Aprovada', exact: true }).fill('1');
+    }
+    await drawer.getByRole('button', { name: 'Salvar reporte', exact: true }).click();
+    await expect(page.getByRole('button', { name: '4001', exact: true })).toBeEnabled();
+    await expect(page).toHaveURL(/\/batch-reporting$/);
+    await expect.poll(async () => (await readOperationalOutbox(page)).filter(entry => entry.commandType === 'END_BATCH').length).toBe(cycle + 1);
+  }
+  const outbox = await readOperationalOutbox(page);
+  const endings = outbox.filter(entry => entry.commandType === 'END_BATCH');
+  expect(new Set(endings.map(entry => entry.payload.batchId)).size).toBe(2);
+  expect(outbox.filter(entry => entry.commandType === 'REPORT_BATCH')).toHaveLength(2);
+});
+
 for (const batch of [false, true]) {
   test('REP-01 motivos independentes ' + (batch ? 'Batelada' : 'Ordem'), async ({ page }) => {
     await page.setViewportSize({ width: 480, height: 800 });
