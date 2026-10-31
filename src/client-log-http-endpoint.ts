@@ -1,7 +1,6 @@
 import express, {
   type Application,
   type ErrorRequestHandler,
-  type Request,
   type RequestHandler,
 } from 'express';
 
@@ -12,6 +11,7 @@ import {
 import type { AppLogLevel, ApplicationLogger, LogMetadata } from './logging/log-contracts';
 import { sanitizeLogMetadata } from './logging/log-sanitizer';
 import { getRequestCorrelationId } from './server-observability';
+import { clientIp } from './client-ip';
 
 const CLIENT_LOG_PATH = '/api/client-logs';
 const WINDOW_MS = 60_000;
@@ -120,10 +120,6 @@ function removeExpiredBuckets(buckets: Map<string, RateBucket>, now: number): vo
   for (const [ip, bucket] of buckets) {
     if (now - bucket.startedAt >= WINDOW_MS) buckets.delete(ip);
   }
-}
-
-function clientIp(req: Request): string {
-  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }
 
 function safeNow(clock: () => number): number {

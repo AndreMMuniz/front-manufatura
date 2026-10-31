@@ -2,6 +2,7 @@ import { validateReportReasons, roundReportQuantity, MotivoReporte } from './rep
 import express, { type Application, type Request, type Response as ExpressResponse } from 'express';
 
 import { APP_PERMISSIONS } from './app-permissions';
+import { forwardedClientIp } from './client-ip';
 import { verifyAppSessionToken } from './app-session-token';
 import {
   QualityControlGatewayError,
@@ -845,6 +846,7 @@ class FmaClient {
   constructor(
     readonly subject: string,
     private readonly dependencies: FmaEndpointDependencies,
+    private readonly forwardedFor: string,
   ) {
     this.config = readQualityControlDatasulConfig(dependencies.env);
   }
@@ -881,6 +883,7 @@ class FmaClient {
           method,
           headers: {
             Accept: 'application/json', Authorization: `Basic ${authorization}`,
+            'X-Forwarded-For': this.forwardedFor,
             ...(body ? { 'Content-Type': 'application/json' } : {}),
           },
           ...(body ? { body: JSON.stringify(body) } : {}),
@@ -927,7 +930,7 @@ async function handle(
 ): Promise<void> {
   try {
     const userId = await resolveUser(req.header('authorization') ?? '', dependencies, req.path);
-    res.status(200).json(await operation(new FmaClient(userId, dependencies)));
+    res.status(200).json(await operation(new FmaClient(userId, dependencies, forwardedClientIp(req))));
   } catch (error) {
     if (error instanceof FmaPublicCommandError) {
       res.status(error.status).json(error.publicBody);

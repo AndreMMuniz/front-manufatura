@@ -21,6 +21,42 @@ const ENV = {
 type RunningServer = ReturnType<ReturnType<typeof express>['listen']>;
 const servers: RunningServer[] = [];
 
+describe('REP-05 origin IP forwarding', () => {
+  it.each([undefined, '10.101.1.7, 10.101.1.8'])('appends the Node peer to the existing chain: %s', async chain => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json({}));
+    const root = await startGateway(transport);
+    const result = await fetch(`${root}/api/batches/open?areaCode=4113&workCenterCode=LASER-01-01&ordens=393591-10`, {
+      headers: {
+        authorization: `Bearer ${await token([APP_PERMISSIONS.batchReporting])}`,
+        ...(chain ? { 'x-forwarded-for': chain } : {}),
+      },
+    });
+    expect(result.status).toBe(200);
+    const headers = new Headers(transport.mock.calls[0][1]?.headers);
+    expect(headers.get('x-forwarded-for')).toBe(chain ? '10.101.1.7, 10.101.1.8, 127.0.0.1' : '127.0.0.1');
+    expect(headers.get('authorization')).toBe(`Basic ${Buffer.from('integracao:segredo-tecnico').toString('base64')}`);
+  });
+
+  it('keeps concurrent command origins separate', async () => {
+    const transport = vi.fn<typeof fetch>().mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      return response('iniciosOrdemBatelada', [
+        { nrOrdemProducao: 372569, opCodigo: 20, numSplitOperac: 2 },
+        { nrOrdemProducao: 372570, opCodigo: 20, numSplitOperac: 3 },
+      ]);
+    });
+    const root = await startGateway(transport);
+    const results = await Promise.all([
+      postBatchStart(root, 'origin-a', '10.101.2.10'),
+      postBatchStart(root, 'origin-b', '::ffff:10.101.2.11'),
+    ]);
+    expect(results.map(result => result.status)).toEqual([200, 200]);
+    expect(transport.mock.calls.map(call => new Headers(call[1]?.headers).get('x-forwarded-for')).sort()).toEqual([
+      '10.101.2.10, 127.0.0.1', '::ffff:10.101.2.11, 127.0.0.1',
+    ]);
+  });
+});
+
 describe('REP-02 batch opening transport', () => {
   const query = 'areaCode=4113&workCenterCode=LASER-01-01&ordens=393591-10,393592-10,393593-10';
 
@@ -120,6 +156,7 @@ describe('REP-01 v2 gateway', () => {
     const result = await fetch(`${root}/api/${batch ? 'batches' : 'operations'}/report`, { method: 'POST', headers, body: JSON.stringify(body) });
     expect(result.status).toBe(200);
     const sent = JSON.parse(String(transport.mock.calls[1][1]?.body));
+    expect(new Headers(transport.mock.calls[1][1]?.headers).get('x-forwarded-for')).toBe('127.0.0.1');
     const split = batch ? sent.splits[0] : sent;
     expect(split).toEqual(expect.objectContaining({ qtdRetrabalho: 5, qtdRefugada: 2, codMotivoRefugo: '', motivos: [
       { codMotivo: '01', qtdRetrabalho: 5, qtdRefugada: 0 },
@@ -191,13 +228,14 @@ function response(dataset: string, rows: unknown[]): Response {
   });
 }
 
-async function postBatchStart(root: string, idempotencyKey: string): Promise<Response> {
+async function postBatchStart(root: string, idempotencyKey: string, forwardedFor?: string): Promise<Response> {
   return fetch(`${root}/api/batches/start`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${await token([APP_PERMISSIONS.batchReporting])}`,
       'content-type': 'application/json',
       'idempotency-key': idempotencyKey,
+      ...(forwardedFor ? { 'x-forwarded-for': forwardedFor } : {}),
     },
     body: JSON.stringify({
       contexto: { areaCode: '4114', workCenterCode: 'DOBR-01-01' },
@@ -788,11 +826,13 @@ describe('gateway FMA', () => {
       success: true,
     })));
     expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciarordembatelada');
+    expect(new Headers(transport.mock.calls[0][1]?.headers).get('x-forwarded-for')).toBe('127.0.0.1');
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({
       codOperador: ' op.int/7-a ',
       codEquipe: '',
     }));
     expect(String(transport.mock.calls[1][0])).toContain('/api/fma/v1/reporteordembatelada');
+    expect(new Headers(transport.mock.calls[1][1]?.headers).get('x-forwarded-for')).toBe('127.0.0.1');
     expect(JSON.parse(String(transport.mock.calls[1][1]?.body)).splits).toEqual([
       expect.objectContaining({ nrOrdemProducao: 372569, numSplitOperac: 2 }),
       expect.objectContaining({ nrOrdemProducao: 372570, numSplitOperac: 3 }),
@@ -1355,6 +1395,7 @@ describe('gateway FMA', () => {
     expect(String(transport.mock.calls[1]?.[0])).toBe(
       'https://datasul.example.test/api/fcq/v1/ordens/370215?companyId=1&codUsuario=mjocelio',
     );
+    expect(new Headers(transport.mock.calls[0][1]?.headers).get('x-forwarded-for')).toBe('127.0.0.1');
   });
 
   it('preserva o modo de reporte da abertura sem converter valores inválidos', async () => {
@@ -1435,6 +1476,7 @@ describe('gateway FMA', () => {
     await expect(result.json()).resolves.toEqual(expect.objectContaining({ idempotencyKey: '123e4567-e89b-42d3-a456-426614174000', duplicate: false, businessResult: { split: '2' } }));
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({ codOperador: ' op.int/7-a ', codEquipe: '', dataInicioReporte: '2026-07-21', horaInicioReporte: '09:35' }));
     expect(String(transport.mock.calls[0][0])).toContain('/api/fma/v1/iniciaordem?companyId=1&codUsuario=mjocelio');
+    expect(new Headers(transport.mock.calls[0][1]?.headers).get('x-forwarded-for')).toBe('127.0.0.1');
   });
 
   it('preserva o motivo de negócio quando o Datasul rejeita o início com HTTP 500', async () => {
